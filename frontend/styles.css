@@ -375,6 +375,35 @@ h1 {
   margin-bottom: 10px;
 }
 
+.workflow-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.action-button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.action-button:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.action-button:disabled {
+  opacity: 0.45;
+}
+
 .run-state {
   padding: 5px 10px;
   border-radius: 999px;
@@ -449,19 +478,17 @@ h1 {
   background: #ffffff;
 }
 
-.node-card.status-done {
+.node-card.status-passed {
   border-left-color: var(--green);
 }
 
-.node-card.status-attention {
+.node-card.status-repairable,
+.node-card.status-needs_confirmation {
   border-left-color: var(--amber);
 }
 
-.node-card.status-ready {
-  border-left-color: var(--violet);
-}
-
-.node-card.status-locked {
+.node-card.status-blocked,
+.node-card.status-failed {
   border-left-color: var(--red);
 }
 
@@ -511,25 +538,22 @@ h1 {
   white-space: nowrap;
 }
 
-.status-done .node-status,
+.status-passed .node-status,
 .status-passed {
   background: var(--green-soft);
   color: var(--green);
 }
 
-.status-attention .node-status,
+.status-repairable .node-status,
+.status-needs_confirmation .node-status,
 .status-repairable,
 .status-needs_confirmation {
   background: var(--amber-soft);
   color: var(--amber);
 }
 
-.status-ready .node-status {
-  background: var(--violet-soft);
-  color: var(--violet);
-}
-
-.status-locked .node-status,
+.status-blocked .node-status,
+.status-failed .node-status,
 .status-blocked,
 .status-failed {
   background: var(--red-soft);
@@ -709,7 +733,8 @@ h1 {
   .topbar,
   .main-layout,
   .workflow-grid,
-  .summary-grid {
+  .summary-grid,
+  .workflow-actions {
     grid-template-columns: 1fr;
   }
 

@@ -1,11 +1,13 @@
 (function () {
-  const job = window.mockLaunchJob;
+  let job = null;
+  let busy = false;
 
   const statusLabels = {
-    done: "完成",
-    attention: "需关注",
-    ready: "可生成",
-    locked: "已锁定",
+    passed: "通过",
+    repairable: "可修复",
+    needs_confirmation: "需确认",
+    blocked: "阻断",
+    failed: "失败",
     waiting: "等待"
   };
 
@@ -25,6 +27,28 @@
     return node;
   }
 
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        "content-type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      const error = new Error(body.error || "api_error");
+      error.details = body.details;
+      throw error;
+    }
+    return body;
+  }
+
+  function setBusy(nextBusy) {
+    busy = nextBusy;
+    renderActions();
+  }
+
   function renderAgent() {
     document.getElementById("agentStatus").textContent = `${job.agent.name} · ${job.agent.statusText}`;
     document.getElementById("runState").textContent = job.agent.mode;
@@ -34,7 +58,7 @@
 
     [
       ["路线", job.intake.routeId],
-      ["游戏", job.intake.gameSlug],
+      ["游戏", job.intake.gameCode],
       ["账户", job.intake.advertiserId],
       ["写入策略", job.agent.writePolicy]
     ].forEach(([label, value]) => {
@@ -99,6 +123,15 @@
     });
   }
 
+  function renderActions() {
+    if (!job) return;
+    const actions = job.actions || {};
+    document.getElementById("runDiagnoseButton").disabled = busy || !actions.canDiagnose;
+    document.getElementById("runWorkflowButton").disabled = busy || !actions.canRun;
+    document.getElementById("confirmPlaceholderButton").disabled = busy || !actions.canConfirm;
+    document.getElementById("readbackPlaceholderButton").disabled = busy || !actions.canReadback;
+  }
+
   function renderSummaries() {
     document.getElementById("diagnosticSummary").textContent = job.diagnostics.summary;
     document.getElementById("draftPolicy").textContent = job.draft.writePolicy;
@@ -116,6 +149,13 @@
     hashItem.append(el("span", "", "草稿 Hash"));
     hashItem.append(el("strong", "", job.draft.payloadHash));
     fields.append(hashItem);
+
+    if (job.readback) {
+      const readbackItem = el("div", "draft-field is-wide");
+      readbackItem.append(el("span", "", "回查对象名"));
+      readbackItem.append(el("strong", "", job.readback.objectName));
+      fields.append(readbackItem);
+    }
   }
 
   function renderDiagnostics() {
@@ -138,6 +178,35 @@
     });
   }
 
+  function renderAll() {
+    renderAgent();
+    renderChat();
+    renderWorkflow();
+    renderSummaries();
+    renderDiagnostics();
+    renderActions();
+  }
+
+  function showError(error) {
+    addMessage("agent", `执行失败：${error.message}`);
+  }
+
+  async function runJobAction(action) {
+    if (!job || busy) return;
+    setBusy(true);
+    try {
+      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/${action}`, {
+        method: "POST",
+        body: "{}"
+      });
+      renderAll();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function bindInteractions() {
     const popover = document.getElementById("configPopover");
     const configButton = document.getElementById("configButton");
@@ -154,16 +223,39 @@
       }
     });
 
-    document.getElementById("chatForm").addEventListener("submit", (event) => {
+    document.getElementById("chatForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
       if (!text) return;
       addMessage("user", text);
       input.value = "";
-      window.setTimeout(() => {
-        addMessage("agent", "已接收，需求信息已更新。");
-      }, 250);
+      setBusy(true);
+      try {
+        const intake = await api("/api/launch/intake", {
+          method: "POST",
+          body: JSON.stringify({ user_intent: text })
+        });
+        if (intake.missingFields.length) {
+          addMessage("agent", `缺少字段：${intake.missingFields.join("、")}`);
+          return;
+        }
+        job = await api("/api/launch/jobs", {
+          method: "POST",
+          body: JSON.stringify({
+            user_intent: text,
+            route_id: intake.route_id,
+            game_code: intake.game_code,
+            advertiser_id: intake.advertiser_id
+          })
+        });
+        renderAll();
+        addMessage("agent", `已创建任务 ${job.jobId}。`);
+      } catch (error) {
+        showError(error);
+      } finally {
+        setBusy(false);
+      }
     });
 
     const dialog = document.getElementById("diagnosticDialog");
@@ -172,19 +264,24 @@
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) dialog.close();
     });
+
+    document.getElementById("runDiagnoseButton").addEventListener("click", () => runJobAction("diagnose"));
+    document.getElementById("runWorkflowButton").addEventListener("click", () => runJobAction("run"));
+    document.getElementById("confirmPlaceholderButton").addEventListener("click", () => runJobAction("confirm"));
+    document.getElementById("readbackPlaceholderButton").addEventListener("click", () => runJobAction("readback"));
   }
 
-  function init() {
-    if (!job) {
-      document.body.textContent = "页面资源未加载";
-      return;
-    }
-    renderAgent();
-    renderChat();
-    renderWorkflow();
-    renderSummaries();
-    renderDiagnostics();
+  async function init() {
     bindInteractions();
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const jobId = params.get("job_id");
+      job = await api(jobId ? `/api/launch/jobs/${encodeURIComponent(jobId)}` : "/api/launch/jobs/latest");
+      renderAll();
+    } catch (error) {
+      document.getElementById("agentStatus").textContent = "Agent 状态加载失败";
+      showError(error);
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);

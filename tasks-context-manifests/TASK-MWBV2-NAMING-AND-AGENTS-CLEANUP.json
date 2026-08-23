@@ -1,0 +1,64 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP",
+  "task_ref": "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "修正项目启动入口与 std_project 运行时命名规则。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-API-WORKFLOW-CLOSED-LOOP.md",
+    "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
+    "tasks-context-manifests/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.json",
+    "src/workflows/stdProjectNameBuilder.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/smoke-api.mjs"
+  ],
+  "outputs": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
+    "tasks-context-manifests/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.json",
+    "src/workflows/stdProjectNameBuilder.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/smoke-api.mjs"
+  ],
+  "constraints": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "budget_bid_change_allowed": false,
+    "runtime_legacy_project_import_allowed": false,
+    "old_database_write_allowed": false,
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb"
+  },
+  "validation": [
+    "AGENTS.md path scan",
+    "AGENTS.md does not contain docs/方案-新项目最高效启动框架_20260823.md",
+    "project name date comes from launch_jobs.created_at CST or current CST fallback",
+    "sequence occupancy reads launch_drafts.project_name and readback_records.object_name",
+    "two same route/game/advertiser smoke drafts allocate increasing project sequences",
+    "npm run smoke:api",
+    "readback object_name equals draft project_name",
+    "sensitive pattern scan",
+    "legacy runtime dependency scan"
+  ],
+  "executed_commands": [
+    "node --check src/workflows/stdProjectNameBuilder.mjs",
+    "node --check src/workflows/launchWorkflow.mjs",
+    "node --check src/repositories/postgresRepository.mjs",
+    "node --check scripts/smoke-api.mjs",
+    "npm run smoke:api",
+    "rg -n \"docs/方案-新项目最高效启动框架_20260823.md\" AGENTS.md",
+    "rg -n \"from ['\\\"](/Users/hys/Projects/marketing-workbench|../../marketing-workbench)|marketing-workbench/scripts|marketing-workbench/src|child_process.*marketing-workbench\" src scripts package.json",
+    "rg -n \"gameSlug|game_slug|jushou-hunt|rawPayload|rawResponse|raw_payload|raw_response|auth_code|token|cookie|secret|Cookie\" frontend src package.json scripts",
+    "psql -X -d marketing_workbench_v2 -c \"SELECT ...\""
+  ],
+  "next_gate": "真实平台写入前的契约测试与只读平台 adapter。"
+}

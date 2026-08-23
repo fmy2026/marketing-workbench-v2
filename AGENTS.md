@@ -13,7 +13,7 @@
 
 `active_task.read_order` 是活动任务的有序必读清单。第一版任务上下文清单放在 `tasks-context-manifests/`；新任务启动后，应由任务卡和 context manifest 明确必读文件，避免把临时上下文写进长期规则。
 
-稳定文档发现优先看 `docs/方案-新项目最高效启动框架_20260823.md`；投放创建 Agent 方案优先看 `docs/方案-投放创建Agent开发方案_20260823.md`。Markdown 稳定文档只解释规则，不保存动态任务指令。
+稳定文档发现优先看 `docs/plan1-新项目最高效启动框架_20260823.md`；投放创建 Agent 方案优先看 `docs/方案-投放创建Agent开发方案_20260823.md`。Markdown 稳定文档只解释规则，不保存动态任务指令。
 
 ## 真值优先级
 
@@ -23,7 +23,7 @@
 | 活动任务合同 | `project.state.json.active_task.task_ref` |
 | 活动任务上下文 | `project.state.json.active_task.context_manifest_ref` |
 | 必读顺序 | `project.state.json.active_task.read_order` |
-| 新项目启动框架 | `docs/方案-新项目最高效启动框架_20260823.md` |
+| 新项目启动框架 | `docs/plan1-新项目最高效启动框架_20260823.md` |
 | 投放创建 Agent 方案 | `docs/方案-投放创建Agent开发方案_20260823.md` |
 | 前端页面效果参考 | `docs/方案-前端页面效果_html_20260823.html` |
 | 任务卡 | `tasks/` |

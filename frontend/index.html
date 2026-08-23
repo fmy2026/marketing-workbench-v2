@@ -71,6 +71,13 @@
           <span class="run-state" id="runState">待执行</span>
         </div>
 
+        <div class="workflow-actions" aria-label="Workflow 操作">
+          <button class="action-button" id="runDiagnoseButton" type="button">诊断</button>
+          <button class="action-button" id="runWorkflowButton" type="button">生成草稿</button>
+          <button class="action-button" id="confirmPlaceholderButton" type="button">确认占位</button>
+          <button class="action-button" id="readbackPlaceholderButton" type="button">回查占位</button>
+        </div>
+
         <div class="workflow-grid" id="workflowGrid"></div>
 
         <div class="summary-grid">
@@ -118,7 +125,6 @@
     </div>
   </dialog>
 
-  <script src="./mock-launch-job.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

@@ -9,13 +9,13 @@
   },
   "project_status": "awaiting_next_task",
   "phase": {
-    "id": "V2-P2-POSTGRES-MINIMAL-TRUTH-REFINE",
+    "id": "V2-P3-NAMING-AND-AGENTS-CLEANUP",
     "status": "completed",
-    "plan_ref": "docs/方案-新项目最高效启动框架_20260823.md"
+    "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH-REFINE.md",
-  "next_gate": "进入前后端 API + Workflow 闭环。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
+  "next_gate": "真实平台写入前的契约测试与只读平台 adapter。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -46,25 +46,25 @@
   "source_of_truth": {
     "task_cards": "tasks/",
     "task_context_manifests": "tasks-context-manifests/",
-    "startup_framework": "docs/方案-新项目最高效启动框架_20260823.md",
+    "startup_framework": "docs/plan1-新项目最高效启动框架_20260823.md",
     "launch_agent_plan": "docs/方案-投放创建Agent开发方案_20260823.md",
     "frontend_visual_reference": "docs/方案-前端页面效果_html_20260823.html",
-    "frontend_shell": "frontend/index.html + frontend/app.js + frontend/styles.css + frontend/mock-launch-job.js",
-    "server_api": "src/server/",
-    "agent_entrypoints": "src/agents/",
-    "workflow_orchestration": "src/workflows/",
-    "repositories": "src/repositories/",
-    "platform_adapters": "src/platforms/",
+    "frontend_shell": "frontend/index.html + frontend/app.js + frontend/styles.css; mock-launch-job.js is no longer the main data source",
+    "server_api": "src/server/index.mjs",
+    "agent_entrypoints": "src/agents/launchAgent.mjs",
+    "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy",
+    "repositories": "src/repositories/postgresRepository.mjs",
+    "platform_adapters": "src/platforms/oceanenginePlaceholder.mjs",
     "database_migrations_and_seed": "db/",
     "schemas": "schemas/",
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "pending_phase_3_frontend_api_workflow_runtime_state",
-    "launch_jobs": "pending_phase_3_launch_jobs_and_node_runs",
-    "launch_drafts": "pending_phase_3_creation_drafts",
-    "readback_records": "pending_phase_3_readback_placeholders",
-    "evidence_artifacts": "pending_phase_3_redacted_evidence_artifacts",
+    "runtime_state": "phase_3_frontend_api_workflow_runtime_state_completed",
+    "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
+    "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
+    "readback_records": "api_workflow_can_write_placeholder_readback_records",
+    "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence",
     "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"
   }
 }

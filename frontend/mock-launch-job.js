@@ -9,9 +9,9 @@ window.mockLaunchJob = {
     writePolicy: "只读预览"
   },
   intake: {
-    userIntent: "推广路线 oceanengine_3_byte_mini_game，游戏 jushou-hunt，账户 1871922175825993",
+    userIntent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993",
     routeId: "oceanengine_3_byte_mini_game",
-    gameSlug: "jushou-hunt",
+    gameCode: "JSZC",
     advertiserId: "1871922175825993",
     missingFields: []
   },
@@ -22,7 +22,7 @@ window.mockLaunchJob = {
     },
     {
       role: "user",
-      text: "推广路线 oceanengine_3_byte_mini_game，游戏 jushou-hunt，账户 1871922175825993"
+      text: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993"
     },
     {
       role: "agent",
@@ -179,7 +179,7 @@ window.mockLaunchJob = {
     fields: [
       { label: "推广路线", value: "oceanengine_3_byte_mini_game" },
       { label: "创建对象", value: "std_project" },
-      { label: "游戏标识", value: "jushou-hunt" },
+      { label: "游戏标识", value: "JSZC" },
       { label: "账户 ID", value: "1871922175825993" },
       { label: "素材包", value: "保底物料包" },
       { label: "证据", value: "仅保存脱敏摘要和 hash" }
