@@ -1,0 +1,43 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-FRONTEND-SHELL",
+  "task_ref": "tasks/TASK-MWBV2-FRONTEND-SHELL.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "实现 marketing-workbench-v2 第一阶段工作台前端页面效果。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-FRONTEND-SHELL.md",
+    "tasks-context-manifests/TASK-MWBV2-FRONTEND-SHELL.json",
+    "docs/方案-新项目最高效启动框架_20260823.md",
+    "docs/方案-前端页面效果_html_20260823.html",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/mock-launch-job.js"
+  ],
+  "outputs": [
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/mock-launch-job.js"
+  ],
+  "constraints": {
+    "postgres_allowed": false,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "raw_payload_allowed": false,
+    "raw_response_allowed": false,
+    "sensitive_url_allowed": false
+  },
+  "validation": [
+    "project.state.json JSON parse",
+    "frontend mock data syntax check",
+    "static file existence check",
+    "sensitive token pattern scan"
+  ],
+  "next_gate": "建立 Postgres 最小真值表，并填入一个账户、一款游戏、一条路线的样例数据。"
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": "2026-08-23.project-state-v1",
+  "methodology_version": "human-ai-project-v2",
+  "updated_at": "2026-08-23 CST",
+  "project": {
+    "name": "marketing-workbench-v2",
+    "path": "/Users/hys/Projects/marketing-workbench-v2",
+    "type": "local_marketing_agent_workbench_v2"
+  },
+  "project_status": "awaiting_next_task",
+  "phase": {
+    "id": "V2-P2-POSTGRES-MINIMAL-TRUTH-REFINE",
+    "status": "completed",
+    "plan_ref": "docs/方案-新项目最高效启动框架_20260823.md"
+  },
+  "active_task": null,
+  "last_closed_task_ref": "tasks/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH-REFINE.md",
+  "next_gate": "进入前后端 API + Workflow 闭环。",
+  "guardrails": {
+    "platform_write_allowed": false,
+    "platform_write_scope": {
+      "mode": "read_only",
+      "allowed_actions": [],
+      "maximum_actions": 0
+    },
+    "credential_refresh_allowed": false,
+    "budget_bid_change_allowed": false,
+    "long_term_lesson_write_allowed": false,
+    "git_history_rewrite_allowed": false,
+    "external_asset_move_allowed": false,
+    "real_platform_dependency_allowed": false,
+    "existing_deletion_handling_allowed": true,
+    "do_not_start": [
+      "Project 创建或重试",
+      "Promotion 创建或重试",
+      "std_project 创建或重试",
+      "监测链接组创建",
+      "预算/出价修改",
+      "凭据刷新",
+      "未授权真实平台写入",
+      "把 token、Cookie、secret、auth_code 或完整触点 URL 写入项目文件",
+      "直接依赖旧项目路径作为 v2 运行时真值",
+      "未建立任务卡和 context manifest 时推进跨阶段开发"
+    ]
+  },
+  "source_of_truth": {
+    "task_cards": "tasks/",
+    "task_context_manifests": "tasks-context-manifests/",
+    "startup_framework": "docs/方案-新项目最高效启动框架_20260823.md",
+    "launch_agent_plan": "docs/方案-投放创建Agent开发方案_20260823.md",
+    "frontend_visual_reference": "docs/方案-前端页面效果_html_20260823.html",
+    "frontend_shell": "frontend/index.html + frontend/app.js + frontend/styles.css + frontend/mock-launch-job.js",
+    "server_api": "src/server/",
+    "agent_entrypoints": "src/agents/",
+    "workflow_orchestration": "src/workflows/",
+    "repositories": "src/repositories/",
+    "platform_adapters": "src/platforms/",
+    "database_migrations_and_seed": "db/",
+    "schemas": "schemas/",
+    "local_scripts": "scripts/",
+    "private_local_config": ".local/",
+    "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
+    "runtime_state": "pending_phase_3_frontend_api_workflow_runtime_state",
+    "launch_jobs": "pending_phase_3_launch_jobs_and_node_runs",
+    "launch_drafts": "pending_phase_3_creation_drafts",
+    "readback_records": "pending_phase_3_readback_placeholders",
+    "evidence_artifacts": "pending_phase_3_redacted_evidence_artifacts",
+    "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"
+  }
+}

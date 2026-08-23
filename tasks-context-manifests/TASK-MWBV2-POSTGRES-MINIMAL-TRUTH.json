@@ -1,0 +1,57 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-POSTGRES-MINIMAL-TRUTH",
+  "task_ref": "tasks/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "建立 marketing_workbench_v2 的 Postgres 最小真值表和一组样例 seed。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH.md",
+    "tasks-context-manifests/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH.json",
+    "docs/方案-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "db/001_create_database.sql",
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/003_seed_minimal_truth.sql",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "outputs": [
+    "db/001_create_database.sql",
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/003_seed_minimal_truth.sql",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "constraints": {
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb",
+    "old_database_write_allowed": false,
+    "postgres_execution_requires_confirmation": true,
+    "postgres_execution_confirmed": true,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "game_slug_field_allowed": false,
+    "platform_routes_product_field_allowed": false,
+    "sensitive_url_allowed": false,
+    "token_cookie_secret_allowed": false,
+    "raw_payload_allowed": false,
+    "raw_response_allowed": false
+  },
+  "validation": [
+    "SQL files exist",
+    "project.state.json JSON parse",
+    "task context manifest JSON parse",
+    "static scan: no game_slug in db/*.sql",
+    "static scan: no platform_routes product column in db/*.sql",
+    "static scan: platform IDs declared as text",
+    "static scan: no token/Cookie/raw payload/raw response/full URL in db/*.sql"
+  ],
+  "executed_commands": [
+    "psql -X -d postgres -f db/001_create_database.sql",
+    "psql -X -d marketing_workbench_v2 -f db/002_create_mwb_minimal_truth.sql",
+    "psql -X -d marketing_workbench_v2 -f db/003_seed_minimal_truth.sql"
+  ],
+  "next_gate": "进入前后端 API + Workflow 闭环。"
+}

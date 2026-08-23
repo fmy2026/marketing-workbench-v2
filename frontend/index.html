@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>市场推广工作台 · 投放创建</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="workbench-shell">
+    <header class="topbar">
+      <div class="brand-lockup" aria-label="市场推广工作台">
+        <span class="brand-mark" aria-hidden="true">MW</span>
+        <div>
+          <h1>市场推广工作台</h1>
+          <p>投放创建 Agent</p>
+        </div>
+      </div>
+      <nav class="agent-tabs" aria-label="Agent tabs">
+        <button class="agent-tab is-active" type="button">投放创建</button>
+        <button class="agent-tab" type="button" disabled>素材策略</button>
+        <button class="agent-tab" type="button" disabled>归因分析</button>
+        <button class="agent-tab" type="button" disabled>经验检索</button>
+      </nav>
+      <div class="operator-chip">
+        <span class="operator-dot" aria-hidden="true"></span>
+        <span>优化师工作台</span>
+      </div>
+    </header>
+
+    <section class="main-layout">
+      <aside class="chat-panel" aria-label="对话入口">
+        <div class="panel-heading">
+          <div>
+            <h2>对话入口</h2>
+            <p id="agentStatus">Agent 状态加载中</p>
+          </div>
+          <button class="config-button" id="configButton" type="button" aria-expanded="false" aria-controls="configPopover">
+            LLM 配置
+          </button>
+        </div>
+
+        <div class="config-popover" id="configPopover" hidden>
+          <div class="config-row">
+            <span>模型用途</span>
+            <strong>需求理解</strong>
+          </div>
+          <div class="config-row">
+            <span>连接状态</span>
+            <strong>待配置</strong>
+          </div>
+          <p>用于识别路线、游戏和账户。</p>
+        </div>
+
+        <div class="intent-card" id="intentCard"></div>
+        <div class="chat-stream" id="chatStream" aria-live="polite"></div>
+
+        <form class="chat-form" id="chatForm">
+          <label class="sr-only" for="chatInput">需求输入</label>
+          <input id="chatInput" name="chatInput" type="text" autocomplete="off" placeholder="输入投放需求..." />
+          <button type="submit">发送</button>
+        </form>
+      </aside>
+
+      <section class="workflow-panel" aria-label="Workflow 看板">
+        <div class="panel-heading workflow-heading">
+          <div>
+            <h2>Workflow 看板</h2>
+            <p>3 阶段 · 7 节点</p>
+          </div>
+          <span class="run-state" id="runState">待执行</span>
+        </div>
+
+        <div class="workflow-grid" id="workflowGrid"></div>
+
+        <div class="summary-grid">
+          <section class="summary-block">
+            <div class="summary-title">
+              <h3>诊断摘要</h3>
+              <button class="text-button" id="diagnosticButton" type="button">查看明细</button>
+            </div>
+            <p id="diagnosticSummary"></p>
+          </section>
+
+          <section class="summary-block">
+            <div class="summary-title">
+              <h3>草稿摘要</h3>
+              <span id="draftPolicy"></span>
+            </div>
+            <div class="draft-fields" id="draftFields"></div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="diagnostic-dialog" id="diagnosticDialog" aria-labelledby="diagnosticTitle">
+    <div class="dialog-heading">
+      <div>
+        <h2 id="diagnosticTitle">诊断明细</h2>
+        <p id="diagnosticMeta"></p>
+      </div>
+      <button class="icon-button" id="closeDialogButton" type="button" aria-label="关闭诊断明细">×</button>
+    </div>
+    <div class="diagnostic-table-wrap">
+      <table class="diagnostic-table">
+        <thead>
+          <tr>
+            <th>阶段</th>
+            <th>节点</th>
+            <th>状态</th>
+            <th>问题</th>
+            <th>动作</th>
+          </tr>
+        </thead>
+        <tbody id="diagnosticRows"></tbody>
+      </table>
+    </div>
+  </dialog>
+
+  <script src="./mock-launch-job.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-FRONTEND-CLEAN-VIEW",
+  "task_ref": "tasks/TASK-MWBV2-FRONTEND-CLEAN-VIEW.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "优化工作台前端页面的信息密度与正式产品文案。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-FRONTEND-CLEAN-VIEW.md",
+    "tasks-context-manifests/TASK-MWBV2-FRONTEND-CLEAN-VIEW.json",
+    "docs/方案-新项目最高效启动框架_20260823.md",
+    "docs/方案-前端页面效果_html_20260823.html",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/mock-launch-job.js"
+  ],
+  "outputs": [
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/mock-launch-job.js"
+  ],
+  "constraints": {
+    "directory_structure_change_allowed": false,
+    "postgres_allowed": false,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "raw_payload_allowed": false,
+    "raw_response_allowed": false,
+    "sensitive_url_allowed": false
+  },
+  "validation": [
+    "project.state.json JSON parse",
+    "task context manifest JSON parse",
+    "frontend JavaScript syntax check",
+    "frontend visible development-copy scan",
+    "sensitive token pattern scan",
+    "desktop screenshot check"
+  ],
+  "next_gate": "建立 Postgres 最小真值表，并填入一个账户、一款游戏、一条路线的样例数据。"
+}
