@@ -39,7 +39,10 @@ export async function runCreateOnceSkill({
   readiness = {},
   allowNetworkWrite = false,
   confirmationIntent = "",
-  confirmVariableValue = ""
+  confirmVariableValue = "",
+  grantSource = "",
+  executionGrantId = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const canMockCreate = mode === "execute_once" &&
@@ -53,7 +56,11 @@ export async function runCreateOnceSkill({
       target: targetFromBundle(latestBundle),
       allowNetworkWrite,
       confirmationIntent,
-      confirmVariableValue
+      confirmVariableValue,
+      grantSource,
+      executionGrantId,
+      readiness,
+      fetchImpl
     });
     const skillStatus = {
       created_pending_readback: "passed",
@@ -76,6 +83,10 @@ export async function runCreateOnceSkill({
         apiCode: result.apiCode || "",
         requestIdPresent: result.requestIdPresent === true,
         stdProjectIdPresent: Boolean(result.stdProjectId),
+        grantSource: result.grantSource || grantSource || "",
+        createPreflightStatus: result.createPreflight?.status || "",
+        createPreflightSummary: result.createPreflight?.summary || "",
+        createPreflightDiagnostics: result.createPreflight?.diagnostics || [],
         blockers: result.blockers || [],
         reason: result.status === "blocked_before_create"
           ? "创建前 gate 未满足或本任务未开放网络写入。"

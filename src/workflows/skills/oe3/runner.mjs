@@ -6,6 +6,7 @@ import {
   skillDefinition
 } from "./contracts.mjs";
 import { cachedReadonlyFromBundle, runContextSkill } from "./context.mjs";
+import { evaluateStdProjectCreatePreflight } from "./create-preflight-diagnostics.mjs";
 import { runCreateOnceSkill } from "./create-once.mjs";
 import { runDuplicateReadonlyCheck } from "./duplicate-readonly.mjs";
 import { runDmpReadonlyGate } from "./dmp-readonly.mjs";
@@ -145,7 +146,8 @@ async function executeDuplicateCheck({ repo, context }) {
   const result = await runDuplicateReadonlyCheck({
     repo,
     bundle: latestBundle,
-    mockReady: context.mockReady
+    mockReady: context.mockReady,
+    allowReadonlyDependency: context.allowReadonlyDependency === true
   });
   return {
     ...result,
@@ -160,11 +162,16 @@ async function executeDuplicateCheck({ repo, context }) {
 async function executeCreateReadiness({ repo, context }) {
   const latestBundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   context.bundle = latestBundle;
+  const createPreflight = evaluateStdProjectCreatePreflight({
+    requestFieldManifest: latestBundle.draft?.payload_summary?.final_payload_manifest || {},
+    payloadContractStatus: context.payloadContract?.status || "not_run"
+  });
   const skillBlockers = [...context.skillOutputs.values()].flatMap((item) => item.blockers || []);
   const platformActions = latestBundle.platformAction ? 1 : 0;
   const createdObjects = latestBundle.createdObject ? 1 : 0;
   const blockers = [...new Set([
     ...skillBlockers,
+    ...createPreflight.blocker_codes,
     ...(platformActions > 0 ? ["single_create_attempt_already_recorded"] : []),
     ...(createdObjects > 0 ? ["created_object_already_recorded"] : []),
     ...(!brandIndustryPassed(latestBundle) && !context.mockReady ? ["brand_industry_readback_blocked"] : []),
@@ -194,6 +201,9 @@ async function executeCreateReadiness({ repo, context }) {
         payloadContractStatus: context.payloadContract?.status || "not_run",
         payloadHashStable: context.payloadContract?.expectedPayloadHash === latestBundle.draft?.payload_hash,
         duplicateStatus: latestBundle.draft?.duplicate_status || "not_generated",
+        createPreflightStatus: createPreflight.status,
+        createPreflightSummary: createPreflight.summary,
+        createPreflightDiagnostics: createPreflight.diagnostics,
         blockers,
         uniqueBlocker: ready ? "无" : blockers[0],
         nextAction: ready ? "等待单次创建确认任务。" : "修复唯一阻断后重跑 dry_run。"
@@ -225,7 +235,12 @@ async function executeSkill({ repo, context, skillKey }) {
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"
-      ? await runDmpReadonlyGate({ repo, bundle: context.bundle, mockReady: context.mockReady })
+      ? await runDmpReadonlyGate({
+        repo,
+        bundle: context.bundle,
+        mockReady: context.mockReady,
+        allowReadonlyDependency: context.allowReadonlyDependency === true
+      })
       : runResourceVerifier({
         bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
         resourceType,
@@ -252,10 +267,19 @@ async function executeSkill({ repo, context, skillKey }) {
       readiness: output(context, "create-readiness").outputSummary?.createReadiness || {},
       allowNetworkWrite: context.allowNetworkWrite === true,
       confirmationIntent: context.confirmationIntent || "",
-      confirmVariableValue: context.confirmVariableValue || ""
+      confirmVariableValue: context.confirmVariableValue || "",
+      grantSource: context.grantSource || "",
+      executionGrantId: context.executionGrantId || "",
+      fetchImpl: context.fetchImpl || globalThis.fetch
     });
   } else if (skillKey === "readback-std-project") {
-    result = await runReadbackSkill({ repo, bundle: context.bundle, mode: context.mode });
+    result = await runReadbackSkill({
+      repo,
+      bundle: context.bundle,
+      mode: context.mode,
+      fetchImpl: context.fetchImpl || globalThis.fetch,
+      grantSource: context.grantSource || ""
+    });
   } else {
     throw new Error(`skill_not_implemented:${skillKey}`);
   }
@@ -382,8 +406,12 @@ export async function runOe3WorkflowSkills({
   mockReady = false,
   mockExecute = false,
   allowNetworkWrite = false,
+  allowReadonlyDependency = false,
   confirmationIntent = "",
-  confirmVariableValue = ""
+  confirmVariableValue = "",
+  grantSource = "",
+  executionGrantId = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -400,8 +428,12 @@ export async function runOe3WorkflowSkills({
     mockReady,
     mockExecute,
     allowNetworkWrite,
+    allowReadonlyDependency,
     confirmationIntent,
     confirmVariableValue,
+    grantSource,
+    executionGrantId,
+    fetchImpl,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null

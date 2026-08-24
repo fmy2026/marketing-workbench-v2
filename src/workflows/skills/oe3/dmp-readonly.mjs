@@ -133,7 +133,8 @@ export async function runDmpReadonlyGate({
   repo,
   bundle,
   client = createOceanEngineReadonlyClient(),
-  mockReady = false
+  mockReady = false,
+  allowReadonlyDependency = false
 } = {}) {
   const item = resource(bundle, "dmp_audience_package");
   if (!item.resource_type) {
@@ -165,7 +166,7 @@ export async function runDmpReadonlyGate({
     });
   }
 
-  const permission = readonlyPermissionState();
+  const permission = readonlyPermissionState({ allowReadonlyDependency });
   if (!permission.allowed) {
     const evidenceRef = await recordDmpEvidence({
       repo,

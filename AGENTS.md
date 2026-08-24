@@ -40,12 +40,13 @@ frontend/API
 | `src/workflows/skills/oe3/` | OE3 业务 Skill |
 | `src/platforms/` | OceanEngine transport、凭据状态、只读 client、单次创建 executor |
 | `src/repositories/` | Postgres 读写封装 |
-| `scripts/` | CLI、smoke、check |
+| `scripts/` | 长期可复用 CLI、smoke、check；一次性任务脚本完成后必须归档 |
 | `db/` | migration 和 seed |
 | `schemas/` | API、Workflow、草稿和证据结构 |
 | `tasks/` | 单任务合同 |
 | `tasks-context-manifests/` | 单任务必读上下文 |
 | `.local/` | 本机私密配置，禁止入 Git 和普通日志 |
+| `.archive/` | 已完成专项任务脚本、废弃实现和历史参考；禁止 runtime import、package script 或 API 调用 |
 
 ## 记录规则
 Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。
@@ -55,10 +56,12 @@ Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；�
 - `project.state.json.guardrails` 是当前权限边界；任务可以收紧，不能自行放宽。
 - 默认禁止真实平台写入、创建重试、素材上传、事件资产创建、DMP 推送、预算/出价修改和 token refresh。
 - 未来若允许真实写入，必须是单次、低频、可回查、带确认变量；完成后收回写权限。
+- 工作台点击 `开始执行` 与 CLI `MWBV2_OE_EXECUTION_CONFIRM=EXECUTE_ONE_LAUNCH npm run launch:execute-once -- --job-id ...` 必须进入同一个单次 execution grant 服务；授权只对当前 job、当前 draft、当前 payload hash 生效，不改变全局 guardrail。
 - token、secret、auth_code、Cookie、完整 callback URL、完整点击监测 URL、raw payload、raw response 禁止进入项目文件、普通日志、API 或前端。
 - 平台长数字 ID 按字符串处理；只有平台合同明确要求 number 时，才可先校验安全范围再转换。
 - 同一任务只能有一个 `owner_agent`；协同 Agent 只补证据、风险和校验。
 
 ## 闭环
 新需求先归一为 brief，明确目标、范围、非目标、权限、验收和缺口。执行只推进当前任务，不顺手扩范围；验证优先使用 `package.json` 和 `scripts/` 声明命令。关闭任务时更新任务卡、manifest 和 `project.state.json`，将 `active_task` 置为 `null` 并写明下一 gate。
+专项任务中新增的一次性脚本，任务关闭后如果不再属于长期 CLI / smoke / check，必须移动到 `.archive/` 并从 `package.json` 移除入口；保留原因写入 archive manifest 或任务卡。
 交付只说明：做了什么、关键文件、验证结果、未验证项或风险、下一步。

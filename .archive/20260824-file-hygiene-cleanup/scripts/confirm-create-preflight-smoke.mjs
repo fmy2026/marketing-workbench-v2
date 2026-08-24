@@ -54,21 +54,23 @@ try {
   const node6 = (bundle.nodes || []).find((node) => node.node_key === "std_project_create_executor") || {};
   const createSkill = (bundle.skillRuns || []).find((run) => run.skill_key === "create-once") || {};
   assert(bundle.job.source_usage === "test_run", "preflight job is not test_run");
-  assert(node6.status === "blocked", `node6 expected blocked, got ${node6.status}`);
-  assert(createSkill.status === "blocked", `create skill expected blocked, got ${createSkill.status}`);
-  assert(createSkill.output_summary?.createNodeStatus === "blocked_before_create", "createNodeStatus mismatch");
+  assert(confirm.executionGrant?.status === "blocked", "confirm-create should be blocked without execution_intent");
+  assert(confirm.executionGrant?.createCalled === false, "confirm-create unexpectedly reported createCalled");
+  assert((confirm.executionGrant?.blockers || []).includes("execution_intent_missing_or_invalid"), "confirm-create blocker mismatch");
+  assert(node6.status === "locked", `node6 expected locked after dry_run, got ${node6.status}`);
+  assert(!createSkill || createSkill.status !== "passed", "create skill unexpectedly passed");
   assert(!bundle.platformAction, "confirm preflight recorded platform action");
   assert(!bundle.createdObject, "confirm preflight recorded created object");
-  assert(confirm.confirmCreate?.allowNetworkWrite === false, "confirm-create unexpectedly allowed network write");
   assertNoSensitiveLeak({ dryRun, confirm, nodes: bundle.nodes, skills: bundle.skillRuns });
   console.log(JSON.stringify({
     status: "passed",
     jobId: created.jobId,
     sourceUsage: bundle.job.source_usage,
     node6Status: node6.status,
-    createNodeStatus: createSkill.output_summary?.createNodeStatus,
-    createCalled: createSkill.output_summary?.createCalled,
-    realPlatformWriteCalled: createSkill.output_summary?.realPlatformWriteCalled,
+    confirmCreateStatus: confirm.executionGrant?.status,
+    confirmCreateBlockers: confirm.executionGrant?.blockers || [],
+    createCalled: confirm.executionGrant?.createCalled === true,
+    realPlatformWriteCalled: false,
     platformActionRecorded: Boolean(bundle.platformAction),
     createdObjectRecorded: Boolean(bundle.createdObject),
     cleanupPlanned: cleanupJobIds.length

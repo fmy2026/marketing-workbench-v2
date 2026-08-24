@@ -1,0 +1,91 @@
+import { randomBytes } from "node:crypto";
+import { getJobView, runJob } from "./launchWorkflow.mjs";
+import { assertNoSensitiveLeak } from "./skills/oe3/contracts.mjs";
+import {
+  STD_PROJECT_CREATE_CONFIRM_VALUE
+} from "../platforms/oceanengineStdProjectCreateExecutor.mjs";
+
+export const EXECUTION_GRANT_CONFIRM_ENV = "MWBV2_OE_EXECUTION_CONFIRM";
+export const EXECUTION_GRANT_INTENT = "EXECUTE_ONE_LAUNCH";
+
+function grantId(jobId, source) {
+  return `GRANT-${jobId}-${source}-${randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+function createCalledFromView(view = {}) {
+  const createNode = (view.phases || [])
+    .flatMap((phase) => phase.nodes || [])
+    .find((node) => node.id === "std_project_create_executor");
+  return createNode?.outputSummary?.createCalled === true &&
+    createNode?.outputSummary?.mockCreateCalled !== true;
+}
+
+function validateGrant({ grantSource, executionIntent, envConfirm }) {
+  if (grantSource === "workbench_click") {
+    return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
+  }
+  if (grantSource === "cli_confirm") {
+    return envConfirm === EXECUTION_GRANT_INTENT ? [] : [`${EXECUTION_GRANT_CONFIRM_ENV}_missing_or_invalid`];
+  }
+  if (grantSource === "test_fake_transport") {
+    return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
+  }
+  return ["grant_source_invalid"];
+}
+
+export async function executeConfirmedLaunch({
+  repo,
+  jobId,
+  grantSource,
+  executionIntent = "",
+  envConfirm = process.env[EXECUTION_GRANT_CONFIRM_ENV] || "",
+  fetchImpl = globalThis.fetch
+} = {}) {
+  if (!repo) throw new Error("repo_required");
+  if (!jobId) throw new Error("job_id_required");
+
+  const blockers = validateGrant({ grantSource, executionIntent, envConfirm });
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  if (!bundle) throw new Error("job_not_found");
+
+  if (blockers.length) {
+    const view = await getJobView(repo, jobId);
+    const result = {
+      ...view,
+      executionGrant: {
+        status: "blocked",
+        grantSource,
+        blockers,
+        createCalled: false
+      }
+    };
+    assertNoSensitiveLeak(result.executionGrant);
+    return result;
+  }
+
+  const executionGrantId = grantId(jobId, grantSource);
+  const view = await runJob(repo, jobId, {
+    mode: "execute_once",
+    mockReady: grantSource === "test_fake_transport",
+    allowReadonlyDependency: true,
+    allowNetworkWrite: true,
+    confirmationIntent: STD_PROJECT_CREATE_CONFIRM_VALUE,
+    confirmVariableValue: STD_PROJECT_CREATE_CONFIRM_VALUE,
+    grantSource,
+    executionGrantId,
+    fetchImpl
+  });
+  const result = {
+    ...view,
+    executionGrant: {
+      status: "consumed",
+      grantSource,
+      executionGrantId,
+      createCalled: createCalledFromView(view),
+      maximumActions: 1,
+      retryAllowed: false
+    }
+  };
+  assertNoSensitiveLeak(result.executionGrant);
+  return result;
+}

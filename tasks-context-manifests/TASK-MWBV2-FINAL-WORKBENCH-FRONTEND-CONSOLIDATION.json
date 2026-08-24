@@ -1,0 +1,101 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-FINAL-WORKBENCH-FRONTEND-CONSOLIDATION",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "仅改造 frontend，将投放创建工作台收敛为最终双栏布局与单主按钮。",
+    "mode": "frontend_only_implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "tasks/TASK-MWBV2-FINAL-WORKBENCH-FRONTEND-CONSOLIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-FINAL-WORKBENCH-FRONTEND-CONSOLIDATION.json",
+    "project.state.json"
+  ],
+  "forbidden_writes": [
+    "src/workflows/",
+    "src/workflows/skills/",
+    "src/platforms/",
+    "src/repositories/",
+    "src/server/",
+    "db/",
+    "schemas/",
+    "scripts/",
+    "package.json",
+    "AGENTS.md"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "create retry",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "frontend hardcoded business truth",
+    "displaying token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response/payload hash/evidence raw text/mock/test data"
+  ],
+  "validation_plan": [
+    "node --check frontend/app.js",
+    "npm run smoke:api",
+    "curl fixed workbench URL",
+    "frontend static scan for forbidden user-facing terms and sensitive output",
+    "desktop and mobile screenshot inspection"
+  ],
+  "closed_state": {
+    "frontend_only": true,
+    "modified_frontend_files": [
+      "frontend/index.html",
+      "frontend/app.js",
+      "frontend/styles.css"
+    ],
+    "workflow_runtime_files_modified": false,
+    "platform_write_executed": false,
+    "token_refresh_executed": false,
+    "primary_action": {
+      "label": "开始执行",
+      "endpoint": "POST /api/launch/jobs/:job_id/run",
+      "mode": "dry_run"
+    },
+    "layout": {
+      "topbar": "Agent 工作台 / 投放创建 / 当前用户",
+      "left": "Intake 对话",
+      "right": "API phases 3 阶段 7 节点",
+      "bottom": "进度 + 单主按钮"
+    },
+    "validation": {
+      "smoke_api": "passed",
+      "desktop_screenshot": "/tmp/mwbv2-desktop.png",
+      "mobile_screenshot": "/tmp/mwbv2-mobile.png",
+      "overflow_detected": false,
+      "platform_actions_latest_job": 0,
+      "created_objects_latest_job": 0
+    },
+    "current_api_gate_after_button_check": "readonly_permission_required"
+  },
+  "completion_notes": [
+    "The frontend renders workflow phases directly from the existing API.",
+    "The page no longer shows development actions such as diagnostics, retry create, placeholder confirmation, payload/hash/raw details, Skill details, or evidence raw text.",
+    "The only primary user command is the bottom '开始执行' button; chat submit remains the Intake input action.",
+    "No backend, workflow, platform, repository, DB, schema, script, package, or AGENTS file was modified."
+  ]
+}

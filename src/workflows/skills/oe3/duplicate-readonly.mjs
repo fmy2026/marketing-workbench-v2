@@ -59,7 +59,8 @@ export async function runDuplicateReadonlyCheck({
   repo,
   bundle,
   client = createOceanEngineReadonlyClient(),
-  mockReady = false
+  mockReady = false,
+  allowReadonlyDependency = false
 } = {}) {
   const draft = bundle.draft || {};
   const projectName = clean(draft.project_name);
@@ -80,7 +81,7 @@ export async function runDuplicateReadonlyCheck({
     };
   }
 
-  const permission = readonlyPermissionState();
+  const permission = readonlyPermissionState({ allowReadonlyDependency });
   if (!permission.allowed) {
     const evidenceRef = await recordDuplicateEvidence({
       repo,

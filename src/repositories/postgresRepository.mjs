@@ -953,6 +953,16 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async mergePlatformActionMetadata(actionId, metadata = {}) {
+    assertId("action_id", actionId);
+    await runPsql(`
+      UPDATE mwb.platform_actions
+      SET metadata = metadata || ${sqlJson(metadata)},
+          finished_at = coalesce(finished_at, now())
+      WHERE action_id = ${sqlLiteral(actionId)};
+    `, this.database);
+  }
+
   async upsertCreatedObject(object) {
     assertId("created_object_id", object.createdObjectId);
     assertId("job_id", object.jobId);

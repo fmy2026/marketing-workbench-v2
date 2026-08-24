@@ -1,0 +1,103 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "统一 UI 点击与 CLI 确认变量为单次 execution grant 服务，并完成 P03 创建前准备。",
+    "mode": "implementation_with_fake_transport_validation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": "grant_scoped_only",
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "src/server/index.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/readonly-permission.mjs",
+    "src/workflows/skills/oe3/create-once.mjs",
+    "src/workflows/skills/oe3/readback.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "frontend/app.js",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.md",
+    "tasks-context-manifests/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.json",
+    "project.state.json",
+    "AGENTS.md",
+    "package.json",
+    "frontend/app.js",
+    "src/server/index.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/readonly-permission.mjs",
+    "src/workflows/skills/oe3/create-once.mjs",
+    "src/workflows/skills/oe3/readback.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/launch-execute-once.mjs",
+    "scripts/execution-grant-smoke.mjs",
+    "scripts/confirm-create-preflight-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "real std_project/create during validation",
+    "token refresh",
+    "create retry",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "shell call to /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "validation_plan": [
+    "node --check changed modules/scripts",
+    "npm run token:status",
+    "npm run test:execution-grant",
+    "npm run test:create-result-mapping",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run smoke:readonly",
+    "npm run check:runtime-consistency",
+    "static scan for sensitive leaks and legacy runtime dependency"
+  ],
+  "validation_results": {
+    "node_check": "passed",
+    "token_status": "passed_redacted_valid",
+    "p03_grant_scoped_dry_run": "passed_no_create_action",
+    "test_execution_grant": "passed",
+    "confirm_create_preflight_contract": "passed_old_route_blocks_without_execution_intent",
+    "test_create_result_mapping": "passed",
+    "test_payload_contract": "passed",
+    "smoke_workflow_skills": "passed",
+    "smoke_api": "passed",
+    "smoke_readonly": "passed",
+    "check_runtime_consistency": "passed",
+    "p03_create_attempt_state": {
+      "confirmationCount": 0,
+      "createActionCount": 0,
+      "realReadbackCount": 0,
+      "createdObjectCount": 0
+    }
+  },
+  "completion_summary": {
+    "shared_service": "src/workflows/executeConfirmedLaunch.mjs",
+    "api_entry": "POST /api/launch/jobs/:job_id/execute-once",
+    "cli_entry": "MWBV2_OE_EXECUTION_CONFIRM=EXECUTE_ONE_LAUNCH npm run launch:execute-once -- --job-id JOB-...",
+    "frontend_action": "primary workbench button posts execution_intent=EXECUTE_ONE_LAUNCH to execute-once",
+    "target_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "target_job_status": "draft_ready",
+    "target_create_readiness": "ready_for_user_create_confirmation",
+    "next_gate": "single execution grant can run nodes 1-5 readonly again, then one std_project/create, then readback; no retry"
+  }
+}

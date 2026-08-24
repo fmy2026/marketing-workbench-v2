@@ -2,11 +2,19 @@
   let job = null;
   let busy = false;
 
+  const DONE_STATUSES = new Set(["passed", "needs_confirmation"]);
+  const REASON_STATUSES = new Set(["blocked", "repairable", "failed", "needs_confirmation"]);
+  const PUBLIC_STATUS = new Set(["waiting", "running", "passed", "needs_confirmation", "blocked", "repairable", "failed", "locked"]);
+
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
+  }
+
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
   }
 
   async function api(path, options = {}) {
@@ -19,7 +27,7 @@
     });
     const body = await response.json();
     if (!response.ok) {
-      const error = new Error(body.error || "api_error");
+      const error = new Error(body.error || "执行失败");
       error.details = body.details;
       throw error;
     }
@@ -31,14 +39,25 @@
     return `/api/launch/jobs/${encodeURIComponent(job.jobId)}`;
   }
 
-  async function refreshJob() {
-    job = await api(currentJobPath());
-    renderAll();
+  function allNodes() {
+    return (job?.phases || []).flatMap((phase) => phase.nodes || []);
+  }
+
+  function progressCount(nodes) {
+    return nodes.filter((node) => DONE_STATUSES.has(node.status)).length;
+  }
+
+  function currentReason() {
+    const readiness = job?.createReadiness || {};
+    const firstIssue = allNodes().find((node) => REASON_STATUSES.has(node.status));
+    return readiness.uniqueBlocker && readiness.uniqueBlocker !== "无"
+      ? readiness.uniqueBlocker
+      : firstIssue?.detail || firstIssue?.summary || job?.headline?.nextAction || "等待执行";
   }
 
   function setBusy(nextBusy) {
     busy = nextBusy;
-    renderActions();
+    renderCommand();
   }
 
   function addMessage(role, text) {
@@ -52,147 +71,107 @@
   function renderChat() {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
-    (job.chat || []).forEach((message) => addMessage(message.role, message.text));
+    (job?.chat || []).slice(-4).forEach((message) => {
+      if (message?.text) addMessage(message.role === "user" ? "user" : "agent", message.text);
+    });
   }
 
-  function renderAgent() {
-    document.getElementById("agentStatus").textContent = job.headline?.statusLabel || job.agent?.statusText || "";
-    document.getElementById("runState").textContent = job.headline?.nextAction || "";
+  function renderIntake() {
+    document.getElementById("agentStatus").textContent = job?.headline?.statusLabel || job?.agent?.statusText || "等待需求";
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
     [
-      ["路线", job.intake?.routeId],
-      ["游戏", job.intake?.gameCode],
-      ["账户", job.intake?.advertiserId],
-      ["状态", job.headline?.statusLabel]
+      ["推广路线", job?.intake?.routeId],
+      ["游戏", job?.intake?.gameCode],
+      ["账户", job?.intake?.advertiserId]
     ].forEach(([label, value]) => {
-      const item = el("div", "intent-item");
+      if (!value) return;
+      const item = el("div", "identity-item");
       item.append(el("span", "", label));
-      item.append(el("strong", "", value || ""));
+      item.append(el("strong", "", value));
       intentCard.append(item);
     });
+  }
+
+  function nodeReason(node) {
+    if (!REASON_STATUSES.has(node.status)) return "";
+    if (node.status === "needs_confirmation") return "创建前已就绪";
+    return node.detail || node.summary || "";
   }
 
   function renderWorkflow() {
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
 
-    (job.workflow || []).forEach((phase, phaseIndex) => {
-      const phaseCard = el("article", "phase-card");
-      const heading = el("div", "phase-heading");
-      heading.append(el("span", "phase-index", String(phaseIndex + 1)));
-      const titleWrap = el("div");
-      titleWrap.append(el("h3", "", phase.phase));
-      heading.append(titleWrap);
-      phaseCard.append(heading);
+    (job?.phases || []).forEach((phase) => {
+      const section = el("section", "phase-section");
+      section.append(el("h3", "phase-title", phase.title || phase.phase || ""));
 
-      const nodeList = el("div", "node-list");
+      const list = el("div", "node-list");
       (phase.nodes || []).forEach((node) => {
-        const nodeCard = el("section", `node-card status-${node.status}`);
-        const top = el("div", "node-top");
-        top.append(el("span", "node-number", String(node.number)));
-        const nameWrap = el("div", "node-name-wrap");
-        nameWrap.append(el("h4", "", node.name));
-        top.append(nameWrap);
-        top.append(el("span", "node-status", node.statusLabel || node.status));
-        nodeCard.append(top);
-        nodeList.append(nodeCard);
+        const status = PUBLIC_STATUS.has(node.status) ? node.status : "waiting";
+        const row = el("article", `node-row status-${status}`);
+        row.append(el("span", "node-marker", String(node.number || "")));
+        const body = el("div", "node-body");
+        body.append(el("h4", "", node.name || ""));
+        const reason = nodeReason(node);
+        if (reason) body.append(el("p", "", reason));
+        row.append(body);
+        row.append(el("span", "node-state", node.statusLabel || status));
+        list.append(row);
       });
 
-      phaseCard.append(nodeList);
-      grid.append(phaseCard);
+      section.append(list);
+      grid.append(section);
     });
+
+    document.getElementById("workflowHint").textContent = currentReason();
+    document.getElementById("runState").textContent = job?.headline?.statusLabel || "待执行";
   }
 
-  function renderActions() {
-    if (!job) return;
-    const actionWrap = document.getElementById("workflowActions");
-    actionWrap.innerHTML = "";
-    (job.actions || []).forEach((action) => {
-      const button = el("button", `action-button${action.dangerous ? " is-danger" : ""}`, action.label);
-      button.type = "button";
-      button.disabled = busy || !action.enabled;
-      button.addEventListener("click", () => runAction(action));
-      actionWrap.append(button);
-    });
-  }
-
-  function renderSummaries() {
-    document.getElementById("diagnosticSummary").textContent = job.headline?.nextAction || "";
-    document.getElementById("draftPolicy").textContent = job.execution?.statusLabel || "";
-
-    const fields = document.getElementById("draftFields");
-    fields.innerHTML = "";
-    const summaryFields = Array.isArray(job.summaryFields) && job.summaryFields.length
-      ? job.summaryFields.filter((field) => field.visible !== false)
-      : [
-      ["项目名", job.draft?.projectName],
-      ["payload hash", job.draft?.payloadHash],
-      ["查重状态", job.draft?.duplicateStatus],
-      ["执行状态", job.execution?.statusLabel],
-      ["api_code", job.execution?.apiCode || ""],
-      ["readback", job.execution?.readbackStatusLabel || job.execution?.readbackStatus],
-      ["对象 ID", job.execution?.objectIdPresent ? "已返回" : "未返回"],
-      ["允许重试", job.execution?.retryAllowed ? "是" : "否"]
-    ].map(([label, value]) => ({ label, value }));
-
-    summaryFields.forEach(({ label, value }) => {
-      const item = el("div", "draft-field");
-      item.append(el("span", "", label));
-      item.append(el("strong", "", value || ""));
-      fields.append(item);
-    });
-  }
-
-  function renderDiagnostics() {
-    document.getElementById("diagnosticMeta").textContent = `${job.jobId} · ${job.updatedAt}`;
-    const rows = document.getElementById("diagnosticRows");
-    rows.innerHTML = "";
-
-    (job.diagnostics?.items || []).forEach((item) => {
-      const row = document.createElement("tr");
-      row.append(el("td", "", item.phase));
-      row.append(el("td", "", item.node));
-      const statusCell = document.createElement("td");
-      statusCell.append(el("span", `diagnostic-status status-${item.status}`, item.statusLabel || item.status));
-      row.append(statusCell);
-      row.append(el("td", "", item.problem));
-      row.append(el("td", "", item.action));
-      rows.append(row);
-    });
+  function renderCommand() {
+    const nodes = allNodes();
+    document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length || 7}`;
+    const button = document.getElementById("primaryAction");
+    const label = document.getElementById("primaryActionText");
+    const readiness = job?.createReadiness || {};
+    const createAttempted = readiness.hasSingleCreateAttempt ||
+      Number(readiness.platformActions || 0) > 0 ||
+      job?.headline?.status === "failed_waiting_manual_review" ||
+      job?.headline?.status === "created_pending_readback" ||
+      job?.headline?.status === "created";
+    button.disabled = busy || !job?.jobId || createAttempted;
+    label.textContent = busy ? "执行中" : (createAttempted ? "禁止重试" : "开始执行");
+    refreshIcons();
   }
 
   function renderAll() {
-    renderAgent();
+    renderIntake();
     renderChat();
     renderWorkflow();
-    renderSummaries();
-    renderDiagnostics();
-    renderActions();
+    renderCommand();
+    refreshIcons();
   }
 
   function showError(error) {
-    addMessage("agent", `执行失败：${error.message}`);
+    addMessage("agent", `唯一阻断：${error.message}`);
   }
 
-  async function runAction(action) {
-    if (!job || busy || !action.enabled) return;
-    if (action.key === "diagnostics") {
-      document.getElementById("diagnosticDialog").showModal();
-      return;
-    }
+  async function refreshJob() {
+    job = await api(currentJobPath());
+    renderAll();
+  }
+
+  async function runWorkflow() {
+    if (!job?.jobId || busy) return;
     setBusy(true);
     try {
-      if (action.key === "refresh_view") {
-        await refreshJob();
-      } else if (action.key === "run") {
-        job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/run`, {
-          method: "POST",
-          body: JSON.stringify({ mode: "dry_run" })
-        });
-        renderAll();
-      }
+      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/execute-once`, {
+        method: "POST",
+        body: JSON.stringify({ execution_intent: "EXECUTE_ONE_LAUNCH" })
+      });
+      renderAll();
     } catch (error) {
       showError(error);
     } finally {
@@ -201,26 +180,13 @@
   }
 
   function bindInteractions() {
-    const popover = document.getElementById("configPopover");
-    const configButton = document.getElementById("configButton");
-    configButton.addEventListener("click", () => {
-      const shouldOpen = popover.hidden;
-      popover.hidden = !shouldOpen;
-      configButton.setAttribute("aria-expanded", String(shouldOpen));
-    });
-
-    document.addEventListener("click", (event) => {
-      if (!popover.hidden && !popover.contains(event.target) && event.target !== configButton) {
-        popover.hidden = true;
-        configButton.setAttribute("aria-expanded", "false");
-      }
-    });
+    document.getElementById("primaryAction").addEventListener("click", runWorkflow);
 
     document.getElementById("chatForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (!text) return;
+      if (!text || busy) return;
       addMessage("user", text);
       input.value = "";
       setBusy(true);
@@ -229,8 +195,8 @@
           method: "POST",
           body: JSON.stringify({ user_intent: text })
         });
-        if (intake.missingFields.length) {
-          addMessage("agent", `缺少字段：${intake.missingFields.join("、")}`);
+        if (intake.missingFields?.length) {
+          addMessage("agent", `请补充：${intake.missingFields.join("、")}`);
           return;
         }
         job = await api("/api/launch/jobs", {
@@ -249,13 +215,6 @@
         setBusy(false);
       }
     });
-
-    const dialog = document.getElementById("diagnosticDialog");
-    document.getElementById("diagnosticButton").addEventListener("click", () => dialog.showModal());
-    document.getElementById("closeDialogButton").addEventListener("click", () => dialog.close());
-    dialog.addEventListener("click", (event) => {
-      if (event.target === dialog) dialog.close();
-    });
   }
 
   async function init() {
@@ -266,10 +225,13 @@
       job = await api(jobId ? `/api/launch/jobs/${encodeURIComponent(jobId)}` : "/api/launch/jobs/latest");
       renderAll();
     } catch (error) {
-      document.getElementById("agentStatus").textContent = "Agent 状态加载失败";
+      document.getElementById("agentStatus").textContent = "加载失败";
       showError(error);
     }
   }
 
   document.addEventListener("DOMContentLoaded", init);
+  window.addEventListener("focus", () => {
+    refreshJob().catch(() => {});
+  });
 })();

@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 
-export function readonlyPermissionState() {
+export function readonlyPermissionState({ allowReadonlyDependency = false } = {}) {
+  if (allowReadonlyDependency) {
+    return {
+      allowed: true,
+      status: "grant_scoped_allowed",
+      blockers: []
+    };
+  }
   try {
     const state = JSON.parse(readFileSync("project.state.json", "utf8"));
     const allowed = state.guardrails?.real_platform_dependency_allowed === true ||

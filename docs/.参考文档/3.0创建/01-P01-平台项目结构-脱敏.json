@@ -1,0 +1,697 @@
+{
+  "schema_version": "mwbv2.redacted-field-structure.v1",
+  "source": "oceanengine.std_project_list.p01",
+  "status": "matched",
+  "generated_at": "2026-08-24T14:48:24.895Z",
+  "metadata": {
+    "endpoint": "std_project/list",
+    "query_shape": "advertiser_id + filtering.project_ids(number literal) + filtering.name + page/page_size",
+    "raw_response_stored": false,
+    "readonly_status": "passed",
+    "http_status": 200,
+    "api_code": "0",
+    "request_id_present": true,
+    "data_present": true,
+    "response_hash_present": true
+  },
+  "field_count": 116,
+  "fields": [
+    {
+      "path": "ad_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "ALL"
+    },
+    {
+      "path": "advertiser_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:8373146673fe44ae2e64bd4ca8a0127e02b22a2f92503c2052c8bb78f616304a"
+    },
+    {
+      "path": "aigc_dynamic_creative_switch",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "app_name",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "app_promotion_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience",
+      "type": "object",
+      "present": true,
+      "key_count": 34
+    },
+    {
+      "path": "audience.ac",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.action_categories",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.action_days",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.action_words",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.age",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.android_osv",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.auto_extend_targets",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.city",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.converted_time_duration",
+      "type": "string",
+      "present": true,
+      "enum_value": "SIX_MONTH"
+    },
+    {
+      "path": "audience.device_brand",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.district",
+      "type": "string",
+      "present": true,
+      "enum_value": "NONE"
+    },
+    {
+      "path": "audience.dpa_product_target",
+      "type": "array",
+      "present": false,
+      "count": 0,
+      "item_types": []
+    },
+    {
+      "path": "audience.dpa_rta_recommend_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.dpa_rta_switch",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.exclude_flow_package",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.filter_own_aweme_fans",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "audience.flow_package",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.gender",
+      "type": "string",
+      "present": true,
+      "enum_value": "GENDER_UNLIMITED"
+    },
+    {
+      "path": "audience.geolocation",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.harmony_osv",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.hide_if_converted",
+      "type": "string",
+      "present": true,
+      "enum_value": "ORGANIZATION"
+    },
+    {
+      "path": "audience.hide_if_exists",
+      "type": "string",
+      "present": true,
+      "enum_value": "UNLIMITED"
+    },
+    {
+      "path": "audience.interest_action_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "UNLIMITED"
+    },
+    {
+      "path": "audience.interest_categories",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.interest_words",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.ios_osv",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.launch_price",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.location_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.platform",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.region_version",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.retargeting_tags_exclude",
+      "type": "array",
+      "present": true,
+      "count": 10,
+      "item_types": [
+        "number"
+      ]
+    },
+    {
+      "path": "audience.retargeting_tags_exclude[]",
+      "type": "number",
+      "present": true,
+      "enum_value": "482709313",
+      "enum_values": [
+        "482709313",
+        "479197805",
+        "477503385",
+        "477464681",
+        "477250343",
+        "476398053",
+        "472360629",
+        "470051114",
+        "465498363",
+        "467421696"
+      ]
+    },
+    {
+      "path": "audience.retargeting_tags_include",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.rta_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "audience.smart_extend",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "aweme_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:3b34d37e5ad48d6e4dddf13fcaa9884bd15967d0d141aa2c06ba56209aed9a96"
+    },
+    {
+      "path": "bid",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "bid_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "CUSTOM"
+    },
+    {
+      "path": "brand_info",
+      "type": "object",
+      "present": true,
+      "key_count": 6
+    },
+    {
+      "path": "brand_info.brand_name_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:ef0c24c9b3773fe5c20d250ff5ca62aee7a4f65d22f0feeb920f382ceb6ab110"
+    },
+    {
+      "path": "brand_info.cdp_brand_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:b49b8dc289e6f5a818fb82c116d47a17bcebd92ebb0c910c684430216287f05a"
+    },
+    {
+      "path": "brand_info.cdp_brand_name",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:2ab3c556502febf1478ad98f49b5a614fae44441feb3e6337c4b7bfa2a33d99a"
+    },
+    {
+      "path": "brand_info.sub_brand_name_ids",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "brand_info.sub_brand_names",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "brand_info.yuntu_category_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:4e893a5e600e9e6d353b97ebf9fe435808664c11a539baae96799d80eccc7a72"
+    },
+    {
+      "path": "budget",
+      "type": "number",
+      "present": true,
+      "enum_value": "88888"
+    },
+    {
+      "path": "budget_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "BUDGET_MODE_DAY"
+    },
+    {
+      "path": "cpa_bid",
+      "type": "number",
+      "present": true,
+      "enum_value": "455"
+    },
+    {
+      "path": "deep_bid_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "PER_AND_SEVEN_PAY_ROI"
+    },
+    {
+      "path": "deep_cpabid",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "deep_external_action",
+      "type": "string",
+      "present": true,
+      "enum_value": "AD_CONVERT_TYPE_PURCHASE_ROI_7D"
+    },
+    {
+      "path": "delivery_medium",
+      "type": "string",
+      "present": true,
+      "enum_value": "BYTE_GAME"
+    },
+    {
+      "path": "delivery_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "PROCEDURAL"
+    },
+    {
+      "path": "delivery_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "NORMAL"
+    },
+    {
+      "path": "download_mode",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "download_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "download_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "dpa_image_mode",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "end_time",
+      "type": "string",
+      "present": true,
+      "text_length": 19,
+      "value_hash": "sha256:23f5e9cfaa1fd33ff983a1f4563812171c0fa6a1d17f66bb54537d85aace6753"
+    },
+    {
+      "path": "external_action",
+      "type": "string",
+      "present": true,
+      "enum_value": "AD_CONVERT_TYPE_PAY"
+    },
+    {
+      "path": "first_roi_goal",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "game_addiction_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "instance_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:84fa6ec49c9e9fe9c04b927fb02c25ad6d72c85a845c8163f4e1c7ecebcae2f3"
+    },
+    {
+      "path": "inventory_catalog",
+      "type": "string",
+      "present": true,
+      "enum_value": "UNIVERSAL_SMART"
+    },
+    {
+      "path": "inventory_type",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "inventory_type[]",
+      "type": "string",
+      "present": true,
+      "enum_value": "INVENTORY_UNIVERSAL"
+    },
+    {
+      "path": "is_comment_disable",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "landing_page_stay_time",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "landing_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "MICRO_GAME"
+    },
+    {
+      "path": "launch_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "layer_roi_switch",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "live_duration",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "marketing_goal",
+      "type": "string",
+      "present": true,
+      "enum_value": "VIDEO_AND_IMAGE"
+    },
+    {
+      "path": "name",
+      "type": "string",
+      "present": true,
+      "text_length": 47,
+      "value_hash": "sha256:bda9e9c65e8670fed05eb4d2727b4e861a7f63b55f72d9963c16d7509b75ff58"
+    },
+    {
+      "path": "native_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "AWEME"
+    },
+    {
+      "path": "opt_status",
+      "type": "string",
+      "present": true,
+      "enum_value": "DISABLE"
+    },
+    {
+      "path": "package_name",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "pricing",
+      "type": "string",
+      "present": true,
+      "enum_value": "PRICING_OCPM"
+    },
+    {
+      "path": "product_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "product_platform_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "project_create_time",
+      "type": "string",
+      "present": true,
+      "text_length": 19,
+      "value_hash": "sha256:75cd61dc3a43627150a9e450b70a7dbe56acef4860a52a68cebc616f95d9d42e"
+    },
+    {
+      "path": "project_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:e85a8aea118cc628cefb69eeabe114db76c8def5233fcbf31185fd26eed2cbe1"
+    },
+    {
+      "path": "project_modify_time",
+      "type": "string",
+      "present": true,
+      "text_length": 19,
+      "value_hash": "sha256:adcdd92a62a809db2754b9942556f26875613a3797cf713e6255ca02cddba753"
+    },
+    {
+      "path": "quick_app_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "roi_goal",
+      "type": "number",
+      "present": true,
+      "value": 0.088
+    },
+    {
+      "path": "schedule_time",
+      "type": "string",
+      "present": true,
+      "enum_value": "000000000000000000111111111111111111111111111111000000000000000000111111111111111111111111111111000000000000000000111111111111111111111111111111000000000000000000001111111111111111111111111111000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "path": "schedule_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "SCHEDULE_FROM_NOW"
+    },
+    {
+      "path": "search_continue_delivery",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "seven_roi_goal",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "shop_platform",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "star_task_id_list",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "start_time",
+      "type": "string",
+      "present": true,
+      "text_length": 19,
+      "value_hash": "sha256:22cbfe84effee74921a38f60143af73a9caee4b74abf735c39e09a822ace2fec"
+    },
+    {
+      "path": "status_first",
+      "type": "string",
+      "present": true,
+      "enum_value": "PROJECT_STATUS_DISABLE"
+    },
+    {
+      "path": "status_second",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "status_second[]",
+      "type": "string",
+      "present": true,
+      "enum_value": "PROJECT_STATUS_STOP"
+    },
+    {
+      "path": "subscribe_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting",
+      "type": "object",
+      "present": true,
+      "key_count": 9
+    },
+    {
+      "path": "track_url_setting.action_track_url",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "track_url_setting.action_track_url[]",
+      "type": "string",
+      "present": true,
+      "text_length": 729,
+      "value_hash": "sha256:3723ee0d37c85bb9d7637cf2005b9e24603de1d3a7c8e0b5c91ac78b57a12ed9"
+    },
+    {
+      "path": "track_url_setting.active_track_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting.send_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "SERVER_SEND"
+    },
+    {
+      "path": "track_url_setting.track_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting.track_url_group_id",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting.track_url_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "CUSTOM"
+    },
+    {
+      "path": "track_url_setting.video_play_done_track_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting.video_play_effective_track_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "track_url_setting.video_play_first_track_url",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "union_bid_ratio",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "union_video_type",
+      "type": "null",
+      "present": false
+    },
+    {
+      "path": "unique_product_id",
+      "type": "null",
+      "present": false
+    }
+  ]
+}

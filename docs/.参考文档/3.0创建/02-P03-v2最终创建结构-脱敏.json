@@ -1,0 +1,513 @@
+{
+  "schema_version": "mwbv2.redacted-field-structure.v1",
+  "source": "mwbv2.p03_final_std_project_create_payload",
+  "status": "generated_from_v2_payload_builder",
+  "generated_at": "2026-08-24T14:48:24.357Z",
+  "metadata": {
+    "job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "payload_hash": "sha256:152babf25efa31d4aa526d17a5dd7379f687dc8a069e5e93bf51eb38aa73a2f4",
+    "expected_payload_hash": "sha256:152babf25efa31d4aa526d17a5dd7379f687dc8a069e5e93bf51eb38aa73a2f4",
+    "payload_hash_matches_target": true,
+    "raw_payload_stored": false,
+    "touchpoint_url_stored": false
+  },
+  "field_count": 71,
+  "fields": [
+    {
+      "path": "ad_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "ALL"
+    },
+    {
+      "path": "advertiser_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:8373146673fe44ae2e64bd4ca8a0127e02b22a2f92503c2052c8bb78f616304a"
+    },
+    {
+      "path": "aigc_dynamic_creative_switch",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "asset_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:71377cbf1445b3d34244bfab465839236622a4225640795d60c80ca7508c70f1"
+    },
+    {
+      "path": "audience",
+      "type": "object",
+      "present": true,
+      "key_count": 8
+    },
+    {
+      "path": "audience_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "CUSTOM"
+    },
+    {
+      "path": "audience.age",
+      "type": "array",
+      "present": false,
+      "count": 0,
+      "item_types": []
+    },
+    {
+      "path": "audience.converted_time_duration",
+      "type": "string",
+      "present": true,
+      "enum_value": "SIX_MONTH"
+    },
+    {
+      "path": "audience.district",
+      "type": "string",
+      "present": true,
+      "enum_value": "NONE"
+    },
+    {
+      "path": "audience.filter_event",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "audience.filter_event[]",
+      "type": "string",
+      "present": true,
+      "enum_value": "AD_CONVERT_TYPE_PAY"
+    },
+    {
+      "path": "audience.gender",
+      "type": "string",
+      "present": true,
+      "enum_value": "GENDER_UNLIMITED"
+    },
+    {
+      "path": "audience.hide_if_converted",
+      "type": "string",
+      "present": true,
+      "enum_value": "NO_EXCLUDE"
+    },
+    {
+      "path": "audience.interest_action_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "UNLIMITED"
+    },
+    {
+      "path": "audience.retargeting_tags_exclude",
+      "type": "array",
+      "present": true,
+      "count": 10,
+      "item_types": [
+        "number"
+      ]
+    },
+    {
+      "path": "audience.retargeting_tags_exclude[]",
+      "type": "number",
+      "present": true,
+      "enum_value": "482709313",
+      "enum_values": [
+        "482709313",
+        "479197805",
+        "477503385",
+        "477464681",
+        "477250343",
+        "476398053",
+        "472360629",
+        "470051114",
+        "467421696",
+        "465498363"
+      ]
+    },
+    {
+      "path": "aweme_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:3b34d37e5ad48d6e4dddf13fcaa9884bd15967d0d141aa2c06ba56209aed9a96"
+    },
+    {
+      "path": "bid_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "CUSTOM"
+    },
+    {
+      "path": "brand_info",
+      "type": "object",
+      "present": true,
+      "key_count": 4
+    },
+    {
+      "path": "brand_info.brand_name_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:ef0c24c9b3773fe5c20d250ff5ca62aee7a4f65d22f0feeb920f382ceb6ab110"
+    },
+    {
+      "path": "brand_info.cdp_brand_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:b49b8dc289e6f5a818fb82c116d47a17bcebd92ebb0c910c684430216287f05a"
+    },
+    {
+      "path": "brand_info.cdp_brand_name",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:2ab3c556502febf1478ad98f49b5a614fae44441feb3e6337c4b7bfa2a33d99a"
+    },
+    {
+      "path": "brand_info.yuntu_category_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:4e893a5e600e9e6d353b97ebf9fe435808664c11a539baae96799d80eccc7a72"
+    },
+    {
+      "path": "budget",
+      "type": "number",
+      "present": true,
+      "enum_value": "88888"
+    },
+    {
+      "path": "budget_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "BUDGET_MODE_DAY"
+    },
+    {
+      "path": "cpa_bid",
+      "type": "number",
+      "present": true,
+      "enum_value": "488"
+    },
+    {
+      "path": "deep_bid_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "PER_AND_SEVEN_PAY_ROI"
+    },
+    {
+      "path": "deep_external_action",
+      "type": "string",
+      "present": true,
+      "enum_value": "AD_CONVERT_TYPE_PURCHASE_ROI_7D"
+    },
+    {
+      "path": "delivery_medium",
+      "type": "string",
+      "present": true,
+      "enum_value": "BYTE_GAME"
+    },
+    {
+      "path": "delivery_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "PROCEDURAL"
+    },
+    {
+      "path": "delivery_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "NORMAL"
+    },
+    {
+      "path": "external_action",
+      "type": "string",
+      "present": true,
+      "enum_value": "AD_CONVERT_TYPE_PAY"
+    },
+    {
+      "path": "instance_id",
+      "type": "number",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:84fa6ec49c9e9fe9c04b927fb02c25ad6d72c85a845c8163f4e1c7ecebcae2f3"
+    },
+    {
+      "path": "is_comment_disable",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "landing_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "MICRO_GAME"
+    },
+    {
+      "path": "layer_roi_switch",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "marketing_goal",
+      "type": "string",
+      "present": true,
+      "enum_value": "VIDEO_AND_IMAGE"
+    },
+    {
+      "path": "micro_promotion_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "BYTE_GAME"
+    },
+    {
+      "path": "name",
+      "type": "string",
+      "present": true,
+      "text_length": 47,
+      "value_hash": "sha256:8600cf899b957ae43a3fee546de470f648e994709e069301966e52748171be18"
+    },
+    {
+      "path": "native_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "AWEME"
+    },
+    {
+      "path": "pricing",
+      "type": "string",
+      "present": true,
+      "enum_value": "PRICING_OCPM"
+    },
+    {
+      "path": "project_materials",
+      "type": "object",
+      "present": true,
+      "key_count": 8
+    },
+    {
+      "path": "project_materials.anchor_related_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "OFF"
+    },
+    {
+      "path": "project_materials.call_to_action_buttons",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "project_materials.call_to_action_buttons[]",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:c4dcd33ec797282bf1c07916dd51d4635b2417643247815f118676afac987987"
+    },
+    {
+      "path": "project_materials.image_material_list",
+      "type": "array",
+      "present": false,
+      "count": 0,
+      "item_types": []
+    },
+    {
+      "path": "project_materials.mini_program_info",
+      "type": "object",
+      "present": true,
+      "key_count": 2
+    },
+    {
+      "path": "project_materials.mini_program_info.app_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:1822ba503cadd2cd65e95d68e847eda6c3eaf942f5cc8e88600b59a45f89ceb9"
+    },
+    {
+      "path": "project_materials.mini_program_info.url",
+      "type": "string",
+      "present": true,
+      "value_redacted": true,
+      "value_hash": "sha256:8905fb6969608581a6f8a99a38755bb81cd65d9c08a3f66992d968f73ea3bac5"
+    },
+    {
+      "path": "project_materials.product_info",
+      "type": "object",
+      "present": true,
+      "key_count": 3
+    },
+    {
+      "path": "project_materials.product_info.image_ids",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "project_materials.product_info.image_ids[]",
+      "type": "string",
+      "present": true,
+      "text_length": 52,
+      "value_hash": "sha256:e994a83f1d12ca6d00313b03f08655588786a3defc8585d824d08494f584e5ed"
+    },
+    {
+      "path": "project_materials.product_info.selling_points",
+      "type": "array",
+      "present": true,
+      "count": 3,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "project_materials.product_info.selling_points[]",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:9452d68e12d14d5419dab908008843a8d5c2ab5e311a6b9f2f8babbd410d7018",
+      "enum_values": []
+    },
+    {
+      "path": "project_materials.product_info.titles",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "project_materials.product_info.titles[]",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:2ab3c556502febf1478ad98f49b5a614fae44441feb3e6337c4b7bfa2a33d99a"
+    },
+    {
+      "path": "project_materials.source",
+      "type": "string",
+      "present": true,
+      "text_length": 4,
+      "value_hash": "sha256:2ab3c556502febf1478ad98f49b5a614fae44441feb3e6337c4b7bfa2a33d99a"
+    },
+    {
+      "path": "project_materials.title_material_list",
+      "type": "array",
+      "present": true,
+      "count": 5,
+      "item_types": [
+        "object"
+      ]
+    },
+    {
+      "path": "project_materials.title_material_list[]",
+      "type": "object",
+      "present": true,
+      "key_count": 1,
+      "enum_values": []
+    },
+    {
+      "path": "project_materials.title_material_list[].title",
+      "type": "string",
+      "present": true,
+      "text_length": 7,
+      "value_hash": "sha256:bab91859408372bf0e8efcba3f1dbfda247479bb2fdf9409228fc081afcc0b6c",
+      "enum_values": []
+    },
+    {
+      "path": "project_materials.video_material_list",
+      "type": "array",
+      "present": true,
+      "count": 2,
+      "item_types": [
+        "object"
+      ]
+    },
+    {
+      "path": "project_materials.video_material_list[]",
+      "type": "object",
+      "present": true,
+      "key_count": 3,
+      "enum_values": []
+    },
+    {
+      "path": "project_materials.video_material_list[].image_mode",
+      "type": "string",
+      "present": true,
+      "enum_value": "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
+      "enum_values": [
+        "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL"
+      ]
+    },
+    {
+      "path": "project_materials.video_material_list[].video_cover_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:f0d18e255b1d6799feb2d0355109584c9378ce946c4eac5c820a2c2455c83c9a",
+      "enum_values": []
+    },
+    {
+      "path": "project_materials.video_material_list[].video_id",
+      "type": "string",
+      "present": true,
+      "id_present": true,
+      "id_hash": "sha256:4af3debe021721488cfbf74dd97d4704c3ba0f0b4a4c5178d8df0df9a58d4ae6",
+      "enum_values": []
+    },
+    {
+      "path": "roi_goal",
+      "type": "number",
+      "present": true,
+      "value": 0.088
+    },
+    {
+      "path": "schedule_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "SCHEDULE_FROM_NOW"
+    },
+    {
+      "path": "track_url_setting",
+      "type": "object",
+      "present": true,
+      "key_count": 2
+    },
+    {
+      "path": "track_url_setting.action_track_url",
+      "type": "array",
+      "present": true,
+      "count": 1,
+      "item_types": [
+        "string"
+      ]
+    },
+    {
+      "path": "track_url_setting.action_track_url[]",
+      "type": "string",
+      "present": true,
+      "text_length": 729,
+      "value_hash": "sha256:3723ee0d37c85bb9d7637cf2005b9e24603de1d3a7c8e0b5c91ac78b57a12ed9"
+    },
+    {
+      "path": "track_url_setting.send_type",
+      "type": "string",
+      "present": true,
+      "enum_value": "SERVER_SEND"
+    }
+  ]
+}

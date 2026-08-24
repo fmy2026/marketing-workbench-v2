@@ -3,122 +3,77 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>市场推广工作台 · 投放创建</title>
+  <title>Agent 工作台 · 投放创建</title>
   <link rel="stylesheet" href="./styles.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
 </head>
 <body>
   <main class="workbench-shell">
     <header class="topbar">
-      <div class="brand-lockup" aria-label="市场推广工作台">
-        <span class="brand-mark" aria-hidden="true">MW</span>
+      <div class="brand-lockup" aria-label="Agent 工作台">
+        <span class="brand-mark" aria-hidden="true">A</span>
         <div>
-          <h1>市场推广工作台</h1>
-          <p>投放创建 Agent</p>
+          <h1>Agent 工作台</h1>
+          <p>v2</p>
         </div>
       </div>
-      <nav class="agent-tabs" aria-label="Agent tabs">
-        <button class="agent-tab is-active" type="button">投放创建</button>
-        <button class="agent-tab" type="button" disabled>素材策略</button>
-        <button class="agent-tab" type="button" disabled>归因分析</button>
-        <button class="agent-tab" type="button" disabled>经验检索</button>
+
+      <nav class="module-nav" aria-label="模块导航">
+        <button class="module-tab is-active" type="button">投放创建</button>
       </nav>
-      <div class="operator-chip">
-        <span class="operator-dot" aria-hidden="true"></span>
-        <span>优化师工作台</span>
+
+      <div class="operator-chip" aria-label="当前用户">
+        <span class="operator-avatar" aria-hidden="true">优</span>
+        <span>当前用户</span>
       </div>
     </header>
 
-    <section class="main-layout">
-      <aside class="chat-panel" aria-label="对话入口">
-        <div class="panel-heading">
+    <section class="workspace">
+      <aside class="intake-panel" aria-label="对话">
+        <div class="panel-title">
           <div>
-            <h2>对话入口</h2>
-            <p id="agentStatus">Agent 状态加载中</p>
+            <h2>对话</h2>
+            <p id="agentStatus">加载中</p>
           </div>
-          <button class="config-button" id="configButton" type="button" aria-expanded="false" aria-controls="configPopover">
-            LLM 配置
+          <button class="icon-button" id="configButton" type="button" aria-label="LLM 配置" aria-describedby="configTip">
+            <i data-lucide="settings-2" aria-hidden="true"></i>
           </button>
+          <span class="tooltip" id="configTip" role="tooltip">LLM 配置</span>
         </div>
 
-        <div class="config-popover" id="configPopover" hidden>
-          <div class="config-row">
-            <span>模型用途</span>
-            <strong>需求理解</strong>
-          </div>
-          <div class="config-row">
-            <span>连接状态</span>
-            <strong>待配置</strong>
-          </div>
-          <p>用于识别路线、游戏和账户。</p>
-        </div>
-
-        <div class="intent-card" id="intentCard"></div>
+        <div class="identity-strip" id="intentCard" aria-label="识别结果"></div>
         <div class="chat-stream" id="chatStream" aria-live="polite"></div>
 
         <form class="chat-form" id="chatForm">
-          <label class="sr-only" for="chatInput">需求输入</label>
+          <label class="sr-only" for="chatInput">输入投放需求</label>
           <input id="chatInput" name="chatInput" type="text" autocomplete="off" placeholder="输入投放需求..." />
-          <button type="submit">发送</button>
+          <button class="send-button" type="submit" aria-label="发送">
+            <i data-lucide="send-horizontal" aria-hidden="true"></i>
+          </button>
         </form>
       </aside>
 
-      <section class="workflow-panel" aria-label="Workflow 看板">
-        <div class="panel-heading workflow-heading">
+      <section class="workflow-panel" aria-label="Workflow">
+        <div class="workflow-title">
           <div>
-            <h2>Workflow 看板</h2>
-            <p>3 阶段 · 7 节点</p>
+            <h2>Workflow · 3 阶段 · 7 节点</h2>
+            <p id="workflowHint">等待执行</p>
           </div>
-          <span class="run-state" id="runState">待执行</span>
+          <span class="status-pill" id="runState">待执行</span>
         </div>
-
-        <div class="workflow-actions" id="workflowActions" aria-label="Workflow 操作"></div>
 
         <div class="workflow-grid" id="workflowGrid"></div>
-
-        <div class="summary-grid">
-          <section class="summary-block">
-            <div class="summary-title">
-              <h3>诊断摘要</h3>
-              <button class="text-button" id="diagnosticButton" type="button">查看明细</button>
-            </div>
-            <p id="diagnosticSummary"></p>
-          </section>
-
-          <section class="summary-block">
-            <div class="summary-title">
-              <h3>草稿与执行</h3>
-              <span id="draftPolicy"></span>
-            </div>
-            <div class="draft-fields" id="draftFields"></div>
-          </section>
-        </div>
       </section>
     </section>
-  </main>
 
-  <dialog class="diagnostic-dialog" id="diagnosticDialog" aria-labelledby="diagnosticTitle">
-    <div class="dialog-heading">
-      <div>
-        <h2 id="diagnosticTitle">诊断明细</h2>
-        <p id="diagnosticMeta"></p>
-      </div>
-      <button class="icon-button" id="closeDialogButton" type="button" aria-label="关闭诊断明细">×</button>
-    </div>
-    <div class="diagnostic-table-wrap">
-      <table class="diagnostic-table">
-        <thead>
-          <tr>
-            <th>阶段</th>
-            <th>节点</th>
-            <th>状态</th>
-            <th>问题</th>
-            <th>动作</th>
-          </tr>
-        </thead>
-        <tbody id="diagnosticRows"></tbody>
-      </table>
-    </div>
-  </dialog>
+    <footer class="command-bar">
+      <div class="progress-text" id="progressText">进度 0 / 7</div>
+      <button class="primary-action" id="primaryAction" type="button">
+        <span id="primaryActionText">开始执行</span>
+        <i data-lucide="play" aria-hidden="true"></i>
+      </button>
+    </footer>
+  </main>
 
   <script src="./app.js"></script>
 </body>

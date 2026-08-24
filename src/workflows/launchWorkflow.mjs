@@ -359,37 +359,39 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
     ...(payloadContractStatus !== "passed" ? ["payload_contract_blocked"] : []),
     ...(bundle.draft?.duplicate_status && bundle.draft.duplicate_status !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : [])
   ];
-  const blockers = Array.isArray(persisted.blockers) ? persisted.blockers : inferredBlockers;
-  const status = persisted.status || (
-    hasSingleCreateAttempt
-      ? "blocked_after_single_create_failure"
-      : brandIndustryStatus !== "passed"
+  const blockers = hasSingleCreateAttempt
+    ? [...new Set([...(Array.isArray(persisted.blockers) ? persisted.blockers : []), ...inferredBlockers])]
+    : (Array.isArray(persisted.blockers) ? persisted.blockers : inferredBlockers);
+  const status = hasSingleCreateAttempt
+    ? "blocked_after_single_create_failure"
+    : (persisted.status || (
+      brandIndustryStatus !== "passed"
         ? "blocked_brand_industry"
         : inferredBlockers.length
           ? "new_runtime_job_required"
           : "ready_for_user_create_confirmation"
-  );
+    ));
   const canCreateCurrentJob = status === "ready_for_user_create_confirmation" && !hasSingleCreateAttempt;
-  const uniqueBlocker = persisted.uniqueBlocker || (
-    canCreateCurrentJob
-      ? "无"
-      : hasSingleCreateAttempt
-      ? (brandIndustryStatus === "passed"
-        ? "当前 job 已有单次 create attempt，不能重试"
-        : "当前 job 已有单次 create attempt，不能重试；brand_industry 仍未通过")
+  const uniqueBlocker = hasSingleCreateAttempt
+    ? (brandIndustryStatus === "passed"
+      ? "当前 job 已有单次 create attempt，不能重试"
+      : "当前 job 已有单次 create attempt，不能重试；brand_industry 仍未通过")
+    : (persisted.uniqueBlocker || (
+      canCreateCurrentJob
+        ? "无"
         : brandIndustryStatus !== "passed"
           ? "brand_industry fresh readback 未通过"
           : blockers.join("；")
-  );
-  const nextAction = persisted.nextAction || (
-    hasSingleCreateAttempt
-      ? (brandIndustryStatus === "passed"
-        ? "当前 job 禁止重试；下一步新建 fresh runtime job 或开启单次创建确认任务。"
-        : "当前 job 禁止重试；修完 brand_industry 后新建 fresh runtime job 或开启单次创建确认任务。")
-      : brandIndustryStatus !== "passed"
+    ));
+  const nextAction = hasSingleCreateAttempt
+    ? (brandIndustryStatus === "passed"
+      ? "当前 job 禁止重试；下一步新建 fresh runtime job 并先 dry-run。"
+      : "当前 job 禁止重试；修完 brand_industry 后新建 fresh runtime job 并先 dry-run。")
+    : (persisted.nextAction || (
+      brandIndustryStatus !== "passed"
         ? "先修 brand_industry fresh readback。"
         : "等待用户单次创建确认任务。"
-  );
+    ));
   return {
     status,
     statusLabel: statusLabel(status),
@@ -666,8 +668,12 @@ export async function runJob(repo, jobId, options = {}) {
     mockReady: options.mockReady === true,
     mockExecute: options.mockExecute === true,
     allowNetworkWrite: options.allowNetworkWrite === true,
+    allowReadonlyDependency: options.allowReadonlyDependency === true,
     confirmationIntent: options.confirmationIntent || "",
-    confirmVariableValue: options.confirmVariableValue || ""
+    confirmVariableValue: options.confirmVariableValue || "",
+    grantSource: options.grantSource || "",
+    executionGrantId: options.executionGrantId || "",
+    fetchImpl: options.fetchImpl || globalThis.fetch
   });
   return buildLaunchJobView(result.bundle, await buildRuntimeChecks(repo, result.bundle));
 }

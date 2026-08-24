@@ -80,7 +80,9 @@ export function readbackNodeStatusFromSkill({ readback = {}, mode = "dry_run" } 
   if (readback.status === "passed") {
     return {
       status: "passed",
-      summary: output.readbackStatus === "readback_verified"
+      summary: output.recoveredByReadback === true
+        ? "创建响应未确认，已通过回查确认对象创建成功。"
+        : output.readbackStatus === "readback_verified"
         ? "真实对象名与对象 ID 回查一致，已完成收口。"
         : "真实回查已通过。",
       diagnosticLevel: "info",
@@ -100,7 +102,9 @@ export function readbackNodeStatusFromSkill({ readback = {}, mode = "dry_run" } 
   if (readback.status === "failed") {
     return {
       status: "failed",
-      summary: "真实回查失败，等待人工复盘。",
+      summary: output.readbackStatus === "create_unconfirmed_readback_not_found"
+        ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
+        : "真实回查失败，等待人工复盘。",
       diagnosticLevel: "error",
       outputSummary: output
     };

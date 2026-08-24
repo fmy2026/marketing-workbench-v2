@@ -1,0 +1,58 @@
+{
+  "archive_id": "20260824-file-hygiene-cleanup",
+  "created_at": "2026-08-24 CST",
+  "reason": "Archive completed one-off task scripts and code not connected to the current v2 runtime chain.",
+  "runtime_policy": "Files under .archive are historical references only and must not be imported, executed by package scripts, or used as v2 runtime truth.",
+  "moved_files": [
+    {
+      "from": "scripts/oe3-three-payload-comparison.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/scripts/oe3-three-payload-comparison.mjs",
+      "reason": "Completed one-off docs generation task."
+    },
+    {
+      "from": "scripts/oe3-reference-contract-readonly-reconciliation.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/scripts/oe3-reference-contract-readonly-reconciliation.mjs",
+      "reason": "Completed one-off readonly reconciliation task."
+    },
+    {
+      "from": "scripts/confirm-create-preflight-smoke.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/scripts/confirm-create-preflight-smoke.mjs",
+      "reason": "Historical smoke covered by test:execution-grant."
+    },
+    {
+      "from": "scripts/runtime-test-data-purge.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/scripts/runtime-test-data-purge.mjs",
+      "reason": "Completed guarded cleanup task script, no longer a main CLI entry."
+    },
+    {
+      "from": "scripts/runtime-test-data-purge-check.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/scripts/runtime-test-data-purge-check.mjs",
+      "reason": "Completed guarded cleanup verification script."
+    },
+    {
+      "from": "src/platforms/oceanengineAccountResourceAdapter.mjs",
+      "to": ".archive/20260824-file-hygiene-cleanup/src-platforms/oceanengineAccountResourceAdapter.mjs",
+      "reason": "Account resource preparation adapter is not imported by the current frontend/API/workflow runtime chain."
+    },
+    {
+      "from": "scripts/.DS_Store",
+      "to": ".archive/20260824-file-hygiene-cleanup/system-files/scripts/.DS_Store",
+      "reason": "macOS system metadata file, no runtime role."
+    },
+    {
+      "from": "src/.DS_Store",
+      "to": ".archive/20260824-file-hygiene-cleanup/system-files/src/.DS_Store",
+      "reason": "macOS system metadata file, no runtime role."
+    },
+    {
+      "from": "src/workflows/.DS_Store",
+      "to": ".archive/20260824-file-hygiene-cleanup/system-files/src-workflows/.DS_Store",
+      "reason": "macOS system metadata file, no runtime role."
+    },
+    {
+      "from": "src/workflows/skills/.DS_Store",
+      "to": ".archive/20260824-file-hygiene-cleanup/system-files/src-workflows-skills/.DS_Store",
+      "reason": "macOS system metadata file, no runtime role."
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "以 P01 成功项目只读投影、旧成功创建合同和官方文档对齐 P03 失败草稿，生成脱敏差异报告并收敛 v2 preflight。",
+    "mode": "readonly_reconciliation_no_new_job_no_create",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "target_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "reference_project_id": "7675218401040220179",
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.md",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/oe3-reference-contract-readonly-reconciliation.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/src",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-std-project-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/docs/.参考文档/workflow/workflow/engine.py",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/oe3-reference-contract-readonly-reconciliation.mjs",
+    "scripts/execution-grant-smoke.mjs",
+    "package.json"
+  ],
+  "forbidden_actions": [
+    "P03 execution",
+    "new runtime job creation",
+    "real std_project/create",
+    "promotion create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "token refresh",
+    "budget or bid update",
+    "delete or rewrite historical jobs/actions/evidence/readback",
+    "new migration",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "shell call to /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full URL/raw payload/raw response"
+  ],
+  "validation_plan": [
+    "query P03 create/readback counts from v2 Postgres",
+    "at most one real readonly std_project/list call for P01 reference projection",
+    "node --check changed modules/scripts",
+    "npm run test:execution-grant",
+    "npm run test:create-result-mapping",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "static scan for sensitive leaks and legacy runtime dependency"
+  ],
+  "completion_summary": {
+    "reference_readonly_call_count": 1,
+    "reference_readonly_status": "blocked",
+    "reference_readonly_api_code": "40000",
+    "new_reusable_payload_blocker_found": false,
+    "target_job_status_preserved": "failed_waiting_manual_review",
+    "target_create_action_count": 1,
+    "target_created_objects": 0,
+    "evidence_ref": "EV-JOB-MWBV2-20260824092327-494BF1-REFERENCE-CONTRACT-RECONCILIATION",
+    "next_gate": "do_not_retry_p03; first review P01 std_project/list parameter/error detail or create a fresh runtime job dry-run in a separate task"
+  },
+  "validation_results": [
+    "npm run check:reference-contract passed",
+    "npm run test:execution-grant passed",
+    "npm run test:create-result-mapping passed",
+    "npm run smoke:workflow-skills passed",
+    "npm run test:payload-contract passed",
+    "npm run smoke:api passed",
+    "npm run check:runtime-consistency passed"
+  ]
+}

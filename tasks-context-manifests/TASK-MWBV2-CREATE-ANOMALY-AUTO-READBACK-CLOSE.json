@@ -1,0 +1,87 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "补齐 create 响应异常后节点 7 自动只读回查收口。",
+    "mode": "implementation_with_fake_transport_validation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.md",
+    "src/workflows/skills/oe3/readback.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/result-mapping.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.md",
+    "tasks-context-manifests/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/readback.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/result-mapping.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "real std_project/create during validation",
+    "token refresh",
+    "create retry",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "shell call to /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "validation_plan": [
+    "node --check changed modules/scripts",
+    "npm run test:execution-grant",
+    "npm run test:create-result-mapping",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run smoke:readonly",
+    "npm run check:runtime-consistency",
+    "static scan for sensitive leaks and legacy runtime dependency"
+  ],
+  "validation_results": {
+    "node_check": "passed",
+    "test_execution_grant": "passed_four_fake_transport_cases",
+    "test_create_result_mapping": "passed",
+    "smoke_workflow_skills": "passed",
+    "smoke_api": "passed",
+    "smoke_readonly": "passed",
+    "check_runtime_consistency": "passed",
+    "latest_api_sensitive_scan": "passed_no_matches",
+    "static_sensitive_scan": "passed_only_policy_text_and_empty_env_template_keys",
+    "p03_create_attempt_state": {
+      "confirmationCount": 0,
+      "createActionCount": 0,
+      "realReadbackCount": 0,
+      "createdObjectCount": 0
+    }
+  },
+  "completion_summary": {
+    "readback_trigger": "real oceanengine_std_project_create action is enough to trigger one std_project/list readback",
+    "anomaly_recovered_status": "readback hit closes job as created while preserving create action response truth",
+    "anomaly_miss_status": "readback miss closes job as failed_waiting_manual_review and retry remains blocked",
+    "pre_create_gate": "blocked before create does not call create or readback",
+    "target_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "target_job_create_attempts": 0,
+    "next_gate": "single execution grant can proceed; anomalous create response will auto readback once"
+  }
+}

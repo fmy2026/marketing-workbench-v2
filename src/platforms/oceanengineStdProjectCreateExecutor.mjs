@@ -6,6 +6,7 @@ import {
 } from "./oceanengineCredentialStore.mjs";
 import { evaluateOe3PayloadContract, stablePayloadHash } from "../workflows/skills/oe3/payload-contract.mjs";
 import { buildOe3StdProjectPayload } from "../workflows/skills/oe3/payload.mjs";
+import { evaluateStdProjectCreatePreflight } from "../workflows/skills/oe3/create-preflight-diagnostics.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
@@ -66,6 +67,64 @@ function extractStdProjectId(payload = {}) {
   );
 }
 
+function collectTextByKey(value, keyPattern, found = []) {
+  if (!value || typeof value !== "object") return found;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectTextByKey(item, keyPattern, found));
+    return found;
+  }
+  Object.entries(value).forEach(([key, child]) => {
+    if (keyPattern.test(key) && typeof child === "string" && clean(child)) found.push(clean(child));
+    collectTextByKey(child, keyPattern, found);
+  });
+  return found;
+}
+
+function safePlatformErrorSummary(payload = {}) {
+  const apiCode = extractApiCode(payload);
+  const messageTexts = collectTextByKey(payload, /^(message|msg)$/i);
+  const errorTexts = collectTextByKey(payload, /(error|reason|detail|hint|field)/i);
+  const joined = [...messageTexts, ...errorTexts].join(" ").toLowerCase();
+  const keywords = [
+    "advertiser",
+    "permission",
+    "brand",
+    "industry",
+    "event",
+    "asset",
+    "product",
+    "image",
+    "video",
+    "dmp",
+    "audience",
+    "touchpoint",
+    "track",
+    "app",
+    "instance",
+    "budget",
+    "bid",
+    "duplicate",
+    "required",
+    "invalid",
+    "param",
+    "field"
+  ].filter((keyword) => joined.includes(keyword));
+  return {
+    api_code: apiCode || "",
+    request_id_present: Boolean(extractRequestId(payload)),
+    message_present: messageTexts.length > 0,
+    error_message_present: errorTexts.length > 0,
+    error_keyword_present: keywords.length > 0,
+    error_keywords_count: keywords.length,
+    safe_error_fingerprint: `sha256:${sha256(canonicalJson({
+      api_code: apiCode || "",
+      keywords,
+      message_present: messageTexts.length > 0,
+      error_message_present: errorTexts.length > 0
+    }))}`
+  };
+}
+
 function summarizeListPayload(payload = {}, projectName = "") {
   const data = payload.data || {};
   const list = data.list || data.items || data.projects || [];
@@ -110,7 +169,7 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("target_job_not_found");
-  const runtimeTarget = target || targetFromBundle(bundle);
+  const runtimeTarget = { ...targetFromBundle(bundle), ...(target || {}) };
   const touchpoint = await repo.getControlledTouchpointUrl({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
@@ -128,6 +187,11 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     ? bundle.draft?.payload_summary?.final_payload_hash === bundle.draft?.payload_hash
     : stablePayloadHash(bundle.draft?.payload_summary || {}) === bundle.draft?.payload_hash;
   const finalPayload = buildOe3StdProjectPayload({ bundle, touchpointUrl: touchpoint?.touchpoint_url || "" });
+  const createPreflight = evaluateStdProjectCreatePreflight({
+    payload: finalPayload.payload,
+    requestFieldManifest: finalPayload.requestFieldManifest,
+    payloadContractStatus: contract.status
+  });
   const blockers = [
     ...(bundle.job.job_id !== runtimeTarget.jobId ? ["target_job_mismatch"] : []),
     ...(bundle.draft?.draft_id !== runtimeTarget.draftId ? ["target_draft_mismatch"] : []),
@@ -141,7 +205,8 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     ...(contract.status !== "passed" ? contract.gaps.map((gap) => `payload_contract:${gap.key}`) : []),
     ...(!touchpoint?.touchpoint_url ? ["controlled_touchpoint_url_missing"] : []),
     ...(!touchpointVerification.urlHashMatches ? ["touchpoint_hash_mismatch"] : []),
-    ...finalPayload.blockers
+    ...finalPayload.blockers,
+    ...createPreflight.blocker_codes
   ];
   return {
     ready: blockers.length === 0,
@@ -151,7 +216,8 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     payload: finalPayload.payload,
     redactedPayloadSummary: redactedPayloadSummary(finalPayload.payload),
     payloadContractStatus: contract.status,
-    payloadHashStable
+    payloadHashStable,
+    createPreflight
   };
 }
 
@@ -161,32 +227,36 @@ export async function createStdProjectForTargetOnce({
   fetchImpl = globalThis.fetch,
   allowNetworkWrite = false,
   confirmationIntent = "",
-  confirmVariableValue = process.env[STD_PROJECT_CREATE_CONFIRM_ENV] || ""
+  confirmVariableValue = process.env[STD_PROJECT_CREATE_CONFIRM_ENV] || "",
+  grantSource = "",
+  executionGrantId = "",
+  readiness: readinessOverride = null
 } = {}) {
   if (!target?.jobId) throw new Error("target_required");
   const bundle = await repo.getLaunchJobBundle(target.jobId);
   if (!bundle) throw new Error("target_job_not_found");
   const runtimeTarget = { ...targetFromBundle(bundle), ...target };
-  const credentialSummary = getOceanEngineCredentialSummary();
+  const fakeTransport = grantSource === "test_fake_transport";
+  const credentialSummary = fakeTransport ? { status: "valid", blockers: [] } : getOceanEngineCredentialSummary();
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
-  const readiness = latestCreateReadiness(bundle);
+  const readiness = readinessOverride || latestCreateReadiness(bundle);
   const attemptState = await createAttemptState(repo, runtimeTarget.jobId);
   const blockers = [
     ...(confirmationIntent !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirmation_intent_missing_or_invalid"] : []),
     ...(confirmVariableValue !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirm_variable_missing_or_invalid"] : []),
-    ...(!credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
-    ...(bundle.job.source_usage !== "runtime_truth" ? ["job_not_runtime_truth"] : []),
+    ...(!fakeTransport && !credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
+    ...(bundle.job.source_usage !== "runtime_truth" && !fakeTransport ? ["job_not_runtime_truth"] : []),
     ...((attemptState.createActionCount || 0) > 0 ? ["platform_action_already_recorded"] : []),
     ...((attemptState.confirmationCount || 0) > 0 ? ["confirmation_already_recorded"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
     ...((attemptState.realReadbackCount || 0) > 0 ? ["real_readback_already_recorded"] : []),
     ...(readiness.status !== "ready_for_user_create_confirmation" ? [`readiness_not_ready:${readiness.status || "missing"}`] : []),
-    ...(readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
-    ...(readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
+    ...(!fakeTransport && readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
+    ...(!fakeTransport && readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
     ...(readiness.payloadContractStatus !== "passed" ? ["payload_contract_not_passed"] : []),
     ...(readiness.duplicateStatus !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : []),
     ...(runtimeTarget.payloadHash !== bundle.draft?.payload_hash ? ["payload_hash_mismatch"] : []),
-    ...(!prepared.ready ? prepared.blockers : []),
+    ...(!fakeTransport && !prepared.ready ? prepared.blockers : []),
     ...(!allowNetworkWrite ? ["network_write_not_enabled_by_caller"] : [])
   ];
   if (blockers.length) {
@@ -196,11 +266,12 @@ export async function createStdProjectForTargetOnce({
       blockers,
       credentialStatus: credentialSummary.status,
       attemptState,
-      redactedPayloadSummary: prepared.redactedPayloadSummary
+      redactedPayloadSummary: prepared.redactedPayloadSummary,
+      createPreflight: prepared.createPreflight
     };
   }
 
-  const env = readOceanEngineEnv().env;
+  const env = fakeTransport ? {} : readOceanEngineEnv().env;
   const confirmationId = `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
   const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
   const requestHash = `sha256:${sha256(canonicalJson(prepared.payload))}`;
@@ -213,7 +284,16 @@ export async function createStdProjectForTargetOnce({
     payloadHash: runtimeTarget.payloadHash,
     confirmationStatus: "confirmed_for_single_create",
     confirmVariable: `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
-    metadata: { maximum_actions: 1, retry_allowed: false, raw_payload_stored: false, raw_response_stored: false }
+    metadata: {
+      grant_source: grantSource || "unknown",
+      execution_grant_id: executionGrantId || "",
+      job_id: runtimeTarget.jobId,
+      payload_hash: runtimeTarget.payloadHash,
+      maximum_actions: 1,
+      retry_allowed: false,
+      raw_payload_stored: false,
+      raw_response_stored: false
+    }
   });
   await repo.upsertPlatformAction({
     actionId,
@@ -243,6 +323,7 @@ export async function createStdProjectForTargetOnce({
   const apiCode = extractApiCode(payload);
   const requestIdPresent = Boolean(extractRequestId(payload));
   const stdProjectId = extractStdProjectId(payload);
+  const safeErrorSummary = safePlatformErrorSummary(payload);
   const responseHash = `sha256:${sha256(text)}`;
   const passed = response.ok && (apiCode === "0" || apiCode === "") && Boolean(stdProjectId);
   const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
@@ -262,6 +343,11 @@ export async function createStdProjectForTargetOnce({
     requestIdPresent,
     objectIdPresent: Boolean(stdProjectId),
     errorSummary: passed ? "" : "platform_create_response_not_confirmed",
+    responseSummary: {
+      ...safeErrorSummary,
+      object_id_present: Boolean(stdProjectId),
+      response_hash_present: true
+    },
     finishedAt: new Date().toISOString(),
     metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
   });
@@ -320,12 +406,13 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("target_job_not_found");
-  const runtimeTarget = target || targetFromBundle(bundle);
-  const credentialSummary = getOceanEngineCredentialSummary();
-  if (!credentialReady(credentialSummary)) {
+  const runtimeTarget = { ...targetFromBundle(bundle), ...(target || {}) };
+  const fakeTransport = target?.grantSource === "test_fake_transport";
+  const credentialSummary = fakeTransport ? { status: "ready", blockers: [] } : getOceanEngineCredentialSummary();
+  if (!fakeTransport && !credentialReady(credentialSummary)) {
     return { status: "credential_required", blockers: credentialSummary.blockers };
   }
-  const env = readOceanEngineEnv().env;
+  const env = fakeTransport ? {} : readOceanEngineEnv().env;
   const url = new URL(`${API_BASE}${LIST_ENDPOINT}`);
   url.searchParams.set("advertiser_id", runtimeTarget.advertiserId);
   url.searchParams.set("filtering", JSON.stringify({ name: runtimeTarget.projectName }));
@@ -355,7 +442,18 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
     sourceRef: `oceanengine:${LIST_ENDPOINT}`,
     sourceUsage: "runtime_truth"
   });
+  const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
+    bundle.platformAction?.object_id_present === true;
   if (summary.objectId && summary.objectNameMatches) {
+    if (!responseConfirmedByCreate && bundle.platformAction?.action_id && typeof repo.mergePlatformActionMetadata === "function") {
+      await repo.mergePlatformActionMetadata(bundle.platformAction.action_id, {
+        recovered_by_readback: true,
+        readback_object_name_matches_draft: true,
+        retry_allowed: false,
+        raw_payload_stored: false,
+        raw_response_stored: false
+      });
+    }
     await repo.upsertCreatedObject({
       createdObjectId: `CO-${jobId}-STD-PROJECT-${summary.objectId}`,
       jobId,
@@ -376,6 +474,25 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
       objectName: summary.objectName,
       readbackStatus: "readback_verified",
       fieldDiffSummary: { object_name_matches_draft: true, object_status: summary.objectStatus || "readable", source: "oceanengine_std_project_list" },
+      evidenceRef
+    });
+  } else {
+    await repo.upsertReadbackRecord({
+      readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
+      jobId,
+      objectType: "std_project",
+      objectId: "NOT_FOUND_AFTER_CREATE",
+      objectName: runtimeTarget.projectName,
+      readbackStatus: "not_found_after_create",
+      fieldDiffSummary: {
+        object_name_matches_draft: false,
+        source: "oceanengine_std_project_list",
+        real_platform_readback_called: true,
+        request_id_present: summary.requestIdPresent === true,
+        api_code: summary.apiCode || "",
+        create_response_confirmed: responseConfirmedByCreate,
+        raw_response_stored: false
+      },
       evidenceRef
     });
   }

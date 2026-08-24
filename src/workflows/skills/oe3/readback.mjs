@@ -17,7 +17,7 @@ function readbackPlaceholder({ jobId, projectName }) {
   };
 }
 
-export async function runReadbackSkill({ repo, bundle, mode } = {}) {
+export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "" } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const isMock = latestBundle.platformAction?.action_type === "mock_oceanengine_std_project_create";
   if (mode !== "readback_only" && mode !== "execute_once") {
@@ -72,18 +72,49 @@ export async function runReadbackSkill({ repo, bundle, mode } = {}) {
     };
   }
 
-  if (latestBundle.platformAction?.action_type === "oceanengine_std_project_create" && latestBundle.createdObject) {
-    const readback = await readbackStdProjectOnce({ repo, jobId: latestBundle.job.job_id });
+  const realCreateAction = latestBundle.platformAction?.action_type === "oceanengine_std_project_create"
+    ? latestBundle.platformAction
+    : null;
+  if (realCreateAction) {
+    const readback = await readbackStdProjectOnce({
+      repo,
+      jobId: latestBundle.job.job_id,
+      target: { grantSource },
+      fetchImpl
+    });
+    const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
+    const recoveredByReadback = readback.status === "readback_verified" && !responseConfirmed;
+    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && !responseConfirmed;
     return {
-      status: readback.status === "readback_verified" ? "passed" : "blocked",
-      blockers: readback.status === "readback_verified" ? [] : ["created_pending_readback"],
+      status: readback.status === "readback_verified"
+        ? "passed"
+        : readbackMissAfterUnconfirmedCreate
+          ? "failed"
+          : "blocked",
+      blockers: readback.status === "readback_verified"
+        ? []
+        : readbackMissAfterUnconfirmedCreate
+          ? ["create_response_unconfirmed_readback_not_found"]
+          : ["created_pending_readback"],
       evidenceRefs: readback.evidenceRef ? [readback.evidenceRef] : [],
       outputSummary: {
-        readbackStatus: readback.status === "readback_verified" ? "readback_verified" : "created_pending_readback",
+        readbackStatus: readback.status === "readback_verified"
+          ? "readback_verified"
+          : readbackMissAfterUnconfirmedCreate
+            ? "create_unconfirmed_readback_not_found"
+            : "created_pending_readback",
         objectNameSource: "launch_drafts.project_name",
         objectNameMatchesDraft: Boolean(readback.objectNameMatches),
         realPlatformReadbackCalled: true,
         realObjectIdPresent: Boolean(readback.objectId),
+        createResponseConfirmed: responseConfirmed,
+        recoveredByReadback,
+        responseAnomalyPreserved: !responseConfirmed,
+        userVisibleSummary: recoveredByReadback
+          ? "创建响应未确认，已通过回查确认对象创建成功。"
+          : readbackMissAfterUnconfirmedCreate
+            ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
+            : "真实创建已调用，等待只读回查确认。",
         evidenceRef: readback.evidenceRef || ""
       }
     };

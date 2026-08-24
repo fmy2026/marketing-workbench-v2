@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "生成 P01 平台项目结构、P03 v2 最终创建结构、旧项目 P01 创建结构和 P01/P03 字段对比的脱敏参考文件。",
+    "mode": "readonly_docs_generation_no_create_no_new_job",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "target_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "reference_project_id": "7675218401040220179",
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON.md",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readback-once/oceanengine-std-project-readback-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-std-project-create-once.sh",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench",
+    "Postgres database marketing_workbench schema mwb"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON.json",
+    "project.state.json",
+    "scripts/oe3-three-payload-comparison.mjs",
+    "package.json",
+    "docs/.参考文档/3.0创建/01-P01-平台项目结构-脱敏.json",
+    "docs/.参考文档/3.0创建/02-P03-v2最终创建结构-脱敏.json",
+    "docs/.参考文档/3.0创建/03-P01-旧项目创建结构-脱敏.json",
+    "docs/.参考文档/3.0创建/04-P01-P03-创建字段对比.md"
+  ],
+  "forbidden_actions": [
+    "P03 retry",
+    "new runtime job creation",
+    "std_project/create",
+    "promotion create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "token refresh",
+    "budget or bid update",
+    "frontend modification",
+    "workflow or Skill addition",
+    "database migration",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "executing old project scripts",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "validation_plan": [
+    "npm run docs:three-payload-comparison",
+    "query P03 create action and created object counts from v2 Postgres",
+    "static scan generated docs for sensitive leaks",
+    "readonly API check for existing P03 job",
+    "npm run check:runtime-consistency"
+  ],
+  "completion_summary": {
+    "p01_readonly_status": "passed",
+    "p01_api_code": "0",
+    "p01_matched": true,
+    "p03_payload_hash_matches_target": true,
+    "legacy_status": "legacy_raw_create_payload_not_retained",
+    "p03_create_action_count": 1,
+    "p03_created_object_count": 0,
+    "missing_critical_create_field_count": 0,
+    "p03_unallowed_create_field_count": 0,
+    "exact_40000_root_cause": "not_confirmed",
+    "smoke_api_skipped_reason": "would create test_run P04 while task forbids new P04"
+  },
+  "validation_results": [
+    "npm run docs:three-payload-comparison passed",
+    "npm run check:runtime-consistency passed",
+    "readonly API check for existing P03 passed",
+    "generated docs sensitive scan passed"
+  ]
+}

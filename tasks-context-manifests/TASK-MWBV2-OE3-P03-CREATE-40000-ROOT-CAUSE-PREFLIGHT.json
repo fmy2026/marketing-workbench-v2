@@ -1,0 +1,107 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "只读复盘 P03 create api_code=40000，补真实 readback 未命中审计，并接入字段合同 preflight。",
+    "mode": "readonly_diagnosis_plus_fake_transport_validation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "target_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.md",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/create-once.mjs",
+    "src/workflows/skills/oe3/readback.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readback-once",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei官方知识库"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/",
+    "src/workflows/launchWorkflow.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/execution-grant-smoke.mjs",
+    "frontend/app.js"
+  ],
+  "forbidden_actions": [
+    "P03 std_project/create retry",
+    "any real std_project/create during validation",
+    "token refresh",
+    "promotion create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "delete historical jobs/actions/evidence/readback",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "shell call to /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full URL/raw payload/raw response"
+  ],
+  "validation_plan": [
+    "query P03 create/readback counts from v2 Postgres",
+    "node --check changed modules/scripts",
+    "npm run test:execution-grant",
+    "npm run test:create-result-mapping",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "static scan for sensitive leaks and legacy runtime dependency"
+  ],
+  "validation_results": {
+    "p03_counts": {
+      "confirmationCount": 1,
+      "createActionCount": 1,
+      "realReadbackCount": 1,
+      "createdObjectCount": 0
+    },
+    "p03_job_status": "failed_waiting_manual_review",
+    "p03_current_node": "7",
+    "p03_readback_record": "RB-JOB-MWBV2-20260824092327-494BF1-STD-PROJECT-REAL:not_found_after_create",
+    "p03_diagnosis_evidence": "EV-JOB-MWBV2-20260824092327-494BF1-API-40000-PREFLIGHT-DIAGNOSIS",
+    "api_40000_root_cause": "api_40000_message_not_retained",
+    "preflight_status_for_p03": "passed",
+    "fake_invalid_shape_preflight": "passed_blocked_advertiser_id_type_and_dmp_integer_array",
+    "test_execution_grant": "passed",
+    "test_create_result_mapping": "passed",
+    "smoke_workflow_skills": "passed",
+    "smoke_api": "passed",
+    "smoke_readonly": "passed",
+    "check_runtime_consistency": "passed",
+    "sensitive_scan": "passed"
+  },
+  "completion_summary": {
+    "p03_created": false,
+    "p03_retry_allowed": false,
+    "root_cause_certainty": "insufficient_existing_redacted_evidence",
+    "new_preflight_module": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "preflight_hook_points": [
+      "src/workflows/skills/oe3/runner.mjs:create-readiness",
+      "src/platforms/oceanengineStdProjectCreateExecutor.mjs:prepareStdProjectCreate"
+    ],
+    "next_gate": "new conversation creates a new job and dry-runs first; do not retry P03"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "mwbv2.redacted-field-structure.v1",
+  "source": "legacy_project.p01_create_payload",
+  "status": "legacy_raw_create_payload_not_retained",
+  "generated_at": "2026-08-24T14:48:24.954Z",
+  "metadata": {
+    "raw_payload_stored": false,
+    "local_path_stored": false,
+    "legacy_db_summary": {
+      "run_objects_hits": 2,
+      "run_records_hits": 1,
+      "run_objects_sample_keys": [
+        "advertiser_id",
+        "id",
+        "name",
+        "object_role",
+        "operation",
+        "readback_status",
+        "source_role",
+        "status",
+        "type"
+      ],
+      "run_records_sample_keys": [
+        "artifacts",
+        "checks",
+        "config_validation",
+        "created_objects",
+        "id",
+        "materials",
+        "occurred_at",
+        "purpose",
+        "referenced_objects",
+        "result",
+        "round_id",
+        "safety",
+        "schema_version",
+        "scope",
+        "source_digests",
+        "task_id"
+      ],
+      "raw_create_payload_retained_in_known_tables": false
+    }
+  },
+  "field_count": 0,
+  "fields": []
+}

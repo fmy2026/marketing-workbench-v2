@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import { createJob, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
-import { workflowCreateCalledFromView } from "../workflows/skills/oe3/result-mapping.mjs";
-import {
-  STD_PROJECT_CREATE_CONFIRM_ENV,
-  STD_PROJECT_CREATE_CONFIRM_VALUE
-} from "../platforms/oceanengineStdProjectCreateExecutor.mjs";
+import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
@@ -45,15 +41,6 @@ async function readBody(req) {
   const raw = Buffer.concat(chunks).toString("utf8").trim();
   if (!raw) return {};
   return JSON.parse(raw);
-}
-
-async function platformWriteAllowed() {
-  try {
-    const state = JSON.parse(await readFile(join(rootDir, "project.state.json"), "utf8"));
-    return state.guardrails?.platform_write_allowed === true;
-  } catch {
-    return false;
-  }
 }
 
 async function serveStatic(req, res, pathname) {
@@ -107,38 +94,23 @@ async function handleApi(req, res, pathname) {
     const body = await readBody(req);
     return sendJson(res, 200, await runJob(repo, jobId, { mode: body.mode || "dry_run" }));
   }
+  if (req.method === "POST" && action === "execute-once") {
+    const body = await readBody(req);
+    return sendJson(res, 200, await executeConfirmedLaunch({
+      repo,
+      jobId,
+      grantSource: "workbench_click",
+      executionIntent: body.execution_intent || body.executionIntent || ""
+    }));
+  }
   if (req.method === "POST" && action === "confirm-create") {
     const body = await readBody(req);
-    const bundle = await repo.getLaunchJobBundle(jobId);
-    if (!bundle) return sendJson(res, 404, { error: "job_not_found" });
-    const requestBlockers = [
-      ...(body.payload_hash !== bundle.draft?.payload_hash ? ["payload_hash_mismatch"] : []),
-      ...(body.confirmation_intent !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirmation_intent_missing_or_invalid"] : [])
-    ];
-    const writeAllowed = await platformWriteAllowed();
-    const allowNetworkWrite = writeAllowed === true && body.allowNetworkWrite === true;
-    const result = requestBlockers.length
-      ? {
-        status: "blocked_before_create",
-        blockers: requestBlockers,
-        createCalled: false
-      }
-      : await runJob(repo, jobId, {
-        mode: "execute_once",
-        allowNetworkWrite,
-        confirmationIntent: body.confirmation_intent || "",
-        confirmVariableValue: process.env[STD_PROJECT_CREATE_CONFIRM_ENV] || ""
-      });
-    return sendJson(res, 200, {
-      ...result,
-      confirmCreate: {
-        status: requestBlockers.length ? "blocked_before_create" : result.createReadiness?.status || "checked",
-        platformWriteAllowed: writeAllowed,
-        allowNetworkWrite,
-        createCalled: workflowCreateCalledFromView(result),
-        blockedByDefault: allowNetworkWrite !== true
-      }
-    });
+    return sendJson(res, 200, await executeConfirmedLaunch({
+      repo,
+      jobId,
+      grantSource: "workbench_click",
+      executionIntent: body.execution_intent || body.executionIntent || ""
+    }));
   }
   return sendJson(res, 404, { error: "not_found" });
 }

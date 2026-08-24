@@ -1,0 +1,75 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "归档已完成专项任务脚本和未接入当前运行链路的代码，收紧 scripts/src/AGENTS 分类边界。",
+    "mode": "local_file_hygiene_no_runtime_logic_change",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "package.json",
+    "scripts/",
+    "src/",
+    "tasks/TASK-MWBV2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP.md"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP.md",
+    "tasks-context-manifests/TASK-MWBV2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP.json",
+    "project.state.json",
+    "AGENTS.md",
+    "package.json",
+    ".archive/20260824-file-hygiene-cleanup/"
+  ],
+  "archive_candidates": [
+    "scripts/oe3-three-payload-comparison.mjs",
+    "scripts/oe3-reference-contract-readonly-reconciliation.mjs",
+    "scripts/confirm-create-preflight-smoke.mjs",
+    "scripts/runtime-test-data-purge.mjs",
+    "scripts/runtime-test-data-purge-check.mjs",
+    "src/platforms/oceanengineAccountResourceAdapter.mjs"
+  ],
+  "forbidden_actions": [
+    "platform API calls",
+    "std_project/create",
+    "token refresh",
+    "database mutation",
+    "new runtime job creation",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "deleting historical task cards",
+    "editing .local credentials"
+  ],
+  "validation_plan": [
+    "rg package references to archived scripts",
+    "node JSON parse project.state.json and manifest",
+    "npm run check:runtime-consistency",
+    "readonly local API check for existing P03",
+    "confirm npm run dev remains online"
+  ],
+  "completion_summary": {
+    "archive_ref": ".archive/20260824-file-hygiene-cleanup/manifest.json",
+    "archived_script_count": 5,
+    "archived_src_code_count": 1,
+    "archived_system_file_count": 4,
+    "package_references_removed": [
+      "check:reference-contract",
+      "docs:three-payload-comparison"
+    ],
+    "src_runtime_chain_preserved": true,
+    "workbench_url": "http://127.0.0.1:3000/"
+  },
+  "validation_results": [
+    "package script targets exist passed",
+    "current package/scripts/src no longer reference archived files passed",
+    "scripts and src .DS_Store scan passed",
+    "npm run check:runtime-consistency passed",
+    "readonly local API check for P03 passed"
+  ]
+}

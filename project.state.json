@@ -7,15 +7,15 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "ready_for_next_gate",
+  "project_status": "waiting_next_gate",
   "phase": {
-    "id": "V2-CREATE-RESULT-STATUS-MAPPING-FIX",
+    "id": "V2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.md",
-  "next_gate": "真实创建结果回传修正已完成：第 6/7 节点、Skill、job、API 摘要已统一使用真实 create/readback 映射；executor 不再直接覆盖 launch_node_runs 或 launch_jobs；confirmCreate.createCalled 与 summary.noRealPlatformWrite 已改为实际结果推导。最新可确认 runtime job 仍为 JOB-MWBV2-20260824092327-494BF1。下一步如需真实创建，必须另建单次真实 std_project/create 确认任务，显式打开 platform_write_allowed 并带确认变量；当前继续禁止平台写入、禁止 token refresh、禁止 create retry，禁止 v2 运行依赖旧项目 marketing-workbench。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-RUNTIME-FILE-HYGIENE-ARCHIVE-CLEANUP.md",
+  "next_gate": "运行文件卫生清理已完成：`scripts/` 仅保留长期 CLI / smoke / check；已完成专项脚本 `oe3-three-payload-comparison`、`oe3-reference-contract-readonly-reconciliation`、旧 preflight smoke、runtime test purge 脚本，以及未接入当前主链路的 `oceanengineAccountResourceAdapter.mjs` 已归档到 `.archive/20260824-file-hygiene-cleanup/`，并从 `package.json` 移除一次性命令。`AGENTS.md` 已补充一次性脚本完成后归档规则和 `.archive/` 禁止 runtime import / package script / API 调用边界。验证通过：package script targets exist、当前 package/scripts/src 无归档文件引用、`npm run check:runtime-consistency` passed、本地 API P03 抽查 passed，工作台仍在线 `http://127.0.0.1:3000/`。下一 gate 回到 P03 40000：需要平台 request id 错误详情，或另建 fresh runtime job 先 dry-run；真实创建必须另建单次确认任务并依赖 safe error summary。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -79,7 +79,7 @@
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "create_result_status_mapping_fixed_ready_for_single_create_confirmation",
+    "runtime_state": "file_hygiene_cleanup_completed_waiting_platform_error_detail_or_new_runtime_job_dry_run",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",
