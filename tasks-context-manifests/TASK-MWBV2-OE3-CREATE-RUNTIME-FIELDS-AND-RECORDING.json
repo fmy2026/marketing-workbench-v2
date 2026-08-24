@@ -1,0 +1,104 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING",
+  "task_ref": "tasks/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "补齐 v2 std_project/create 运行字段和真实创建记录表；本任务不执行真实 std_project/create。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.md",
+    "tasks/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.md",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/std-project-create-once.mjs",
+    "scripts/std-project-readback-once.mjs",
+    "db/009_create_platform_write_records.sql",
+    "schemas/postgres-minimal-truth.md",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-std-project-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/.archive/postgres-file-truth-20260821"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "job_id": "JOB-MWBV2-20260824014546-851B76",
+    "draft_id": "DRAFT-JOB-MWBV2-20260824014546-851B76",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P19_20260824",
+    "payload_hash": "sha256:8db82f4009abfc567592e59b4d11ad6324b4fbb12dd9d40cb89f64aa5007c7b7"
+  },
+  "write_boundary": {
+    "platform_write_allowed": false,
+    "allowed_platform_actions": [],
+    "postgres_write_allowed": true,
+    "allowed_postgres_tables": [
+      "mwb.account_resources",
+      "mwb.game_platform_apps",
+      "mwb.game_assets",
+      "mwb.launch_confirmations",
+      "mwb.platform_actions",
+      "mwb.created_objects"
+    ]
+  },
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion/create",
+    "project/create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "sensitive_output_forbidden": [
+    "token",
+    "secret",
+    "auth_code",
+    "Cookie",
+    "complete touchpoint_url",
+    "complete mini_program_url",
+    "raw payload",
+    "raw response"
+  ],
+  "validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract",
+    "npm run std-project:create-once without confirm variable must block before create"
+  ],
+  "result": {
+    "runtime_fields_completed": true,
+    "recording_tables_created": true,
+    "std_project_create_executed": false,
+    "create_called": false,
+    "remaining_create_once_blockers": [
+      "confirm_variable_missing_or_invalid",
+      "network_write_not_enabled_by_caller"
+    ],
+    "forbidden_runtime_field_blockers_cleared": [
+      "micro_app_instance_id_missing_or_not_integer",
+      "aweme_id_missing",
+      "mini_program_url_missing",
+      "video_id_missing",
+      "video_cover_id_missing"
+    ]
+  },
+  "completion_gate": "completed; next task may execute exactly one confirmed std_project/create after explicit user approval."
+}

@@ -6,6 +6,17 @@
   "scripts": {
     "dev": "node src/server/index.mjs",
     "start": "node src/server/index.mjs",
-    "smoke:api": "node scripts/smoke-api.mjs"
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "test:payload-contract": "node scripts/payload-contract-smoke.mjs",
+    "smoke:readonly": "node scripts/readonly-oceanengine-smoke.mjs",
+    "token:status": "node scripts/oceanengine-token-status.mjs",
+    "token:refresh": "node scripts/oceanengine-token-refresh.mjs",
+    "resource:diagnose": "node scripts/account-resource-diagnose.mjs",
+    "resource:avatar-once": "node scripts/account-resource-prepare-avatar-once.mjs",
+    "resource:event-asset-once": "node scripts/account-resource-prepare-event-asset-once.mjs",
+    "resource:product-image-once": "node scripts/account-resource-prepare-product-image-once.mjs",
+    "resource:readback": "node scripts/account-resource-readback.mjs",
+    "std-project:create-once": "node scripts/std-project-create-once.mjs",
+    "std-project:readback-once": "node scripts/std-project-readback-once.mjs"
   }
 }

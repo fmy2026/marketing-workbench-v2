@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 
 const DEFAULT_DATABASE = "marketing_workbench_v2";
@@ -9,6 +10,27 @@ function sqlLiteral(value) {
 
 function sqlJson(value) {
   return `${sqlLiteral(JSON.stringify(value))}::jsonb`;
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
+}
+
+function safeTouchpointJson(alias = "t") {
+  return `jsonb_build_object(
+    'touchpoint_id', ${alias}.touchpoint_id,
+    'advertiser_id', ${alias}.advertiser_id,
+    'route_id', ${alias}.route_id,
+    'game_code', ${alias}.game_code,
+    'monitor_id', ${alias}.monitor_id,
+    'touchpoint_ref', ${alias}.touchpoint_ref,
+    'url_hash', ${alias}.url_hash,
+    'status', ${alias}.status,
+    'source', ${alias}.source,
+    'touchpoint_url_present', (${alias}.touchpoint_url IS NOT NULL AND ${alias}.touchpoint_url <> ''),
+    'created_at', ${alias}.created_at,
+    'updated_at', ${alias}.updated_at
+  )`;
 }
 
 function assertId(name, value, pattern = /^[A-Za-z0-9_:\-.]+$/) {
@@ -100,7 +122,7 @@ export class PostgresRepository {
         'game', to_jsonb(g),
         'account', to_jsonb(a),
         'touchpoint', (
-          SELECT to_jsonb(t)
+          SELECT ${safeTouchpointJson("t")}
           FROM mwb.account_touchpoints t
           WHERE t.route_id = r.route_id
             AND t.game_code = g.game_code
@@ -171,7 +193,7 @@ export class PostgresRepository {
         'game', to_jsonb(g),
         'account', to_jsonb(a),
         'touchpoint', (
-          SELECT to_jsonb(t)
+          SELECT ${safeTouchpointJson("t")}
           FROM mwb.account_touchpoints t
           WHERE t.route_id = j.route_id
             AND t.game_code = j.game_code
@@ -282,6 +304,69 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getTouchpointVerification({ routeId, gameCode, advertiserId, monitorId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("monitor_id", monitorId, /^[0-9A-Za-z_\-.]+$/);
+
+    const row = await queryJson(`
+      SELECT to_jsonb(t)::text
+      FROM mwb.account_touchpoints t
+      WHERE t.route_id = ${sqlLiteral(routeId)}
+        AND t.game_code = ${sqlLiteral(gameCode)}
+        AND t.advertiser_id = ${sqlLiteral(advertiserId)}
+        AND t.monitor_id = ${sqlLiteral(monitorId)}
+      ORDER BY t.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+
+    if (!row) {
+      return {
+        status: "missing",
+        touchpointRef: "",
+        storedUrlHash: "",
+        computedUrlHash: "",
+        touchpointUrlPresent: false,
+        urlHashMatches: false
+      };
+    }
+
+    const touchpointUrl = row.touchpoint_url || "";
+    const computedUrlHash = touchpointUrl ? sha256Hex(touchpointUrl) : "";
+    return {
+      status: row.status || "unknown",
+      touchpointRef: row.touchpoint_ref || "",
+      storedUrlHash: row.url_hash || "",
+      computedUrlHash,
+      touchpointUrlPresent: Boolean(touchpointUrl),
+      urlHashMatches: Boolean(touchpointUrl && row.url_hash && computedUrlHash === row.url_hash)
+    };
+  }
+
+  async getControlledTouchpointUrl({ routeId, gameCode, advertiserId, monitorId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("monitor_id", monitorId, /^[0-9A-Za-z_\-.]+$/);
+
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'touchpoint_ref', t.touchpoint_ref,
+        'url_hash', t.url_hash,
+        'status', t.status,
+        'touchpoint_url', t.touchpoint_url
+      )::text
+      FROM mwb.account_touchpoints t
+      WHERE t.route_id = ${sqlLiteral(routeId)}
+        AND t.game_code = ${sqlLiteral(gameCode)}
+        AND t.advertiser_id = ${sqlLiteral(advertiserId)}
+        AND t.monitor_id = ${sqlLiteral(monitorId)}
+      ORDER BY t.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
   async createLaunchJob({ jobId, routeId, gameCode, advertiserId, objectType, sourceRecordRef }) {
     assertId("job_id", jobId);
     assertId("route_id", routeId);
@@ -346,6 +431,8 @@ export class PostgresRepository {
         ${sqlLiteral(node.status)},
         ${sqlLiteral(node.summary)},
         ${sqlLiteral(node.diagnosticLevel)},
+        ${sqlJson(node.outputSummary || {})},
+        ${sqlJson(node.evidenceRefs || [])},
         ${startedAt},
         ${finishedAt}
       )`;
@@ -361,6 +448,8 @@ export class PostgresRepository {
         status,
         summary,
         diagnostic_level,
+        output_summary,
+        evidence_refs,
         started_at,
         finished_at
       ) VALUES ${values}
@@ -370,8 +459,77 @@ export class PostgresRepository {
         status = EXCLUDED.status,
         summary = EXCLUDED.summary,
         diagnostic_level = EXCLUDED.diagnostic_level,
+        output_summary = EXCLUDED.output_summary,
+        evidence_refs = EXCLUDED.evidence_refs,
         started_at = coalesce(mwb.launch_node_runs.started_at, EXCLUDED.started_at),
         finished_at = EXCLUDED.finished_at;
+    `, this.database);
+  }
+
+  async updateNodeRun(jobId, nodeKey, { status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
+    assertId("job_id", jobId);
+    assertId("node_key", nodeKey);
+    await runPsql(`
+      UPDATE mwb.launch_node_runs
+      SET status = ${sqlLiteral(status)},
+          summary = ${sqlLiteral(summary)},
+          diagnostic_level = ${sqlLiteral(diagnosticLevel)},
+          output_summary = output_summary || ${sqlJson(outputSummary || {})},
+          evidence_refs = ${sqlJson(evidenceRefs || [])},
+          finished_at = now()
+      WHERE job_id = ${sqlLiteral(jobId)}
+        AND node_key = ${sqlLiteral(nodeKey)};
+    `, this.database);
+  }
+
+  async updateAccountResourceReadonly({ routeId, gameCode, advertiserId, resourceType, visibilityStatus, readbackStatus, platformResourceId, metadata, resourceMetadata }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("resource_type", resourceType);
+
+    await runPsql(`
+      UPDATE mwb.account_resources
+      SET visibility_status = coalesce(nullif(${sqlLiteral(visibilityStatus || "")}, ''), visibility_status),
+          readback_status = coalesce(nullif(${sqlLiteral(readbackStatus || "")}, ''), readback_status),
+          platform_resource_id = coalesce(nullif(${sqlLiteral(platformResourceId || "")}, ''), platform_resource_id),
+          metadata = metadata || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}) || ${sqlJson(resourceMetadata || {})},
+          updated_at = now()
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND resource_type = ${sqlLiteral(resourceType)};
+    `, this.database);
+  }
+
+  async updateAccountResourcePlatformResource({ routeId, gameCode, advertiserId, resourceType, platformResourceId, visibilityStatus, readbackStatus, metadata }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("resource_type", resourceType);
+    assertId("platform_resource_id", platformResourceId, /^[0-9A-Za-z_:\-/.]+$/);
+
+    await runPsql(`
+      UPDATE mwb.account_resources
+      SET platform_resource_id = ${sqlLiteral(platformResourceId)},
+          visibility_status = coalesce(nullif(${sqlLiteral(visibilityStatus || "")}, ''), visibility_status),
+          readback_status = coalesce(nullif(${sqlLiteral(readbackStatus || "")}, ''), readback_status),
+          metadata = metadata || ${sqlJson(metadata || {})},
+          updated_at = now()
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND resource_type = ${sqlLiteral(resourceType)};
+    `, this.database);
+  }
+
+  async updateDraftDuplicateStatus(draftId, duplicateStatus) {
+    assertId("draft_id", draftId);
+    assertId("duplicate_status", duplicateStatus);
+    await runPsql(`
+      UPDATE mwb.launch_drafts
+      SET duplicate_status = ${sqlLiteral(duplicateStatus)}
+      WHERE draft_id = ${sqlLiteral(draftId)};
     `, this.database);
   }
 
@@ -485,6 +643,142 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async upsertLaunchConfirmation(confirmation) {
+    assertId("confirmation_id", confirmation.confirmationId);
+    assertId("job_id", confirmation.jobId);
+    assertId("draft_id", confirmation.draftId);
+    await runPsql(`
+      INSERT INTO mwb.launch_confirmations (
+        confirmation_id,
+        job_id,
+        draft_id,
+        object_type,
+        object_name,
+        payload_hash,
+        confirmation_status,
+        confirm_variable,
+        confirmed_by,
+        metadata,
+        confirmed_at
+      ) VALUES (
+        ${sqlLiteral(confirmation.confirmationId)},
+        ${sqlLiteral(confirmation.jobId)},
+        ${sqlLiteral(confirmation.draftId)},
+        ${sqlLiteral(confirmation.objectType)},
+        ${sqlLiteral(confirmation.objectName)},
+        ${sqlLiteral(confirmation.payloadHash)},
+        ${sqlLiteral(confirmation.confirmationStatus)},
+        ${sqlLiteral(confirmation.confirmVariable)},
+        ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+        ${sqlJson(confirmation.metadata || {})},
+        now()
+      )
+      ON CONFLICT (confirmation_id) DO UPDATE SET
+        confirmation_status = EXCLUDED.confirmation_status,
+        metadata = EXCLUDED.metadata,
+        confirmed_at = EXCLUDED.confirmed_at;
+    `, this.database);
+  }
+
+  async upsertPlatformAction(action) {
+    assertId("action_id", action.actionId);
+    assertId("job_id", action.jobId);
+    await runPsql(`
+      INSERT INTO mwb.platform_actions (
+        action_id,
+        job_id,
+        confirmation_id,
+        action_type,
+        endpoint,
+        method,
+        action_status,
+        attempt_no,
+        request_hash,
+        response_hash,
+        http_status,
+        api_code,
+        request_id_present,
+        object_id_present,
+        error_summary,
+        metadata,
+        started_at,
+        finished_at
+      ) VALUES (
+        ${sqlLiteral(action.actionId)},
+        ${sqlLiteral(action.jobId)},
+        ${action.confirmationId ? sqlLiteral(action.confirmationId) : "NULL"},
+        ${sqlLiteral(action.actionType)},
+        ${sqlLiteral(action.endpoint)},
+        ${sqlLiteral(action.method || "POST")},
+        ${sqlLiteral(action.actionStatus)},
+        ${Number(action.attemptNo || 1)},
+        ${sqlLiteral(action.requestHash || "")},
+        ${sqlLiteral(action.responseHash || "")},
+        ${action.httpStatus === null || action.httpStatus === undefined ? "NULL" : Number(action.httpStatus)},
+        ${sqlLiteral(action.apiCode || "")},
+        ${action.requestIdPresent ? "true" : "false"},
+        ${action.objectIdPresent ? "true" : "false"},
+        ${sqlLiteral(action.errorSummary || "")},
+        ${sqlJson(action.metadata || {})},
+        ${action.startedAt ? `${sqlLiteral(action.startedAt)}::timestamptz` : "now()"},
+        ${action.finishedAt ? `${sqlLiteral(action.finishedAt)}::timestamptz` : "NULL"}
+      )
+      ON CONFLICT (action_id) DO UPDATE SET
+        action_status = EXCLUDED.action_status,
+        request_hash = EXCLUDED.request_hash,
+        response_hash = EXCLUDED.response_hash,
+        http_status = EXCLUDED.http_status,
+        api_code = EXCLUDED.api_code,
+        request_id_present = EXCLUDED.request_id_present,
+        object_id_present = EXCLUDED.object_id_present,
+        error_summary = EXCLUDED.error_summary,
+        metadata = EXCLUDED.metadata,
+        finished_at = EXCLUDED.finished_at;
+    `, this.database);
+  }
+
+  async upsertCreatedObject(object) {
+    assertId("created_object_id", object.createdObjectId);
+    assertId("job_id", object.jobId);
+    await runPsql(`
+      INSERT INTO mwb.created_objects (
+        created_object_id,
+        job_id,
+        confirmation_id,
+        action_id,
+        object_type,
+        object_id,
+        object_name,
+        object_status,
+        readback_status,
+        evidence_ref,
+        metadata,
+        created_at,
+        readback_at
+      ) VALUES (
+        ${sqlLiteral(object.createdObjectId)},
+        ${sqlLiteral(object.jobId)},
+        ${object.confirmationId ? sqlLiteral(object.confirmationId) : "NULL"},
+        ${object.actionId ? sqlLiteral(object.actionId) : "NULL"},
+        ${sqlLiteral(object.objectType)},
+        ${sqlLiteral(object.objectId)},
+        ${sqlLiteral(object.objectName)},
+        ${sqlLiteral(object.objectStatus || "")},
+        ${sqlLiteral(object.readbackStatus || "pending")},
+        ${sqlLiteral(object.evidenceRef || "")},
+        ${sqlJson(object.metadata || {})},
+        now(),
+        ${object.readbackAt ? `${sqlLiteral(object.readbackAt)}::timestamptz` : "NULL"}
+      )
+      ON CONFLICT (created_object_id) DO UPDATE SET
+        object_status = EXCLUDED.object_status,
+        readback_status = EXCLUDED.readback_status,
+        evidence_ref = EXCLUDED.evidence_ref,
+        metadata = EXCLUDED.metadata,
+        readback_at = EXCLUDED.readback_at;
+    `, this.database);
+  }
+
   async countNodeRuns(jobId) {
     assertId("job_id", jobId);
     return queryJson(`
@@ -495,4 +789,4 @@ export class PostgresRepository {
   }
 }
 
-export { sqlLiteral, sqlJson };
+export { sqlLiteral, sqlJson, sha256Hex };

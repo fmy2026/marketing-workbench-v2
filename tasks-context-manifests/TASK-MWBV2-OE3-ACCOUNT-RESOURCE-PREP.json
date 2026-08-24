@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP",
+  "task_ref": "tasks/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.md",
+  "status": "blocked_waiting_resource_source_and_brand_confirmation",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "进入账户资源补齐阶段，完成资源诊断、补齐计划、受控 once 脚本和只读回查闭环。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-CREDENTIALS-AND-READONLY-RERUN.md",
+    "tasks/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "package.json"
+  ],
+  "outputs": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.json",
+    "src/platforms/oceanengineAccountResourceAdapter.mjs",
+    "scripts/account-resource-diagnose.mjs",
+    "scripts/account-resource-prepare-avatar-once.mjs",
+    "scripts/account-resource-prepare-event-asset-once.mjs",
+    "scripts/account-resource-prepare-product-image-once.mjs",
+    "scripts/account-resource-readback.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-avatar-upload-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-avatar-submit-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readback-once/oceanengine-avatar-readback-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-event-asset-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-event-configs-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-image-upload-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-material-bind-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/README.md"
+  ],
+  "constraints": {
+    "platform_readonly_allowed": true,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "std_project_create_allowed": false,
+    "raw_platform_response_persistence_allowed": false,
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb"
+  },
+  "validation": [
+    "npm run token:status",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract",
+    "npm run resource:diagnose",
+    "npm run resource:avatar-once",
+    "npm run resource:event-asset-once",
+    "npm run resource:product-image-once",
+    "npm run resource:readback"
+  ],
+  "executed_commands": [
+    "node --check src/platforms/oceanengineAccountResourceAdapter.mjs",
+    "node --check scripts/account-resource-diagnose.mjs",
+    "node --check scripts/account-resource-readback.mjs",
+    "node --check scripts/account-resource-prepare-avatar-once.mjs",
+    "node --check scripts/account-resource-prepare-event-asset-once.mjs",
+    "node --check scripts/account-resource-prepare-product-image-once.mjs",
+    "npm run token:status",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract",
+    "npm run resource:diagnose",
+    "npm run resource:avatar-once",
+    "npm run resource:event-asset-once",
+    "npm run resource:product-image-once",
+    "MWBV2_OE_PRODUCT_IMAGE_CONFIRM=PREPARE_ONE_PRODUCT_IMAGE npm run resource:product-image-once",
+    "npm run resource:readback"
+  ],
+  "blocked_by": [
+    "product_image_source_missing_or_not_uploadable",
+    "brand_industry_readback_required"
+  ],
+  "next_gate": "补 product_image 的可查平台 image_id 或上传素材来源；确认 brand_info 品牌/行业只读结果；真实创建仍禁止。"
+}

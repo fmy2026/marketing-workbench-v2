@@ -4,11 +4,11 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
-import { buildLaunchJobView, confirmJob, createJob, diagnoseJob, readbackJob, runJob } from "../workflows/launchWorkflow.mjs";
+import { confirmJob, createJob, diagnoseJob, getJobView, readbackJob, runJob } from "../workflows/launchWorkflow.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
-const port = Number(process.env.PORT || process.env.MWBV2_PORT || 3000);
+const port = 3000;
 const repo = new PostgresRepository();
 
 const mimeTypes = {
@@ -64,9 +64,9 @@ async function serveStatic(req, res, pathname) {
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/launch/jobs/latest") {
     const jobId = await repo.latestJobId();
-    const bundle = await repo.getLaunchJobBundle(jobId);
-    if (!bundle) return sendJson(res, 404, { error: "job_not_found" });
-    return sendJson(res, 200, buildLaunchJobView(bundle));
+    const view = await getJobView(repo, jobId);
+    if (!view) return sendJson(res, 404, { error: "job_not_found" });
+    return sendJson(res, 200, view);
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {
@@ -85,9 +85,9 @@ async function handleApi(req, res, pathname) {
   const jobId = decodeURIComponent(jobMatch[1]);
   const action = jobMatch[2] || "";
   if (req.method === "GET" && !action) {
-    const bundle = await repo.getLaunchJobBundle(jobId);
-    if (!bundle) return sendJson(res, 404, { error: "job_not_found" });
-    return sendJson(res, 200, buildLaunchJobView(bundle));
+    const view = await getJobView(repo, jobId);
+    if (!view) return sendJson(res, 404, { error: "job_not_found" });
+    return sendJson(res, 200, view);
   }
   if (req.method === "POST" && action === "diagnose") return sendJson(res, 200, await diagnoseJob(repo, jobId));
   if (req.method === "POST" && action === "run") return sendJson(res, 200, await runJob(repo, jobId));

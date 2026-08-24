@@ -1,0 +1,82 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-READONLY-GATES",
+  "task_ref": "tasks/TASK-MWBV2-OE3-READONLY-GATES.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "接入 OceanEngine 真实平台只读校验，回写脱敏证据和账户资源只读摘要。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "schemas/postgres-minimal-truth.md",
+    "tasks/TASK-MWBV2-API-WORKFLOW-CLOSED-LOOP.md",
+    "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
+    "tasks/TASK-MWBV2-PREWRITE-READONLY-ADAPTER.md",
+    "tasks/TASK-MWBV2-OE3-READONLY-GATES.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-READONLY-GATES.json",
+    "src/workflows/launchWorkflow.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "outputs": [
+    "project.state.json",
+    "db/008_add_launch_node_readonly_outputs.sql",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/readonly-oceanengine-smoke.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/src/server/oceanengine-3-std-project-payload-contract.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readback-once/oceanengine-std-project-readback-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readonly/oceanengine-readonly-probe.sh"
+  ],
+  "constraints": {
+    "platform_readonly_allowed": true,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "budget_bid_change_allowed": false,
+    "runtime_legacy_project_import_allowed": false,
+    "old_database_write_allowed": false,
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb",
+    "raw_platform_response_persistence_allowed": false
+  },
+  "validation": [
+    "node --check modified modules",
+    "npm run test:payload-contract",
+    "npm run smoke:api",
+    "npm run smoke:readonly",
+    "sensitive pattern scan",
+    "legacy runtime dependency scan",
+    "live API redaction check"
+  ],
+  "executed_commands": [
+    "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/008_add_launch_node_readonly_outputs.sql",
+    "node --check src/platforms/oceanengineReadonlyClient.mjs",
+    "node --check src/platforms/oceanengineReadonlyAdapter.mjs",
+    "node --check src/workflows/launchWorkflow.mjs",
+    "node --check src/repositories/postgresRepository.mjs",
+    "node --check frontend/app.js",
+    "node --check scripts/readonly-oceanengine-smoke.mjs",
+    "npm run smoke:readonly",
+    "npm run test:payload-contract",
+    "npm run smoke:api",
+    "rg -n \"<full-touchpoint-url-and-macro-patterns>\" .",
+    "rg -n \"<legacy-runtime-import-patterns>\" src scripts package.json",
+    "psql -X -d marketing_workbench_v2 -c \"SELECT ...\"",
+    "curl --noproxy 127.0.0.1 -s -o /tmp/mwbv2-latest-api.json http://127.0.0.1:3000/api/launch/jobs/latest"
+  ],
+  "next_gate": "账户资源补齐确认任务；当前还需要先单独处理只读凭据后重跑校验。"
+}

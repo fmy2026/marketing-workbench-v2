@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-08-23.project-state-v1",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-23 CST",
+  "updated_at": "2026-08-24 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,21 +9,37 @@
   },
   "project_status": "awaiting_next_task",
   "phase": {
-    "id": "V2-P3-NAMING-AND-AGENTS-CLEANUP",
+    "id": "V2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.md",
-  "next_gate": "真实平台写入前的契约测试与只读平台 adapter。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.md",
+  "next_gate": "v2 创建运行字段和真实创建记录表已补齐；下一步进入单次真实 std_project/create 执行确认任务。必须显式确认并使用 MWBV2_OE_STD_PROJECT_CREATE_CONFIRM=CREATE_ONE_STD_PROJECT npm run std-project:create-once。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only",
+      "mode": "read_only_no_platform_write",
       "allowed_actions": [],
-      "maximum_actions": 0
+      "maximum_actions": 0,
+      "retry_allowed": false
     },
     "credential_refresh_allowed": false,
+    "credential_refresh_scope": {
+      "mode": "manual_confirmed_oauth_refresh_only",
+      "confirm_variable": "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
+      "allowed_actions": [
+        "oceanengine_oauth_refresh_token",
+        "oceanengine_readonly_probe_after_refresh"
+      ],
+      "forbidden_actions": [
+        "std_project/create",
+        "material upload",
+        "event asset create",
+        "DMP push",
+        "budget or bid update"
+      ]
+    },
     "budget_bid_change_allowed": false,
     "long_term_lesson_write_allowed": false,
     "git_history_rewrite_allowed": false,
@@ -33,11 +49,11 @@
     "do_not_start": [
       "Project 创建或重试",
       "Promotion 创建或重试",
-      "std_project 创建或重试",
+      "未带确认变量的 std_project 创建或重试",
       "监测链接组创建",
       "预算/出价修改",
       "凭据刷新",
-      "未授权真实平台写入",
+      "真实平台写入",
       "把 token、Cookie、secret、auth_code 或完整触点 URL 写入项目文件",
       "直接依赖旧项目路径作为 v2 运行时真值",
       "未建立任务卡和 context manifest 时推进跨阶段开发"
@@ -54,13 +70,13 @@
     "agent_entrypoints": "src/agents/launchAgent.mjs",
     "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy",
     "repositories": "src/repositories/postgresRepository.mjs",
-    "platform_adapters": "src/platforms/oceanenginePlaceholder.mjs",
+    "platform_adapters": "src/platforms/oceanenginePlaceholder.mjs + src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineStdProjectPayloadContract.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs; credential lifecycle, readonly gate, payload contract, and one confirmed std_project/create executor",
     "database_migrations_and_seed": "db/",
     "schemas": "schemas/",
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "phase_3_frontend_api_workflow_runtime_state_completed",
+    "runtime_state": "oe3_create_runtime_fields_and_recording_completed_waiting_single_create_confirmation",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",

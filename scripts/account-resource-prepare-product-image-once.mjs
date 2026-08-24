@@ -1,0 +1,3 @@
+import { buildAccountResourceOncePlan } from "../src/platforms/oceanengineAccountResourceAdapter.mjs";
+
+console.log(JSON.stringify(await buildAccountResourceOncePlan("product_image"), null, 2));

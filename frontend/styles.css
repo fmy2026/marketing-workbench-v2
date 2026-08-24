@@ -483,7 +483,10 @@ h1 {
 }
 
 .node-card.status-repairable,
-.node-card.status-needs_confirmation {
+.node-card.status-needs_confirmation,
+.node-card.status-locked,
+.node-card.status-credential_required,
+.node-card.status-transport_failed {
   border-left-color: var(--amber);
 }
 
@@ -546,8 +549,14 @@ h1 {
 
 .status-repairable .node-status,
 .status-needs_confirmation .node-status,
+.status-locked .node-status,
+.status-credential_required .node-status,
+.status-transport_failed .node-status,
 .status-repairable,
-.status-needs_confirmation {
+.status-needs_confirmation,
+.status-locked,
+.status-credential_required,
+.status-transport_failed {
   background: var(--amber-soft);
   color: var(--amber);
 }
@@ -572,6 +581,30 @@ h1 {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.readonly-checks {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.readonly-check {
+  display: grid;
+  grid-template-columns: auto minmax(76px, 0.8fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.readonly-check strong,
+.readonly-check em,
+.readonly-check b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .subflow-tags {

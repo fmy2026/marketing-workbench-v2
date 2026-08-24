@@ -1,0 +1,101 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.md",
+  "status": "blocked_waiting_brand_industry_confirmation",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "完成 std_project 创建前资源准备收口：一次产品图上传、产品图 readback、brand_info 只读确认和创建前 gate 重跑。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.md",
+    "tasks/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.md",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.md",
+    "src/platforms/oceanengineAccountResourceAdapter.mjs",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/account-resource-prepare-product-image-once.mjs",
+    "scripts/account-resource-readback.mjs",
+    "package.json"
+  ],
+  "outputs": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.json",
+    "mwb.account_resources",
+    "mwb.evidence_artifacts",
+    "mwb.launch_node_runs"
+  ],
+  "private_runtime_inputs": [
+    "/Users/hys/Projects/marketing-workbench-v2/.local/oceanengine.env",
+    "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-image-upload-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-material-bind-once.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readonly/oceanengine-readonly-probe.sh",
+    "/Users/hys/Projects/marketing-workbench/scripts/README.md"
+  ],
+  "constraints": {
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb",
+    "platform_write_allowed_scope": [
+      "oceanengine_file_image_ad_upload"
+    ],
+    "maximum_platform_write_actions": 1,
+    "std_project_create_allowed": false,
+    "credential_refresh_allowed": false,
+    "forbidden_actions": [
+      "std_project/create",
+      "event asset create",
+      "DMP push",
+      "avatar upload",
+      "budget/bid update",
+      "promotion/project create",
+      "token refresh"
+    ],
+    "sensitive_output_forbidden": [
+      "token",
+      "secret",
+      "auth_code",
+      "Cookie",
+      "raw response",
+      "raw payload"
+    ]
+  },
+  "validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "MWBV2_OE_PRODUCT_IMAGE_CONFIRM=PREPARE_ONE_PRODUCT_IMAGE npm run resource:product-image-once",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract"
+  ],
+  "result": {
+    "product_image": {
+      "status": "readback_verified",
+      "image_id": "tos-cn-i-sd07hgqsbj/39eabdb27b794b1c8ae146ca7bf5640a",
+      "upload_endpoint": "file/image/ad",
+      "readback_endpoint": "file/image/get",
+      "source_asset_id": "PI-JSZC-PRODUCT-IMAGE-001"
+    },
+    "brand_info": {
+      "status": "blocked",
+      "brand_probe": "passed",
+      "industry_probe": "blocked_api_code_40000",
+      "next_action": "确认品牌/行业只读参数或平台品牌行业配置"
+    },
+    "blocked_resource_types": [
+      "brand_info"
+    ],
+    "prewrite_gate_status": "blocked",
+    "payload_contract_gap_count": 1,
+    "std_project_create_executed": false
+  },
+  "next_gate": "产品图已上传并 readback 通过；下一步只处理 brand_info 品牌/行业确认；真实创建仍禁止。"
+}

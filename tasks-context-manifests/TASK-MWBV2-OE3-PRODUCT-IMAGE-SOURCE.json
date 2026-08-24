@@ -1,0 +1,64 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.md",
+  "status": "completed",
+  "updated_at": "2026-08-23 CST",
+  "owner_agent": "codex",
+  "goal": "补齐 product_image 的 v2 独立真实素材来源，并更新 Postgres 素材引用。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.md",
+    "tasks/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.md",
+    "src/platforms/oceanengineAccountResourceAdapter.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "outputs": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.json",
+    "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "mwb.game_assets",
+    "mwb.account_resources"
+  ],
+  "reference_only": [
+    "/Users/hys/ProjectAssets/marketing-workbench"
+  ],
+  "constraints": {
+    "platform_write_allowed": false,
+    "std_project_create_allowed": false,
+    "old_asset_directory_runtime_dependency_allowed": false,
+    "target_asset_root": "/Users/hys/ProjectAssets/marketing-workbench-v2",
+    "source_asset_root_reference_only": "/Users/hys/ProjectAssets/marketing-workbench",
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb"
+  },
+  "validation": [
+    "file exists /Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "image dimensions/hash check",
+    "Postgres game_assets/account_resources check",
+    "npm run resource:diagnose",
+    "npm run resource:product-image-once",
+    "npm run resource:readback"
+  ],
+  "executed_commands": [
+    "find /Users/hys/ProjectAssets/marketing-workbench -type f",
+    "sips -g pixelWidth -g pixelHeight /Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "shasum -a 256 /Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "psql -X -d marketing_workbench_v2 -c \"INSERT INTO mwb.game_assets ...; UPDATE mwb.account_resources ...\"",
+    "npm run resource:diagnose",
+    "npm run resource:product-image-once",
+    "npm run resource:readback"
+  ],
+  "result": {
+    "asset_id": "PI-JSZC-PRODUCT-IMAGE-001",
+    "asset_ref": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "asset_hash": "5c9a0395bd05204575345178ec23d0df8465dd364faff5b749060b81db7245b8",
+    "width": 1024,
+    "height": 1024,
+    "next_product_image_action": "prepare_product_image_once"
+  },
+  "next_gate": "产品图已有可上传来源；下一步处理 product_image 单次上传确认前检查和 brand_info 品牌/行业确认；真实创建仍禁止。"
+}

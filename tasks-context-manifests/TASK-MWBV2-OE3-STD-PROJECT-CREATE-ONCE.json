@@ -1,0 +1,101 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.md",
+  "status": "implementation_ready_waiting_explicit_confirmation",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "在 v2 独立项目内准备并受控执行一次 OceanEngine 3.0 std_project/create，随后立即 readback；当前已落地执行器并补齐 v2 create payload 运行字段，等待显式确认变量。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.md",
+    "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/std-project-create-once.mjs",
+    "scripts/std-project-readback-once.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-std-project-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/src/server/oceanengine-3-std-project-payload-contract.mjs"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "credentials": "marketing-workbench-v2/.local/oceanengine.env only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "job_id": "JOB-MWBV2-20260824014546-851B76",
+    "draft_id": "DRAFT-JOB-MWBV2-20260824014546-851B76",
+    "object_type": "std_project",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P19_20260824",
+    "payload_hash": "sha256:8db82f4009abfc567592e59b4d11ad6324b4fbb12dd9d40cb89f64aa5007c7b7"
+  },
+  "write_boundary": {
+    "platform_write_allowed_only_with_confirm_variable": true,
+    "allowed_endpoint": "/open_api/v3.0/std_project/create/",
+    "allowed_action_count": 1,
+    "confirm_variable": "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM=CREATE_ONE_STD_PROJECT",
+    "retry_allowed": false,
+    "attempt_lock": ".local/std-project-create-attempt-JOB-MWBV2-20260824014546-851B76.json"
+  },
+  "forbidden_actions": [
+    "second std_project/create",
+    "promotion/create",
+    "project/create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "sensitive_output_forbidden": [
+    "token",
+    "secret",
+    "auth_code",
+    "Cookie",
+    "complete touchpoint_url",
+    "raw payload",
+    "raw response"
+  ],
+  "validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract",
+    "npm run std-project:create-once without confirm variable must block before create"
+  ],
+  "current_blockers": [
+    "confirm_variable_missing_or_invalid",
+    "network_write_not_enabled_by_caller"
+  ],
+  "cleared_runtime_field_blockers": [
+    "micro_app_instance_id_missing_or_not_integer",
+    "aweme_id_missing",
+    "mini_program_url_missing",
+    "video_id_missing",
+    "video_cover_id_missing"
+  ],
+  "next_gate": "v2 Postgres 创建运行字段已补齐；下一步只有在用户显式确认后，执行一次真实 std_project/create。",
+  "completion_gate": "Run exactly one confirmed create command only after v2 runtime payload blockers are cleared, immediately read back the object, update Postgres node/readback/evidence records, then close active_task."
+}

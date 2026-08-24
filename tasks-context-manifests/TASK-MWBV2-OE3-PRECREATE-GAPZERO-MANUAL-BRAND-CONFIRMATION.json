@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "接受 brand_info 人工确认，让 v2 创建前 gate 达到 gapCount=0，并保持 std_project/create locked。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.md",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.md",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/account-resource-readback.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-std-project-create-once.sh",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/tasks/TASK-MWB-MVP4-OE3-STD-PROJECT-PREP-SKILL-DESIGN.md"
+  ],
+  "constraints": {
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb",
+    "platform_write_allowed": false,
+    "std_project_create_allowed": false,
+    "credential_refresh_allowed": false,
+    "old_project_runtime_dependency_allowed": false,
+    "forbidden_actions": [
+      "std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget/bid update",
+      "token refresh",
+      "import_or_shell_call_old_project_runtime"
+    ],
+    "sensitive_output_forbidden": [
+      "token",
+      "secret",
+      "auth_code",
+      "Cookie",
+      "raw response",
+      "raw payload"
+    ]
+  },
+  "outputs": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.json",
+    "mwb.account_resources.metadata.brand_info_official",
+    "mwb.launch_drafts.payload_summary.brand_info",
+    "mwb.launch_node_runs"
+  ],
+  "validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract"
+  ],
+  "result": {
+    "brand_info_status": "passed_by_manual_confirmation",
+    "brand_info_official_used_for_create_gate": true,
+    "payload_summary_brand_info_present": true,
+    "blocked_resource_types": [],
+    "gap_count": 0,
+    "prewrite_gate_status": "locked",
+    "create_node_status": "ready_for_single_create_confirmation",
+    "std_project_create_executed": false
+  },
+  "next_gate": "进入单次真实创建确认任务；必须单独授权 std_project/create，单次执行并写后 readback。"
+}

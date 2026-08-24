@@ -7,6 +7,9 @@
     repairable: "可修复",
     needs_confirmation: "需确认",
     blocked: "阻断",
+    locked: "锁定",
+    credential_required: "需凭据",
+    transport_failed: "请求失败",
     failed: "失败",
     waiting: "等待"
   };
@@ -16,6 +19,9 @@
     repairable: "可修复",
     needs_confirmation: "需确认",
     blocked: "阻断",
+    locked: "锁定",
+    credential_required: "需凭据",
+    transport_failed: "请求失败",
     waiting: "等待",
     failed: "失败"
   };
@@ -172,7 +178,21 @@
       statusCell.append(el("span", `diagnostic-status status-${item.status}`, diagnosticLabels[item.status] || item.status));
       row.append(statusCell);
 
-      row.append(el("td", "", item.problem));
+      const problemCell = document.createElement("td");
+      problemCell.append(el("div", "", item.problem));
+      if (Array.isArray(item.readonlyChecks) && item.readonlyChecks.length) {
+        const list = el("div", "readonly-checks");
+        item.readonlyChecks.forEach((check) => {
+          const checkRow = el("div", "readonly-check");
+          checkRow.append(el("span", `diagnostic-status status-${check.status}`, diagnosticLabels[check.status] || check.status));
+          checkRow.append(el("strong", "", check.resourceType || check.key));
+          checkRow.append(el("em", "", check.gap || check.summary || "ok"));
+          checkRow.append(el("b", "", check.nextAction || ""));
+          list.append(checkRow);
+        });
+        problemCell.append(list);
+      }
+      row.append(problemCell);
       row.append(el("td", "", item.action));
       rows.append(row);
     });

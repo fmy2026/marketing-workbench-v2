@@ -1,0 +1,95 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-BRAND-INFO-FINALIZE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.md",
+  "status": "blocked_waiting_manual_brand_industry_confirmation",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "收口 brand_info 官方字段、修正行业只读校验、重跑创建前 gate。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.md",
+    "tasks/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.md",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineAccountResourceAdapter.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/account-resource-diagnose.mjs",
+    "scripts/account-resource-readback.mjs",
+    "scripts/payload-contract-smoke.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/tasks/TASK-MWB-MVP4-OE3-STD-PROJECT-PREP-SKILL-DESIGN.md",
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "marketing_workbench.mwb.source_artifacts source_ref=workbench-data/l3-v2/assets/mappings/oceanengine/3-byte-mini-game/jushou-hunt.json"
+  ],
+  "outputs": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+    "mwb.account_resources.metadata.brand_info_official",
+    "mwb.account_resources.metadata.readonly_check",
+    "mwb.launch_node_runs",
+    "mwb.evidence_artifacts"
+  ],
+  "constraints": {
+    "target_database": "marketing_workbench_v2",
+    "target_schema": "mwb",
+    "platform_write_allowed": false,
+    "std_project_create_allowed": false,
+    "credential_refresh_allowed": false,
+    "forbidden_actions": [
+      "std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget/bid update",
+      "token refresh"
+    ],
+    "sensitive_output_forbidden": [
+      "token",
+      "secret",
+      "auth_code",
+      "Cookie",
+      "raw response",
+      "raw payload"
+    ]
+  },
+  "validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract"
+  ],
+  "result": {
+    "brand_info_official": {
+      "cdp_brand_id": "4016408",
+      "brand_name_id": "11467384",
+      "cdp_brand_name": "巨兽战场",
+      "yuntu_category_id": "2202",
+      "matched_industry_path": "游戏 / SLG",
+      "readback_status": "fresh_target_brand_industry_readback_passed",
+      "confirmation_status": "manual_confirmation_required_after_live_industry_40000",
+      "used_for_create_gate": false
+    },
+    "live_readback": {
+      "brand_fuzzy_status": "passed",
+      "brand_industry_status": "blocked_api_code_40000",
+      "raw_response_saved": false
+    },
+    "blocked_resource_types": [
+      "brand_info"
+    ],
+    "prewrite_gate_status": "blocked",
+    "payload_contract_gap_count": 1,
+    "std_project_create_executed": false
+  },
+  "next_gate": "等待用户确认是否沿用同账户历史 fresh 品牌/行业证据；确认前不进入单次真实创建确认前检查。"
+}
