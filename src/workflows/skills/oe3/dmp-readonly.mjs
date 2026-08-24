@@ -1,11 +1,12 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
 import { hashValue, sanitizeForPublic } from "./contracts.mjs";
+import { readonlyPermissionState } from "./readonly-permission.mjs";
 import { clean, dmpCustomAudienceIds, resource } from "./resource-verifiers.mjs";
 
 function numberId(value) {
   const text = clean(value);
   if (!/^\d+$/.test(text)) return "";
-  return Number.isSafeInteger(Number(text)) ? text : "";
+  return text;
 }
 
 function unique(values = []) {
@@ -140,7 +141,8 @@ export async function runDmpReadonlyGate({
   }
 
   const existingIds = mockReady ? ["100000000001"] : dmpCustomAudienceIds(bundle);
-  if (existingIds.length) {
+  const requiresFreshReadonly = bundle.job.source_usage === "runtime_truth" && !mockReady;
+  if (existingIds.length && !requiresFreshReadonly) {
     const evidenceRef = await recordDmpEvidence({
       repo,
       bundle,
@@ -161,6 +163,45 @@ export async function runDmpReadonlyGate({
       source: mockReady ? "mock_ready" : "postgres_readonly_metadata",
       evidenceRef
     });
+  }
+
+  const permission = readonlyPermissionState();
+  if (!permission.allowed) {
+    const evidenceRef = await recordDmpEvidence({
+      repo,
+      bundle,
+      status: "readonly_permission_required",
+      probe: null,
+      customAudienceIds: []
+    });
+    await persistDmpMetadata({
+      repo,
+      bundle,
+      status: "blocked",
+      customAudienceIds: [],
+      evidenceRef,
+      blocker: "readonly_permission_required"
+    });
+    return {
+      status: "blocked",
+      blockers: permission.blockers,
+      evidenceRefs: [evidenceRef],
+      customAudienceIds: [],
+      outputSummary: {
+        resourceType: "dmp_audience_package",
+        label: "DMP",
+        visibilityStatus: item.visibility_status || "missing",
+        readbackStatus: item.readback_status || "missing",
+        readonlyStatus: "readonly_permission_required",
+        ready: false,
+        platformResourceIdPresent: Boolean(item.platform_resource_id),
+        dmpCustomAudienceIdsPresent: false,
+        dmpCustomAudienceIdCount: 0,
+        payloadField: "audience.retargeting_tags_exclude",
+        evidenceRef,
+        nextAction: "在 project.state.json.guardrails 中仅开放真实平台只读依赖后重跑"
+      }
+    };
   }
 
   const credential = client.credentialState();
@@ -210,7 +251,9 @@ export async function runDmpReadonlyGate({
     endpoint: "dmp/custom_audience/select",
     query: {
       advertiser_id: advertiserId,
-      ...(preferredId ? { custom_audience_ids: JSON.stringify([Number(preferredId)]) } : {}),
+      ...(preferredId && Number.isSafeInteger(Number(preferredId))
+        ? { custom_audience_ids: JSON.stringify([Number(preferredId)]) }
+        : {}),
       page: "1",
       page_size: "100"
     },

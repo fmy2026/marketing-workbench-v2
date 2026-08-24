@@ -1,4 +1,5 @@
 import { hashValue } from "./contracts.mjs";
+import { readbackStdProjectOnce } from "../../../platforms/oceanengineStdProjectCreateExecutor.mjs";
 
 function readbackPlaceholder({ jobId, projectName }) {
   return {
@@ -24,7 +25,7 @@ export async function runReadbackSkill({ repo, bundle, mode } = {}) {
       status: "skipped",
       blockers: [],
       outputSummary: {
-        readbackStatus: "not_run",
+        readbackStatus: "not_applicable",
         reason: "dry_run 不执行 Node 7。"
       }
     };
@@ -67,6 +68,23 @@ export async function runReadbackSkill({ repo, bundle, mode } = {}) {
         realPlatformReadbackCalled: false,
         mockReadback: true,
         evidenceRef: placeholder.artifactId
+      }
+    };
+  }
+
+  if (latestBundle.platformAction?.action_type === "oceanengine_std_project_create" && latestBundle.createdObject) {
+    const readback = await readbackStdProjectOnce({ repo, jobId: latestBundle.job.job_id });
+    return {
+      status: readback.status === "readback_verified" ? "passed" : "blocked",
+      blockers: readback.status === "readback_verified" ? [] : ["created_pending_readback"],
+      evidenceRefs: readback.evidenceRef ? [readback.evidenceRef] : [],
+      outputSummary: {
+        readbackStatus: readback.status === "readback_verified" ? "readback_verified" : "created_pending_readback",
+        objectNameSource: "launch_drafts.project_name",
+        objectNameMatchesDraft: Boolean(readback.objectNameMatches),
+        realPlatformReadbackCalled: true,
+        realObjectIdPresent: Boolean(readback.objectId),
+        evidenceRef: readback.evidenceRef || ""
       }
     };
   }

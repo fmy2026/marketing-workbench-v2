@@ -7,6 +7,7 @@ import {
 } from "./contracts.mjs";
 import { cachedReadonlyFromBundle, runContextSkill } from "./context.mjs";
 import { runCreateOnceSkill } from "./create-once.mjs";
+import { runDuplicateReadonlyCheck } from "./duplicate-readonly.mjs";
 import { runDmpReadonlyGate } from "./dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./launch-pack.mjs";
 import {
@@ -135,15 +136,17 @@ async function executePayloadContract({ repo, context }) {
 async function executeDuplicateCheck({ repo, context }) {
   const latestBundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   context.bundle = latestBundle;
-  const status = latestBundle.draft?.duplicate_status === "platform_not_duplicate"
-    ? "platform_not_duplicate"
-    : "not_checked";
+  const result = await runDuplicateReadonlyCheck({
+    repo,
+    bundle: latestBundle,
+    mockReady: context.mockReady
+  });
   return {
-    status: status === "platform_not_duplicate" || context.mockReady ? "passed" : "blocked",
-    blockers: status === "platform_not_duplicate" || context.mockReady ? [] : ["duplicate_check_not_platform_not_duplicate"],
+    ...result,
     outputSummary: {
-      duplicateStatus: context.mockReady ? "mock_platform_not_duplicate" : status,
-      source: status === "platform_not_duplicate" ? "postgres_cached_readonly" : "not_checked_no_platform_call"
+      ...(result.outputSummary || {}),
+      duplicateStatus: result.outputSummary?.status || "not_checked",
+      source: context.mockReady ? "mock_ready" : "oceanengine_std_project_list_readonly"
     }
   };
 }
@@ -240,7 +243,10 @@ async function executeSkill({ repo, context, skillKey }) {
       mode: context.mode,
       mockReady: context.mockReady,
       mockExecute: context.mockExecute,
-      readiness: output(context, "create-readiness").outputSummary?.createReadiness || {}
+      readiness: output(context, "create-readiness").outputSummary?.createReadiness || {},
+      allowNetworkWrite: context.allowNetworkWrite === true,
+      confirmationIntent: context.confirmationIntent || "",
+      confirmVariableValue: context.confirmVariableValue || ""
     });
   } else if (skillKey === "readback-std-project") {
     result = await runReadbackSkill({ repo, bundle: context.bundle, mode: context.mode });
@@ -341,11 +347,13 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "std_project_create_executor",
-      status: create.status === "mock_passed" ? "passed" : "locked",
+      status: create.status === "mock_passed" ? "passed" : (create.status === "blocked" ? "blocked" : "locked"),
       summary: create.status === "mock_passed"
         ? "execute_once mock 创建已通过；未调用真实平台。"
-        : "创建节点锁定；本任务禁止真实平台写入。",
-      diagnosticLevel: create.status === "mock_passed" ? "info" : "warning",
+        : create.status === "blocked"
+          ? "创建前 gate 阻断；未调用真实平台。"
+          : "创建节点锁定；本任务禁止真实平台写入。",
+      diagnosticLevel: create.status === "mock_passed" ? "info" : (create.status === "blocked" ? "error" : "warning"),
       outputSummary: {
         ...(create.outputSummary || {
           createNodeStatus: mode === "execute_once" ? "locked" : "dry_run_locked",
@@ -365,7 +373,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
         : (mode === "dry_run" ? "dry_run 不执行回查。" : "回查等待创建对象或显式 readback_only。"),
       diagnosticLevel: readback.status === "mock_passed" ? "info" : "pending",
       outputSummary: readback.outputSummary || {
-        readbackStatus: "not_run",
+        readbackStatus: mode === "dry_run" ? "not_applicable" : "not_run",
         realPlatformReadbackCalled: false
       },
       evidenceRefs: readback.evidenceRefs || []
@@ -378,7 +386,10 @@ export async function runOe3WorkflowSkills({
   jobId,
   mode = "dry_run",
   mockReady = false,
-  mockExecute = false
+  mockExecute = false,
+  allowNetworkWrite = false,
+  confirmationIntent = "",
+  confirmVariableValue = ""
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -394,6 +405,9 @@ export async function runOe3WorkflowSkills({
     mode,
     mockReady,
     mockExecute,
+    allowNetworkWrite,
+    confirmationIntent,
+    confirmVariableValue,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
@@ -412,6 +426,23 @@ export async function runOe3WorkflowSkills({
   if (mode === "execute_once" && context.skillOutputs.get("readback-std-project")?.status === "mock_passed") {
     await repo.updateJob(jobId, { status: "created", currentNode: "7" });
   } else if (mode === "dry_run") {
+    const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
+    if (latestDraftBundle?.draft?.project_name) {
+      await repo.upsertReadbackRecord({
+        readbackId: `RB-${jobId}-STD-PROJECT-NOT-APPLICABLE`,
+        jobId,
+        objectType: "std_project",
+        objectId: "NOT_APPLICABLE_DRY_RUN",
+        objectName: latestDraftBundle.draft.project_name,
+        readbackStatus: "not_applicable",
+        fieldDiffSummary: {
+          reason: "dry_run_does_not_create_platform_object",
+          object_name_from_draft: true,
+          real_platform_readback_called: false
+        },
+        evidenceRef: ""
+      });
+    }
     await repo.updateJob(jobId, { status: "draft_ready", currentNode: "5" });
   }
   const latest = await repo.getLaunchJobBundle(jobId);

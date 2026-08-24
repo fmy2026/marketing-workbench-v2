@@ -120,9 +120,9 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "std_project_draft_builder",
     dependsOn: ["payload-contract"],
     inputContract: ["advertiser_id", "project_name"],
-    outputContract: ["duplicate_status"],
+    outputContract: ["status", "checked_at", "duplicate_found", "matched_object_id", "evidence_ref", "reason"],
     stopConditions: ["duplicate_check_blocked", "platform_duplicate_found"],
-    writeScope: "launch_drafts"
+    writeScope: "launch_drafts_evidence_artifacts"
   },
   {
     skillKey: "create-readiness",

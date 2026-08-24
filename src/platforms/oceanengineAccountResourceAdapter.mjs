@@ -427,7 +427,7 @@ async function recordProductImageUploadEvidence({ repo, jobId, preflight, upload
     ].join("; "),
     contentHash: upload.responseHash || sha256(JSON.stringify({ preflight, upload })),
     storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
-    sourceRef: "script:resource:product-image-once"
+    sourceRef: "task_specific_write_command:product_image_upload_once_not_exposed"
   });
   return artifactId;
 }
@@ -511,7 +511,7 @@ export async function runAccountResourceDiagnosis({ repo = new PostgresRepositor
       summary,
       contentHash: sha256(JSON.stringify(result.resourcePlans)),
       storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
-      sourceRef: "script:resource:diagnose"
+      sourceRef: "script:workflow:dry-run"
     });
   }
 
@@ -623,7 +623,7 @@ export async function buildAccountResourceOncePlan(resourceType, { repo = new Po
       writeActionCalled: false,
       diagnosisJobId: diagnosis.jobId,
       plan,
-      reason: "已有平台 image_id，本脚本不会重复上传；请运行 npm run resource:readback。"
+      reason: "已有平台 image_id，本路径不会重复上传；请运行 npm run workflow:readback-only。"
     };
   }
 
@@ -725,7 +725,7 @@ export async function buildAccountResourceOncePlan(resourceType, { repo = new Po
       errorCode: upload.errorCode || ""
     },
     nextAction: upload.status === "uploaded"
-      ? "立刻运行 npm run resource:readback，确认 file/image/get 可查。"
+      ? "立刻运行 npm run workflow:readback-only，确认 file/image/get 可查。"
       : "产品图上传未通过；不要重复上传，先根据脱敏状态排查。"
   };
 

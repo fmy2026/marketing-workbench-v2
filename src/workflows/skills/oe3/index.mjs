@@ -20,3 +20,6 @@ export {
   OE3_WORKFLOW_MODES,
   runOe3WorkflowSkills
 } from "./runner.mjs";
+export {
+  runDuplicateReadonlyCheck
+} from "./duplicate-readonly.mjs";

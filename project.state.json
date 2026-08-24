@@ -9,13 +9,13 @@
   },
   "project_status": "ready_for_next_gate",
   "phase": {
-    "id": "V2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE",
+    "id": "V2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.md",
-  "next_gate": "DMP custom_audience_id[] gate 已通过并写入 payload manifest 的 audience.retargeting_tags_exclude；下一步进入平台同名查重与 fresh runtime job 创建前确认 gate。继续禁止真实平台写入、禁止 token refresh、禁止 create retry，并继续禁止 v2 运行依赖旧项目 marketing-workbench。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT.md",
+  "next_gate": "真实创建 executor 接线与无写入预演已完成：第 6 节点已接动态 create executor，confirm-create API 已存在但默认拒绝写入，Postgres 已有单次 create 幂等索引，runtime executor 已移除固定旧 job 和 .local attempt 文件依赖。最新可确认 runtime job 仍为 JOB-MWBV2-20260824092327-494BF1。下一步如需真实创建，必须另建 fresh runtime job 的单次真实 std_project/create 确认任务，显式打开 platform_write_allowed 并带确认变量；当前继续禁止平台写入、禁止 token refresh、禁止 create retry，禁止 v2 运行依赖旧项目 marketing-workbench。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -52,7 +52,7 @@
       "Project 创建重试",
       "Promotion 创建或重试",
       "未带确认变量的 std_project 创建或重试",
-      "非 JOB-MWBV2-20260824061810-79A426 的 std_project 创建",
+      "未另建单次真实创建任务的 std_project 创建",
       "监测链接组创建",
       "预算/出价修改",
       "凭据刷新",
@@ -79,7 +79,7 @@
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "oe3_runtime_unified_dmp_gate_passed_blocked_on_duplicate_check",
+    "runtime_state": "create_executor_preflight_ready_for_single_create_confirmation",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",

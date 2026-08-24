@@ -1,5 +1,19 @@
 import { randomBytes } from "node:crypto";
 import { hashValue } from "./contracts.mjs";
+import { createStdProjectForTargetOnce } from "../../../platforms/oceanengineStdProjectCreateExecutor.mjs";
+
+function targetFromBundle(bundle = {}) {
+  return {
+    jobId: bundle.job?.job_id || "",
+    draftId: bundle.draft?.draft_id || "",
+    objectType: bundle.job?.object_type || "std_project",
+    routeId: bundle.job?.route_id || "",
+    gameCode: bundle.job?.game_code || "",
+    advertiserId: bundle.job?.advertiser_id || "",
+    projectName: bundle.draft?.project_name || "",
+    payloadHash: bundle.draft?.payload_hash || ""
+  };
+}
 
 function confirmPlaceholder({ jobId, draftId, projectName }) {
   const artifactId = `EV-${jobId}-CONFIRM-PLACEHOLDER`;
@@ -16,8 +30,51 @@ function confirmPlaceholder({ jobId, draftId, projectName }) {
   };
 }
 
-export async function runCreateOnceSkill({ repo, bundle, mode, mockReady = false, mockExecute = false, readiness = {} } = {}) {
-  const canMockCreate = mode === "execute_once" && mockExecute && (readiness.canCreateCurrentJob || mockReady);
+export async function runCreateOnceSkill({
+  repo,
+  bundle,
+  mode,
+  mockReady = false,
+  mockExecute = false,
+  readiness = {},
+  allowNetworkWrite = false,
+  confirmationIntent = "",
+  confirmVariableValue = ""
+} = {}) {
+  const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
+  const canMockCreate = mode === "execute_once" &&
+    mockExecute &&
+    latestBundle.job.source_usage === "test_run" &&
+    (readiness.canCreateCurrentJob || mockReady);
+
+  if (!canMockCreate && mode === "execute_once") {
+    const result = await createStdProjectForTargetOnce({
+      repo,
+      target: targetFromBundle(latestBundle),
+      allowNetworkWrite,
+      confirmationIntent,
+      confirmVariableValue
+    });
+    return {
+      status: result.status === "created_pending_readback" ? "passed" : "blocked",
+      blockers: result.blockers || [],
+      evidenceRefs: result.evidenceRef ? [result.evidenceRef] : [],
+      outputSummary: {
+        createNodeStatus: result.status,
+        createCalled: result.createCalled === true,
+        mockCreateCalled: false,
+        realPlatformWriteCalled: result.createCalled === true,
+        objectIdPresent: Boolean(result.stdProjectId),
+        retryAllowed: false,
+        nextConfirmationRequired: false,
+        blockers: result.blockers || [],
+        reason: result.status === "blocked_before_create"
+          ? "创建前 gate 未满足或本任务未开放网络写入。"
+          : "真实创建已完成，等待回查。"
+      }
+    };
+  }
+
   if (!canMockCreate) {
     return {
       status: "locked",
@@ -33,7 +90,6 @@ export async function runCreateOnceSkill({ repo, bundle, mode, mockReady = false
     };
   }
 
-  const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const confirmation = confirmPlaceholder({
     jobId: latestBundle.job.job_id,
     draftId: latestBundle.draft.draft_id,

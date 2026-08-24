@@ -1,0 +1,100 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "真实只读对账并创建全新 runtime_truth Workflow dry-run。",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/dmp-readonly.mjs",
+    "src/workflows/skills/oe3/duplicate-readonly.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/oe3-workflow-cli.mjs",
+    "scripts/runtime-test-data-purge.mjs",
+    "package.json"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "workflow": "src/workflows/launchWorkflow.mjs",
+    "workflow_skills": "src/workflows/skills/oe3",
+    "repository": "src/repositories/postgresRepository.mjs",
+    "server": "src/server/index.mjs",
+    "frontend": "frontend/",
+    "scripts": "scripts/"
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.md",
+    "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/**",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/runtime-test-data-purge.mjs",
+    "package.json"
+  ],
+  "allowed_platform_readonly_endpoints": [
+    "dmp/custom_audience/select",
+    "/open_api/v3.0/std_project/list/",
+    "existing_account_material_event_brand_readonly_apis"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "create retry",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "shell call to /Users/hys/Projects/marketing-workbench",
+    "using legacy database marketing_workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response to project files or normal logs"
+  ],
+  "validation_plan": [
+    "node --check changed modules/scripts",
+    "npm run workflow:dry-run",
+    "node scripts/runtime-test-data-purge.mjs",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run smoke:readonly",
+    "npm run check:runtime-consistency",
+    "static scan for legacy runtime dependencies and sensitive leaks"
+  ],
+  "closed_state": {
+    "fresh_runtime_job_id": "JOB-MWBV2-20260824092327-494BF1",
+    "source_usage": "runtime_truth",
+    "node_run_count": 7,
+    "skill_run_count": 18,
+    "dmp_status": "passed",
+    "dmp_custom_audience_id_count": 10,
+    "duplicate_status": "platform_not_duplicate",
+    "create_readiness_status": "ready_for_user_create_confirmation",
+    "platform_actions": 0,
+    "created_objects": 0,
+    "readback_status": "not_applicable",
+    "test_run_jobs_after_cleanup": 0,
+    "test_run_skill_runs_after_cleanup": 0
+  },
+  "completion_notes": [
+    "Added duplicate-readonly Skill under src/workflows/skills/oe3 and wired it into duplicate-check.",
+    "DMP runtime_truth runs now require fresh readonly permission and probe; cache-only pass is not used for runtime_truth.",
+    "workflow:dry-run now creates source_usage=runtime_truth jobs.",
+    "Historical source_usage=test_run jobs were purged through repository-guarded cascade cleanup.",
+    "No std_project/create, token refresh, material upload, DMP push, event asset create, budget or bid update was executed."
+  ]
+}

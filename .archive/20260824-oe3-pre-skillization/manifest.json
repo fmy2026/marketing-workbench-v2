@@ -6,6 +6,21 @@
   "runtime_import_forbidden": true,
   "replacement_cli": "scripts/oe3-workflow-cli.mjs",
   "replacement_smoke": "scripts/oe3-workflow-skills-smoke.mjs",
+  "removed_package_scripts": {
+    "resource:diagnose": "workflow:dry-run",
+    "resource:avatar-once": "workflow:dry-run",
+    "resource:event-asset-once": "workflow:dry-run",
+    "resource:product-image-once": "workflow:dry-run",
+    "resource:readback": "workflow:readback-only",
+    "std-project:create-once": "not exposed; future real create requires a task-specific confirmed command",
+    "std-project:readback-once": "workflow:readback-only",
+    "std-project:fresh-job": "workflow:dry-run with explicit task context if runtime_truth is required",
+    "std-project:create-confirmed-once": "not exposed; future real create requires a task-specific confirmed command",
+    "check:oe3-brand-event-readonly-gate": "workflow:dry-run",
+    "check:oe3-brand-industry": "workflow:dry-run",
+    "check:std-project-create-readiness": "workflow:dry-run",
+    "check:oe3-dmp-readonly": "workflow:dry-run"
+  },
   "items": [
     {
       "original_path": "scripts/std-project-create-once.mjs",

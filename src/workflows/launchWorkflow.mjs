@@ -659,7 +659,10 @@ export async function runJob(repo, jobId, options = {}) {
     jobId,
     mode: options.mode || "dry_run",
     mockReady: options.mockReady === true,
-    mockExecute: options.mockExecute === true
+    mockExecute: options.mockExecute === true,
+    allowNetworkWrite: options.allowNetworkWrite === true,
+    confirmationIntent: options.confirmationIntent || "",
+    confirmVariableValue: options.confirmVariableValue || ""
   });
   return buildLaunchJobView(result.bundle, await buildRuntimeChecks(repo, result.bundle));
 }

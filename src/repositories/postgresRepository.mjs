@@ -1026,6 +1026,63 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async listTestRunJobs() {
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'job_id', j.job_id,
+        'job_status', j.job_status,
+        'created_at', j.created_at,
+        'node_runs', (SELECT count(*) FROM mwb.launch_node_runs n WHERE n.job_id = j.job_id),
+        'skill_runs', (SELECT count(*) FROM mwb.launch_skill_runs sr WHERE sr.job_id = j.job_id),
+        'drafts', (SELECT count(*) FROM mwb.launch_drafts d WHERE d.job_id = j.job_id),
+        'evidence', (SELECT count(*) FROM mwb.evidence_artifacts e WHERE e.job_id = j.job_id),
+        'platform_actions', (SELECT count(*) FROM mwb.platform_actions pa WHERE pa.job_id = j.job_id),
+        'created_objects', (SELECT count(*) FROM mwb.created_objects co WHERE co.job_id = j.job_id)
+      ) ORDER BY j.created_at), '[]'::jsonb)::text
+      FROM mwb.launch_jobs j
+      WHERE j.source_usage = 'test_run';
+    `, this.database);
+  }
+
+  async deleteAllTestRunJobsCascade() {
+    const jobs = await this.listTestRunJobs();
+    for (const job of jobs) {
+      await this.deleteTestJobCascade(job.job_id);
+    }
+    return jobs;
+  }
+
+  async getCreateAttemptState(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'createActionCount', (
+          SELECT count(*)
+          FROM mwb.platform_actions
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND action_type = 'oceanengine_std_project_create'
+        ),
+        'confirmationCount', (
+          SELECT count(*)
+          FROM mwb.launch_confirmations
+          WHERE job_id = ${sqlLiteral(jobId)}
+        ),
+        'createdObjectCount', (
+          SELECT count(*)
+          FROM mwb.created_objects
+          WHERE job_id = ${sqlLiteral(jobId)}
+        ),
+        'realReadbackCount', (
+          SELECT count(*)
+          FROM mwb.readback_records
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND readback_status <> 'not_applicable'
+            AND object_id <> 'NOT_APPLICABLE_DRY_RUN'
+        )
+      )::text;
+    `, this.database);
+  }
+
   async countNodeRuns(jobId) {
     assertId("job_id", jobId);
     return queryJson(`
