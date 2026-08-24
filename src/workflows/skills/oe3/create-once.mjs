@@ -55,8 +55,13 @@ export async function runCreateOnceSkill({
       confirmationIntent,
       confirmVariableValue
     });
+    const skillStatus = {
+      created_pending_readback: "passed",
+      create_failed_stop_for_manual_review: "failed",
+      blocked_before_create: "blocked"
+    }[result.status] || "blocked";
     return {
-      status: result.status === "created_pending_readback" ? "passed" : "blocked",
+      status: skillStatus,
       blockers: result.blockers || [],
       evidenceRefs: result.evidenceRef ? [result.evidenceRef] : [],
       outputSummary: {
@@ -67,10 +72,16 @@ export async function runCreateOnceSkill({
         objectIdPresent: Boolean(result.stdProjectId),
         retryAllowed: false,
         nextConfirmationRequired: false,
+        httpStatus: result.httpStatus || null,
+        apiCode: result.apiCode || "",
+        requestIdPresent: result.requestIdPresent === true,
+        stdProjectIdPresent: Boolean(result.stdProjectId),
         blockers: result.blockers || [],
         reason: result.status === "blocked_before_create"
           ? "创建前 gate 未满足或本任务未开放网络写入。"
-          : "真实创建已完成，等待回查。"
+          : result.status === "create_failed_stop_for_manual_review"
+            ? "真实创建已调用一次但平台未确认成功，禁止自动重试。"
+            : "真实创建已完成，等待回查。"
       }
     };
   }

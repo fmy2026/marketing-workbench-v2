@@ -103,7 +103,7 @@ export class PostgresRepository {
           SELECT to_jsonb(j.job_id)
           FROM mwb.launch_jobs j
           WHERE j.source_usage = 'runtime_truth'
-            AND j.job_status IN ('draft_ready', 'diagnosed', 'created', 'confirm_placeholder_recorded')
+            AND j.job_status IN ('draft_ready', 'diagnosed', 'created_pending_readback', 'created', 'confirm_placeholder_recorded')
             AND NOT EXISTS (
               SELECT 1
               FROM mwb.platform_actions pa
@@ -119,7 +119,8 @@ export class PostgresRepository {
               WHEN 'draft_ready' THEN 1
               WHEN 'confirm_placeholder_recorded' THEN 2
               WHEN 'diagnosed' THEN 3
-              WHEN 'created' THEN 4
+              WHEN 'created_pending_readback' THEN 4
+              WHEN 'created' THEN 5
               ELSE 9
             END,
             j.updated_at DESC,

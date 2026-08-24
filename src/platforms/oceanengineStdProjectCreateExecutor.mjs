@@ -278,25 +278,6 @@ export async function createStdProjectForTargetOnce({
   });
 
   if (!passed) {
-    await repo.updateNodeRun(runtimeTarget.jobId, "std_project_create_executor", {
-      status: "failed",
-      summary: `单次 std_project/create 已调用一次但平台未确认成功；api_code=${apiCode || "unknown"}；禁止自动重试。`,
-      diagnosticLevel: "error",
-      evidenceRefs: [evidenceRef],
-      outputSummary: {
-        createNodeStatus: "failed_or_unconfirmed",
-        createCalled: true,
-        retryAllowed: false,
-        httpStatus: response.status,
-        apiCode: apiCode || "unknown",
-        requestIdPresent,
-        stdProjectIdPresent: false,
-        rawPayloadStored: false,
-        rawResponseStored: false,
-        evidenceRef
-      }
-    });
-    await repo.updateJob(runtimeTarget.jobId, { status: "failed_waiting_manual_review", currentNode: "6" });
     return { status: "create_failed_stop_for_manual_review", createCalled: true, httpStatus: response.status, apiCode, requestIdPresent, stdProjectId: "", evidenceRef };
   }
 
@@ -322,19 +303,6 @@ export async function createStdProjectForTargetOnce({
     readbackStatus: "pending",
     evidenceRef,
     metadata: { create_response_id_present: true, raw_payload_stored: false, raw_response_stored: false }
-  });
-  await repo.updateNodeRun(runtimeTarget.jobId, "std_project_create_executor", {
-    status: "passed",
-    summary: "真实 std_project/create 已单次执行，返回真实 std_project_id。",
-    diagnosticLevel: "info",
-    evidenceRefs: [evidenceRef],
-    outputSummary: {
-      createNodeStatus: "created_once",
-      createCalled: true,
-      realObjectIdPresent: true,
-      retryAllowed: false,
-      evidenceRef
-    }
   });
   return {
     status: "created_pending_readback",
@@ -410,7 +378,6 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
       fieldDiffSummary: { object_name_matches_draft: true, object_status: summary.objectStatus || "readable", source: "oceanengine_std_project_list" },
       evidenceRef
     });
-    await repo.updateJob(jobId, { status: "created", currentNode: "7" });
   }
   return {
     status: summary.objectId && summary.objectNameMatches ? "readback_verified" : "not_found_or_mismatch",

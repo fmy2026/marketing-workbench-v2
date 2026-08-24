@@ -17,6 +17,12 @@ import {
 } from "./payload-contract.mjs";
 import { runReadbackSkill } from "./readback.mjs";
 import {
+  createNodeStatusFromSkill,
+  readbackNodeStatusFromSkill,
+  workflowJobUpdateFromSkillResults,
+  workflowNoRealPlatformWrite
+} from "./result-mapping.mjs";
+import {
   brandIndustryPassed,
   eventChainPassed,
   mockReadyBundle,
@@ -272,6 +278,8 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
   const create = skillOutput("create-once");
   const readback = skillOutput("readback-std-project");
+  const createNode = createNodeStatusFromSkill({ create, mode });
+  const readbackNode = readbackNodeStatusFromSkill({ readback, mode });
   const contextBlocked = ["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]
     .some((key) => skillOutput(key).status === "blocked");
   const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials"]
@@ -347,35 +355,21 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "std_project_create_executor",
-      status: create.status === "mock_passed" ? "passed" : (create.status === "blocked" ? "blocked" : "locked"),
-      summary: create.status === "mock_passed"
-        ? "execute_once mock 创建已通过；未调用真实平台。"
-        : create.status === "blocked"
-          ? "创建前 gate 阻断；未调用真实平台。"
-          : "创建节点锁定；本任务禁止真实平台写入。",
-      diagnosticLevel: create.status === "mock_passed" ? "info" : (create.status === "blocked" ? "error" : "warning"),
+      status: createNode.status,
+      summary: createNode.summary,
+      diagnosticLevel: createNode.diagnosticLevel,
       outputSummary: {
-        ...(create.outputSummary || {
-          createNodeStatus: mode === "execute_once" ? "locked" : "dry_run_locked",
-          createCalled: false,
-          realPlatformWriteCalled: false,
-          retryAllowed: false
-        }),
+        ...createNode.outputSummary,
         createReadiness: readiness
       },
       evidenceRefs: create.evidenceRefs || []
     }),
     nodeStatus({
       nodeKey: "readback_closer",
-      status: readback.status === "mock_passed" ? "passed" : (mode === "dry_run" ? "waiting" : "locked"),
-      summary: readback.status === "mock_passed"
-        ? "execute_once mock 回查已收口。"
-        : (mode === "dry_run" ? "dry_run 不执行回查。" : "回查等待创建对象或显式 readback_only。"),
-      diagnosticLevel: readback.status === "mock_passed" ? "info" : "pending",
-      outputSummary: readback.outputSummary || {
-        readbackStatus: mode === "dry_run" ? "not_applicable" : "not_run",
-        realPlatformReadbackCalled: false
-      },
+      status: readbackNode.status,
+      summary: readbackNode.summary,
+      diagnosticLevel: readbackNode.diagnosticLevel,
+      outputSummary: readbackNode.outputSummary,
       evidenceRefs: readback.evidenceRefs || []
     })
   ];
@@ -423,9 +417,7 @@ export async function runOe3WorkflowSkills({
     skillOutputs: context.skillOutputs
   });
   await repo.upsertNodeRuns(jobId, nodes);
-  if (mode === "execute_once" && context.skillOutputs.get("readback-std-project")?.status === "mock_passed") {
-    await repo.updateJob(jobId, { status: "created", currentNode: "7" });
-  } else if (mode === "dry_run") {
+  if (mode === "dry_run") {
     const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
     if (latestDraftBundle?.draft?.project_name) {
       await repo.upsertReadbackRecord({
@@ -443,8 +435,13 @@ export async function runOe3WorkflowSkills({
         evidenceRef: ""
       });
     }
-    await repo.updateJob(jobId, { status: "draft_ready", currentNode: "5" });
   }
+  const jobUpdate = workflowJobUpdateFromSkillResults({
+    mode,
+    create: context.skillOutputs.get("create-once") || {},
+    readback: context.skillOutputs.get("readback-std-project") || {}
+  });
+  if (jobUpdate) await repo.updateJob(jobId, jobUpdate);
   const latest = await repo.getLaunchJobBundle(jobId);
   const summary = {
     jobId,
@@ -454,7 +451,9 @@ export async function runOe3WorkflowSkills({
     skillRunCount: context.skillOutputs.size,
     nodeStatuses: Object.fromEntries(nodes.map((node) => [node.nodeKey, node.status])),
     createReadiness: nodes.find((node) => node.nodeKey === "std_project_draft_builder")?.outputSummary?.createReadiness || {},
-    noRealPlatformWrite: true,
+    noRealPlatformWrite: workflowNoRealPlatformWrite({
+      create: context.skillOutputs.get("create-once") || {}
+    }),
     noTokenRefresh: true
   };
   assertNoSensitiveLeak(summary);

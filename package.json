@@ -13,6 +13,7 @@
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:readonly": "node scripts/readonly-oceanengine-smoke.mjs",
     "test:payload-contract": "node scripts/payload-contract-smoke.mjs",
+    "test:create-result-mapping": "node scripts/create-result-mapping-smoke.mjs",
     "check:runtime-consistency": "node scripts/runtime-consistency-check.mjs",
     "token:status": "node scripts/oceanengine-token-status.mjs",
     "token:refresh": "node scripts/oceanengine-token-refresh.mjs"

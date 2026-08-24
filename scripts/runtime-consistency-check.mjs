@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { getJobView } from "../src/workflows/launchWorkflow.mjs";
+import {
+  createNodeStatusFromSkill,
+  readbackNodeStatusFromSkill,
+  workflowJobUpdateFromSkillResults
+} from "../src/workflows/skills/oe3/result-mapping.mjs";
 
 const TARGET_JOB_ID = "JOB-MWBV2-20260824014546-851B76";
 const repo = new PostgresRepository();
@@ -127,6 +132,9 @@ const db = await psqlJson(`
 const latestJobId = await repo.latestJobId();
 const targetView = await getJobView(repo, TARGET_JOB_ID);
 const latestView = await getJobView(repo, latestJobId);
+const latestNodeStatuses = Object.fromEntries(
+  (latestView.phases || []).flatMap((phase) => phase.nodes || []).map((node) => [node.id, node.status])
+);
 assert(db.gamesAppIdColumnCount === 0, "mwb.games.app_id still exists");
 assert(db.targetJob.job_status === "failed_waiting_manual_review", "target job_status mismatch");
 assert(db.targetJob.current_node === "7", "target current_node mismatch");
@@ -142,6 +150,12 @@ assert(Array.isArray(targetView.summaryFields) && targetView.summaryFields.lengt
 assertNoSensitiveLeak(targetView);
 assert(latestView.intake?.gameCode === "JSZC", "latest job view game_code mismatch");
 assert(latestView.intake?.advertiserId === "1871922175825993", "latest job view advertiser mismatch");
+["launch_intake", "creation_context", "game_launch_pack", "account_resource_prepare"].forEach((nodeKey) => {
+  assert(latestNodeStatuses[nodeKey] === "passed", `latest runtime ${nodeKey} should be passed`);
+});
+assert(latestNodeStatuses.std_project_draft_builder === "needs_confirmation", "latest runtime node 5 should need confirmation");
+assert(latestNodeStatuses.std_project_create_executor === "locked", "latest runtime node 6 should be locked before explicit write task");
+assert(latestNodeStatuses.readback_closer === "waiting", "latest runtime node 7 should be waiting in dry-run");
 assertNoSensitiveLeak(latestView);
 
 const latestTest = db.latestTestJob;
@@ -158,6 +172,20 @@ const code = [
 ].map((file) => readFileSync(file, "utf8")).join("\n");
 assert(!/\bgame\.app_id\b/.test(code), "code still reads game.app_id");
 
+assert(createNodeStatusFromSkill({
+  create: { status: "passed", outputSummary: { createCalled: true, realPlatformWriteCalled: true, retryAllowed: false } },
+  mode: "execute_once"
+}).status === "passed", "real create success must map node 6 to passed");
+assert(readbackNodeStatusFromSkill({
+  readback: { status: "passed", outputSummary: { readbackStatus: "readback_verified", realPlatformReadbackCalled: true } },
+  mode: "execute_once"
+}).status === "passed", "real readback success must map node 7 to passed");
+assert(workflowJobUpdateFromSkillResults({
+  mode: "execute_once",
+  create: { status: "failed", outputSummary: { createCalled: true, realPlatformWriteCalled: true } },
+  readback: { status: "locked", outputSummary: {} }
+}).status === "failed_waiting_manual_review", "real create failure must map job to manual review");
+
 console.log(JSON.stringify({
   status: "passed",
   latestJobId,
@@ -168,6 +196,9 @@ console.log(JSON.stringify({
   node6Status: db.nodeStatuses.std_project_create_executor.status,
   node7Status: db.nodeStatuses.readback_closer.status,
   node7Output: db.nodeStatuses.readback_closer.output,
+  latestRuntimeNode6Status: latestNodeStatuses.std_project_create_executor,
+  latestRuntimeNode7Status: latestNodeStatuses.readback_closer,
+  createResultMappingSmoke: "passed",
   gamesAppIdColumnCount: db.gamesAppIdColumnCount,
   platformAppIdPresent: Boolean(db.platformAppId),
   platformActions: db.platformActions,

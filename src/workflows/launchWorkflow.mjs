@@ -203,6 +203,7 @@ function statusLabel(status) {
     confirm_placeholder_recorded: "确认占位已记录",
     readback_placeholder_ready: "回查占位已完成",
     failed_waiting_manual_review: "失败待复盘",
+    created_pending_readback: "已创建待回查",
     blocked_brand_industry: "brand_industry 阻断",
     blocked_after_single_create_failure: "单次创建失败后锁定",
     ready_for_user_create_confirmation: "可等待创建确认",
@@ -250,6 +251,7 @@ function modeForStatus(status) {
     draft_ready: "草稿待确认",
     confirm_placeholder_recorded: "确认占位已记录",
     readback_placeholder_ready: "回查占位已完成",
+    created_pending_readback: "已创建待回查",
     failed_waiting_manual_review: "失败待复盘"
   }[status] || "待执行";
 }
@@ -257,6 +259,9 @@ function modeForStatus(status) {
 function nextActionForBundle(bundle = {}) {
   if (bundle.job?.job_status === "failed_waiting_manual_review") {
     return "禁止重试；修 brand_industry fresh readback，或新建 fresh runtime job。";
+  }
+  if (bundle.job?.job_status === "created_pending_readback") {
+    return "禁止再次创建；执行只读回查收口。";
   }
   if (bundle.draft && !bundle.readback) return "等待人工确认或只读检查。";
   if (!bundle.draft) return "继续生成草稿。";

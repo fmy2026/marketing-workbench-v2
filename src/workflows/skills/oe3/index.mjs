@@ -23,3 +23,11 @@ export {
 export {
   runDuplicateReadonlyCheck
 } from "./duplicate-readonly.mjs";
+export {
+  createNodeStatusFromSkill,
+  readbackNodeStatusFromSkill,
+  workflowCreateCalled,
+  workflowCreateCalledFromView,
+  workflowJobUpdateFromSkillResults,
+  workflowNoRealPlatformWrite
+} from "./result-mapping.mjs";

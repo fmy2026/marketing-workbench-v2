@@ -9,13 +9,13 @@
   },
   "project_status": "ready_for_next_gate",
   "phase": {
-    "id": "V2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT",
+    "id": "V2-CREATE-RESULT-STATUS-MAPPING-FIX",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT.md",
-  "next_gate": "真实创建 executor 接线与无写入预演已完成：第 6 节点已接动态 create executor，confirm-create API 已存在但默认拒绝写入，Postgres 已有单次 create 幂等索引，runtime executor 已移除固定旧 job 和 .local attempt 文件依赖。最新可确认 runtime job 仍为 JOB-MWBV2-20260824092327-494BF1。下一步如需真实创建，必须另建 fresh runtime job 的单次真实 std_project/create 确认任务，显式打开 platform_write_allowed 并带确认变量；当前继续禁止平台写入、禁止 token refresh、禁止 create retry，禁止 v2 运行依赖旧项目 marketing-workbench。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.md",
+  "next_gate": "真实创建结果回传修正已完成：第 6/7 节点、Skill、job、API 摘要已统一使用真实 create/readback 映射；executor 不再直接覆盖 launch_node_runs 或 launch_jobs；confirmCreate.createCalled 与 summary.noRealPlatformWrite 已改为实际结果推导。最新可确认 runtime job 仍为 JOB-MWBV2-20260824092327-494BF1。下一步如需真实创建，必须另建单次真实 std_project/create 确认任务，显式打开 platform_write_allowed 并带确认变量；当前继续禁止平台写入、禁止 token refresh、禁止 create retry，禁止 v2 运行依赖旧项目 marketing-workbench。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -79,7 +79,7 @@
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "create_executor_preflight_ready_for_single_create_confirmation",
+    "runtime_state": "create_result_status_mapping_fixed_ready_for_single_create_confirmation",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",

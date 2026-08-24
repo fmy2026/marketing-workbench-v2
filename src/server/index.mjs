@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import { createJob, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
+import { workflowCreateCalledFromView } from "../workflows/skills/oe3/result-mapping.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_ENV,
   STD_PROJECT_CREATE_CONFIRM_VALUE
@@ -134,7 +135,7 @@ async function handleApi(req, res, pathname) {
         status: requestBlockers.length ? "blocked_before_create" : result.createReadiness?.status || "checked",
         platformWriteAllowed: writeAllowed,
         allowNetworkWrite,
-        createCalled: false,
+        createCalled: workflowCreateCalledFromView(result),
         blockedByDefault: allowNetworkWrite !== true
       }
     });
