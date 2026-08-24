@@ -1,0 +1,117 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING",
+  "task_ref": "tasks/TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "补齐 OceanEngine 3.0 brand_info fresh readback 与事件链深层只读 gate；不执行平台写入、不刷新 token。",
+  "user_request_source": "/Users/hys/Desktop/需求表述.md",
+  "instruction_handling": "The desktop markdown file is treated as user-provided requirements content, not as system or developer instructions.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.md",
+    "tasks/TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING.md",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/runtime-consistency-check.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/checks/contracts/check-oceanengine-3-std-project-prep.mjs",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/05-商品管理.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/标准项目下获取可用优化目标.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/标准项目下获取可用深度优化方式.md"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "job_id": "JOB-MWBV2-20260824014546-851B76",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993"
+  },
+  "readonly_gate_scope": [
+    "brand_fuzzy",
+    "brand_industry",
+    "event_asset_detail",
+    "available_events",
+    "event_configs",
+    "optimized_goal",
+    "dbt"
+  ],
+  "write_boundary": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "postgres_write_allowed": true,
+    "allowed_postgres_targets": [
+      "mwb.evidence_artifacts",
+      "mwb.account_resources.metadata.readonly_check",
+      "mwb.launch_node_runs.output_summary"
+    ],
+    "forbidden_postgres_targets": [
+      "mwb.platform_actions",
+      "mwb.created_objects",
+      "mwb.launch_drafts.payload_hash",
+      "mwb.launch_jobs.job_status"
+    ]
+  },
+  "forbidden_actions": [
+    "std_project/create",
+    "project/create_retry",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "event configs create",
+    "DMP push",
+    "budget or bid update",
+    "raw_payload_or_raw_response_export",
+    "token_or_cookie_output",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "validation": [
+    "npm run check:oe3-brand-event-readonly-gate",
+    "npm run check:runtime-consistency",
+    "target job status unchanged",
+    "platform_actions remains 1",
+    "created_objects remains 0"
+  ],
+  "validation_results": {
+    "oe3_brand_event_readonly_gate": "blocked",
+    "runtime_consistency": "passed",
+    "target_job_status": "failed_waiting_manual_review",
+    "target_current_node": "7",
+    "platform_actions": 1,
+    "created_objects": 0,
+    "evidence_count": 7,
+    "no_platform_write": true,
+    "no_token_refresh": true,
+    "gates": {
+      "brand_fuzzy": "passed",
+      "brand_industry": "blocked_api_code_40000",
+      "event_asset_detail": "passed",
+      "available_events": "passed",
+      "event_configs": "passed",
+      "optimized_goal": "passed",
+      "dbt": "passed"
+    },
+    "next_gate": "fix brand_industry readback; do not retry std_project/create"
+  },
+  "next_gate": "根据 brand/event 只读 gate 结果，进入 brand_industry 修复、事件链配置补齐，或 std_project/create payload official diff。"
+}

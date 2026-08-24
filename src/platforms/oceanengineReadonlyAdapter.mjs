@@ -34,6 +34,11 @@ function compact(value) {
   return String(value ?? "").trim();
 }
 
+function maybeNumberId(value) {
+  const text = compact(value);
+  return /^\d+$/.test(text) && Number.isSafeInteger(Number(text)) ? Number(text) : text;
+}
+
 function arrayFrom(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -429,7 +434,7 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
         account_id: advertiserId,
         origin_req: JSON.stringify({
           brand_data_source: "YUNTU",
-          outer_brand_id: brandNameIdForIndustry
+          outer_brand_id: maybeNumberId(brandNameIdForIndustry)
         })
       },
       summarize: summarizeIndustry

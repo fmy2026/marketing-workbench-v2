@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { readOceanEngineEnv, redactedCredentialStatus } from "./oceanengineCredentialStore.mjs";
-import { createJob, diagnoseJob, runJob } from "../workflows/launchWorkflow.mjs";
+import { createJob, runJob } from "../workflows/launchWorkflow.mjs";
 
 export const ACCOUNT_RESOURCE_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -451,7 +451,6 @@ export async function runAccountResourceDiagnosis({ repo = new PostgresRepositor
   const created = await createJob(repo, {
     user_intent: `推广路线 ${ACCOUNT_RESOURCE_TARGET.routeId}，游戏 ${ACCOUNT_RESOURCE_TARGET.gameCode}，账户 ${ACCOUNT_RESOURCE_TARGET.advertiserId}`
   });
-  await diagnoseJob(repo, created.jobId);
   const view = await runJob(repo, created.jobId);
   const bundle = await repo.getLaunchJobBundle(view.jobId);
   const resources = bundle.resources || [];

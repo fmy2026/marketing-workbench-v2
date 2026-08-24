@@ -1,15 +1,10 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { parseLaunchIntake, hashText } from "../agents/launchAgent.mjs";
-import { buildConfirmPlaceholder, buildReadbackPlaceholder } from "../platforms/oceanenginePlaceholder.mjs";
-import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
-import { evaluateOceanEnginePrewriteReadiness, runOceanEngineReadonlyProbes } from "../platforms/oceanengineReadonlyAdapter.mjs";
-import { evaluateStdProjectPayloadContract, stablePayloadHash } from "../platforms/oceanengineStdProjectPayloadContract.mjs";
+import { evaluateOceanEnginePrewriteReadiness } from "../platforms/oceanengineReadonlyAdapter.mjs";
 import {
-  allocateProjectSequence,
-  buildStdProjectName,
-  buildStdProjectNamePrefix,
-  cstYyyymmdd
-} from "./stdProjectNameBuilder.mjs";
+  evaluateOe3PayloadContract,
+  runOe3WorkflowSkills
+} from "./skills/oe3/index.mjs";
 
 export const WORKFLOW_NODES = [
   {
@@ -85,14 +80,6 @@ const PHASES = [
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed"]);
 
-function contentHash(value) {
-  return `sha256:${createHash("sha256").update(String(value)).digest("hex")}`;
-}
-
-function hashJson(value) {
-  return stablePayloadHash(value);
-}
-
 const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
 const PUBLIC_FORBIDDEN_VALUE = /(tf-api\.3k\.com|callback\/click|Bearer\s+[A-Za-z0-9._-]{20,})/i;
 
@@ -125,303 +112,6 @@ function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", output
 
 function has(value) {
   return value !== null && value !== undefined && value !== "";
-}
-
-function resourceDiagnosis(resources = []) {
-  const required = resources.filter((resource) => resource.required === true);
-  const missing = ["avatar", "dmp_audience_package", "event_asset", "video_asset", "product_image", "brand_info", "micro_app_instance"]
-    .filter((kind) => !required.some((resource) => resource.resource_type === kind));
-  const blocked = required.filter((resource) => resource.visibility_status === "not_visible");
-  const needsAttention = required.filter((resource) => (
-    resource.visibility_status === "pending" ||
-    resource.visibility_status === "needs_confirmation" ||
-    resource.readback_status === "pending" ||
-    resource.readback_status === "needs_confirmation" ||
-    resource.readback_status === "not_checked"
-  ));
-
-  if (missing.length || blocked.length) {
-    const gaps = [
-      ...missing.map((kind) => `缺少 ${kind}`),
-      ...blocked.map((resource) => `${resource.resource_type} 不可见`)
-    ];
-    return {
-      status: "blocked",
-      level: "error",
-      summary: `账户资源阻断：${gaps.join("；")}。`,
-      gaps
-    };
-  }
-  if (needsAttention.length) {
-    const gaps = needsAttention.map((resource) => `${resource.resource_type} visibility=${resource.visibility_status} readback=${resource.readback_status}`);
-    return {
-      status: "repairable",
-      level: "warning",
-      summary: `账户资源有 ${needsAttention.length} 项待确认或待回查：${gaps.join("；")}。`,
-      gaps
-    };
-  }
-  return {
-    status: "passed",
-    level: "info",
-    summary: "账户资源均已通过本地最小真值检查。",
-    gaps: []
-  };
-}
-
-function outputForNode(nodeKey, bundle, runtimeChecks = {}) {
-  const resourceChecks = (runtimeChecks.prewriteGate?.checks || []).filter((item) => item.resourceType);
-  const platformChecks = (runtimeChecks.prewriteGate?.checks || []).filter((item) => item.key?.startsWith("platform_"));
-  const gate = runtimeChecks.prewriteGate || {};
-  const contract = runtimeChecks.payloadContract || {};
-  if (nodeKey === "launch_intake") {
-    return {
-      output: "launch_intake",
-      routeId: bundle?.job?.route_id || "",
-      gameCode: bundle?.job?.game_code || "",
-      advertiserId: bundle?.job?.advertiser_id || "",
-      missingFields: [],
-      gameSlugUsed: false
-    };
-  }
-  if (nodeKey === "creation_context") {
-    return {
-      output: "creation_context",
-      accountStatus: bundle?.account?.auth_status || "",
-      monitorIdPresent: has(bundle?.account?.monitor_id),
-      touchpointRef: bundle?.touchpoint?.touchpoint_ref || "",
-      urlHash: bundle?.touchpoint?.url_hash || "",
-      touchpointPresent: Boolean(runtimeChecks.touchpointVerification?.touchpointUrlPresent),
-      touchpointHashMatches: Boolean(runtimeChecks.touchpointVerification?.urlHashMatches),
-      gamePlatformAppId: bundle?.platformApp?.app_id || "",
-      platformReadonlyStatus: gate.platformReadonlyApi?.status || "not_run",
-      credentialStatus: gate.platformReadonlyApi?.credentialStatus || "unknown",
-      credentialBlockers: runtimeChecks.platformReadonly?.credential?.blockers || []
-    };
-  }
-  if (nodeKey === "game_launch_pack") {
-    return {
-      output: "game_launch_pack",
-      gameName: bundle?.game?.game_name || "",
-      productName: bundle?.game?.product_name || "",
-      categoryName: bundle?.game?.category || "",
-      brandName: bundle?.game?.brand_name || "",
-      appIdSource: "game_platform_apps",
-      gamePlatformAppId: bundle?.platformApp?.app_id || "",
-      objective: bundle?.defaults?.objective || "",
-      deepObjective: bundle?.defaults?.deep_objective || "",
-      budget: Number(bundle?.defaults?.budget || 0),
-      bid: Number(bundle?.defaults?.bid || 0),
-      roiGoal: Number(bundle?.defaults?.roi_goal || 0),
-      materialPackId: bundle?.materialPack?.pack?.pack_id || "",
-      materialItemCount: Array.isArray(bundle?.materialPack?.items) ? bundle.materialPack.items.length : 0
-    };
-  }
-  if (nodeKey === "account_resource_prepare") {
-    return {
-      output: "account_ready_report",
-      platformReadonlyStatus: gate.platformReadonlyApi?.status || "not_run",
-      credentialStatus: gate.platformReadonlyApi?.credentialStatus || "unknown",
-      credentialBlockers: runtimeChecks.platformReadonly?.credential?.blockers || [],
-      blockedResourceTypes: gate.blockedResourceTypes || [],
-      checks: resourceChecks.map((item) => ({
-        key: item.key,
-        status: item.status,
-        resourceType: item.resourceType,
-        gap: item.gap || "",
-        nextAction: item.nextAction || "",
-        summary: item.summary
-      }))
-    };
-  }
-  if (nodeKey === "std_project_draft_builder") {
-    return {
-      output: "creation_draft",
-      projectName: bundle?.draft?.project_name || "",
-      payloadHash: bundle?.draft?.payload_hash || "",
-      duplicateStatus: bundle?.draft?.duplicate_status || "not_generated",
-      payloadContractStatus: contract.status || "waiting",
-      prewriteGateStatus: gate.status || "waiting",
-      platformDuplicateCheckStatus: gate.platformReadonlyApi?.duplicateStatus || "waiting",
-      checks: [
-        ...(contract.checks || []),
-        ...platformChecks.filter((item) => item.key === "platform_std_project_duplicate")
-      ].map((item) => ({ key: item.key, status: item.status, summary: item.summary }))
-    };
-  }
-  if (nodeKey === "std_project_create_executor") {
-    return {
-      output: "created_object",
-      createNodeStatus: gate.status === "locked" && !gate.gaps?.length ? "ready_for_single_create_confirmation" : "locked",
-      nextConfirmationRequired: gate.status === "locked" && !gate.gaps?.length,
-      guardrailPlatformWriteAllowed: false,
-      blockedReasons: gate.gaps || [],
-      checks: [
-        { key: "prewrite_gate", status: gate.status || "waiting", summary: gate.summary || "" },
-        { key: "payload_contract", status: contract.status || "waiting", summary: contract.summary || "" },
-        ...platformChecks
-      ].map((item) => ({ key: item.key, status: item.status, summary: item.summary, resourceType: item.resourceType || "" }))
-    };
-  }
-  if (nodeKey === "readback_closer") {
-    const objectNameMatches = !bundle?.readback?.object_name || bundle.readback.object_name === bundle?.draft?.project_name;
-    return {
-      output: bundle?.readback ? "readback_verified" : "readback_placeholder",
-      objectNameSource: "launch_drafts.project_name",
-      objectNameMatchesDraft: objectNameMatches,
-      realObjectIdPresent: Boolean(bundle?.readback?.object_id && !String(bundle.readback.object_id).includes("PLACEHOLDER")),
-      futureReadbackContract: "std_project/list by project_id or project_name after a separately confirmed create",
-      evidenceRef: bundle?.readback?.evidence_ref || ""
-    };
-  }
-  return {};
-}
-
-function diagnoseBundle(bundle, runtimeChecks = {}) {
-  const touchpointReady = Boolean(
-    runtimeChecks.touchpointVerification?.touchpointUrlPresent &&
-    runtimeChecks.touchpointVerification?.urlHashMatches
-  );
-  const contextReady = has(bundle?.account?.monitor_id) &&
-    has(bundle?.touchpoint?.touchpoint_ref) &&
-    has(bundle?.touchpoint?.url_hash) &&
-    touchpointReady &&
-    has(bundle?.platformApp?.app_id) &&
-    bundle?.account?.auth_status === "ready";
-  const packReady = has(bundle?.game?.game_code) &&
-    has(bundle?.defaults?.objective) &&
-    has(bundle?.materialPack?.pack?.pack_id) &&
-    Array.isArray(bundle?.materialPack?.items) &&
-    bundle.materialPack.items.length > 0;
-  const resource = resourceDiagnosis(bundle?.resources || []);
-  const draftReady = Boolean(bundle?.draft?.project_name && bundle?.draft?.payload_hash);
-  const confirmRecorded = (bundle?.evidence || []).some((item) => item.artifact_type === "confirm_placeholder");
-  const readbackReady = Boolean(bundle?.readback?.readback_id);
-  const contractResult = runtimeChecks.payloadContract || { status: "waiting", summary: "等待 payload 合同检查。" };
-  const prewriteGate = runtimeChecks.prewriteGate || { status: "waiting", summary: "等待创建前 gate 检查。", gaps: [] };
-  const credentialRequired = runtimeChecks.platformReadonly?.credential?.status === "credential_required";
-  const contextStatus = contextReady ? (credentialRequired ? "repairable" : "passed") : "blocked";
-
-  return [
-    nodeStatus({
-      nodeKey: "launch_intake",
-      status: "passed",
-      summary: "route_id、game_code、advertiser_id 已归一。",
-      outputSummary: outputForNode("launch_intake", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "creation_context",
-      status: contextStatus,
-      summary: contextReady
-        ? (credentialRequired ? "本地上下文已装配；平台只读凭据需要单独处理。" : "账户、monitor_id、触点引用、触点 hash 和平台 app 已装配。")
-        : "账户上下文缺少 monitor_id、触点 URL/hash 校验或平台 app。",
-      diagnosticLevel: contextStatus === "passed" ? "info" : (contextStatus === "repairable" ? "warning" : "error"),
-      outputSummary: outputForNode("creation_context", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "game_launch_pack",
-      status: packReady ? "passed" : "blocked",
-      summary: packReady ? "游戏主档、路线默认值和保底物料包已装配。" : "游戏主档、路线默认值或保底物料包缺失。",
-      diagnosticLevel: packReady ? "info" : "error",
-      outputSummary: outputForNode("game_launch_pack", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "account_resource_prepare",
-      status: resource.status,
-      summary: resource.summary,
-      diagnosticLevel: resource.level,
-      outputSummary: outputForNode("account_resource_prepare", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "std_project_draft_builder",
-      status: draftReady ? (contractResult.status === "passed" ? "needs_confirmation" : "repairable") : "waiting",
-      summary: draftReady ? `创建草稿已生成；${contractResult.summary}` : "等待生成创建草稿。",
-      diagnosticLevel: draftReady ? (contractResult.status === "passed" ? "warning" : "error") : "pending",
-      outputSummary: outputForNode("std_project_draft_builder", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "std_project_create_executor",
-      status: confirmRecorded ? "locked" : (draftReady ? "locked" : "waiting"),
-      summary: confirmRecorded ? "确认占位已写入，真实平台创建未执行。" : (draftReady ? prewriteGate.summary : "等待草稿确认占位。"),
-      diagnosticLevel: confirmRecorded ? "warning" : (draftReady ? "warning" : "pending"),
-      outputSummary: outputForNode("std_project_create_executor", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "readback_closer",
-      status: readbackReady ? "passed" : "waiting",
-      summary: readbackReady ? "回查占位已写入，对象名来自草稿。" : "等待回查占位。",
-      diagnosticLevel: readbackReady ? "info" : "pending",
-      outputSummary: outputForNode("readback_closer", bundle, runtimeChecks)
-    })
-  ];
-}
-
-function buildDraft(bundle, { occupiedProjectNames = [] } = {}) {
-  const yyyymmdd = cstYyyymmdd(bundle.job.created_at);
-  const nameContext = {
-    account: bundle.account,
-    game: bundle.game,
-    defaults: bundle.defaults,
-    materialPack: bundle.materialPack,
-    yyyymmdd
-  };
-  const namePrefix = buildStdProjectNamePrefix(nameContext);
-  const projectSeq = allocateProjectSequence({
-    namePrefix,
-    yyyymmdd,
-    occupiedNames: occupiedProjectNames
-  });
-  const projectName = buildStdProjectName({
-    ...nameContext,
-    projectSeq
-  });
-  const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  const brandInfoOfficial = (bundle.resources || []).find((resource) => resource.resource_type === "brand_info")
-    ?.metadata?.brand_info_official || {};
-  const brandInfoSummary = {
-    brand_name_id: String(brandInfoOfficial.brand_name_id || ""),
-    cdp_brand_id: String(brandInfoOfficial.cdp_brand_id || ""),
-    cdp_brand_name: String(brandInfoOfficial.cdp_brand_name || ""),
-    yuntu_category_id: String(brandInfoOfficial.yuntu_category_id || ""),
-    matched_industry_path: String(brandInfoOfficial.matched_industry_path || ""),
-    readback_status: String(brandInfoOfficial.readback_status || ""),
-    confirmation_status: String(brandInfoOfficial.confirmation_status || "")
-  };
-  const payloadSummary = {
-    route_id: bundle.job.route_id,
-    game_code: bundle.job.game_code,
-    advertiser_id: bundle.job.advertiser_id,
-    object_type: bundle.job.object_type,
-    project_name: projectName,
-    monitor_id: bundle.account.monitor_id,
-    platform_app_id: bundle.platformApp?.app_id || "",
-    objective: bundle.defaults?.objective || "",
-    deep_objective: bundle.defaults?.deep_objective || "",
-    deep_bid_type: bundle.defaults?.deep_bid_type || "",
-    budget: Number(bundle.defaults?.budget || 0),
-    bid: Number(bundle.defaults?.bid || 0),
-    roi_goal: Number(bundle.defaults?.roi_goal || 0),
-    targeting_summary: bundle.defaults?.targeting_summary || "",
-    dmp_summary: bundle.defaults?.dmp_summary || "",
-    brand_info: brandInfoSummary,
-    material_pack_id: bundle.materialPack?.pack?.pack_id || "",
-    material_asset_refs: materialItems.map((entry) => entry.item?.asset_ref).filter(Boolean),
-    naming_prefix: namePrefix,
-    project_seq: projectSeq,
-    yyyymmdd,
-    source_usage: "runtime_truth",
-    platform_write_allowed: false
-  };
-  return {
-    draftId: `DRAFT-${bundle.job.job_id}`,
-    jobId: bundle.job.job_id,
-    objectType: bundle.job.object_type,
-    projectName,
-    payloadSummary,
-    payloadHash: hashJson(payloadSummary),
-    duplicateStatus: "not_checked",
-    writePolicy: "confirm_required_placeholder_only"
-  };
 }
 
 function draftToBundleShape(draft) {
@@ -471,65 +161,6 @@ function cachedPlatformReadonly(bundle = {}) {
   };
 }
 
-function evidenceSummaryForProbe(probe = {}) {
-  return [
-    `endpoint=${probe.endpoint}`,
-    `status=${probe.status}`,
-    `http=${probe.httpStatus ?? "none"}`,
-    `api_code=${probe.apiCode || "none"}`,
-    `data_present=${Boolean(probe.dataPresent)}`,
-    `request_id_present=${Boolean(probe.requestIdPresent)}`
-  ].join("; ");
-}
-
-async function persistPlatformReadonly(repo, bundle, platformReadonly) {
-  if (!platformReadonly) return [];
-  const jobId = bundle.job.job_id;
-  const evidenceRefs = [];
-  for (const [index, probe] of (platformReadonly.probes || []).entries()) {
-    const key = String(probe.label || `probe_${index + 1}`).replace(/[^A-Za-z0-9_.:-]/g, "_").toUpperCase();
-    const artifactId = `EV-${jobId}-OE-READONLY-${String(index + 1).padStart(2, "0")}-${key}`;
-    const summary = evidenceSummaryForProbe(probe);
-    await repo.upsertEvidence({
-      artifactId,
-      jobId,
-      artifactType: "platform_readonly_probe",
-      title: `OceanEngine 只读校验 ${probe.label}`,
-      summary,
-      contentHash: probe.responseHash || contentHash(summary),
-      storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
-      sourceRef: `oceanengine:${probe.endpoint}`
-    });
-    evidenceRefs.push(artifactId);
-  }
-
-  for (const update of platformReadonly.resourceUpdates || []) {
-    await repo.updateAccountResourceReadonly({
-      routeId: bundle.job.route_id,
-      gameCode: bundle.job.game_code,
-      advertiserId: bundle.job.advertiser_id,
-      resourceType: update.resourceType,
-      visibilityStatus: update.visibilityStatus,
-      readbackStatus: update.readbackStatus,
-      platformResourceId: update.platformResourceId,
-      resourceMetadata: update.resourceMetadata || {},
-      metadata: {
-        ...update.readonlyCheck,
-        evidence_refs: evidenceRefs,
-        checked_at: new Date().toISOString()
-      }
-    });
-  }
-
-  if (bundle.draft?.draft_id && platformReadonly.platformDuplicateCheck?.status) {
-    await repo.updateDraftDuplicateStatus(
-      bundle.draft.draft_id,
-      platformReadonly.platformDuplicateCheck.status === "passed" ? "platform_not_duplicate" : "platform_duplicate_check_blocked"
-    );
-  }
-  return evidenceRefs;
-}
-
 async function buildRuntimeChecks(repo, bundle, { draftOverride, platformReadonly } = {}) {
   const effectiveBundle = draftOverride ? { ...bundle, draft: draftToBundleShape(draftOverride) } : bundle;
   const touchpointVerification = await repo.getTouchpointVerification({
@@ -538,7 +169,7 @@ async function buildRuntimeChecks(repo, bundle, { draftOverride, platformReadonl
     advertiserId: effectiveBundle.job.advertiser_id,
     monitorId: effectiveBundle.account?.monitor_id || effectiveBundle.touchpoint?.monitor_id || ""
   });
-  const payloadContract = evaluateStdProjectPayloadContract({
+  const payloadContract = evaluateOe3PayloadContract({
     bundle: effectiveBundle,
     draft: draftOverride || effectiveBundle.draft,
     touchpointVerification
@@ -572,6 +203,10 @@ function statusLabel(status) {
     confirm_placeholder_recorded: "确认占位已记录",
     readback_placeholder_ready: "回查占位已完成",
     failed_waiting_manual_review: "失败待复盘",
+    blocked_brand_industry: "brand_industry 阻断",
+    blocked_after_single_create_failure: "单次创建失败后锁定",
+    ready_for_user_create_confirmation: "可等待创建确认",
+    new_runtime_job_required: "需要新的 runtime job",
     failed_or_unconfirmed: "失败或未确认",
     not_found_or_mismatch: "未找到或不匹配",
     not_started: "未开始",
@@ -621,7 +256,7 @@ function modeForStatus(status) {
 
 function nextActionForBundle(bundle = {}) {
   if (bundle.job?.job_status === "failed_waiting_manual_review") {
-    return "禁止重试；复盘平台返回码，或用只读列表核对项目名。";
+    return "禁止重试；修 brand_industry fresh readback，或新建 fresh runtime job。";
   }
   if (bundle.draft && !bundle.readback) return "等待人工确认或只读检查。";
   if (!bundle.draft) return "继续生成草稿。";
@@ -647,8 +282,10 @@ function executionView(bundle = {}) {
   };
 }
 
-function actionView(bundle = {}) {
+function actionView(bundle = {}, createReadiness = {}) {
   const failed = bundle.job?.job_status === "failed_waiting_manual_review";
+  const readyForConfirmation = createReadiness.status === "ready_for_user_create_confirmation";
+  const hasPlatformAction = Boolean(bundle.platformAction);
   return [
     {
       key: "refresh_view",
@@ -663,12 +300,111 @@ function actionView(bundle = {}) {
       dangerous: false
     },
     {
+      key: "run",
+      label: bundle.draft ? "重跑诊断/草稿" : "开始诊断/草稿",
+      enabled: !failed && !hasPlatformAction,
+      dangerous: false
+    },
+    {
       key: "retry_create",
-      label: failed ? "禁止重试" : "真实创建禁用",
+      label: failed ? "禁止重试" : (readyForConfirmation ? "等待确认创建" : "真实创建禁用"),
       enabled: false,
       dangerous: true
     }
   ];
+}
+
+function summaryFieldsView(bundle = {}, execution = {}) {
+  return [
+    { label: "项目名", value: bundle.draft?.project_name || "", visible: true },
+    { label: "payload hash", value: bundle.draft?.payload_hash || "", visible: true },
+    { label: "查重状态", value: bundle.draft?.duplicate_status || "", visible: true },
+    { label: "执行状态", value: execution.statusLabel || "", visible: true },
+    { label: "api_code", value: execution.apiCode || "", visible: Boolean(execution.apiCode) },
+    { label: "readback", value: execution.readbackStatusLabel || execution.readbackStatus || "", visible: true },
+    { label: "对象 ID", value: execution.objectIdPresent ? "已返回" : "未返回", visible: true },
+    { label: "允许重试", value: execution.retryAllowed ? "是" : "否", visible: true }
+  ];
+}
+
+function latestReadinessFromNodes(bundle = {}) {
+  const createNode = (bundle.nodes || []).find((node) => node.node_key === "std_project_create_executor") || {};
+  const accountNode = (bundle.nodes || []).find((node) => node.node_key === "account_resource_prepare") || {};
+  return createNode.output_summary?.createReadiness || accountNode.output_summary?.createReadiness || null;
+}
+
+function createReadinessView(bundle = {}, runtimeChecks = {}) {
+  const persisted = latestReadinessFromNodes(bundle) || {};
+  const createGate = ((bundle.nodes || []).find((node) => node.node_key === "std_project_create_executor") || {}).output_summary || {};
+  const accountGate = ((bundle.nodes || []).find((node) => node.node_key === "account_resource_prepare") || {}).output_summary || {};
+  const brandEventGate = createGate.oe3BrandEventReadonlyGate || accountGate.oe3BrandEventReadonlyGate || {};
+  const brandIndustryRepair = createGate.oe3BrandIndustryRepair || accountGate.oe3BrandIndustryRepair || {};
+  const gateStatuses = brandEventGate.gateStatuses || {};
+  const brandIndustryStatus = persisted.brandIndustryStatus || brandIndustryRepair.brandIndustryStatus || gateStatuses.brand_industry || "not_run";
+  const eventGateKeys = ["event_asset_detail", "available_events", "event_configs", "optimized_goal", "dbt"];
+  const eventChainStatus = persisted.eventChainStatus || (eventGateKeys.every((key) => gateStatuses[key] === "passed") ? "passed" : "blocked");
+  const hasSingleCreateAttempt = Boolean(bundle.platformAction);
+  const payloadContractStatus = runtimeChecks.payloadContract?.status || createGate.createReadiness?.payloadContractStatus || "waiting";
+  const payloadHashStable = runtimeChecks.payloadContract?.expectedPayloadHash
+    ? runtimeChecks.payloadContract.expectedPayloadHash === bundle.draft?.payload_hash
+    : true;
+  const inferredBlockers = [
+    ...(brandIndustryStatus !== "passed" ? ["brand_industry_readback_blocked"] : []),
+    ...(hasSingleCreateAttempt ? ["single_create_attempt_already_recorded"] : []),
+    ...(payloadContractStatus !== "passed" ? ["payload_contract_blocked"] : []),
+    ...(bundle.draft?.duplicate_status && bundle.draft.duplicate_status !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : [])
+  ];
+  const blockers = Array.isArray(persisted.blockers) ? persisted.blockers : inferredBlockers;
+  const status = persisted.status || (
+    hasSingleCreateAttempt
+      ? "blocked_after_single_create_failure"
+      : brandIndustryStatus !== "passed"
+        ? "blocked_brand_industry"
+        : inferredBlockers.length
+          ? "new_runtime_job_required"
+          : "ready_for_user_create_confirmation"
+  );
+  const canCreateCurrentJob = status === "ready_for_user_create_confirmation" && !hasSingleCreateAttempt;
+  const uniqueBlocker = persisted.uniqueBlocker || (
+    canCreateCurrentJob
+      ? "无"
+      : hasSingleCreateAttempt
+      ? (brandIndustryStatus === "passed"
+        ? "当前 job 已有单次 create attempt，不能重试"
+        : "当前 job 已有单次 create attempt，不能重试；brand_industry 仍未通过")
+        : brandIndustryStatus !== "passed"
+          ? "brand_industry fresh readback 未通过"
+          : blockers.join("；")
+  );
+  const nextAction = persisted.nextAction || (
+    hasSingleCreateAttempt
+      ? (brandIndustryStatus === "passed"
+        ? "当前 job 禁止重试；下一步新建 fresh runtime job 或开启单次创建确认任务。"
+        : "当前 job 禁止重试；修完 brand_industry 后新建 fresh runtime job 或开启单次创建确认任务。")
+      : brandIndustryStatus !== "passed"
+        ? "先修 brand_industry fresh readback。"
+        : "等待用户单次创建确认任务。"
+  );
+  return {
+    status,
+    statusLabel: statusLabel(status),
+    currentState: statusLabel(bundle.job?.job_status || ""),
+    uniqueBlocker,
+    nextAction,
+    canCreateCurrentJob,
+    targetJobReusable: canCreateCurrentJob,
+    retryAllowed: false,
+    nextConfirmationRequired: canCreateCurrentJob,
+    hasSingleCreateAttempt,
+    brandIndustryStatus,
+    eventChainStatus,
+    payloadContractStatus: persisted.payloadContractStatus || payloadContractStatus,
+    payloadHashStable: persisted.payloadHashStable ?? payloadHashStable,
+    duplicateStatus: bundle.draft?.duplicate_status || "not_generated",
+    platformActions: hasSingleCreateAttempt ? 1 : 0,
+    createdObjects: bundle.createdObject ? 1 : 0,
+    blockers: [...new Set(blockers)]
+  };
 }
 
 function draftFields(bundle, runtimeChecks = {}) {
@@ -739,11 +475,14 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
     }))
   }));
   const diagnostics = diagnosticsFromNodes(nodes);
+  const execution = executionView(bundle);
+  const createReadiness = createReadinessView(bundle, runtimeChecks);
+  const actions = actionView(bundle, createReadiness);
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
     status: bundle.job.job_status,
     statusLabel: statusLabel(bundle.job.job_status),
-    nextAction: nextActionForBundle(bundle)
+    nextAction: createReadiness.nextAction || nextActionForBundle(bundle)
   };
   const workflow = phases.map((phase) => ({
     phase: phase.title,
@@ -754,8 +493,12 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       statusLabel: node.statusLabel
     }))
   }));
-  const execution = executionView(bundle);
-  const actions = actionView(bundle);
+  const summaryFields = [
+    ...summaryFieldsView(bundle, execution),
+    { label: "创建就绪", value: createReadiness.statusLabel || createReadiness.status, visible: true },
+    { label: "唯一阻断", value: createReadiness.uniqueBlocker || "无", visible: true },
+    { label: "下一步", value: createReadiness.nextAction || "", visible: true }
+  ];
 
   return publicView({
     jobId: bundle.job.job_id,
@@ -794,6 +537,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       checks: [],
       gaps: []
     },
+    createReadiness,
     platformReadonly: {
       status: runtimeChecks.prewriteGate?.platformReadonlyApi?.status || "not_run",
       credentialStatus: runtimeChecks.prewriteGate?.platformReadonlyApi?.credentialStatus || "unknown",
@@ -807,7 +551,19 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
     ],
     phases,
     workflow,
+    summaryFields,
     diagnostics,
+    skills: {
+      runCount: (bundle.skillRuns || []).length,
+      latest: (bundle.skillRuns || []).slice(-30).map((run) => ({
+        skillKey: run.skill_key,
+        nodeKey: run.node_key,
+        status: run.status,
+        blockers: run.blockers || [],
+        outputSummary: run.output_summary || {},
+        evidenceRefs: run.evidence_refs || []
+      }))
+    },
     draft: {
       objectType: bundle.job.object_type,
       projectName: bundle.draft?.project_name || "等待生成",
@@ -841,6 +597,8 @@ export async function createJob(repo, body = {}) {
   const routeId = body.route_id || body.routeId || intake.route_id;
   const gameCode = String(body.game_code || body.gameCode || intake.game_code || "").toUpperCase();
   const advertiserId = body.advertiser_id || body.advertiserId || intake.advertiser_id;
+  const sourceUsage = body.source_usage || body.sourceUsage || "runtime_truth";
+  const sourceRecordRef = body.source_record_ref || body.sourceRecordRef || intake.source_record_ref;
   const missingFields = [];
   if (!routeId) missingFields.push("route_id");
   if (!gameCode) missingFields.push("game_code");
@@ -867,7 +625,8 @@ export async function createJob(repo, body = {}) {
     gameCode,
     advertiserId,
     objectType: context.route.object_type,
-    sourceRecordRef: intake.source_record_ref
+    sourceRecordRef,
+    sourceUsage
   });
   await repo.upsertNodeRuns(jobId, [
     nodeStatus({
@@ -888,202 +647,19 @@ export async function createJob(repo, body = {}) {
   return buildLaunchJobView(bundle, await buildRuntimeChecks(repo, bundle));
 }
 
-export async function diagnoseJob(repo, jobId) {
+export async function runJob(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
     const error = new Error("job_not_found");
     error.statusCode = 404;
     throw error;
   }
-  const platformReadonly = await runOceanEngineReadonlyProbes({
-    bundle,
-    client: createOceanEngineReadonlyClient()
-  });
-  const evidenceRefs = await persistPlatformReadonly(repo, bundle, platformReadonly);
-  const latestBundle = await repo.getLaunchJobBundle(jobId);
-  const runtimeChecks = await buildRuntimeChecks(repo, latestBundle, { platformReadonly });
-  const nodes = diagnoseBundle(latestBundle, runtimeChecks)
-    .map((node) => ["creation_context", "account_resource_prepare", "std_project_draft_builder", "std_project_create_executor"].includes(node.nodeKey)
-      ? { ...node, evidenceRefs }
-      : node);
-  await repo.upsertNodeRuns(jobId, nodes);
-  await repo.upsertEvidence({
-    artifactId: `EV-${jobId}-DIAGNOSE`,
+  const result = await runOe3WorkflowSkills({
+    repo,
     jobId,
-    artifactType: "diagnostic_summary",
-    title: "Workflow 诊断摘要",
-    summary: diagnosticsFromNodes(nodes).summary,
-    contentHash: contentHash(diagnosticsFromNodes(nodes).summary),
-    storageRef: `postgres:mwb.evidence_artifacts/EV-${jobId}-DIAGNOSE`,
-    sourceRef: "api:diagnose"
+    mode: options.mode || "dry_run",
+    mockReady: options.mockReady === true,
+    mockExecute: options.mockExecute === true
   });
-  await repo.updateJob(jobId, { status: "diagnosed", currentNode: "4" });
-  const updatedBundle = await repo.getLaunchJobBundle(jobId);
-  return buildLaunchJobView(updatedBundle, await buildRuntimeChecks(repo, updatedBundle));
-}
-
-export async function runJob(repo, jobId) {
-  const bundle = await repo.getLaunchJobBundle(jobId);
-  if (!bundle) {
-    const error = new Error("job_not_found");
-    error.statusCode = 404;
-    throw error;
-  }
-  const runtimeChecks = await buildRuntimeChecks(repo, bundle);
-  const nodes = diagnoseBundle(bundle, runtimeChecks);
-  const blockers = nodes
-    .filter((node) => node.status === "blocked" && node.nodeKey !== "account_resource_prepare")
-    .map((node) => node.nodeKey);
-  if (blockers.length) {
-    await repo.upsertNodeRuns(jobId, nodes);
-    await repo.updateJob(jobId, { status: "diagnosed", currentNode: "4" });
-    const error = new Error("workflow_blocked");
-    error.statusCode = 409;
-    error.details = { blockers };
-    throw error;
-  }
-
-  if (bundle.draft) return buildLaunchJobView(bundle, runtimeChecks);
-
-  const occupiedProjectNames = await repo.getOccupiedProjectNames({
-    routeId: bundle.job.route_id,
-    gameCode: bundle.job.game_code,
-    advertiserId: bundle.job.advertiser_id
-  });
-  const draft = buildDraft(bundle, { occupiedProjectNames });
-  const platformReadonly = await runOceanEngineReadonlyProbes({
-    bundle,
-    draft,
-    client: createOceanEngineReadonlyClient()
-  });
-  await repo.upsertDraft(draft);
-  const persistedDraftBundle = await repo.getLaunchJobBundle(jobId);
-  const evidenceRefs = await persistPlatformReadonly(repo, persistedDraftBundle, platformReadonly);
-  const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
-  const draftRuntimeChecks = await buildRuntimeChecks(repo, latestDraftBundle, { platformReadonly });
-  const refreshedNodes = diagnoseBundle(latestDraftBundle, draftRuntimeChecks);
-  const updatedNodes = [
-    ...refreshedNodes.slice(0, 4).map((node) => ["creation_context", "account_resource_prepare"].includes(node.nodeKey)
-      ? { ...node, evidenceRefs }
-      : node),
-    nodeStatus({
-      nodeKey: "std_project_draft_builder",
-      status: draftRuntimeChecks.payloadContract.status === "passed" ? "needs_confirmation" : "repairable",
-      summary: `创建草稿已生成：${draft.projectName}；${draftRuntimeChecks.payloadContract.summary}`,
-      diagnosticLevel: draftRuntimeChecks.payloadContract.status === "passed" ? "warning" : "error",
-      outputSummary: outputForNode("std_project_draft_builder", latestDraftBundle, draftRuntimeChecks),
-      evidenceRefs
-    }),
-    nodeStatus({
-      nodeKey: "std_project_create_executor",
-      status: "locked",
-      summary: draftRuntimeChecks.prewriteGate.summary,
-      diagnosticLevel: "warning",
-      outputSummary: outputForNode("std_project_create_executor", latestDraftBundle, draftRuntimeChecks),
-      evidenceRefs
-    }),
-    nodeStatus({
-      nodeKey: "readback_closer",
-      status: "waiting",
-      summary: "等待确认占位后写入回查占位。",
-      diagnosticLevel: "pending",
-      outputSummary: outputForNode("readback_closer", latestDraftBundle, draftRuntimeChecks)
-    })
-  ];
-  await repo.upsertNodeRuns(jobId, updatedNodes);
-  await repo.updateJob(jobId, { status: "draft_ready", currentNode: "5" });
-  const updatedBundle = await repo.getLaunchJobBundle(jobId);
-  return buildLaunchJobView(updatedBundle, await buildRuntimeChecks(repo, updatedBundle));
-}
-
-export async function confirmJob(repo, jobId) {
-  const bundle = await repo.getLaunchJobBundle(jobId);
-  if (!bundle?.draft) {
-    const error = new Error("draft_not_ready");
-    error.statusCode = 409;
-    throw error;
-  }
-  const placeholder = buildConfirmPlaceholder({
-    jobId,
-    draftId: bundle.draft.draft_id,
-    projectName: bundle.draft.project_name
-  });
-  await repo.upsertEvidence({
-    ...placeholder,
-    contentHash: contentHash(`${placeholder.artifactId}:${placeholder.projectName}:no-platform-write`)
-  });
-  const runtimeChecks = await buildRuntimeChecks(repo, bundle);
-  await repo.upsertNodeRuns(jobId, [
-    nodeStatus({
-      nodeKey: "std_project_create_executor",
-      status: "locked",
-      summary: "确认占位已写入，未触发真实平台创建。",
-      diagnosticLevel: "warning",
-      outputSummary: outputForNode("std_project_create_executor", bundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "readback_closer",
-      status: "waiting",
-      summary: "等待回查占位。",
-      diagnosticLevel: "pending",
-      outputSummary: outputForNode("readback_closer", bundle, runtimeChecks)
-    })
-  ]);
-  await repo.updateJob(jobId, { status: "confirm_placeholder_recorded", currentNode: "6" });
-  const updatedBundle = await repo.getLaunchJobBundle(jobId);
-  return buildLaunchJobView(updatedBundle, await buildRuntimeChecks(repo, updatedBundle));
-}
-
-export async function readbackJob(repo, jobId) {
-  const bundle = await repo.getLaunchJobBundle(jobId);
-  if (!bundle?.draft) {
-    const error = new Error("draft_not_ready");
-    error.statusCode = 409;
-    throw error;
-  }
-  const placeholder = buildReadbackPlaceholder({
-    jobId,
-    projectName: bundle.draft.project_name
-  });
-  await repo.upsertEvidence({
-    artifactId: placeholder.artifactId,
-    jobId,
-    artifactType: "readback_placeholder",
-    title: "回查占位摘要",
-    summary: "回查占位已写入；对象名来自 launch_drafts.project_name，未调用真实平台。",
-    contentHash: contentHash(`${placeholder.artifactId}:${placeholder.objectName}:no-platform-readback`),
-    storageRef: `postgres:mwb.evidence_artifacts/${placeholder.artifactId}`,
-    sourceRef: "api:readback_placeholder"
-  });
-  await repo.upsertReadbackRecord({
-    readbackId: placeholder.readbackId,
-    jobId,
-    objectType: placeholder.objectType,
-    objectId: placeholder.objectId,
-    objectName: placeholder.objectName,
-    readbackStatus: placeholder.readbackStatus,
-    fieldDiffSummary: placeholder.fieldDiffSummary,
-    evidenceRef: placeholder.artifactId
-  });
-  const outputBundle = await repo.getLaunchJobBundle(jobId);
-  const runtimeChecks = await buildRuntimeChecks(repo, outputBundle);
-  await repo.upsertNodeRuns(jobId, [
-    nodeStatus({
-      nodeKey: "std_project_create_executor",
-      status: "locked",
-      summary: "确认占位已记录；平台创建未执行。",
-      diagnosticLevel: "warning",
-      outputSummary: outputForNode("std_project_create_executor", outputBundle, runtimeChecks)
-    }),
-    nodeStatus({
-      nodeKey: "readback_closer",
-      status: "passed",
-      summary: "回查占位已写入，对象名来自草稿。",
-      diagnosticLevel: "info",
-      outputSummary: outputForNode("readback_closer", outputBundle, runtimeChecks)
-    })
-  ]);
-  await repo.updateJob(jobId, { status: "readback_placeholder_ready", currentNode: "7" });
-  const updatedBundle = await repo.getLaunchJobBundle(jobId);
-  return buildLaunchJobView(updatedBundle, await buildRuntimeChecks(repo, updatedBundle));
+  return buildLaunchJobView(result.bundle, await buildRuntimeChecks(repo, result.bundle));
 }

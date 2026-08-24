@@ -1,0 +1,98 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "对 fresh runtime job 执行一次真实 OceanEngine std_project/create；禁止重试、token refresh 和旧 job 写入。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.md",
+    "tasks/TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE.md",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/std-project-create-confirmed-once.mjs",
+    "scripts/std-project-create-readiness-pack.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "job_id": "JOB-MWBV2-20260824061810-79A426",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260824",
+    "payload_hash": "sha256:fe001960ed46125f1f0a66f8f79fb9342ce7f2670016706520b5434355dd3f3f",
+    "locked_old_job_id": "JOB-MWBV2-20260824014546-851B76"
+  },
+  "write_boundary": {
+    "platform_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_write_actions": 1,
+    "retry_allowed": false,
+    "allowed_platform_actions": [
+      "oceanengine_std_project_create"
+    ],
+    "forbidden_platform_actions": [
+      "std_project_create_retry",
+      "material upload",
+      "event asset create",
+      "event configs create",
+      "DMP push",
+      "budget or bid update"
+    ]
+  },
+  "confirmation_variables": [
+    "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM=CREATE_ONE_STD_PROJECT",
+    "MWBV2_OE_STD_PROJECT_CREATE_JOB_ID=JOB-MWBV2-20260824061810-79A426",
+    "MWBV2_OE_STD_PROJECT_CREATE_PAYLOAD_HASH=sha256:fe001960ed46125f1f0a66f8f79fb9342ce7f2670016706520b5434355dd3f3f"
+  ],
+  "forbidden_outputs": [
+    "token",
+    "refresh token",
+    "app secret",
+    "auth code",
+    "Cookie",
+    "raw payload",
+    "raw response",
+    "full touchpoint URL"
+  ],
+  "validation": [
+    "npm run check:std-project-create-readiness -> passed before create",
+    "confirmed std_project:create-confirmed-once -> createCalled=true http=200 apiCode=40000 requestIdPresent=true stdProjectIdPresent=false",
+    "single readonly std_project/list readback -> not_found_or_mismatch",
+    "npm run check:std-project-create-readiness -> blocked_after_single_create_failure after create",
+    "npm run check:runtime-consistency -> passed",
+    "npm run smoke:api -> passed",
+    "API sensitive leak check -> passed"
+  ],
+  "result": {
+    "status": "create_failed_stop_for_manual_review",
+    "create_called": true,
+    "http_status": 200,
+    "api_code": "40000",
+    "request_id_present": true,
+    "std_project_id_present": false,
+    "readback_status": "not_found_or_mismatch",
+    "platform_actions": 1,
+    "created_objects": 0,
+    "retry_allowed": false,
+    "job_status": "failed_waiting_manual_review",
+    "current_node": "7",
+    "create_evidence_ref": "EV-JOB-MWBV2-20260824061810-79A426-STD-PROJECT-CREATE-ONCE",
+    "readback_evidence_ref": "EV-JOB-MWBV2-20260824061810-79A426-STD-PROJECT-READBACK-ONCE"
+  },
+  "next_gate": "本次真实创建返回 apiCode=40000 且只读回查未发现同名对象。下一步进入单次创建结果复盘，禁止重试。"
+}

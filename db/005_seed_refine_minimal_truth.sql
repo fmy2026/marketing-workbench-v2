@@ -17,7 +17,7 @@ INSERT INTO mwb.game_platform_apps (
   'JSZC',
   'oceanengine',
   'byte_mini_game',
-  (SELECT app_id FROM mwb.games WHERE game_code = 'JSZC'),
+  'tte95a9fe77665844607',
   '巨兽战场',
   'active',
   '{"read_key": "game_code + platform + app_type", "replaces_games_app_id_for_runtime_reads": true}'::jsonb,
@@ -218,7 +218,7 @@ INSERT INTO mwb.evidence_artifacts (
   '旧项目和历史资料仅用于字段经验参考，不作为 v2 运行时真值。',
   'sha256:MWBV2-LEGACY-REFERENCE-001',
   'reference:legacy_project_summary',
-  '/Users/hys/Projects/marketing-workbench reference only',
+  'legacy_project_reference_only_no_runtime_dependency',
   'reference_only',
   '2026-08-23 17:50:00+08'
 ) ON CONFLICT (artifact_id) DO UPDATE SET

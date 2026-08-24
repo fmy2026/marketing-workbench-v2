@@ -100,26 +100,48 @@ export class PostgresRepository {
     const result = await queryJson(`
       SELECT coalesce(
         (
-          SELECT to_jsonb(job_id)
-          FROM mwb.launch_jobs
-          WHERE job_status = 'failed_waiting_manual_review'
-          ORDER BY updated_at DESC, created_at DESC
+          SELECT to_jsonb(j.job_id)
+          FROM mwb.launch_jobs j
+          WHERE j.source_usage = 'runtime_truth'
+            AND j.job_status IN ('draft_ready', 'diagnosed', 'created', 'confirm_placeholder_recorded')
+            AND NOT EXISTS (
+              SELECT 1
+              FROM mwb.platform_actions pa
+              WHERE pa.job_id = j.job_id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM mwb.created_objects co
+              WHERE co.job_id = j.job_id
+            )
+          ORDER BY
+            CASE j.job_status
+              WHEN 'draft_ready' THEN 1
+              WHEN 'confirm_placeholder_recorded' THEN 2
+              WHEN 'diagnosed' THEN 3
+              WHEN 'created' THEN 4
+              ELSE 9
+            END,
+            j.updated_at DESC,
+            j.created_at DESC
           LIMIT 1
         ),
         (
           SELECT to_jsonb(j.job_id)
           FROM mwb.launch_jobs j
-          WHERE EXISTS (
-            SELECT 1
-            FROM mwb.platform_actions pa
-            WHERE pa.job_id = j.job_id
-          )
+          WHERE j.source_usage = 'runtime_truth'
+            AND EXISTS (
+              SELECT 1
+              FROM mwb.platform_actions pa
+              WHERE pa.job_id = j.job_id
+            )
           ORDER BY j.updated_at DESC, j.created_at DESC
           LIMIT 1
         ),
         (
           SELECT to_jsonb(job_id)
           FROM mwb.launch_jobs
+          WHERE source_usage <> 'test_run'
           ORDER BY updated_at DESC, created_at DESC
           LIMIT 1
         ),
@@ -127,6 +149,32 @@ export class PostgresRepository {
       )::text;
     `, this.database);
     return result;
+  }
+
+  async latestTestJobId() {
+    const result = await queryJson(`
+      SELECT coalesce(
+        (
+          SELECT to_jsonb(job_id)
+          FROM mwb.launch_jobs
+          WHERE source_usage = 'test_run'
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 1
+        ),
+        to_jsonb(''::text)
+      )::text;
+    `, this.database);
+    return result;
+  }
+
+  async sourceUsageForJob(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT to_jsonb(coalesce(source_usage, 'runtime_truth'))::text
+      FROM mwb.launch_jobs
+      WHERE job_id = ${sqlLiteral(jobId)}
+      LIMIT 1;
+    `, this.database);
   }
 
   async getCoreContext({ routeId, gameCode, advertiserId }) {
@@ -300,8 +348,13 @@ export class PostgresRepository {
             'http_status', pa.http_status,
             'api_code', pa.api_code,
             'request_id_present', pa.request_id_present,
+            'request_id_recorded', (pa.request_id <> ''),
             'object_id_present', pa.object_id_present,
             'error_summary', pa.error_summary,
+            'platform_error_message_safe', pa.platform_error_message_safe,
+            'platform_error_field', pa.platform_error_field,
+            'request_field_manifest', pa.request_field_manifest,
+            'response_summary', pa.response_summary,
             'started_at', pa.started_at,
             'finished_at', pa.finished_at
           )
@@ -326,6 +379,11 @@ export class PostgresRepository {
           WHERE co.job_id = j.job_id
           ORDER BY co.created_at DESC
           LIMIT 1
+        ),
+        'skillRuns', (
+          SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.started_at, sr.skill_run_id), '[]'::jsonb)
+          FROM mwb.launch_skill_runs sr
+          WHERE sr.job_id = j.job_id
         ),
         'evidence', (
           SELECT coalesce(jsonb_agg(to_jsonb(ev) ORDER BY ev.created_at), '[]'::jsonb)
@@ -356,6 +414,20 @@ export class PostgresRepository {
         WHERE j.route_id = ${sqlLiteral(routeId)}
           AND j.game_code = ${sqlLiteral(gameCode)}
           AND j.advertiser_id = ${sqlLiteral(advertiserId)}
+          AND j.source_usage = 'runtime_truth'
+          AND (
+            coalesce(j.source_record_ref, '') <> 'api:intake:97f20040f3d3d423'
+            OR EXISTS (
+              SELECT 1
+              FROM mwb.platform_actions pa
+              WHERE pa.job_id = j.job_id
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM mwb.created_objects co
+              WHERE co.job_id = j.job_id
+            )
+          )
         UNION
         SELECT r.object_name AS project_name
         FROM mwb.readback_records r
@@ -363,6 +435,20 @@ export class PostgresRepository {
         WHERE j.route_id = ${sqlLiteral(routeId)}
           AND j.game_code = ${sqlLiteral(gameCode)}
           AND j.advertiser_id = ${sqlLiteral(advertiserId)}
+          AND j.source_usage = 'runtime_truth'
+          AND (
+            coalesce(j.source_record_ref, '') <> 'api:intake:97f20040f3d3d423'
+            OR EXISTS (
+              SELECT 1
+              FROM mwb.platform_actions pa
+              WHERE pa.job_id = j.job_id
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM mwb.created_objects co
+              WHERE co.job_id = j.job_id
+            )
+          )
       ) occupied
       WHERE project_name IS NOT NULL
         AND project_name <> '';
@@ -432,7 +518,7 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async createLaunchJob({ jobId, routeId, gameCode, advertiserId, objectType, sourceRecordRef }) {
+  async createLaunchJob({ jobId, routeId, gameCode, advertiserId, objectType, sourceRecordRef, sourceUsage = "runtime_truth" }) {
     assertId("job_id", jobId);
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
@@ -461,7 +547,7 @@ export class PostgresRepository {
         'created',
         '1',
         ${sqlLiteral(sourceRecordRef)},
-        'runtime_truth',
+        ${sqlLiteral(sourceUsage)},
         now(),
         now()
       );
@@ -527,6 +613,55 @@ export class PostgresRepository {
         output_summary = EXCLUDED.output_summary,
         evidence_refs = EXCLUDED.evidence_refs,
         started_at = coalesce(mwb.launch_node_runs.started_at, EXCLUDED.started_at),
+        finished_at = EXCLUDED.finished_at;
+    `, this.database);
+  }
+
+  async upsertLaunchSkillRun(run) {
+    assertId("skill_run_id", run.skillRunId);
+    assertId("job_id", run.jobId);
+    assertId("node_key", run.nodeKey);
+    assertId("skill_key", run.skillKey);
+    const status = assertId("status", run.status);
+    await runPsql(`
+      INSERT INTO mwb.launch_skill_runs (
+        skill_run_id,
+        job_id,
+        node_key,
+        skill_key,
+        attempt_no,
+        status,
+        input_hash,
+        output_summary,
+        blockers,
+        evidence_refs,
+        source_usage,
+        started_at,
+        finished_at
+      ) VALUES (
+        ${sqlLiteral(run.skillRunId)},
+        ${sqlLiteral(run.jobId)},
+        ${sqlLiteral(run.nodeKey)},
+        ${sqlLiteral(run.skillKey)},
+        ${Number(run.attemptNo || 1)},
+        ${sqlLiteral(status)},
+        ${sqlLiteral(run.inputHash || "")},
+        ${sqlJson(run.outputSummary || {})},
+        ${sqlJson(run.blockers || [])},
+        ${sqlJson(run.evidenceRefs || [])},
+        ${sqlLiteral(run.sourceUsage || "runtime_truth")},
+        ${run.startedAt ? `${sqlLiteral(run.startedAt)}::timestamptz` : "now()"},
+        ${run.finishedAt ? `${sqlLiteral(run.finishedAt)}::timestamptz` : "now()"}
+      )
+      ON CONFLICT (job_id, skill_key, attempt_no) DO UPDATE SET
+        node_key = EXCLUDED.node_key,
+        status = EXCLUDED.status,
+        input_hash = EXCLUDED.input_hash,
+        output_summary = EXCLUDED.output_summary,
+        blockers = EXCLUDED.blockers,
+        evidence_refs = EXCLUDED.evidence_refs,
+        source_usage = EXCLUDED.source_usage,
+        started_at = coalesce(mwb.launch_skill_runs.started_at, EXCLUDED.started_at),
         finished_at = EXCLUDED.finished_at;
     `, this.database);
   }
@@ -657,7 +792,7 @@ export class PostgresRepository {
         ${sqlLiteral(evidence.contentHash)},
         ${sqlLiteral(evidence.storageRef)},
         ${sqlLiteral(evidence.sourceRef)},
-        'runtime_truth',
+        ${sqlLiteral(evidence.sourceUsage || "runtime_truth")},
         now()
       )
       ON CONFLICT (artifact_id) DO UPDATE SET
@@ -765,6 +900,11 @@ export class PostgresRepository {
         request_id_present,
         object_id_present,
         error_summary,
+        request_id,
+        platform_error_message_safe,
+        platform_error_field,
+        request_field_manifest,
+        response_summary,
         metadata,
         started_at,
         finished_at
@@ -784,6 +924,11 @@ export class PostgresRepository {
         ${action.requestIdPresent ? "true" : "false"},
         ${action.objectIdPresent ? "true" : "false"},
         ${sqlLiteral(action.errorSummary || "")},
+        ${sqlLiteral(action.requestId || "")},
+        ${sqlLiteral(action.platformErrorMessageSafe || "")},
+        ${sqlLiteral(action.platformErrorField || "")},
+        ${sqlJson(action.requestFieldManifest || {})},
+        ${sqlJson(action.responseSummary || {})},
         ${sqlJson(action.metadata || {})},
         ${action.startedAt ? `${sqlLiteral(action.startedAt)}::timestamptz` : "now()"},
         ${action.finishedAt ? `${sqlLiteral(action.finishedAt)}::timestamptz` : "NULL"}
@@ -797,6 +942,11 @@ export class PostgresRepository {
         request_id_present = EXCLUDED.request_id_present,
         object_id_present = EXCLUDED.object_id_present,
         error_summary = EXCLUDED.error_summary,
+        request_id = EXCLUDED.request_id,
+        platform_error_message_safe = EXCLUDED.platform_error_message_safe,
+        platform_error_field = EXCLUDED.platform_error_field,
+        request_field_manifest = EXCLUDED.request_field_manifest,
+        response_summary = EXCLUDED.response_summary,
         metadata = EXCLUDED.metadata,
         finished_at = EXCLUDED.finished_at;
     `, this.database);
@@ -841,6 +991,38 @@ export class PostgresRepository {
         evidence_ref = EXCLUDED.evidence_ref,
         metadata = EXCLUDED.metadata,
         readback_at = EXCLUDED.readback_at;
+    `, this.database);
+  }
+
+  async deleteTestJobCascade(jobId) {
+    assertId("job_id", jobId);
+    await runPsql(`
+      DO $$
+      DECLARE
+        job_usage text;
+      BEGIN
+        SELECT source_usage INTO job_usage
+        FROM mwb.launch_jobs
+        WHERE job_id = ${sqlLiteral(jobId)};
+
+        IF job_usage IS NULL THEN
+          RETURN;
+        END IF;
+
+        IF job_usage <> 'test_run' THEN
+          RAISE EXCEPTION 'refuse_delete_non_test_job:%', ${sqlLiteral(jobId)};
+        END IF;
+
+        DELETE FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_confirmations WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.readback_records WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_drafts WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_skill_runs WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_node_runs WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_jobs WHERE job_id = ${sqlLiteral(jobId)};
+      END $$;
     `, this.database);
   }
 

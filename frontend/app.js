@@ -124,7 +124,9 @@
 
     const fields = document.getElementById("draftFields");
     fields.innerHTML = "";
-    [
+    const summaryFields = Array.isArray(job.summaryFields) && job.summaryFields.length
+      ? job.summaryFields.filter((field) => field.visible !== false)
+      : [
       ["项目名", job.draft?.projectName],
       ["payload hash", job.draft?.payloadHash],
       ["查重状态", job.draft?.duplicateStatus],
@@ -133,7 +135,9 @@
       ["readback", job.execution?.readbackStatusLabel || job.execution?.readbackStatus],
       ["对象 ID", job.execution?.objectIdPresent ? "已返回" : "未返回"],
       ["允许重试", job.execution?.retryAllowed ? "是" : "否"]
-    ].forEach(([label, value]) => {
+    ].map(([label, value]) => ({ label, value }));
+
+    summaryFields.forEach(({ label, value }) => {
       const item = el("div", "draft-field");
       item.append(el("span", "", label));
       item.append(el("strong", "", value || ""));
@@ -182,10 +186,10 @@
     try {
       if (action.key === "refresh_view") {
         await refreshJob();
-      } else if (["diagnose", "run", "confirm", "readback"].includes(action.key)) {
-        job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/${action.key}`, {
+      } else if (action.key === "run") {
+        job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/run`, {
           method: "POST",
-          body: "{}"
+          body: JSON.stringify({ mode: "dry_run" })
         });
         renderAll();
       }

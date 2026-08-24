@@ -43,7 +43,6 @@ INSERT INTO mwb.games (
   game_name,
   product_name,
   category,
-  app_id,
   brand_name,
   status,
   product_identity,
@@ -54,7 +53,6 @@ INSERT INTO mwb.games (
   '巨兽战场',
   '巨兽战场',
   '小游戏',
-  'tte95a9fe77665844607',
   '巨兽战场',
   'active',
   '{
@@ -69,7 +67,6 @@ INSERT INTO mwb.games (
   game_name = EXCLUDED.game_name,
   product_name = EXCLUDED.product_name,
   category = EXCLUDED.category,
-  app_id = EXCLUDED.app_id,
   brand_name = EXCLUDED.brand_name,
   status = EXCLUDED.status,
   product_identity = EXCLUDED.product_identity,

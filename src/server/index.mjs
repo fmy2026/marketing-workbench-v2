@@ -4,7 +4,7 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
-import { confirmJob, createJob, diagnoseJob, getJobView, readbackJob, runJob } from "../workflows/launchWorkflow.mjs";
+import { createJob, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
@@ -89,10 +89,10 @@ async function handleApi(req, res, pathname) {
     if (!view) return sendJson(res, 404, { error: "job_not_found" });
     return sendJson(res, 200, view);
   }
-  if (req.method === "POST" && action === "diagnose") return sendJson(res, 200, await diagnoseJob(repo, jobId));
-  if (req.method === "POST" && action === "run") return sendJson(res, 200, await runJob(repo, jobId));
-  if (req.method === "POST" && action === "confirm") return sendJson(res, 200, await confirmJob(repo, jobId));
-  if (req.method === "POST" && action === "readback") return sendJson(res, 200, await readbackJob(repo, jobId));
+  if (req.method === "POST" && action === "run") {
+    const body = await readBody(req);
+    return sendJson(res, 200, await runJob(repo, jobId, { mode: body.mode || "dry_run" }));
+  }
   return sendJson(res, 404, { error: "not_found" });
 }
 

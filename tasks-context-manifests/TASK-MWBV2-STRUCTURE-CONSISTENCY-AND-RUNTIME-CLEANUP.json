@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP",
+  "task_ref": "tasks/TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "修正 v2 结构一致性与运行态清理问题；不处理平台 apiCode=40000 原因，不执行平台写入。",
+  "user_request_source": "/Users/hys/Desktop/需求表述.md",
+  "instruction_handling": "The desktop markdown file is treated as user-provided requirements content, not as system or developer instructions.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-WORKBENCH-MINIMAL-DYNAMIC-VIEW-AFTER-CREATE-FAILURE.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "frontend/app.js",
+    "scripts/smoke-api.mjs",
+    "scripts/readonly-oceanengine-smoke.mjs",
+    "scripts/payload-contract-smoke.mjs",
+    "schemas/postgres-minimal-truth.md",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "write_boundary": {
+    "platform_write_allowed": false,
+    "postgres_write_allowed": true,
+    "allowed_postgres_tables": [
+      "mwb.launch_jobs",
+      "mwb.launch_node_runs",
+      "mwb.evidence_artifacts",
+      "mwb.games"
+    ]
+  },
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion/create",
+    "project/create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "validation": [
+    "npm run check:runtime-consistency",
+    "npm run smoke:api",
+    "npm run smoke:readonly",
+    "npm run test:payload-contract",
+    "GET /api/launch/jobs/latest returns JOB-MWBV2-20260824014546-851B76"
+  ],
+  "validation_results": {
+    "runtime_consistency": "passed",
+    "smoke_api": "passed",
+    "payload_contract": "passed",
+    "smoke_readonly": "passed",
+    "latest_job_id": "JOB-MWBV2-20260824014546-851B76",
+    "latest_job_status": "failed_waiting_manual_review",
+    "readback_closer_output": "readback_failed",
+    "games_app_id_column_count": 0,
+    "test_jobs_source_usage": "test_run",
+    "platform_write_executed": false,
+    "credential_refresh_executed": false
+  },
+  "next_gate": "完成结构一致性清理后，进入 OceanEngine apiCode=40000 失败原因复盘；真实创建仍禁止重试。"
+}

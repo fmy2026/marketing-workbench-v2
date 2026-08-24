@@ -34,6 +34,14 @@ const REQUIRED_BRAND_INFO_FIELDS = [
   "readback_status"
 ];
 
+const ALLOWED_HIDE_IF_CONVERTED = new Set([
+  "NO_EXCLUDE",
+  "EXCLUDE_CLICK",
+  "EXCLUDE_CONVERT",
+  "EXCLUDE_APP",
+  "EXCLUDE_CUSTOMER"
+]);
+
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") {
@@ -87,6 +95,9 @@ export function evaluateStdProjectPayloadContract({ bundle, draft, touchpointVer
   }
 
   const payload = normalized.payloadSummary;
+  const finalManifest = payload.final_payload_manifest || {};
+  const finalPayloadBlockers = Array.isArray(payload.final_payload_blockers) ? payload.final_payload_blockers : [];
+  const usesFinalPayloadHash = payload.payload_hash_source === "final_controlled_payload";
   const missingFields = REQUIRED_PAYLOAD_FIELDS.filter((field) => !valuePresent(payload[field]));
   const forbiddenKeys = collectForbiddenKeys(payload);
   const brandInfo = payload.brand_info || {};
@@ -96,14 +107,26 @@ export function evaluateStdProjectPayloadContract({ bundle, draft, touchpointVer
     .every((field) => /^\d+$/.test(String(brandInfo[field] || "")));
   const brandInfoConfirmed = ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"]
     .includes(String(brandInfo.readback_status || ""));
-  const expectedHash = stablePayloadHash(payload);
+  const expectedHash = usesFinalPayloadHash && payload.final_payload_hash
+    ? payload.final_payload_hash
+    : stablePayloadHash(payload);
   const hashStable = normalized.payloadHash === expectedHash;
   const longIdFieldsAreStrings = ["advertiser_id", "monitor_id"]
     .every((field) => typeof payload[field] === "string" && /^[0-9]+$/.test(payload[field]));
   const nameMatches = normalized.projectName === payload.project_name && projectNameMatches(normalized.projectName, payload);
   const readback = bundle?.readback || null;
   const objectNameConsistent = !readback || readback.object_name === normalized.projectName;
-  const touchpointControlled = Boolean(touchpointVerification?.touchpointUrlPresent) && forbiddenKeys.every((path) => path !== "touchpoint_url");
+  const touchpointControlled = Boolean(touchpointVerification?.touchpointUrlPresent) &&
+    forbiddenKeys.every((path) => path !== "touchpoint_url") &&
+    (!usesFinalPayloadHash || finalManifest.touchpointUrlControlledPresent === true);
+  const finalPayloadManifestReady = !usesFinalPayloadHash || finalManifest.kind === "oe3_std_project_final_payload_manifest";
+  const finalPayloadHasNoBlockers = !usesFinalPayloadHash || finalPayloadBlockers.length === 0;
+  const finalPayloadGenderOk = !usesFinalPayloadHash || finalManifest.audienceGender === "GENDER_UNLIMITED";
+  const finalPayloadHideOk = !usesFinalPayloadHash ||
+    (ALLOWED_HIDE_IF_CONVERTED.has(String(finalManifest.hideIfConverted || "")) && finalManifest.hideIfConverted !== payload.objective);
+  const finalPayloadFilterEventOk = !usesFinalPayloadHash ||
+    (Array.isArray(finalManifest.filterEvent) && finalManifest.filterEvent.includes(payload.objective));
+  const finalPayloadDmpOk = !usesFinalPayloadHash || finalManifest.dmpCustomAudienceIdsPresent === true;
 
   const checks = [
     {
@@ -144,7 +167,9 @@ export function evaluateStdProjectPayloadContract({ bundle, draft, touchpointVer
     {
       key: "payload_hash",
       status: hashStable ? "passed" : "blocked",
-      summary: hashStable ? "payload_hash 与规范化摘要稳定一致。" : "payload_hash 与规范化摘要不一致。"
+      summary: hashStable
+        ? (usesFinalPayloadHash ? "payload_hash 与最终受控 payload hash 稳定一致。" : "payload_hash 与规范化摘要稳定一致。")
+        : (usesFinalPayloadHash ? "payload_hash 与最终受控 payload hash 不一致。" : "payload_hash 与规范化摘要不一致。")
     },
     {
       key: "project_name",
@@ -160,6 +185,36 @@ export function evaluateStdProjectPayloadContract({ bundle, draft, touchpointVer
       key: "readback_object_name",
       status: objectNameConsistent ? "passed" : "blocked",
       summary: objectNameConsistent ? "回查 object_name 来源与 launch_drafts.project_name 一致。" : "回查 object_name 未来自草稿项目名。"
+    },
+    {
+      key: "final_payload_manifest",
+      status: finalPayloadManifestReady ? "passed" : "blocked",
+      summary: finalPayloadManifestReady ? "最终 payload 字段 manifest 已生成。" : "缺少最终 payload 字段 manifest。"
+    },
+    {
+      key: "final_payload_blockers",
+      status: finalPayloadHasNoBlockers ? "passed" : "blocked",
+      summary: finalPayloadHasNoBlockers ? "最终 payload 未发现硬阻断。" : `最终 payload 存在阻断：${finalPayloadBlockers.join("、")}。`
+    },
+    {
+      key: "audience_gender",
+      status: finalPayloadGenderOk ? "passed" : "blocked",
+      summary: finalPayloadGenderOk ? "不限性别使用 GENDER_UNLIMITED。" : "不限性别未使用 GENDER_UNLIMITED。"
+    },
+    {
+      key: "hide_if_converted",
+      status: finalPayloadHideOk ? "passed" : "blocked",
+      summary: finalPayloadHideOk ? "hide_if_converted 使用过滤范围枚举，未写入付费事件。" : "hide_if_converted 不是允许枚举或误用了付费事件。"
+    },
+    {
+      key: "filter_event",
+      status: finalPayloadFilterEventOk ? "passed" : "blocked",
+      summary: finalPayloadFilterEventOk ? "filter_event 承担付费事件语义。" : "filter_event 未包含路线默认付费事件。"
+    },
+    {
+      key: "dmp_custom_audience_ids",
+      status: finalPayloadDmpOk ? "passed" : "blocked",
+      summary: finalPayloadDmpOk ? "DMP 使用只读验证后的 custom_audience_id[]。" : "DMP 缺少平台 custom_audience_id[]。"
     }
   ];
 

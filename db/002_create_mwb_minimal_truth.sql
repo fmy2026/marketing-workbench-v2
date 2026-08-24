@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS mwb.games (
   game_name text NOT NULL,
   product_name text NOT NULL,
   category text NOT NULL,
-  app_id text NOT NULL,
   brand_name text NOT NULL,
   status text NOT NULL,
   product_identity jsonb NOT NULL DEFAULT '{}'::jsonb,

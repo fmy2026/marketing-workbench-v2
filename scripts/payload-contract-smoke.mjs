@@ -1,68 +1,119 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, diagnoseJob, runJob, readbackJob, confirmJob } from "../src/workflows/launchWorkflow.mjs";
-import { evaluateStdProjectPayloadContract } from "../src/platforms/oceanengineStdProjectPayloadContract.mjs";
+import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/payload-contract.mjs";
+import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/index.mjs";
 
 const repo = new PostgresRepository();
+const cleanupJobIds = [];
+const TARGET = Object.freeze({
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  advertiserId: "1871922175825993"
+});
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function assertNoSensitiveLeak(value) {
-  const text = JSON.stringify(value);
-  [
-    /touchpoint_url/i,
-    /raw_payload/i,
-    /raw_response/i,
-    /tf-api\.3k\.com/i,
-    /callback\/click/i,
-    /\bcookie\b/i,
-    /OCEANENGINE_ACCESS_TOKEN/i,
-    /OCEANENGINE_REFRESH_TOKEN/i,
-    /OCEANENGINE_APP_SECRET/i,
-    /Access-Token/i,
-    /Bearer\s+[A-Za-z0-9._-]{20,}/i
-  ].forEach((pattern) => {
-    if (pattern.test(text)) throw new Error(`sensitive leak matched ${pattern}`);
+async function createTestJob(sourceRecordRef) {
+  const view = await createJob(repo, {
+    user_intent: `推广路线 ${TARGET.routeId}，游戏 ${TARGET.gameCode}，账户 ${TARGET.advertiserId}`,
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    source_usage: "test_run",
+    source_record_ref: sourceRecordRef
   });
+  cleanupJobIds.push(view.jobId);
+  return view;
 }
 
-const created = await createJob(repo, {
-  user_intent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993"
-});
-await diagnoseJob(repo, created.jobId);
-const draftReady = await runJob(repo, created.jobId);
-const confirmed = await confirmJob(repo, draftReady.jobId);
-const closed = await readbackJob(repo, confirmed.jobId);
-const bundle = await repo.getLaunchJobBundle(closed.jobId);
-const touchpointVerification = await repo.getTouchpointVerification({
-  routeId: bundle.job.route_id,
-  gameCode: bundle.job.game_code,
-  advertiserId: bundle.job.advertiser_id,
-  monitorId: bundle.account.monitor_id
-});
-const contract = evaluateStdProjectPayloadContract({
-  bundle,
-  draft: bundle.draft,
-  touchpointVerification
-});
+async function contractForJob(jobId) {
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  const touchpointVerification = await repo.getTouchpointVerification({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id,
+    monitorId: bundle.account.monitor_id
+  });
+  return {
+    bundle,
+    touchpointVerification,
+    contract: evaluateOe3PayloadContract({
+      bundle,
+      draft: bundle.draft,
+      touchpointVerification
+    })
+  };
+}
 
-assert(touchpointVerification.touchpointUrlPresent, "touchpoint URL not present");
-assert(touchpointVerification.urlHashMatches, "touchpoint URL hash mismatch");
-assert(contract.status === "passed", "payload contract did not pass");
-assert(contract.expectedPayloadHash === bundle.draft.payload_hash, "payload hash is not stable");
-assert(closed.readback.objectName === closed.draft.projectName, "readback objectName does not come from draft projectName");
-assert(closed.prewriteGate.canCreate === false, "prewrite gate must not allow real create");
-assert(["blocked", "locked"].includes(closed.prewriteGate.status), "prewrite gate status missing");
-assertNoSensitiveLeak(closed);
+try {
+  const dryCreated = await createTestJob(`test:payload-contract:dry-run:${new Date().toISOString()}`);
+  const dryView = await runJob(repo, dryCreated.jobId, { mode: "dry_run" });
+  const dry = await contractForJob(dryCreated.jobId);
+  const dryGapKeys = dry.contract.gaps.map((gap) => gap.key);
+  const dryManifest = dry.bundle.draft.payload_summary.final_payload_manifest || {};
 
-console.log(JSON.stringify({
-  jobId: closed.jobId,
-  projectName: closed.draft.projectName,
-  payloadHash: closed.draft.payloadHash,
-  touchpointStatus: closed.touchpoint.status,
-  touchpointHash: closed.touchpoint.urlHash,
-  payloadContractStatus: contract.status,
-  prewriteGateStatus: closed.prewriteGate.status,
-  gapCount: closed.prewriteGate.gaps.length
-}, null, 2));
+  assert(dry.touchpointVerification.touchpointUrlPresent, "touchpoint URL not present");
+  assert(dry.touchpointVerification.urlHashMatches, "touchpoint URL hash mismatch");
+  assert(dry.bundle.job.source_usage === "test_run", "dry payload contract job source_usage is not test_run");
+  assert(dry.bundle.draft.payload_summary.payload_hash_source === "final_controlled_payload", "dry payload hash source is not final payload");
+  assert(dry.contract.expectedPayloadHash === dry.bundle.draft.payload_hash, "dry payload hash is not stable");
+  if (dry.contract.status === "blocked") {
+    assert(dryGapKeys.length > 0, "dry payload contract blocked without gaps");
+  } else {
+    assert(dry.contract.status === "passed", `unexpected dry payload contract status ${dry.contract.status}`);
+    assert(dryManifest.dmpRetargetingTagsExcludePresent === true, "DMP retargeting_tags_exclude missing");
+    assert(dryManifest.dmpRetargetingTagsExcludeIntegerArray === true, "DMP retargeting_tags_exclude is not integer[]");
+  }
+  assert(dryView.prewriteGate.canCreate === false, "dry prewrite gate must not allow real create");
+  assert(!dry.bundle.platformAction, "dry run recorded platform action");
+
+  const mockCreated = await createTestJob(`test:payload-contract:execute-mock:${new Date().toISOString()}`);
+  await runOe3WorkflowSkills({
+    repo,
+    jobId: mockCreated.jobId,
+    mode: "execute_once",
+    mockReady: true,
+    mockExecute: true
+  });
+  const mock = await contractForJob(mockCreated.jobId);
+  const mockManifest = mock.bundle.draft.payload_summary.final_payload_manifest || {};
+
+  assert(mock.bundle.job.source_usage === "test_run", "mock payload contract job source_usage is not test_run");
+  assert(mock.contract.status === "passed", "mock payload contract did not pass");
+  assert(mock.contract.expectedPayloadHash === mock.bundle.draft.payload_hash, "mock payload hash is not stable");
+  assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
+  assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
+  assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
+  assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
+
+  const result = {
+    dryRun: {
+      jobId: dry.bundle.job.job_id,
+      sourceUsage: dry.bundle.job.source_usage,
+      projectName: dry.bundle.draft.project_name,
+      payloadHash: dry.bundle.draft.payload_hash,
+      payloadContractStatus: dry.contract.status,
+      dmpBlocked: dryGapKeys.includes("dmp_custom_audience_ids"),
+      dmpRetargetingTagsExcludeCount: dryManifest.dmpRetargetingTagsExcludeCount || 0,
+      prewriteGateStatus: dryView.prewriteGate.status
+    },
+    executeMock: {
+      jobId: mock.bundle.job.job_id,
+      sourceUsage: mock.bundle.job.source_usage,
+      projectName: mock.bundle.draft.project_name,
+      payloadHash: mock.bundle.draft.payload_hash,
+      payloadContractStatus: mock.contract.status,
+      dmpRetargetingTagsExcludeCount: mockManifest.dmpRetargetingTagsExcludeCount || 0,
+      readbackStatus: mock.bundle.readback.readback_status
+    },
+    cleanupPlanned: cleanupJobIds.length
+  };
+  assertNoSensitiveLeak(result);
+  console.log(JSON.stringify(result, null, 2));
+} finally {
+  for (const jobId of cleanupJobIds.reverse()) {
+    await repo.deleteTestJobCascade(jobId);
+  }
+}

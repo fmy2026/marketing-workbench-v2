@@ -1,0 +1,96 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "新建 fresh runtime_truth job 并准备到用户确认后可单次创建；禁止真实平台写入、token refresh 和旧 job 重试。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-FINAL-READINESS-AND-BRAND-INDUSTRY-REPAIR.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/std-project-create-readiness-pack.mjs",
+    "scripts/oe3-brand-industry-readonly-repair.mjs",
+    "scripts/smoke-api.mjs",
+    "scripts/payload-contract-smoke.mjs",
+    "frontend/app.js",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "locked_old_job_id": "JOB-MWBV2-20260824014546-851B76"
+  },
+  "write_boundary": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "postgres_write_allowed": true,
+    "allowed_postgres_targets": [
+      "mwb.launch_jobs",
+      "mwb.launch_node_runs",
+      "mwb.launch_drafts",
+      "mwb.evidence_artifacts",
+      "mwb.account_resources.metadata"
+    ],
+    "forbidden_postgres_targets": [
+      "mwb.platform_actions",
+      "mwb.created_objects",
+      "old job status/current_node/create result"
+    ]
+  },
+  "forbidden_actions": [
+    "std_project/create",
+    "project_create_retry",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "event configs create",
+    "DMP push",
+    "budget or bid update",
+    "raw_payload_or_raw_response_export",
+    "token_or_cookie_output",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "validation": [
+    "npm run std-project:fresh-job -> passed",
+    "npm run check:std-project-create-readiness -> passed",
+    "MWBV2_TARGET_JOB_ID=JOB-MWBV2-20260824014546-851B76 npm run check:std-project-create-readiness -> passed",
+    "npm run check:runtime-consistency -> passed",
+    "npm run test:payload-contract -> passed",
+    "npm run smoke:api -> passed",
+    "node scripts/std-project-create-confirmed-once.mjs without confirmation variables -> blocked_before_create createCalled=false",
+    "GET /api/launch/jobs/latest -> fresh runtime job",
+    "API sensitive leak check -> passed"
+  ],
+  "result": {
+    "fresh_job_id": "JOB-MWBV2-20260824061810-79A426",
+    "fresh_job_status": "draft_ready",
+    "fresh_current_node": "5",
+    "fresh_project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260824",
+    "fresh_payload_hash": "sha256:fe001960ed46125f1f0a66f8f79fb9342ce7f2670016706520b5434355dd3f3f",
+    "fresh_readiness": "ready_for_user_create_confirmation",
+    "fresh_platform_actions": 0,
+    "fresh_created_objects": 0,
+    "locked_old_job_platform_actions": 1,
+    "locked_old_job_created_objects": 0,
+    "latest_api_returns_fresh_job": true,
+    "create_dry_run_status": "blocked_before_create",
+    "create_called": false
+  },
+  "next_gate": "fresh job ready 后进入用户确认的单次真实 std_project/create 新任务；本任务不执行真实创建。"
+}

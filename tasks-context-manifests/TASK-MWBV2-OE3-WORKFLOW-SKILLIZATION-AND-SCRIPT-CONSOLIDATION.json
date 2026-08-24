@@ -1,0 +1,87 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-WORKFLOW-SKILLIZATION-AND-SCRIPT-CONSOLIDATION",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "/Users/hys/Desktop/需求表述.md",
+  "brief": {
+    "goal": "将 OE3 字节小游戏 3.0 std_project 创建流程收敛为 v2 独立 Workflow Skill 体系，并归档被替代的历史业务脚本。",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "package.json",
+    "db/009_create_platform_write_records.sql"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "workflow_skills": "src/workflows/skills/oe3",
+    "workflow": "src/workflows/launchWorkflow.mjs",
+    "repository": "src/repositories/postgresRepository.mjs",
+    "scripts": "scripts/",
+    "archive": ".archive/20260824-oe3-pre-skillization/"
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-WORKFLOW-SKILLIZATION-AND-SCRIPT-CONSOLIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-WORKFLOW-SKILLIZATION-AND-SCRIPT-CONSOLIDATION.json",
+    "project.state.json",
+    "db/012_add_launch_skill_runs_and_create_forensics.sql",
+    "src/workflows/skills/oe3/**",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "scripts/**",
+    ".archive/20260824-oe3-pre-skillization/**",
+    "package.json"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "create retry",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response to project files or normal logs"
+  ],
+  "validation_plan": [
+    "npm run db:migrate:check or psql migration syntax/application",
+    "npm run check:runtime-consistency",
+    "npm run test:payload-contract",
+    "npm run smoke:api",
+    "npm run smoke:workflow-skills",
+    "sensitive pattern scan"
+  ],
+  "completion_notes": [
+    "Added db/012_add_launch_skill_runs_and_create_forensics.sql and applied it to marketing_workbench_v2.mwb.",
+    "Added src/workflows/skills/oe3 with Skill contracts, final payload builder, and workflow runner.",
+    "Updated launchWorkflow.runJob to use the OE3 Skill runner for dry_run.",
+    "Updated payload contract checks to prefer final controlled payload manifest/hash for new drafts while keeping legacy summaries readable.",
+    "Archived replaced business scripts under .archive/20260824-oe3-pre-skillization and moved package scripts to the new CLI.",
+    "Verified dry_run to Node 5 and execute_once mock to Node 7 without real platform writes.",
+    "Current real-data blocker is dmp_custom_audience_ids_missing; brand_industry and event_chain are passed."
+  ]
+}

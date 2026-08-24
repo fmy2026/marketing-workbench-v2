@@ -1,0 +1,91 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW",
+  "task_ref": "tasks/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.md",
+  "status": "completed",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "只读复盘 JOB-MWBV2-20260824014546-851B76 的 OceanEngine apiCode=40000 失败原因；不执行平台写入、不刷新 token。",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-RUNTIME-TEST-DATA-PURGE-AND-PSEQUENCE-CLEANUP.md",
+    "tasks/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.md",
+    "schemas/postgres-minimal-truth.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/runtime-consistency-check.mjs",
+    "package.json"
+  ],
+  "postgres_readonly_scope": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "target_job_id": "JOB-MWBV2-20260824014546-851B76",
+    "allowed_tables": [
+      "mwb.launch_jobs",
+      "mwb.launch_node_runs",
+      "mwb.launch_drafts",
+      "mwb.launch_confirmations",
+      "mwb.platform_actions",
+      "mwb.created_objects",
+      "mwb.readback_records",
+      "mwb.evidence_artifacts",
+      "mwb.account_resources",
+      "mwb.account_touchpoints",
+      "mwb.game_platform_apps",
+      "mwb.advertiser_accounts"
+    ]
+  },
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/src/server/oceanengine-3-std-project-payload-contract.mjs",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/runners/oceanengine/oceanengine-3-std-project-prep-runner.mjs",
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion/create",
+    "project/create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "platform_write_api_call",
+    "raw_payload_or_raw_response_export",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "validation": [
+    "npm run check:runtime-consistency",
+    "target job status unchanged",
+    "failure review contains layered diagnosis and next gate"
+  ],
+  "validation_results": {
+    "runtime_consistency": "passed",
+    "target_job_status": "failed_waiting_manual_review",
+    "target_current_node": "7",
+    "target_source_usage": "runtime_truth",
+    "platform_actions": 1,
+    "created_objects": 0,
+    "write_api_called_during_review": false,
+    "token_refresh_called": false,
+    "primary_suspicion": [
+      "brand_industry_readonly_api_code_40000_or_not_fresh_target_evidence",
+      "event_chain_deep_readonly_evidence_missing"
+    ],
+    "low_suspicion": [
+      "payload_summary_contract",
+      "touchpoint_hash",
+      "game_platform_apps_app_id",
+      "product_image",
+      "account_authorization"
+    ],
+    "next_gate": "brand industry fresh readback repair/review, then event chain readonly deep check; request platform-side redacted error details if available"
+  },
+  "next_gate": "根据 apiCode=40000 复盘结论进入 payload 修正、资源补齐、只读校验或补充平台侧错误详情；真实创建仍禁止重试。"
+}

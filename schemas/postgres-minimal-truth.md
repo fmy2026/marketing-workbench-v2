@@ -23,12 +23,12 @@
 | 表 | 用途 |
 | --- | --- |
 | `mwb.platform_routes` | 路线、平台、营销产品、对象类型、写入策略 |
-| `mwb.games` | 游戏主档和产品身份摘要 |
+| `mwb.games` | 游戏主档、产品名、品类、品牌名和产品身份摘要；不保存平台 appid |
 | `mwb.advertiser_accounts` | 广告账户、授权状态、平台状态、监测序号 |
 | `mwb.account_touchpoints` | 触点 ref、URL hash、状态；`touchpoint_url` 仅作本地受控存储和 hash 校验，不作为普通 API/前端展示字段 |
 | `mwb.game_route_defaults` | 游戏 x 路线默认优化、预算、定向、排期和 DMP 摘要 |
 | `mwb.game_assets` | 游戏素材、产品身份、方向包引用 |
-| `mwb.game_platform_apps` | 游戏在不同平台/形态下的 appid 读取入口 |
+| `mwb.game_platform_apps` | 游戏在不同平台/形态下的 appid 唯一读取入口 |
 | `mwb.account_resources` | 账户级头像、DMP、事件、视频、产品图、品牌、小程序可用性；`metadata.readonly_check` 保存脱敏只读校验摘要 |
 | `mwb.material_packs` | 保底物料包 |
 | `mwb.material_pack_items` | 保底物料包明细 |
@@ -54,6 +54,8 @@
 | `db/007_update_account_touchpoint_url_template.sql` | 参数化更新触点 URL 和 hash，不保存具体 URL |
 | `db/008_add_launch_node_readonly_outputs.sql` | 新增节点只读输出摘要和证据引用字段 |
 | `db/009_create_platform_write_records.sql` | 新增 `launch_confirmations`、`platform_actions`、`created_objects`，用于单次真实创建闭环 |
+| `db/010_runtime_consistency_cleanup.sql` | 结构一致性清理：`test_run` 标记、目标失败态修正、移除 `games.app_id` |
+| `db/011_purge_runtime_test_data_and_psequence_cleanup.sql` | 清理历史测试/占位运行数据，保留真实失败 job 和维度真值表，固化 `P**` 真实业务占用边界 |
 
 ## 读取约定
 

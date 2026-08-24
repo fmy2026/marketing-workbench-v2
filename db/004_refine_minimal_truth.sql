@@ -141,7 +141,7 @@ BEGIN
         AND conrelid = ('mwb.' || target_table)::regclass
     ) THEN
       EXECUTE format(
-        'ALTER TABLE mwb.%I ADD CONSTRAINT %I CHECK (source_usage IN (''runtime_truth'', ''reference_only'', ''seed_source'', ''private_runtime''))',
+        'ALTER TABLE mwb.%I ADD CONSTRAINT %I CHECK (source_usage IN (''runtime_truth'', ''reference_only'', ''seed_source'', ''private_runtime'', ''test_run''))',
         target_table,
         constraint_name
       );

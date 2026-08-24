@@ -11,12 +11,21 @@
     "smoke:readonly": "node scripts/readonly-oceanengine-smoke.mjs",
     "token:status": "node scripts/oceanengine-token-status.mjs",
     "token:refresh": "node scripts/oceanengine-token-refresh.mjs",
-    "resource:diagnose": "node scripts/account-resource-diagnose.mjs",
-    "resource:avatar-once": "node scripts/account-resource-prepare-avatar-once.mjs",
-    "resource:event-asset-once": "node scripts/account-resource-prepare-event-asset-once.mjs",
-    "resource:product-image-once": "node scripts/account-resource-prepare-product-image-once.mjs",
-    "resource:readback": "node scripts/account-resource-readback.mjs",
-    "std-project:create-once": "node scripts/std-project-create-once.mjs",
-    "std-project:readback-once": "node scripts/std-project-readback-once.mjs"
+    "resource:diagnose": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "resource:avatar-once": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "resource:event-asset-once": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "resource:product-image-once": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "resource:readback": "node scripts/oe3-workflow-cli.mjs --mode readback_only",
+    "std-project:create-once": "node scripts/oe3-workflow-cli.mjs --mode execute_once",
+    "std-project:readback-once": "node scripts/oe3-workflow-cli.mjs --mode readback_only",
+    "std-project:fresh-job": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job --runtime-truth",
+    "std-project:create-confirmed-once": "node scripts/oe3-workflow-cli.mjs --mode execute_once",
+    "check:runtime-consistency": "node scripts/runtime-consistency-check.mjs",
+    "check:runtime-test-data-purge": "node scripts/runtime-test-data-purge-check.mjs",
+    "check:oe3-brand-event-readonly-gate": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "check:oe3-brand-industry": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "check:std-project-create-readiness": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "check:oe3-dmp-readonly": "node scripts/oe3-workflow-cli.mjs --mode dry_run --create-job",
+    "smoke:workflow-skills": "node scripts/oe3-workflow-skills-smoke.mjs"
   }
 }

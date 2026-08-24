@@ -1,0 +1,111 @@
+{
+  "schema_version": "2026-08-24.archive-manifest-v1",
+  "archive_id": "20260824-oe3-pre-skillization",
+  "created_at": "2026-08-24 CST",
+  "reason": "OE3 std_project workflow business logic moved into src/workflows/skills/oe3. Archived scripts are reference-only historical entrypoints.",
+  "runtime_import_forbidden": true,
+  "replacement_cli": "scripts/oe3-workflow-cli.mjs",
+  "replacement_smoke": "scripts/oe3-workflow-skills-smoke.mjs",
+  "items": [
+    {
+      "original_path": "scripts/std-project-create-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#create-once",
+      "archive_reason": "fixed-job create logic replaced by workflow Skill create-once contract",
+      "runtime_import_forbidden": true,
+      "restore_note": "Restore only for historical diff review; do not call from v2 runtime."
+    },
+    {
+      "original_path": "scripts/std-project-create-confirmed-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#create-once",
+      "archive_reason": "confirmed create CLI replaced by Skill runner; real create remains disabled in this task",
+      "runtime_import_forbidden": true,
+      "restore_note": "Restore only if a future single-create task explicitly audits it first."
+    },
+    {
+      "original_path": "scripts/std-project-create-readiness-pack.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#create-readiness",
+      "archive_reason": "readiness packet moved to Skill output_summary and launch_skill_runs",
+      "runtime_import_forbidden": true,
+      "restore_note": "Use archived file only as read-only reference."
+    },
+    {
+      "original_path": "scripts/std-project-fresh-runtime-job.mjs",
+      "replacement_module": "scripts/oe3-workflow-cli.mjs --mode dry_run --create-job --runtime-truth",
+      "archive_reason": "fresh job creation now goes through common CLI and Workflow Skill runner",
+      "runtime_import_forbidden": true,
+      "restore_note": "Do not restore fixed fresh-job behavior without a new task."
+    },
+    {
+      "original_path": "scripts/std-project-readback-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#readback-std-project",
+      "archive_reason": "readback entrypoint replaced by readback Skill",
+      "runtime_import_forbidden": true,
+      "restore_note": "Restore only for read-only comparison."
+    },
+    {
+      "original_path": "scripts/oe3-brand-event-readonly-gate-check.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-brand-info + resource-verify-event-asset",
+      "archive_reason": "brand/event gate represented as resource Skill checks",
+      "runtime_import_forbidden": true,
+      "restore_note": "Use only as historical diagnostic reference."
+    },
+    {
+      "original_path": "scripts/oe3-brand-industry-readonly-repair.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-brand-info",
+      "archive_reason": "brand industry gate result consumed by Skill runner from v2 Postgres",
+      "runtime_import_forbidden": true,
+      "restore_note": "Future live repair should be a new Skill or adapter task."
+    },
+    {
+      "original_path": "scripts/account-resource-diagnose.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-*",
+      "archive_reason": "account resource diagnosis split into seven resource Skill runs",
+      "runtime_import_forbidden": true,
+      "restore_note": "Do not use as runtime diagnosis."
+    },
+    {
+      "original_path": "scripts/account-resource-prepare-avatar-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-avatar",
+      "archive_reason": "one-off resource behavior no longer belongs in scripts",
+      "runtime_import_forbidden": true,
+      "restore_note": "Future avatar write requires a separate confirmed task."
+    },
+    {
+      "original_path": "scripts/account-resource-prepare-event-asset-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-event-asset",
+      "archive_reason": "one-off resource behavior no longer belongs in scripts",
+      "runtime_import_forbidden": true,
+      "restore_note": "Future event asset write requires a separate confirmed task."
+    },
+    {
+      "original_path": "scripts/account-resource-prepare-product-image-once.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-product-image",
+      "archive_reason": "one-off product image behavior no longer belongs in scripts",
+      "runtime_import_forbidden": true,
+      "restore_note": "Future product image upload requires a separate confirmed task."
+    },
+    {
+      "original_path": "scripts/account-resource-readback.mjs",
+      "replacement_module": "src/workflows/skills/oe3/runner.mjs#resource-verify-*",
+      "archive_reason": "resource readback state is now summarized by resource Skills",
+      "runtime_import_forbidden": true,
+      "restore_note": "Use only for historical comparison."
+    },
+    {
+      "original_path": "src/platforms/oceanenginePlaceholder.mjs",
+      "archived_path": ".archive/20260824-oe3-pre-skillization/src-platforms/oceanenginePlaceholder.mjs",
+      "replacement_module": "src/workflows/skills/oe3/create-once.mjs + src/workflows/skills/oe3/readback.mjs",
+      "archive_reason": "confirm/readback placeholders were removed from platform layer and kept inside the OE3 Skill mock path only",
+      "runtime_import_forbidden": true,
+      "restore_note": "Do not restore as API confirm/readback runtime path."
+    },
+    {
+      "original_path": "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+      "archived_path": ".archive/20260824-oe3-pre-skillization/src-platforms/oceanengineStdProjectPayloadContract.mjs",
+      "replacement_module": "src/workflows/skills/oe3/payload-contract.mjs",
+      "archive_reason": "OE3 std_project payload contract moved into workflow Skill layer with DMP retargeting_tags_exclude validation",
+      "runtime_import_forbidden": true,
+      "restore_note": "Use only for historical comparison."
+    }
+  ]
+}
