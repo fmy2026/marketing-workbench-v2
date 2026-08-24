@@ -9,17 +9,17 @@
   },
   "project_status": "awaiting_next_task",
   "phase": {
-    "id": "V2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING",
+    "id": "V2-WORKBENCH-MINIMAL-DYNAMIC-VIEW-AFTER-CREATE-FAILURE",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.md",
-  "next_gate": "v2 创建运行字段和真实创建记录表已补齐；下一步进入单次真实 std_project/create 执行确认任务。必须显式确认并使用 MWBV2_OE_STD_PROJECT_CREATE_CONFIRM=CREATE_ONE_STD_PROJECT npm run std-project:create-once。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-WORKBENCH-MINIMAL-DYNAMIC-VIEW-AFTER-CREATE-FAILURE.md",
+  "next_gate": "工作台已同步展示单次真实创建失败后的极简动态视图；下一步进入 OceanEngine apiCode=40000 失败原因复盘或平台后台/只读列表核对。禁止重试真实创建。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_no_platform_write",
+      "mode": "read_only_no_platform_write_after_single_create_attempt",
       "allowed_actions": [],
       "maximum_actions": 0,
       "retry_allowed": false
@@ -76,7 +76,7 @@
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "oe3_create_runtime_fields_and_recording_completed_waiting_single_create_confirmation",
+    "runtime_state": "workbench_minimal_dynamic_view_after_create_failure_completed",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",

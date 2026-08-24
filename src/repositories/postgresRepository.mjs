@@ -102,7 +102,25 @@ export class PostgresRepository {
         (
           SELECT to_jsonb(job_id)
           FROM mwb.launch_jobs
-          ORDER BY created_at DESC
+          WHERE job_status = 'failed_waiting_manual_review'
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 1
+        ),
+        (
+          SELECT to_jsonb(j.job_id)
+          FROM mwb.launch_jobs j
+          WHERE EXISTS (
+            SELECT 1
+            FROM mwb.platform_actions pa
+            WHERE pa.job_id = j.job_id
+          )
+          ORDER BY j.updated_at DESC, j.created_at DESC
+          LIMIT 1
+        ),
+        (
+          SELECT to_jsonb(job_id)
+          FROM mwb.launch_jobs
+          ORDER BY updated_at DESC, created_at DESC
           LIMIT 1
         ),
         to_jsonb('JOB-MWBV2-DEMO-001'::text)
@@ -260,6 +278,53 @@ export class PostgresRepository {
           FROM mwb.readback_records rb
           WHERE rb.job_id = j.job_id
           ORDER BY rb.created_at DESC
+          LIMIT 1
+        ),
+        'placeholderReadback', (
+          SELECT to_jsonb(rb)
+          FROM mwb.readback_records rb
+          WHERE rb.job_id = j.job_id
+            AND (
+              rb.readback_status = 'placeholder_recorded'
+              OR rb.object_id LIKE 'PLACEHOLDER-%'
+            )
+          ORDER BY rb.created_at DESC
+          LIMIT 1
+        ),
+        'platformAction', (
+          SELECT jsonb_build_object(
+            'action_id', pa.action_id,
+            'action_type', pa.action_type,
+            'endpoint', pa.endpoint,
+            'action_status', pa.action_status,
+            'http_status', pa.http_status,
+            'api_code', pa.api_code,
+            'request_id_present', pa.request_id_present,
+            'object_id_present', pa.object_id_present,
+            'error_summary', pa.error_summary,
+            'started_at', pa.started_at,
+            'finished_at', pa.finished_at
+          )
+          FROM mwb.platform_actions pa
+          WHERE pa.job_id = j.job_id
+          ORDER BY coalesce(pa.finished_at, pa.started_at) DESC
+          LIMIT 1
+        ),
+        'createdObject', (
+          SELECT jsonb_build_object(
+            'created_object_id', co.created_object_id,
+            'object_type', co.object_type,
+            'object_id', co.object_id,
+            'object_name', co.object_name,
+            'object_status', co.object_status,
+            'readback_status', co.readback_status,
+            'evidence_ref', co.evidence_ref,
+            'created_at', co.created_at,
+            'readback_at', co.readback_at
+          )
+          FROM mwb.created_objects co
+          WHERE co.job_id = j.job_id
+          ORDER BY co.created_at DESC
           LIMIT 1
         ),
         'evidence', (

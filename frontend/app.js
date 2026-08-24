@@ -2,30 +2,6 @@
   let job = null;
   let busy = false;
 
-  const statusLabels = {
-    passed: "通过",
-    repairable: "可修复",
-    needs_confirmation: "需确认",
-    blocked: "阻断",
-    locked: "锁定",
-    credential_required: "需凭据",
-    transport_failed: "请求失败",
-    failed: "失败",
-    waiting: "等待"
-  };
-
-  const diagnosticLabels = {
-    passed: "通过",
-    repairable: "可修复",
-    needs_confirmation: "需确认",
-    blocked: "阻断",
-    locked: "锁定",
-    credential_required: "需凭据",
-    transport_failed: "请求失败",
-    waiting: "等待",
-    failed: "失败"
-  };
-
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -50,77 +26,77 @@
     return body;
   }
 
+  function currentJobPath() {
+    if (!job?.jobId) return "/api/launch/jobs/latest";
+    return `/api/launch/jobs/${encodeURIComponent(job.jobId)}`;
+  }
+
+  async function refreshJob() {
+    job = await api(currentJobPath());
+    renderAll();
+  }
+
   function setBusy(nextBusy) {
     busy = nextBusy;
     renderActions();
   }
 
-  function renderAgent() {
-    document.getElementById("agentStatus").textContent = `${job.agent.name} · ${job.agent.statusText}`;
-    document.getElementById("runState").textContent = job.agent.mode;
-
-    const intentCard = document.getElementById("intentCard");
-    intentCard.innerHTML = "";
-
-    [
-      ["路线", job.intake.routeId],
-      ["游戏", job.intake.gameCode],
-      ["账户", job.intake.advertiserId],
-      ["写入策略", job.agent.writePolicy]
-    ].forEach(([label, value]) => {
-      const item = el("div", "intent-item");
-      item.append(el("span", "", label));
-      item.append(el("strong", "", value));
-      intentCard.append(item);
-    });
+  function addMessage(role, text) {
+    const stream = document.getElementById("chatStream");
+    const message = el("div", `chat-message is-${role}`);
+    message.append(el("div", "message-bubble", text));
+    stream.append(message);
+    stream.scrollTop = stream.scrollHeight;
   }
 
   function renderChat() {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
-    job.chat.forEach((message) => addMessage(message.role, message.text));
+    (job.chat || []).forEach((message) => addMessage(message.role, message.text));
   }
 
-  function addMessage(role, text) {
-    const stream = document.getElementById("chatStream");
-    const message = el("div", `chat-message is-${role}`);
-    const bubble = el("div", "message-bubble", text);
-    message.append(bubble);
-    stream.append(message);
-    stream.scrollTop = stream.scrollHeight;
+  function renderAgent() {
+    document.getElementById("agentStatus").textContent = job.headline?.statusLabel || job.agent?.statusText || "";
+    document.getElementById("runState").textContent = job.headline?.nextAction || "";
+
+    const intentCard = document.getElementById("intentCard");
+    intentCard.innerHTML = "";
+    [
+      ["路线", job.intake?.routeId],
+      ["游戏", job.intake?.gameCode],
+      ["账户", job.intake?.advertiserId],
+      ["状态", job.headline?.statusLabel]
+    ].forEach(([label, value]) => {
+      const item = el("div", "intent-item");
+      item.append(el("span", "", label));
+      item.append(el("strong", "", value || ""));
+      intentCard.append(item);
+    });
   }
 
   function renderWorkflow() {
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
 
-    job.phases.forEach((phase, phaseIndex) => {
+    (job.workflow || []).forEach((phase, phaseIndex) => {
       const phaseCard = el("article", "phase-card");
       const heading = el("div", "phase-heading");
       heading.append(el("span", "phase-index", String(phaseIndex + 1)));
       const titleWrap = el("div");
-      titleWrap.append(el("h3", "", phase.title));
-      titleWrap.append(el("p", "", phase.summary));
+      titleWrap.append(el("h3", "", phase.phase));
       heading.append(titleWrap);
       phaseCard.append(heading);
 
       const nodeList = el("div", "node-list");
-      phase.nodes.forEach((node) => {
+      (phase.nodes || []).forEach((node) => {
         const nodeCard = el("section", `node-card status-${node.status}`);
         const top = el("div", "node-top");
         top.append(el("span", "node-number", String(node.number)));
         const nameWrap = el("div", "node-name-wrap");
         nameWrap.append(el("h4", "", node.name));
-        nameWrap.append(el("p", "", node.output));
         top.append(nameWrap);
-        top.append(el("span", "node-status", statusLabels[node.status] || node.status));
+        top.append(el("span", "node-status", node.statusLabel || node.status));
         nodeCard.append(top);
-
-        nodeCard.append(el("p", "node-detail", node.detail));
-
-        const tags = el("div", "subflow-tags");
-        node.subflows.forEach((tag) => tags.append(el("span", "subflow-tag", tag)));
-        nodeCard.append(tags);
         nodeList.append(nodeCard);
       });
 
@@ -131,37 +107,38 @@
 
   function renderActions() {
     if (!job) return;
-    const actions = job.actions || {};
-    document.getElementById("runDiagnoseButton").disabled = busy || !actions.canDiagnose;
-    document.getElementById("runWorkflowButton").disabled = busy || !actions.canRun;
-    document.getElementById("confirmPlaceholderButton").disabled = busy || !actions.canConfirm;
-    document.getElementById("readbackPlaceholderButton").disabled = busy || !actions.canReadback;
+    const actionWrap = document.getElementById("workflowActions");
+    actionWrap.innerHTML = "";
+    (job.actions || []).forEach((action) => {
+      const button = el("button", `action-button${action.dangerous ? " is-danger" : ""}`, action.label);
+      button.type = "button";
+      button.disabled = busy || !action.enabled;
+      button.addEventListener("click", () => runAction(action));
+      actionWrap.append(button);
+    });
   }
 
   function renderSummaries() {
-    document.getElementById("diagnosticSummary").textContent = job.diagnostics.summary;
-    document.getElementById("draftPolicy").textContent = job.draft.writePolicy;
+    document.getElementById("diagnosticSummary").textContent = job.headline?.nextAction || "";
+    document.getElementById("draftPolicy").textContent = job.execution?.statusLabel || "";
 
     const fields = document.getElementById("draftFields");
     fields.innerHTML = "";
-    job.draft.fields.forEach((field) => {
+    [
+      ["项目名", job.draft?.projectName],
+      ["payload hash", job.draft?.payloadHash],
+      ["查重状态", job.draft?.duplicateStatus],
+      ["执行状态", job.execution?.statusLabel],
+      ["api_code", job.execution?.apiCode || ""],
+      ["readback", job.execution?.readbackStatusLabel || job.execution?.readbackStatus],
+      ["对象 ID", job.execution?.objectIdPresent ? "已返回" : "未返回"],
+      ["允许重试", job.execution?.retryAllowed ? "是" : "否"]
+    ].forEach(([label, value]) => {
       const item = el("div", "draft-field");
-      item.append(el("span", "", field.label));
-      item.append(el("strong", "", field.value));
+      item.append(el("span", "", label));
+      item.append(el("strong", "", value || ""));
       fields.append(item);
     });
-
-    const hashItem = el("div", "draft-field is-wide");
-    hashItem.append(el("span", "", "草稿 Hash"));
-    hashItem.append(el("strong", "", job.draft.payloadHash));
-    fields.append(hashItem);
-
-    if (job.readback) {
-      const readbackItem = el("div", "draft-field is-wide");
-      readbackItem.append(el("span", "", "回查对象名"));
-      readbackItem.append(el("strong", "", job.readback.objectName));
-      fields.append(readbackItem);
-    }
   }
 
   function renderDiagnostics() {
@@ -169,30 +146,14 @@
     const rows = document.getElementById("diagnosticRows");
     rows.innerHTML = "";
 
-    job.diagnostics.items.forEach((item) => {
+    (job.diagnostics?.items || []).forEach((item) => {
       const row = document.createElement("tr");
       row.append(el("td", "", item.phase));
       row.append(el("td", "", item.node));
-
       const statusCell = document.createElement("td");
-      statusCell.append(el("span", `diagnostic-status status-${item.status}`, diagnosticLabels[item.status] || item.status));
+      statusCell.append(el("span", `diagnostic-status status-${item.status}`, item.statusLabel || item.status));
       row.append(statusCell);
-
-      const problemCell = document.createElement("td");
-      problemCell.append(el("div", "", item.problem));
-      if (Array.isArray(item.readonlyChecks) && item.readonlyChecks.length) {
-        const list = el("div", "readonly-checks");
-        item.readonlyChecks.forEach((check) => {
-          const checkRow = el("div", "readonly-check");
-          checkRow.append(el("span", `diagnostic-status status-${check.status}`, diagnosticLabels[check.status] || check.status));
-          checkRow.append(el("strong", "", check.resourceType || check.key));
-          checkRow.append(el("em", "", check.gap || check.summary || "ok"));
-          checkRow.append(el("b", "", check.nextAction || ""));
-          list.append(checkRow);
-        });
-        problemCell.append(list);
-      }
-      row.append(problemCell);
+      row.append(el("td", "", item.problem));
       row.append(el("td", "", item.action));
       rows.append(row);
     });
@@ -211,15 +172,23 @@
     addMessage("agent", `执行失败：${error.message}`);
   }
 
-  async function runJobAction(action) {
-    if (!job || busy) return;
+  async function runAction(action) {
+    if (!job || busy || !action.enabled) return;
+    if (action.key === "diagnostics") {
+      document.getElementById("diagnosticDialog").showModal();
+      return;
+    }
     setBusy(true);
     try {
-      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/${action}`, {
-        method: "POST",
-        body: "{}"
-      });
-      renderAll();
+      if (action.key === "refresh_view") {
+        await refreshJob();
+      } else if (["diagnose", "run", "confirm", "readback"].includes(action.key)) {
+        job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/${action.key}`, {
+          method: "POST",
+          body: "{}"
+        });
+        renderAll();
+      }
     } catch (error) {
       showError(error);
     } finally {
@@ -270,7 +239,6 @@
           })
         });
         renderAll();
-        addMessage("agent", `已创建任务 ${job.jobId}。`);
       } catch (error) {
         showError(error);
       } finally {
@@ -284,11 +252,6 @@
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) dialog.close();
     });
-
-    document.getElementById("runDiagnoseButton").addEventListener("click", () => runJobAction("diagnose"));
-    document.getElementById("runWorkflowButton").addEventListener("click", () => runJobAction("run"));
-    document.getElementById("confirmPlaceholderButton").addEventListener("click", () => runJobAction("confirm"));
-    document.getElementById("readbackPlaceholderButton").addEventListener("click", () => runJobAction("readback"));
   }
 
   async function init() {

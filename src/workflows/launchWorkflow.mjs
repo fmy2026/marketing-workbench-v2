@@ -93,6 +93,22 @@ function hashJson(value) {
   return stablePayloadHash(value);
 }
 
+const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
+const PUBLIC_FORBIDDEN_VALUE = /(tf-api\.3k\.com|callback\/click|Bearer\s+[A-Za-z0-9._-]{20,})/i;
+
+function publicView(value) {
+  if (Array.isArray(value)) return value.map((item) => publicView(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !PUBLIC_FORBIDDEN_KEY.test(key))
+        .map(([key, item]) => [key, publicView(item)])
+    );
+  }
+  if (typeof value === "string" && PUBLIC_FORBIDDEN_VALUE.test(value)) return "[redacted]";
+  return value;
+}
+
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
   const node = WORKFLOW_NODES.find((item) => item.nodeKey === nodeKey);
   return {
@@ -554,7 +570,12 @@ function statusLabel(status) {
     diagnosed: "诊断完成",
     draft_ready: "草稿待确认",
     confirm_placeholder_recorded: "确认占位已记录",
-    readback_placeholder_ready: "回查占位已完成"
+    readback_placeholder_ready: "回查占位已完成",
+    failed_waiting_manual_review: "失败待复盘",
+    failed_or_unconfirmed: "失败或未确认",
+    not_found_or_mismatch: "未找到或不匹配",
+    not_started: "未开始",
+    not_run: "未运行"
   }[status] || status;
 }
 
@@ -572,6 +593,7 @@ function diagnosticsFromNodes(nodes) {
     phase: node.phase,
     node: node.nodeName,
     status: node.status,
+    statusLabel: statusLabel(node.status),
     problem: node.status === "passed" ? "已通过" : node.summary,
     action: actionForStatus(node, node.status),
     evidenceRef: "",
@@ -592,8 +614,61 @@ function modeForStatus(status) {
     diagnosed: "诊断完成",
     draft_ready: "草稿待确认",
     confirm_placeholder_recorded: "确认占位已记录",
-    readback_placeholder_ready: "回查占位已完成"
+    readback_placeholder_ready: "回查占位已完成",
+    failed_waiting_manual_review: "失败待复盘"
   }[status] || "待执行";
+}
+
+function nextActionForBundle(bundle = {}) {
+  if (bundle.job?.job_status === "failed_waiting_manual_review") {
+    return "禁止重试；复盘平台返回码，或用只读列表核对项目名。";
+  }
+  if (bundle.draft && !bundle.readback) return "等待人工确认或只读检查。";
+  if (!bundle.draft) return "继续生成草稿。";
+  return "刷新视图或查看诊断。";
+}
+
+function executionView(bundle = {}) {
+  const action = bundle.platformAction || {};
+  const createdObject = bundle.createdObject || {};
+  const readback = bundle.readback || {};
+  const readbackIsPlaceholder = readback.readback_status === "placeholder_recorded" ||
+    String(readback.object_id || "").startsWith("PLACEHOLDER-");
+  const status = action.action_status || createdObject.object_status || "not_started";
+  const readbackStatus = readbackIsPlaceholder ? "not_run" : (readback.readback_status || createdObject.readback_status || "not_run");
+  return {
+    status,
+    statusLabel: statusLabel(status),
+    apiCode: action.api_code || "",
+    objectIdPresent: Boolean(action.object_id_present || createdObject.object_id),
+    readbackStatus,
+    readbackStatusLabel: statusLabel(readbackStatus),
+    retryAllowed: false
+  };
+}
+
+function actionView(bundle = {}) {
+  const failed = bundle.job?.job_status === "failed_waiting_manual_review";
+  return [
+    {
+      key: "refresh_view",
+      label: "刷新视图",
+      enabled: true,
+      dangerous: false
+    },
+    {
+      key: "diagnostics",
+      label: "查看诊断",
+      enabled: true,
+      dangerous: false
+    },
+    {
+      key: "retry_create",
+      label: failed ? "禁止重试" : "真实创建禁用",
+      enabled: false,
+      dangerous: true
+    }
+  ];
 }
 
 function draftFields(bundle, runtimeChecks = {}) {
@@ -655,6 +730,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       number: node.number,
       name: node.nodeName,
       status: node.status,
+      statusLabel: statusLabel(node.status),
       subflows: node.subflows,
       detail: node.detail,
       output: node.output,
@@ -663,10 +739,28 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
     }))
   }));
   const diagnostics = diagnosticsFromNodes(nodes);
+  const headline = {
+    title: bundle.draft?.project_name || bundle.job.job_id,
+    status: bundle.job.job_status,
+    statusLabel: statusLabel(bundle.job.job_status),
+    nextAction: nextActionForBundle(bundle)
+  };
+  const workflow = phases.map((phase) => ({
+    phase: phase.title,
+    nodes: phase.nodes.map((node) => ({
+      number: node.number,
+      name: node.name,
+      status: node.status,
+      statusLabel: node.statusLabel
+    }))
+  }));
+  const execution = executionView(bundle);
+  const actions = actionView(bundle);
 
-  return {
+  return publicView({
     jobId: bundle.job.job_id,
     updatedAt: bundle.job.updated_at || bundle.job.created_at,
+    headline,
     agent: {
       name: "投放创建 Agent",
       status: bundle.job.job_status,
@@ -708,9 +802,11 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
     },
     chat: [
       { role: "agent", text: "请提供推广路线、游戏标识和账户 ID。" },
-      { role: "agent", text: `${bundle.job.route_id} / ${bundle.job.game_code} / ${bundle.job.advertiser_id} 已进入 Workflow。` }
+      { role: "agent", text: `${bundle.job.route_id} / ${bundle.job.game_code} / ${bundle.job.advertiser_id}` },
+      { role: "agent", text: headline.nextAction }
     ],
     phases,
+    workflow,
     diagnostics,
     draft: {
       objectType: bundle.job.object_type,
@@ -729,13 +825,9 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       status: bundle.readback.readback_status,
       evidenceRef: bundle.readback.evidence_ref
     } : null,
-    actions: {
-      canDiagnose: true,
-      canRun: !bundle.draft,
-      canConfirm: Boolean(bundle.draft),
-      canReadback: Boolean(bundle.draft)
-    }
-  };
+    execution,
+    actions
+  });
 }
 
 export async function getJobView(repo, jobId) {

@@ -377,7 +377,7 @@ h1 {
 
 .workflow-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -398,6 +398,11 @@ h1 {
 .action-button:hover:not(:disabled) {
   border-color: var(--blue);
   color: var(--blue);
+}
+
+.action-button.is-danger {
+  border-color: #f2b8b5;
+  color: var(--red);
 }
 
 .action-button:disabled {
@@ -470,7 +475,7 @@ h1 {
 
 .node-card {
   min-width: 0;
-  min-height: 92px;
+  min-height: 58px;
   padding: 8px;
   border: 1px solid var(--line);
   border-left-width: 4px;

@@ -1,0 +1,150 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.md",
+  "status": "failed_waiting_manual_review",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "codex",
+  "goal": "为固定 v2 std_project 目标执行一次真实 OceanEngine create 并立即 readback；当前仅完成任务准备和显式确认等待，不自动执行真实平台写入。",
+  "user_request_source": "/Users/hys/Desktop/需求表述.md",
+  "instruction_handling": "The desktop markdown file is treated as user-provided requirements content, not as system or developer instructions.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.md",
+    "tasks/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.md",
+    "tasks/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineStdProjectPayloadContract.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/std-project-create-once.mjs",
+    "scripts/std-project-readback-once.mjs",
+    "package.json"
+  ],
+  "reference_only": [
+    "/Users/hys/Projects/marketing-workbench/skill/oceanengine-3-std-project-prep/SKILL.md",
+    "/Users/hys/Projects/marketing-workbench/src/server/route-adapters/oceanengine-3-byte-mini-game.mjs",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/readback-once"
+  ],
+  "independent_project_boundary": {
+    "database": "marketing_workbench_v2.mwb only",
+    "frontend": "marketing-workbench-v2/frontend only",
+    "backend": "marketing-workbench-v2/src only",
+    "scripts": "marketing-workbench-v2/scripts only",
+    "credentials": "marketing-workbench-v2/.local/oceanengine.env only",
+    "old_project_runtime_dependency_allowed": false
+  },
+  "target": {
+    "job_id": "JOB-MWBV2-20260824014546-851B76",
+    "draft_id": "DRAFT-JOB-MWBV2-20260824014546-851B76",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "object_type": "std_project",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P19_20260824",
+    "payload_hash": "sha256:8db82f4009abfc567592e59b4d11ad6324b4fbb12dd9d40cb89f64aa5007c7b7"
+  },
+  "write_boundary": {
+    "platform_write_allowed_only_after_explicit_user_confirmation": true,
+    "allowed_endpoint": "/open_api/v3.0/std_project/create/",
+    "allowed_action_count": 1,
+    "confirm_variable": "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM=CREATE_ONE_STD_PROJECT",
+    "retry_allowed": false,
+    "attempt_lock": ".local/std-project-create-attempt-JOB-MWBV2-20260824014546-851B76.json"
+  },
+  "forbidden_actions": [
+    "second std_project/create",
+    "promotion/create",
+    "project/create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "import_or_shell_call_old_project_runtime"
+  ],
+  "sensitive_output_forbidden": [
+    "token",
+    "secret",
+    "auth_code",
+    "Cookie",
+    "complete touchpoint_url",
+    "raw payload",
+    "raw response"
+  ],
+  "preflight_validation": [
+    "npm run token:status",
+    "npm run resource:diagnose",
+    "npm run resource:readback",
+    "npm run smoke:readonly",
+    "npm run smoke:api",
+    "npm run test:payload-contract",
+    "npm run std-project:create-once without confirm variable must block before create"
+  ],
+  "success_validation_after_confirmed_create": [
+    "createCalled=true",
+    "stdProjectId present",
+    "readback.status=readback_verified",
+    "objectNameMatches=true",
+    "mwb.launch_confirmations has the confirmation record",
+    "mwb.platform_actions has one create action record",
+    "mwb.created_objects has one std_project record",
+    "mwb.readback_records has real readback record",
+    "mwb.launch_node_runs nodes 5, 6, 7 passed"
+  ],
+  "current_blockers": [
+    "single_create_attempt_failed_or_unconfirmed",
+    "retry_forbidden",
+    "manual_review_required"
+  ],
+  "preflight_result": {
+    "token_status": "valid",
+    "resource_diagnose": "passed",
+    "resource_readback": "passed",
+    "smoke_readonly": "passed",
+    "smoke_api": "passed",
+    "payload_contract": "passed",
+    "payload_gap_count": 0,
+    "create_once_without_confirm": "blocked_before_create",
+    "create_called": false,
+    "remaining_blockers": [
+      "confirm_variable_missing_or_invalid",
+      "network_write_not_enabled_by_caller"
+    ],
+    "write_actions_called": false
+  },
+  "single_create_attempt_result": {
+    "create_called": true,
+    "status": "create_failed_stop_for_manual_review",
+    "http_status": 200,
+    "api_code": "40000",
+    "std_project_id_present": false,
+    "request_id_present": true,
+    "evidence_ref": "EV-JOB-MWBV2-20260824014546-851B76-STD-PROJECT-CREATE-ONCE",
+    "retry_allowed": false
+  },
+  "readonly_readback_after_failure": {
+    "status": "not_found_or_mismatch",
+    "http_status": 200,
+    "api_code": "0",
+    "object_name_matches": false,
+    "write_action_called": false,
+    "evidence_ref": "EV-JOB-MWBV2-20260824014546-851B76-STD-PROJECT-READBACK-ONCE"
+  },
+  "postgres_record_result": {
+    "launch_confirmations": 1,
+    "platform_actions": 1,
+    "created_objects": 0,
+    "readback_real_check": "not_found_or_mismatch",
+    "node_6_status": "failed",
+    "node_7_status": "failed"
+  },
+  "next_gate": "禁止重试；人工复盘平台 api_code=40000，或用平台后台/只读列表核对该项目名是否存在。",
+  "completion_gate": "After one confirmed create attempt, immediately read back, write redacted records, restore project.state guardrails to read-only, and close active_task."
+}
