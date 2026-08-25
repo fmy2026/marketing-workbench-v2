@@ -91,7 +91,9 @@ export const OE3_SKILL_DEFINITIONS = [
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["visibility_status", "readback_status", "readonly_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
-      : ["visibility_status", "readback_status", "readonly_status"],
+      : resourceType === "video_asset"
+        ? ["selected_required_video_count", "verified_video_count", "cover_ready_count", "source_asset_id[]", "cover_mode"]
+        : ["visibility_status", "readback_status", "readonly_status"],
     stopConditions: [`${resourceType}_not_ready`],
     writeScope: resourceType === "dmp_audience_package"
       ? "launch_skill_runs_account_resources_evidence_artifacts"

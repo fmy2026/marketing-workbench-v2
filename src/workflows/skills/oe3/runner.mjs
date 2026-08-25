@@ -11,6 +11,7 @@ import { runCreateOnceSkill } from "./create-once.mjs";
 import { runDuplicateReadonlyCheck } from "./duplicate-readonly.mjs";
 import { runDmpReadonlyGate } from "./dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./launch-pack.mjs";
+import { runObjectiveContractReadonlyGate } from "./objective-contract-readiness.mjs";
 import {
   applyDraftToBundle,
   buildSkillDraft,
@@ -30,6 +31,7 @@ import {
   runResourceVerifier,
   withDmpCustomAudienceIds
 } from "./resource-verifiers.mjs";
+import { runVideoMaterialReadonlyGate } from "./video-material-readiness.mjs";
 
 export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only"]);
 
@@ -241,6 +243,20 @@ async function executeSkill({ repo, context, skillKey }) {
         mockReady: context.mockReady,
         allowReadonlyDependency: context.allowReadonlyDependency === true
       })
+      : resourceType === "event_asset"
+        ? await runObjectiveContractReadonlyGate({
+          repo,
+          bundle: context.bundle,
+          mockReady: context.mockReady,
+          allowReadonlyDependency: context.allowReadonlyDependency === true
+        })
+      : resourceType === "video_asset"
+        ? await runVideoMaterialReadonlyGate({
+          repo,
+          bundle: context.bundle,
+          mockReady: context.mockReady,
+          allowReadonlyDependency: context.allowReadonlyDependency === true
+        })
       : runResourceVerifier({
         bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
         resourceType,
@@ -248,6 +264,9 @@ async function executeSkill({ repo, context, skillKey }) {
       });
     if (resourceType === "dmp_audience_package" && Array.isArray(result.customAudienceIds)) {
       context.dmpCustomAudienceIds = result.customAudienceIds;
+    }
+    if (!context.mockReady && (resourceType === "event_asset" || resourceType === "video_asset")) {
+      context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "payload-build") {
     result = await executePayloadBuild({ repo, context });

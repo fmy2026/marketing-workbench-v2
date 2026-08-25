@@ -1,0 +1,110 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "为 P04 的 JSZC-HUNT-4GE6-14 建立单次 material bind 到目标账户的 v2 独立受控入口。",
+    "mode": "single_video_material_bind_preflight_and_gated_executor",
+    "platform_write_allowed": "only_with_explicit_video_material_confirm_scope",
+    "confirm_variable": "MWBV2_OE_VIDEO_MATERIAL_CONFIRM=BIND_ONE_VIDEO_TO_TARGET",
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.json",
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.md",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/video-material-readiness.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "package.json",
+    "/Users/hys/Projects/marketing-workbench/scripts/oceanengine/write-once/oceanengine-material-bind-once.sh"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.json",
+    "project.state.json",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "scripts/oe3-video-material-bind-once.mjs",
+    "package.json",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "video upload",
+    "cover image upload or bind",
+    "automatic retry",
+    "token refresh",
+    "DMP push/write",
+    "event asset create",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/video_id/video_cover_id/raw payload/raw response"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "source_asset_id": "JSZC-HUNT-4GE6-14",
+    "source_advertiser_id": "1760246749825031",
+    "target_advertiser_id": "1871922175825993",
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
+    "allowed_actions": [
+      "oceanengine_material_bind_target"
+    ],
+    "maximum_actions": 1,
+    "retry_allowed": false
+  },
+  "validation_plan": [
+    "Run bind-once CLI without confirm variable and verify no bind API call",
+    "Run npm run check:video-material-prepare",
+    "Run npm run test:payload-contract",
+    "Run npm run smoke:workflow-skills",
+    "Run npm run smoke:api",
+    "Run npm run check:runtime-consistency",
+    "Verify P04 std_project/create count remains 0",
+    "Verify no token/Cookie/raw payload/raw response/video ID/cover ID leak"
+  ],
+  "risk_notes": [
+    "Material bind is a real platform write; do not execute without explicit confirm variable and matching scope.",
+    "If bind succeeds later, P04 old create scope remains superseded and a fresh runtime job/draft is required.",
+    "Old project shell script is parameter reference only and must not be called by v2 runtime."
+  ],
+  "completion_summary": {
+    "completed_at": "2026-08-25 CST",
+    "status": "material_bind_succeeded_readiness_passed",
+    "actual_platform_write": {
+      "action_type": "oceanengine_material_bind_target",
+      "maximum_actions": 1,
+      "actions_called": 1,
+      "source_asset_id": "JSZC-HUNT-4GE6-14",
+      "source_advertiser_id": "1760246749825031",
+      "target_advertiser_id": "1871922175825993",
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "raw_payload_stored": false,
+      "raw_response_stored": false
+    },
+    "readback": {
+      "video_readiness": "2/2",
+      "node4_status": "passed",
+      "payload_contract_status": "passed",
+      "final_payload_blockers": []
+    },
+    "write_counts": {
+      "std_project_create_actions": 0,
+      "material_bind_actions": 1,
+      "succeeded_binds": 1
+    },
+    "next_gate": "生成 fresh runtime job/draft；不得恢复 P04 旧 create scope。"
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE",
+  "status": "completed_blocked",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "为 JSZC / P04 建立 v2 独立视频素材准备链路：本地 MP4、物料户/超管、目标账户、只读计划、默认封面策略与节点 4 readiness。",
+    "mode": "video_material_prepare_dry_run_and_controlled_plan",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency",
+    "material_source_account": "1760246749825031",
+    "target_advertiser_id": "1871922175825993"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+    "tasks/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.md",
+    "db/014_p04_final_material_and_contract_readiness.sql",
+    "src/workflows/skills/oe3/video-material-readiness.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+    "project.state.json",
+    "db/",
+    "src/workflows/skills/oe3/",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/oe3-video-material-prepare.mjs",
+    "package.json"
+  ],
+  "external_assets": {
+    "source_files": [
+      "/Users/hys/ProjectAssets/marketing-workbench/source-materials/jushou-hunt/videos/JSZC-HUNT-4IG2-3/source.mp4",
+      "/Users/hys/ProjectAssets/marketing-workbench/source-materials/jushou-hunt/videos/JSZC-HUNT-4GE6-14/source.mp4"
+    ],
+    "target_dir": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/videos",
+    "write_policy": "copy_only_required_mp4_files_no_ds_store"
+  },
+  "forbidden_actions": [
+    "std_project/create",
+    "token refresh",
+    "automatic video upload",
+    "automatic material bind",
+    "automatic retry",
+    "cover image upload or bind",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/video_id/video_cover_id/raw payload/raw response"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "round": "P04",
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
+    "material_account_id": "1760246749825031",
+    "target_advertiser_id": "1871922175825993",
+    "required_video_asset_ids": [
+      "JSZC-HUNT-4IG2-3",
+      "JSZC-HUNT-4GE6-14"
+    ]
+  },
+  "validation_plan": [
+    "Verify copied v2 MP4 files exist and hashes are recorded in mwb.game_assets",
+    "Verify no runtime dependency on /Users/hys/Projects/marketing-workbench",
+    "Run video material prepare CLI in dry-run/plan mode",
+    "Run P04 readonly dry-run without std_project/create",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "Postgres verify P04 std_project/create/platform action count remains unchanged"
+  ],
+  "risk_notes": [
+    "Uploading or binding video assets is a platform write and must not run without explicit single-action grant.",
+    "Default cover mode can change payload hash because video_cover_id may be omitted.",
+    "P04 old create scope must not be reused after material readiness changes; a fresh job/draft/scope is required."
+  ],
+  "completion_summary": {
+    "completed_at": "2026-08-25 CST",
+    "status": "blocked_waiting_single_video_bind_to_target",
+    "p04_payload_hash_after_cover_strategy": "sha256:11e4a6623b5aba40a63d134cda6346b84de4c89550f1859f6dbef6b5d4e10e80",
+    "p04_old_scope_status": "superseded",
+    "write_counts": {
+      "platform_actions": 0,
+      "launch_confirmations": 0,
+      "created_objects": 0,
+      "real_readbacks": 0
+    },
+    "asset_copy": {
+      "target_dir": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/videos",
+      "files": [
+        {
+          "source_asset_id": "JSZC-HUNT-4IG2-3",
+          "sha256": "3240649a53786763244421475235e4ec4ddd735cf00c41bf9b576461399cc028",
+          "size_bytes": 118915155
+        },
+        {
+          "source_asset_id": "JSZC-HUNT-4GE6-14",
+          "sha256": "de340357f8485b85fe5240c5951d0d0af52cbacf3dcf6dbec5d076b44ca39db6",
+          "size_bytes": 15562862
+        }
+      ]
+    },
+    "video_plan": {
+      "selected_required_video_count": 2,
+      "ready_count": 1,
+      "upload_action_count": 0,
+      "bind_action_count": 1,
+      "items": [
+        {
+          "source_asset_id": "JSZC-HUNT-4IG2-3",
+          "plan_status": "source_ready_target_ready",
+          "cover_mode": "platform_default_cover_allowed",
+          "actions": []
+        },
+        {
+          "source_asset_id": "JSZC-HUNT-4GE6-14",
+          "plan_status": "source_ready_target_missing",
+          "cover_mode": "cover_not_ready",
+          "actions": [
+            "oceanengine_material_bind_target"
+          ]
+        }
+      ]
+    },
+    "next_gate": "另开单次视频素材绑定/推送任务，只处理 JSZC-HUNT-4GE6-14 从物料户 1760246749825031 到目标账户 1871922175825993。"
+  }
+}

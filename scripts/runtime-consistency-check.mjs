@@ -50,7 +50,9 @@ async function psqlJson(sql) {
 
 const projectState = JSON.parse(readFileSync("project.state.json", "utf8"));
 if (projectState.active_task) {
-  const taskText = readFileSync(projectState.active_task.task_ref, "utf8");
+  const taskRef = projectState.active_task.task_ref || projectState.active_task.ref;
+  assert(typeof taskRef === "string" && taskRef, "project.state active_task task ref missing");
+  const taskText = readFileSync(taskRef, "utf8");
   assert(taskText.includes(`状态：${projectState.active_task.status}`), "project.state active_task status does not match task card");
 }
 
@@ -132,9 +134,9 @@ const db = await psqlJson(`
 const latestJobId = await repo.latestJobId();
 const targetView = await getJobView(repo, TARGET_JOB_ID);
 const latestView = await getJobView(repo, latestJobId);
-const latestNodeStatuses = Object.fromEntries(
-  (latestView.phases || []).flatMap((phase) => phase.nodes || []).map((node) => [node.id, node.status])
-);
+const latestNodes = (latestView.phases || []).flatMap((phase) => phase.nodes || []);
+const latestNodeStatuses = Object.fromEntries(latestNodes.map((node) => [node.id, node.status]));
+const latestNodesByKey = new Map(latestNodes.map((node) => [node.id, node]));
 assert(db.gamesAppIdColumnCount === 0, "mwb.games.app_id still exists");
 assert(db.targetJob.job_status === "failed_waiting_manual_review", "target job_status mismatch");
 assert(db.targetJob.current_node === "7", "target current_node mismatch");
@@ -150,12 +152,17 @@ assert(Array.isArray(targetView.summaryFields) && targetView.summaryFields.lengt
 assertNoSensitiveLeak(targetView);
 assert(latestView.intake?.gameCode === "JSZC", "latest job view game_code mismatch");
 assert(latestView.intake?.advertiserId === "1871922175825993", "latest job view advertiser mismatch");
-["launch_intake", "creation_context", "game_launch_pack", "account_resource_prepare"].forEach((nodeKey) => {
+["launch_intake", "creation_context", "game_launch_pack"].forEach((nodeKey) => {
   assert(latestNodeStatuses[nodeKey] === "passed", `latest runtime ${nodeKey} should be passed`);
 });
-assert(latestNodeStatuses.std_project_draft_builder === "needs_confirmation", "latest runtime node 5 should need confirmation");
+assert(["passed", "blocked"].includes(latestNodeStatuses.account_resource_prepare), "latest runtime node 4 should be passed or blocked by explicit readonly/resource gate");
+assert(["needs_confirmation", "repairable"].includes(latestNodeStatuses.std_project_draft_builder), "latest runtime node 5 should need confirmation or be repairable");
 assert(latestNodeStatuses.std_project_create_executor === "locked", "latest runtime node 6 should be locked before explicit write task");
 assert(latestNodeStatuses.readback_closer === "waiting", "latest runtime node 7 should be waiting in dry-run");
+const latestManifest = latestNodesByKey.get("std_project_draft_builder")?.outputSummary?.requestFieldManifest || {};
+assert(latestManifest.advertiserIdStorageType === "string", "latest runtime advertiser_id storage type should be string");
+assert(latestManifest.advertiserIdTransportType === "number", "latest runtime advertiser_id transport type should be number");
+assert(latestManifest.advertiserIdTransportSafe === true, "latest runtime advertiser_id transport should be safe");
 assertNoSensitiveLeak(latestView);
 
 const latestTest = db.latestTestJob;
@@ -191,6 +198,8 @@ console.log(JSON.stringify({
   latestJobId,
   latestJobStatus: latestView.headline?.status,
   latestCreateReadinessStatus: latestView.createReadiness?.status,
+  latestAdvertiserIdTransportType: latestManifest.advertiserIdTransportType || "",
+  latestAdvertiserIdTransportSafe: latestManifest.advertiserIdTransportSafe === true,
   targetJobStatus: db.targetJob.job_status,
   targetCurrentNode: db.targetJob.current_node,
   node6Status: db.nodeStatuses.std_project_create_executor.status,

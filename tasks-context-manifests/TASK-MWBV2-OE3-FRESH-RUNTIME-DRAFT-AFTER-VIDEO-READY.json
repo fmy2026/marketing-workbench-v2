@@ -1,0 +1,133 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "P04 视频素材绑定完成后，新建 fresh runtime job/draft 并重跑创建前只读 readiness。",
+    "mode": "fresh_runtime_truth_dry_run",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+    "tasks/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/stdProjectNameBuilder.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/video-material-readiness.mjs",
+    "src/workflows/skills/oe3/duplicate-readonly.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+    "project.state.json",
+    "Postgres marketing_workbench_v2.mwb.launch_jobs",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_drafts",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.readback_records"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion create",
+    "project create retry",
+    "video upload",
+    "video material bind",
+    "cover image upload or bind",
+    "token refresh",
+    "DMP write or push",
+    "event asset create",
+    "budget or bid update",
+    "restoring or consuming superseded P04 create scope",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/raw payload/raw response"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "object_type": "std_project",
+    "previous_p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "source_usage": "runtime_truth"
+  },
+  "validation_plan": [
+    "Create a fresh runtime_truth launch job through existing workflow entrypoint",
+    "Run dry_run workflow nodes 1-5 with readonly dependencies only",
+    "Verify node statuses: 1-4 passed, 5 needs_confirmation, 6 locked, 7 waiting",
+    "Verify duplicate_status=platform_not_duplicate",
+    "Verify finalMaterialReadiness selected=2 and verified=2",
+    "Verify payload contract and create preflight passed",
+    "Run npm run test:payload-contract",
+    "Run npm run smoke:workflow-skills",
+    "Run npm run smoke:api",
+    "Run npm run check:runtime-consistency",
+    "Verify no std_project/create or video upload/bind actions were recorded for the fresh job",
+    "Verify no sensitive data leaks in task/manifest/project/API view"
+  ],
+  "risk_notes": [
+    "This task intentionally creates a new runtime_truth job; do not overwrite P04 history.",
+    "Readonly probes may call OceanEngine read endpoints, but no write endpoint is allowed.",
+    "Fresh job readiness is not a creation authorization; a separate single-create task is still required."
+  ],
+  "completion_summary": {
+    "completed_at": "2026-08-25 CST",
+    "status": "fresh_runtime_draft_ready_for_new_single_create_authorization_task",
+    "fresh_job": {
+      "job_id": "JOB-MWBV2-20260825041227-12D2B5",
+      "draft_id": "DRAFT-JOB-MWBV2-20260825041227-12D2B5",
+      "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260825",
+      "payload_hash": "sha256:ce101e2dd1976656df4430b47bc7cbc6639a551372cf336a37a9f745e5e835f5",
+      "source_usage": "runtime_truth",
+      "job_status": "draft_ready",
+      "current_node": "5"
+    },
+    "node_statuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "needs_confirmation",
+      "std_project_create_executor": "locked",
+      "readback_closer": "waiting"
+    },
+    "readiness": {
+      "duplicate_status": "platform_not_duplicate",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "create_readiness_status": "ready_for_user_create_confirmation",
+      "final_payload_blockers": [],
+      "final_material_readiness": {
+        "selected_required_video_count": 2,
+        "verified_video_count": 2,
+        "cover_ready_count": 2
+      }
+    },
+    "write_counts_for_fresh_job": {
+      "std_project_create_actions": 0,
+      "material_bind_actions": 0,
+      "total_platform_actions": 0
+    },
+    "validation": {
+      "workflow_dry_run": "passed",
+      "test_payload_contract": "passed",
+      "smoke_workflow_skills": "passed",
+      "smoke_api": "passed",
+      "runtime_consistency": "passed",
+      "sensitive_leak_check": "passed"
+    },
+    "next_gate": "fresh draft 已就绪，等待用户确认新的单次真实 std_project/create 授权任务。"
+  }
+}

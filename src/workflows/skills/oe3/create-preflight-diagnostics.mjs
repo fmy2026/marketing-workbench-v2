@@ -159,15 +159,15 @@ function checkType(payload, path, expectedType) {
   });
 }
 
-function checkInteger(payload, path) {
+function checkInteger(payload, path, { blockerCode = `invalid_integer_field:${path}` } = {}) {
   const value = valueAt(payload, path);
   return diag({
     checkId: `integer:${path}`,
     fieldPath: path,
-    status: Number.isInteger(value) ? "passed" : "blocked",
+    status: Number.isSafeInteger(value) ? "passed" : "blocked",
     expectedTypeOrRule: "safe_integer",
     actualValue: value,
-    blockerCode: `invalid_integer_field:${path}`,
+    blockerCode,
     repairHint: `${path} 必须由受控资源 ID 转为安全 integer。`
   });
 }
@@ -242,6 +242,59 @@ function checkAllowedFields(payload = {}) {
   ];
 }
 
+function checkFinalMaterialReadiness(manifest = {}) {
+  const readiness = manifest.finalMaterialReadiness || {};
+  const selected = Number(readiness.selectedRequiredVideoCount || 0);
+  const verified = Number(readiness.verifiedVideoCount || 0);
+  const covers = Number(readiness.coverReadyCount ?? readiness.coverVerifiedCount ?? 0);
+  return diag({
+    checkId: "manifest:final_material_readiness",
+    fieldPath: "final_payload_manifest.finalMaterialReadiness",
+    status: selected > 0 && selected === verified && selected === covers ? "passed" : "blocked",
+    expectedTypeOrRule: "selected_required_video_count === verified_video_count === cover_ready_count",
+    actualValue: { selectedRequiredVideoCount: selected, verifiedVideoCount: verified, coverReadyCount: covers },
+    blockerCode: "final_material_readiness_not_passed",
+    repairHint: "两条最终视频必须在目标账户可读；封面需显式验证或允许平台默认封面。"
+  });
+}
+
+function checkBusinessDefaults(manifest = {}) {
+  return diag({
+    checkId: "manifest:business_defaults_source",
+    fieldPath: "final_payload_manifest.businessDefaultsPresent",
+    status: manifest.businessDefaultsPresent === true ? "passed" : "blocked",
+    expectedTypeOrRule: "postgres_route_payload_defaults_present",
+    actualValue: {
+      present: manifest.businessDefaultsPresent === true,
+      source: manifest.businessDefaultsSource || ""
+    },
+    blockerCode: "route_payload_defaults_missing",
+    repairHint: "将路线业务默认值写入 mwb.game_route_defaults.raw_defaults.payload_defaults。"
+  });
+}
+
+function checkContractMapping(manifest = {}) {
+  const mapping = manifest.contractMapping || {};
+  const createField = clean(mapping.miniGameInstanceCreateFieldName);
+  const optimizedGoalField = clean(mapping.optimizedGoalQueryInstanceFieldName);
+  const appField = clean(mapping.optimizedGoalQueryAppFieldName);
+  return diag({
+    checkId: "manifest:mini_game_instance_field_mapping",
+    fieldPath: "final_payload_manifest.contractMapping",
+    status: createField === "instance_id" && optimizedGoalField === "micro_app_instance_id" && appField === "mini_program_id"
+      ? "passed"
+      : "blocked",
+    expectedTypeOrRule: "create:instance_id optimized_goal_query:micro_app_instance_id app:mini_program_id",
+    actualValue: {
+      miniGameInstanceCreateFieldName: createField,
+      optimizedGoalQueryInstanceFieldName: optimizedGoalField,
+      optimizedGoalQueryAppFieldName: appField
+    },
+    blockerCode: "mini_game_instance_field_mapping_not_verified",
+    repairHint: "按官方合同分别记录查询参数字段与创建请求字段，不允许双发实例字段。"
+  });
+}
+
 export function evaluateStdProjectCreatePreflight({
   payload = null,
   requestFieldManifest = {},
@@ -268,7 +321,9 @@ export function evaluateStdProjectCreatePreflight({
       "track_url_setting",
       "brand_info"
     ].forEach((path) => diagnostics.push(checkRequired(payload, path)));
-    diagnostics.push(checkType(payload, "advertiser_id", "string"));
+    diagnostics.push(checkInteger(payload, "advertiser_id", {
+      blockerCode: "advertiser_id_not_safe_integer_for_platform_payload"
+    }));
     diagnostics.push(checkType(payload, "name", "string"));
     diagnostics.push(checkInteger(payload, "asset_id"));
     diagnostics.push(checkInteger(payload, "instance_id"));
@@ -306,6 +361,23 @@ export function evaluateStdProjectCreatePreflight({
       repairHint: "按 manifest blockers 修复资源或字段形态。"
     }));
     diagnostics.push(diag({
+      checkId: "manifest:advertiser_id_transport",
+      fieldPath: "final_payload_manifest.advertiserIdTransportType",
+      status: requestFieldManifest.advertiserIdStorageType === "string" &&
+        requestFieldManifest.advertiserIdTransportType === "number" &&
+        requestFieldManifest.advertiserIdTransportSafe === true
+        ? "passed"
+        : "blocked",
+      expectedTypeOrRule: "storage:string transport:number safe_integer:true",
+      actualValue: {
+        storageType: requestFieldManifest.advertiserIdStorageType || "",
+        transportType: requestFieldManifest.advertiserIdTransportType || "",
+        transportSafe: requestFieldManifest.advertiserIdTransportSafe === true
+      },
+      blockerCode: "advertiser_id_not_safe_integer_for_platform_payload",
+      repairHint: "Postgres/Job 保持 string，仅最终受控 create payload 转为 safe integer number。"
+    }));
+    diagnostics.push(diag({
       checkId: "contract:payload_contract",
       fieldPath: "payload_contract.status",
       status: payloadContractStatus === "passed" ? "passed" : "blocked",
@@ -315,6 +387,9 @@ export function evaluateStdProjectCreatePreflight({
       repairHint: "先修复 payload contract gaps。"
     }));
   }
+  diagnostics.push(checkBusinessDefaults(requestFieldManifest));
+  diagnostics.push(checkContractMapping(requestFieldManifest));
+  diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 
   const blocked = diagnostics.filter((item) => item.status === "blocked");
   return {

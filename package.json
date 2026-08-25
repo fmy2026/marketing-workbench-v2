@@ -16,6 +16,8 @@
     "test:create-result-mapping": "node scripts/create-result-mapping-smoke.mjs",
     "test:execution-grant": "node scripts/execution-grant-smoke.mjs",
     "launch:execute-once": "node scripts/launch-execute-once.mjs",
+    "check:video-material-prepare": "node scripts/oe3-video-material-prepare.mjs --job-id JOB-MWBV2-20260824151431-ECA120 --allow-readonly",
+    "video-material:bind-once": "node scripts/oe3-video-material-bind-once.mjs",
     "check:runtime-consistency": "node scripts/runtime-consistency-check.mjs",
     "token:status": "node scripts/oceanengine-token-status.mjs",
     "token:refresh": "node scripts/oceanengine-token-refresh.mjs"

@@ -108,6 +108,7 @@ export class PostgresRepository {
               SELECT 1
               FROM mwb.platform_actions pa
               WHERE pa.job_id = j.job_id
+                AND pa.action_type IN ('oceanengine_std_project_create', 'mock_oceanengine_std_project_create')
             )
             AND NOT EXISTS (
               SELECT 1
@@ -361,6 +362,7 @@ export class PostgresRepository {
           )
           FROM mwb.platform_actions pa
           WHERE pa.job_id = j.job_id
+            AND pa.action_type IN ('oceanengine_std_project_create', 'mock_oceanengine_std_project_create')
           ORDER BY coalesce(pa.finished_at, pa.started_at) DESC
           LIMIT 1
         ),
@@ -703,6 +705,87 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async upsertAccountResourceReadonlyBySourceAsset({
+    routeId,
+    gameCode,
+    advertiserId,
+    resourceType,
+    sourceAssetId,
+    resourceName,
+    visibilityStatus,
+    readbackStatus,
+    platformResourceId,
+    required = true,
+    metadata,
+    resourceMetadata
+  }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("resource_type", resourceType);
+    assertId("source_asset_id", sourceAssetId);
+    const resourceId = `AR-${advertiserId}-${gameCode}-${resourceType.toUpperCase().replace(/_ASSET$/g, "").replace(/[^A-Z0-9]+/g, "-")}-${sourceAssetId.replace(/^JSZC-HUNT-/i, "").replace(/[^A-Za-z0-9]+/g, "-")}`;
+    await runPsql(`
+      WITH updated AS (
+        UPDATE mwb.account_resources
+        SET resource_name = coalesce(nullif(${sqlLiteral(resourceName || "")}, ''), resource_name),
+            platform_resource_id = coalesce(nullif(${sqlLiteral(platformResourceId || sourceAssetId)}, ''), platform_resource_id),
+            visibility_status = ${sqlLiteral(visibilityStatus || "needs_confirmation")},
+            readback_status = ${sqlLiteral(readbackStatus || "not_checked")},
+            required = ${required ? "true" : "false"},
+            metadata = metadata || ${sqlJson(resourceMetadata || {})} || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}),
+            updated_at = now()
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND resource_type = ${sqlLiteral(resourceType)}
+          AND source_asset_id = ${sqlLiteral(sourceAssetId)}
+        RETURNING resource_id
+      )
+      INSERT INTO mwb.account_resources (
+        resource_id,
+        advertiser_id,
+        route_id,
+        game_code,
+        resource_type,
+        resource_name,
+        platform_resource_id,
+        source_asset_id,
+        visibility_status,
+        readback_status,
+        required,
+        metadata,
+        created_at,
+        updated_at
+      )
+      SELECT
+        ${sqlLiteral(resourceId)},
+        ${sqlLiteral(advertiserId)},
+        ${sqlLiteral(routeId)},
+        ${sqlLiteral(gameCode)},
+        ${sqlLiteral(resourceType)},
+        ${sqlLiteral(resourceName || sourceAssetId)},
+        ${sqlLiteral(platformResourceId || sourceAssetId)},
+        ${sqlLiteral(sourceAssetId)},
+        ${sqlLiteral(visibilityStatus || "needs_confirmation")},
+        ${sqlLiteral(readbackStatus || "not_checked")},
+        ${required ? "true" : "false"},
+        ${sqlJson(resourceMetadata || {})} || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}),
+        now(),
+        now()
+      WHERE NOT EXISTS (SELECT 1 FROM updated)
+      ON CONFLICT (resource_id) DO UPDATE SET
+        resource_name = EXCLUDED.resource_name,
+        platform_resource_id = EXCLUDED.platform_resource_id,
+        source_asset_id = EXCLUDED.source_asset_id,
+        visibility_status = EXCLUDED.visibility_status,
+        readback_status = EXCLUDED.readback_status,
+        required = EXCLUDED.required,
+        metadata = mwb.account_resources.metadata || ${sqlJson(resourceMetadata || {})} || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}),
+        updated_at = now();
+    `, this.database);
+  }
+
   async updateAccountResourcePlatformResource({ routeId, gameCode, advertiserId, resourceType, platformResourceId, visibilityStatus, readbackStatus, metadata }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
@@ -961,6 +1044,26 @@ export class PostgresRepository {
           finished_at = coalesce(finished_at, now())
       WHERE action_id = ${sqlLiteral(actionId)};
     `, this.database);
+  }
+
+  async countPlatformActions({ jobId, actionType, sourceAssetId = "", statuses = [] }) {
+    assertId("job_id", jobId);
+    assertId("action_type", actionType);
+    const statusArray = statuses.length
+      ? `AND action_status = ANY(ARRAY[${statuses.map(sqlLiteral).join(",")}]::text[])`
+      : "";
+    const sourceFilter = sourceAssetId
+      ? `AND metadata->>'source_asset_id' = ${sqlLiteral(sourceAssetId)}`
+      : "";
+    const result = await queryJson(`
+      SELECT to_jsonb(count(*))
+      FROM mwb.platform_actions
+      WHERE job_id = ${sqlLiteral(jobId)}
+        AND action_type = ${sqlLiteral(actionType)}
+        ${sourceFilter}
+        ${statusArray};
+    `, this.database);
+    return Number(result || 0);
   }
 
   async upsertCreatedObject(object) {

@@ -59,10 +59,14 @@ try {
   assert(dry.bundle.job.source_usage === "test_run", "dry payload contract job source_usage is not test_run");
   assert(dry.bundle.draft.payload_summary.payload_hash_source === "final_controlled_payload", "dry payload hash source is not final payload");
   assert(dry.contract.expectedPayloadHash === dry.bundle.draft.payload_hash, "dry payload hash is not stable");
+  assert(typeof dry.bundle.draft.payload_summary.advertiser_id === "string", "dry advertiser_id storage summary is not string");
   if (dry.contract.status === "blocked") {
     assert(dryGapKeys.length > 0, "dry payload contract blocked without gaps");
   } else {
     assert(dry.contract.status === "passed", `unexpected dry payload contract status ${dry.contract.status}`);
+    assert(dryManifest.advertiserIdStorageType === "string", "dry advertiser_id storage type not string");
+    assert(dryManifest.advertiserIdTransportType === "number", "dry advertiser_id transport type not number");
+    assert(dryManifest.advertiserIdTransportSafe === true, "dry advertiser_id transport not safe");
     assert(dryManifest.dmpRetargetingTagsExcludePresent === true, "DMP retargeting_tags_exclude missing");
     assert(dryManifest.dmpRetargetingTagsExcludeIntegerArray === true, "DMP retargeting_tags_exclude is not integer[]");
   }
@@ -81,8 +85,12 @@ try {
   const mockManifest = mock.bundle.draft.payload_summary.final_payload_manifest || {};
 
   assert(mock.bundle.job.source_usage === "test_run", "mock payload contract job source_usage is not test_run");
+  assert(typeof mock.bundle.draft.payload_summary.advertiser_id === "string", "mock advertiser_id storage summary is not string");
   assert(mock.contract.status === "passed", "mock payload contract did not pass");
   assert(mock.contract.expectedPayloadHash === mock.bundle.draft.payload_hash, "mock payload hash is not stable");
+  assert(mockManifest.advertiserIdStorageType === "string", "mock advertiser_id storage type not string");
+  assert(mockManifest.advertiserIdTransportType === "number", "mock advertiser_id transport type not number");
+  assert(mockManifest.advertiserIdTransportSafe === true, "mock advertiser_id transport not safe");
   assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
@@ -95,6 +103,9 @@ try {
       projectName: dry.bundle.draft.project_name,
       payloadHash: dry.bundle.draft.payload_hash,
       payloadContractStatus: dry.contract.status,
+      advertiserIdStorageType: typeof dry.bundle.draft.payload_summary.advertiser_id,
+      advertiserIdTransportType: dryManifest.advertiserIdTransportType || "",
+      advertiserIdTransportSafe: dryManifest.advertiserIdTransportSafe === true,
       dmpBlocked: dryGapKeys.includes("dmp_custom_audience_ids"),
       dmpRetargetingTagsExcludeCount: dryManifest.dmpRetargetingTagsExcludeCount || 0,
       prewriteGateStatus: dryView.prewriteGate.status
@@ -105,6 +116,9 @@ try {
       projectName: mock.bundle.draft.project_name,
       payloadHash: mock.bundle.draft.payload_hash,
       payloadContractStatus: mock.contract.status,
+      advertiserIdStorageType: typeof mock.bundle.draft.payload_summary.advertiser_id,
+      advertiserIdTransportType: mockManifest.advertiserIdTransportType || "",
+      advertiserIdTransportSafe: mockManifest.advertiserIdTransportSafe === true,
       dmpRetargetingTagsExcludeCount: mockManifest.dmpRetargetingTagsExcludeCount || 0,
       readbackStatus: mock.bundle.readback.readback_status
     },

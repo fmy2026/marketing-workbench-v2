@@ -21,6 +21,17 @@
 优先级：`project.state.json` -> Postgres `marketing_workbench_v2.mwb` -> active task / manifest -> `schemas/` -> 稳定 docs。
 JSON、schema、数据库记录和真实回查证据优先于 Markdown 说明。发现冲突时，先按权威入口执行，再提出最小修正。
 
+## OE3 官方知识入口
+
+巨量营销 3.0 / OceanEngine 3.0 相关问题，优先查看本机官方知识文档：
+
+| 类型 | 路径 |
+| --- | --- |
+| 官方文档主库 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0` |
+| 外部给定官方资料 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
+
+这些文档只作为 OE3 官方知识参考；项目运行真值仍按 `project.state.json`、Postgres `marketing_workbench_v2.mwb`、active task / manifest 和 `schemas/` 的优先级执行。
+
 ## 唯一运行链路
 ```text
 frontend/API

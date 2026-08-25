@@ -1,0 +1,116 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS",
+  "status": "completed_blocked",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "补齐 P04 创建前两条最终视频逐条只读 readiness、字节小游戏实例与优化目标合同映射、以及 payload 业务默认值配置来源。",
+    "mode": "readonly_precreate_readiness_no_create",
+    "platform_write_allowed": "prepared_scope_must_not_be_consumed_or_modified",
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency",
+    "material_source_policy": "JSZC video materials come from material account or super admin 1760246749825031, then push/share to target advertiser 1871922175825993"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+    "docs/.参考文档/3.0创建/05-P01-P04-创建字段完整对比.md",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "scripts/payload-contract-smoke.mjs",
+    "scripts/oe3-workflow-skills-smoke.mjs",
+    "scripts/runtime-consistency-check.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+    "project.state.json",
+    "db/",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/resource-verifiers.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/video-material-readiness.mjs",
+    "src/workflows/skills/oe3/objective-contract-readiness.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "scripts/"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "P04 execution grant consumption",
+    "P04 execution grant silent mutation",
+    "token refresh",
+    "platform write API calls",
+    "material upload",
+    "event asset create",
+    "DMP push/write",
+    "budget or bid update",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/video_id/video_cover_id/raw payload/raw response"
+  ],
+  "target": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "object": "std_project"
+  },
+  "validation_plan": [
+    "Verify P04 material_pack_items selected required video count and per-item readiness",
+    "Verify mini game instance field mapping from official docs and readonly optimized goal check",
+    "Verify P04 business defaults source from Postgres/material pack, not hardcoded payload.mjs values",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "Postgres verify P04 platform_actions/confirmations/created_objects/real_readbacks remain 0",
+    "Verify P04 prepared execution scope was not consumed"
+  ],
+  "risk_notes": [
+    "Moving payload defaults can change payload_hash; if it changes, do not silently update or consume existing P04 scope.",
+    "Readonly endpoint parameters must come from v2 config/job/Postgres and official docs, not old project runtime scripts.",
+    "Full video IDs and cover IDs are controlled payload internals and must not be saved in task docs, API responses, or frontend."
+  ],
+  "completion_summary": {
+    "completed_at": "2026-08-25 CST",
+    "status": "blocked_by_video_material_readiness",
+    "p04_payload_hash": "sha256:cbdb497145254b17c8c87c1863ffea4f28c6d69ddfc246f329e56947b4896b5a",
+    "write_counts": {
+      "platform_actions": 0,
+      "launch_confirmations": 0,
+      "created_objects": 0,
+      "real_readbacks": 0
+    },
+    "material_source_account": {
+      "account_role": "material_account_or_super_admin",
+      "advertiser_id": "1760246749825031",
+      "target_advertiser_id": "1871922175825993",
+      "storage": "mwb.game_route_defaults.raw_defaults.material_source_account"
+    },
+    "readonly_result": {
+      "optimized_goal": "passed",
+      "dbt": "passed",
+      "video_material_readiness": "blocked",
+      "blockers": [
+        "JSZC-HUNT-4IG2-3: video visible in source and target, cover not visible in source or target",
+        "JSZC-HUNT-4GE6-14: video visible in source but not target, cover not visible in source or target"
+      ]
+    },
+    "next_gate": "补齐 P04 两条视频及封面在物料户/超管与目标账户的可读性后，重跑 final readiness；本任务不允许真实创建。"
+  }
+}

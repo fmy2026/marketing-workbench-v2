@@ -1,0 +1,88 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE",
+  "status": "completed",
+  "created_at": "2026-08-24 CST",
+  "updated_at": "2026-08-24 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "修正 OE3 std_project/create 最终 payload 中 advertiser_id 的 transport 类型，并创建 P04 dry-run 验证。",
+    "mode": "local_runtime_dry_run_no_platform_write",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/3.0创建/01-P01-平台项目结构-脱敏.json",
+    "docs/.参考文档/3.0创建/02-P03-v2最终创建结构-脱敏.json",
+    "docs/.参考文档/3.0创建/04-P01-P03-创建字段对比.md",
+    "tasks/TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON.md",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/launchWorkflow.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/payload-contract-smoke.mjs",
+    "scripts/oe3-workflow-skills-smoke.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "retrying P03",
+    "token refresh",
+    "platform write API calls",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "database migration",
+    "adding a second payload builder",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "p03_job_id": "JOB-MWBV2-20260824092327-494BF1"
+  },
+  "validation_plan": [
+    "node JSON parse project.state.json and manifest",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run test:execution-grant",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "npm run workflow:dry-run",
+    "Postgres check P03 create_actions=1 created_objects=0 and P04 dry-run has no platform action"
+  ],
+  "completion_summary": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P04_20260824",
+    "p04_payload_hash": "sha256:91ef2ae7f61ee346938fb292d9138f1fc922df7848566b0679b08a67ba0c1ffc",
+    "advertiser_id_storage_type": "string",
+    "advertiser_id_transport_type": "number",
+    "advertiser_id_transport_safe": true,
+    "p03_unchanged": true,
+    "p04_platform_actions": 0,
+    "p04_confirmations": 0,
+    "p04_created_objects": 0,
+    "p04_real_readbacks": 0,
+    "real_platform_write_called": false,
+    "token_refresh_called": false,
+    "next_gate": "P04 dry-run 结构已通过；下一步单独评估真实只读校验、hide_if_converted 枚举差异或单次真实创建确认任务。"
+  }
+}

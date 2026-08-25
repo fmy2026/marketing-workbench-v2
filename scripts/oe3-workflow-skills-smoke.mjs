@@ -38,6 +38,9 @@ try {
   assert(dryRunBundle.job.source_usage === "test_run", "dry_run_job_not_test_run");
   assert(dryRunBundle.draft?.payload_hash?.startsWith("sha256:"), "dry_run_payload_hash_missing");
   assert(dryRunBundle.draft?.payload_summary?.payload_hash_source === "final_controlled_payload", "dry_run_not_final_payload_hash");
+  assert(typeof dryRunBundle.draft?.payload_summary?.advertiser_id === "string", "dry_run_advertiser_id_storage_not_string");
+  assert(dryRunBundle.draft?.payload_summary?.final_payload_manifest?.advertiserIdTransportType === "number", "dry_run_advertiser_id_transport_not_number");
+  assert(dryRunBundle.draft?.payload_summary?.final_payload_manifest?.advertiserIdTransportSafe === true, "dry_run_advertiser_id_transport_not_safe");
   assert(dryRun.summary.nodeStatuses.std_project_create_executor === "locked", "dry_run_create_node_not_locked");
   assert(!dryRunBundle.platformAction, "dry_run_platform_action_recorded");
   assert(!dryRunBundle.createdObject, "dry_run_created_object_recorded");
@@ -58,6 +61,9 @@ try {
   assert(executeBundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "execute_mock_platform_action_not_mock");
   assert(executeBundle.createdObject?.object_status === "mock_created", "execute_mock_created_object_not_mock");
   assert(executeBundle.readback?.object_name === executeBundle.draft?.project_name, "execute_mock_readback_name_mismatch");
+  assert(typeof executeBundle.draft?.payload_summary?.advertiser_id === "string", "execute_mock_advertiser_id_storage_not_string");
+  assert(executeBundle.draft?.payload_summary?.final_payload_manifest?.advertiserIdTransportType === "number", "execute_mock_advertiser_id_transport_not_number");
+  assert(executeBundle.draft?.payload_summary?.final_payload_manifest?.advertiserIdTransportSafe === true, "execute_mock_advertiser_id_transport_not_safe");
   assert(executeBundle.draft?.payload_summary?.final_payload_manifest?.dmpRetargetingTagsExcludeIntegerArray === true, "execute_mock_dmp_payload_not_integer_array");
 
   const result = {

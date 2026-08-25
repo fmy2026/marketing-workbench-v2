@@ -249,6 +249,12 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const hashStable = normalized.payloadHash === expectedHash;
   const longIdFieldsAreStrings = ["advertiser_id", "monitor_id"]
     .every((field) => typeof payload[field] === "string" && /^[0-9]+$/.test(payload[field]));
+  const advertiserIdTransportOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.advertiserIdStorageType === "string" &&
+      finalManifest.advertiserIdTransportType === "number" &&
+      finalManifest.advertiserIdTransportSafe === true
+    );
   const nameMatches = normalized.projectName === payload.project_name && projectNameMatches(normalized.projectName, payload);
   const readback = bundle?.readback || null;
   const objectNameConsistent = !readback || readback.object_name === normalized.projectName;
@@ -267,6 +273,22 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
+  const materialReadiness = finalManifest.finalMaterialReadiness || {};
+  const coverReadyCount = Number(materialReadiness.coverReadyCount ?? materialReadiness.coverVerifiedCount ?? 0);
+  const finalMaterialReady = !usesFinalPayloadHash ||
+    (
+      Number(materialReadiness.selectedRequiredVideoCount || 0) > 0 &&
+      Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.verifiedVideoCount || 0) &&
+      Number(materialReadiness.selectedRequiredVideoCount || 0) === coverReadyCount
+    );
+  const contractMapping = finalManifest.contractMapping || {};
+  const contractMappingReady = !usesFinalPayloadHash ||
+    (
+      contractMapping.miniGameInstanceCreateFieldName === "instance_id" &&
+      contractMapping.optimizedGoalQueryInstanceFieldName === "micro_app_instance_id" &&
+      contractMapping.optimizedGoalQueryAppFieldName === "mini_program_id"
+    );
+  const businessDefaultsReady = !usesFinalPayloadHash || finalManifest.businessDefaultsPresent === true;
 
   const checks = [
     {
@@ -302,7 +324,14 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     {
       key: "long_numeric_ids",
       status: longIdFieldsAreStrings ? "passed" : "blocked",
-      summary: longIdFieldsAreStrings ? "平台长数字 ID 均按字符串处理。" : "advertiser_id 或 monitor_id 未按字符串处理。"
+      summary: longIdFieldsAreStrings ? "Postgres / Job / 摘要中的平台长数字 ID 均按字符串处理。" : "advertiser_id 或 monitor_id 在业务上下文中未按字符串处理。"
+    },
+    {
+      key: "advertiser_id_transport_type",
+      status: advertiserIdTransportOk ? "passed" : "blocked",
+      summary: advertiserIdTransportOk
+        ? "最终受控 create payload 中 advertiser_id 为 safe integer number。"
+        : "最终受控 create payload 中 advertiser_id 未安全转换为 number。"
     },
     {
       key: "payload_hash",
@@ -355,6 +384,25 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "dmp_custom_audience_ids",
       status: finalPayloadDmpOk ? "passed" : "blocked",
       summary: finalPayloadDmpOk ? "DMP custom_audience_id[] 已作为 audience.retargeting_tags_exclude integer[] 写入最终 payload。" : "DMP 缺少只读验证后的 custom_audience_id[]，或未写入 retargeting_tags_exclude integer[]。"
+    },
+    {
+      key: "final_material_readiness",
+      status: finalMaterialReady ? "passed" : "blocked",
+      summary: finalMaterialReady
+        ? `最终视频素材逐条回查通过：${materialReadiness.verifiedVideoCount}/${materialReadiness.selectedRequiredVideoCount}。`
+        : "最终视频素材或封面策略逐条回查未完成。"
+    },
+    {
+      key: "route_payload_defaults",
+      status: businessDefaultsReady ? "passed" : "blocked",
+      summary: businessDefaultsReady ? "业务默认值来自 Postgres 路线配置。" : "业务默认值缺少 Postgres 路线配置来源。"
+    },
+    {
+      key: "mini_game_instance_field_mapping",
+      status: contractMappingReady ? "passed" : "blocked",
+      summary: contractMappingReady
+        ? "小游戏实例字段映射已区分查询参数与创建参数。"
+        : "小游戏实例字段映射未确认，禁止猜测或双发。"
     }
   ];
 

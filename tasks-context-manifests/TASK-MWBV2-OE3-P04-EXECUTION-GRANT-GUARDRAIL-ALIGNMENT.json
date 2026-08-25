@@ -1,0 +1,103 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "将工作台开始执行与 project.state.json 单次写入授权严格对齐，并为 P04 当前 draft/hash 预置未消费 scope。",
+    "mode": "guardrail_alignment_no_real_create",
+    "platform_write_allowed": "pre_scope_only_no_consumption",
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.json",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/create-once.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/execution-grant-smoke.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/index.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.json",
+    "project.state.json",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "scripts/execution-grant-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "workbench execute click",
+    "P03 retry",
+    "P04 scope consumption during this task",
+    "token refresh",
+    "platform write API calls",
+    "material upload",
+    "event asset create",
+    "DMP push/write",
+    "budget or bid update",
+    "database migration",
+    "new job",
+    "new API route",
+    "new Skill",
+    "second execution entrypoint",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "target": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
+    "p04_payload_hash": "sha256:cbdb497145254b17c8c87c1863ffea4f28c6d69ddfc246f329e56947b4896b5a",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "p03_job_id": "JOB-MWBV2-20260824092327-494BF1"
+  },
+  "validation_plan": [
+    "npm run test:execution-grant",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run check:runtime-consistency",
+    "Postgres verify P04 platform_actions/confirmations/created_objects remain 0",
+    "Postgres verify P03 platform_actions=1 and created_objects=0",
+    "Local API latest P04 still ready_for_user_create_confirmation"
+  ],
+  "completion_summary": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
+    "p04_payload_hash": "sha256:cbdb497145254b17c8c87c1863ffea4f28c6d69ddfc246f329e56947b4896b5a",
+    "scope_prepared": true,
+    "scope_consumed": false,
+    "scope_allowed_actions": [
+      "oceanengine_std_project_create"
+    ],
+    "scope_maximum_actions": 1,
+    "scope_retry_allowed": false,
+    "execution_guardrail_enforced": true,
+    "double_scope_check_enabled": true,
+    "revoke_scope_after_execution_enabled": true,
+    "p04_platform_actions": 0,
+    "p04_confirmations": 0,
+    "p04_created_objects": 0,
+    "p04_real_readbacks": 0,
+    "p03_platform_actions": 1,
+    "p03_created_objects": 0,
+    "real_create_called": false,
+    "token_refresh_called": false,
+    "validation_results": [
+      "npm run test:execution-grant passed",
+      "npm run test:payload-contract passed",
+      "npm run smoke:workflow-skills passed",
+      "npm run check:runtime-consistency passed"
+    ],
+    "next_gate": "P04 workbench single execute click can consume the prepared strict scope exactly once."
+  }
+}

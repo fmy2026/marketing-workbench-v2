@@ -1,0 +1,118 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "使用已刷新且有效的 v2 OceanEngine 凭据，对既有 P04 runtime job 重跑真实平台只读预检。",
+    "mode": "post_refresh_readonly_rerun_no_token_refresh_no_platform_write",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "real_platform_dependency_allowed": "readonly_only_for_this_task",
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.json",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/dmp-readonly.mjs",
+    "src/workflows/skills/oe3/duplicate-readonly.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.json",
+    "project.state.json",
+    "mwb.launch_node_runs.output_summary",
+    "mwb.launch_node_runs.status",
+    "mwb.launch_skill_runs",
+    "mwb.account_resources.status/readback_status/metadata",
+    "mwb.launch_drafts.duplicate_status",
+    "mwb.evidence_artifacts",
+    "mwb.readback_records dry_run not_applicable placeholder"
+  ],
+  "forbidden_actions": [
+    "token refresh",
+    "std_project/create",
+    "P03 retry",
+    "P04 create execution",
+    "platform write API calls",
+    "material upload",
+    "event asset create",
+    "DMP push/write",
+    "budget or bid update",
+    "database migration",
+    "new job",
+    "new API route",
+    "new Skill",
+    "new permanent CLI script",
+    "new workflow mode or second preflight logic",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response"
+  ],
+  "target": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "p04_project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P04_20260824",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "p03_job_id": "JOB-MWBV2-20260824092327-494BF1"
+  },
+  "allowed_platform_readonly_endpoints": [
+    "GET dmp/custom_audience/select",
+    "GET /open_api/v3.0/std_project/list/"
+  ],
+  "execution_plan": [
+    "Run npm run token:status and stop if status is not valid",
+    "Record P03/P04 pre counts from Postgres",
+    "Run runJob(repo, P04, { mode: 'dry_run', allowReadonlyDependency: true, allowNetworkWrite: false }) only if token status is valid",
+    "Record P03/P04 post counts and P04 evidence summaries",
+    "Run npm run smoke:workflow-skills, npm run test:payload-contract, npm run check:runtime-consistency"
+  ],
+  "completion_summary": {
+    "p04_job_id": "JOB-MWBV2-20260824151431-ECA120",
+    "execution_entry": "runJob dry_run allowReadonlyDependency=true allowNetworkWrite=false",
+    "token_status": "valid",
+    "result": "ready_for_user_create_confirmation",
+    "p04_job_status": "draft_ready",
+    "p04_current_node": "5",
+    "node1_to_4_status": "passed",
+    "node5_status": "needs_confirmation",
+    "node6_status": "locked",
+    "node7_status": "waiting",
+    "dmp_readonly_status": "passed",
+    "dmp_custom_audience_id_count": 10,
+    "duplicate_status": "platform_not_duplicate",
+    "advertiser_id_storage_type": "string",
+    "advertiser_id_transport_type": "number",
+    "advertiser_id_transport_safe": true,
+    "hide_if_converted": "NO_EXCLUDE",
+    "p04_platform_actions": 0,
+    "p04_confirmations": 0,
+    "p04_created_objects": 0,
+    "p04_real_readbacks": 0,
+    "p03_platform_actions": 1,
+    "p03_created_objects": 0,
+    "real_platform_write_called": false,
+    "token_refresh_called": false,
+    "evidence_refs": [
+      "EV-JOB-MWBV2-20260824151431-ECA120-DMP-CUSTOM-AUDIENCE-READONLY",
+      "EV-JOB-MWBV2-20260824151431-ECA120-STD-PROJECT-DUPLICATE-READONLY"
+    ],
+    "validation_results": [
+      "npm run token:status passed",
+      "npm run smoke:workflow-skills passed",
+      "npm run test:payload-contract passed",
+      "npm run check:runtime-consistency passed"
+    ],
+    "next_gate": "P04 single real create confirmation task; real create remains forbidden until that task explicitly grants one execution."
+  }
+}

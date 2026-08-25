@@ -1,4 +1,7 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { STD_PROJECT_CREATE_CONFIRM_VALUE } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/create-preflight-diagnostics.mjs";
@@ -97,6 +100,7 @@ function fakeFetchFactory({
 
 const repo = new PostgresRepository();
 const createdJobIds = [];
+const tempDirs = [];
 
 async function createTestJob(sourceRecordRef) {
   const view = await createJob(repo, {
@@ -109,6 +113,48 @@ async function createTestJob(sourceRecordRef) {
   });
   createdJobIds.push(view.jobId);
   return view;
+}
+
+async function createReadyTestJob(sourceRecordRef) {
+  const view = await createTestJob(sourceRecordRef);
+  await runJob(repo, view.jobId, { mode: "dry_run", mockReady: true });
+  return getBundleView(view.jobId);
+}
+
+async function getBundleView(jobId) {
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  return {
+    jobId,
+    draftId: bundle.draft?.draft_id || "",
+    payloadHash: bundle.draft?.payload_hash || ""
+  };
+}
+
+async function writeProjectStateForScope({ jobId, draftId, payloadHash, enabled = true, overrides = {} }) {
+  const dir = await mkdtemp(join(tmpdir(), "mwbv2-execution-grant-"));
+  tempDirs.push(dir);
+  const projectStatePath = join(dir, "project.state.json");
+  const state = {
+    guardrails: {
+      platform_write_allowed: enabled,
+      platform_write_scope: {
+        mode: "single_oceanengine_std_project_create",
+        target_job_id: jobId,
+        target_draft_id: draftId,
+        target_payload_hash: payloadHash,
+        allowed_actions: ["oceanengine_std_project_create"],
+        maximum_actions: 1,
+        retry_allowed: false,
+        ...overrides
+      }
+    }
+  };
+  await writeFile(projectStatePath, `${JSON.stringify(state, null, 2)}\n`);
+  return projectStatePath;
+}
+
+async function readProjectState(projectStatePath) {
+  return JSON.parse(await readFile(projectStatePath, "utf8"));
 }
 
 function callCount(fakeFetch, pattern) {
@@ -127,7 +173,7 @@ function latestSkill(view, skillKey) {
 try {
   const invalidShapePreflight = evaluateStdProjectCreatePreflight({
     payload: {
-      advertiser_id: 1871922175825993,
+      advertiser_id: "1871922175825993",
       name: "fake_invalid_shape",
       ad_type: "ALL",
       landing_type: "MICRO_GAME",
@@ -152,29 +198,78 @@ try {
     payloadContractStatus: "passed"
   });
   assert(invalidShapePreflight.status === "blocked", "invalid field shape should be blocked by preflight");
-  assert(invalidShapePreflight.blocker_codes.includes("invalid_field_type:advertiser_id"), "preflight should detect advertiser_id type");
+  assert(invalidShapePreflight.blocker_codes.includes("advertiser_id_not_safe_integer_for_platform_payload"), "preflight should detect advertiser_id transport type");
   assert(invalidShapePreflight.blocker_codes.includes("invalid_integer_array:audience.retargeting_tags_exclude"), "preflight should detect DMP integer array shape");
   assertNoSensitiveLeak(invalidShapePreflight);
 
-  const invalid = await createTestJob("execution-grant-smoke:invalid");
+  const unsafeAdvertiserManifestPreflight = evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      requiredFieldsPresent: true,
+      blockers: [],
+      advertiserIdStorageType: "string",
+      advertiserIdTransportType: "number",
+      advertiserIdTransportSafe: false
+    },
+    payloadContractStatus: "passed"
+  });
+  assert(unsafeAdvertiserManifestPreflight.status === "blocked", "unsafe advertiser_id manifest should be blocked");
+  assert(
+    unsafeAdvertiserManifestPreflight.blocker_codes.includes("advertiser_id_not_safe_integer_for_platform_payload"),
+    "manifest preflight should detect unsafe advertiser_id transport"
+  );
+  assertNoSensitiveLeak(unsafeAdvertiserManifestPreflight);
+
+  const invalid = await createReadyTestJob("execution-grant-smoke:invalid");
+  const invalidState = await writeProjectStateForScope(invalid);
   const blocked = await executeConfirmedLaunch({
     repo,
     jobId: invalid.jobId,
     grantSource: "test_fake_transport",
     executionIntent: "",
-    fetchImpl: fakeFetchFactory({ projectId: "999900001" })
+    fetchImpl: fakeFetchFactory({ projectId: "999900001" }),
+    projectStatePath: invalidState
   });
   assert(blocked.executionGrant.status === "blocked", "invalid grant should block");
   assert(blocked.executionGrant.createCalled === false, "invalid grant should not create");
 
-  const successView = await createTestJob("execution-grant-smoke:create-ok-readback-hit");
+  const missingScopeView = await createReadyTestJob("execution-grant-smoke:missing-scope");
+  const missingScopeState = await writeProjectStateForScope({ ...missingScopeView, enabled: false });
+  const missingScope = await executeConfirmedLaunch({
+    repo,
+    jobId: missingScopeView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: fakeFetchFactory({ projectId: "999900001" }),
+    projectStatePath: missingScopeState
+  });
+  assert(missingScope.executionGrant.status === "blocked", "missing scope should block");
+  assert(missingScope.executionGrant.blockers.includes("platform_write_scope_not_enabled"), "missing scope blocker not reported");
+  assert(missingScope.executionGrant.createCalled === false, "missing scope should not create");
+
+  const wrongHashView = await createReadyTestJob("execution-grant-smoke:wrong-hash");
+  const wrongHashState = await writeProjectStateForScope({ ...wrongHashView, payloadHash: "sha256:wrong" });
+  const wrongHash = await executeConfirmedLaunch({
+    repo,
+    jobId: wrongHashView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: fakeFetchFactory({ projectId: "999900001" }),
+    projectStatePath: wrongHashState
+  });
+  assert(wrongHash.executionGrant.status === "blocked", "wrong payload hash should block");
+  assert(wrongHash.executionGrant.blockers.includes("platform_write_scope_payload_hash_mismatch"), "wrong hash blocker not reported");
+  assert(wrongHash.executionGrant.createCalled === false, "wrong payload hash should not create");
+
+  const successView = await createReadyTestJob("execution-grant-smoke:create-ok-readback-hit");
+  const successState = await writeProjectStateForScope(successView);
   const successFetch = fakeFetchFactory({ projectId: "999900002" });
   const result = await executeConfirmedLaunch({
     repo,
     jobId: successView.jobId,
     grantSource: "test_fake_transport",
     executionIntent: EXECUTION_GRANT_INTENT,
-    fetchImpl: successFetch
+    fetchImpl: successFetch,
+    projectStatePath: successState
   });
   const statuses = nodeStatuses(result);
   if (!successFetch.calls.some((call) => call.href.includes("/std_project/create/"))) {
@@ -191,9 +286,13 @@ try {
   assert(result.headline.status === "created", "job should be created after fake readback");
   assert(result.executionGrant.createCalled === true, "execution grant should report createCalled");
   assert(result.readback?.status === "readback_verified", "readback should be verified");
+  const successStateAfter = await readProjectState(successState);
+  assert(successStateAfter.guardrails.platform_write_allowed === false, "scope should be revoked after create");
+  assert(successStateAfter.guardrails.platform_write_scope.maximum_actions === 0, "scope maximum actions should be reset");
   assertNoSensitiveLeak(result);
 
-  const recoveredView = await createTestJob("execution-grant-smoke:create-40000-readback-hit");
+  const recoveredView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-hit");
+  const recoveredState = await writeProjectStateForScope(recoveredView);
   const recoveredFetch = fakeFetchFactory({
     projectId: "999900004",
     createApiCode: "40000",
@@ -205,7 +304,8 @@ try {
     jobId: recoveredView.jobId,
     grantSource: "test_fake_transport",
     executionIntent: EXECUTION_GRANT_INTENT,
-    fetchImpl: recoveredFetch
+    fetchImpl: recoveredFetch,
+    projectStatePath: recoveredState
   });
   const recoveredStatuses = nodeStatuses(recovered);
   const recoveredReadback = latestSkill(recovered, "readback-std-project");
@@ -217,7 +317,8 @@ try {
   assert(recoveredReadback.outputSummary?.recoveredByReadback === true, "readback should mark recoveredByReadback");
   assertNoSensitiveLeak(recovered);
 
-  const missView = await createTestJob("execution-grant-smoke:create-40000-readback-miss");
+  const missView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-miss");
+  const missState = await writeProjectStateForScope(missView);
   const missFetch = fakeFetchFactory({
     projectId: "999900005",
     createApiCode: "40000",
@@ -229,7 +330,8 @@ try {
     jobId: missView.jobId,
     grantSource: "test_fake_transport",
     executionIntent: EXECUTION_GRANT_INTENT,
-    fetchImpl: missFetch
+    fetchImpl: missFetch,
+    projectStatePath: missState
   });
   const missedStatuses = nodeStatuses(missed);
   assertOneCreateOneReadback(missFetch);
@@ -241,9 +343,10 @@ try {
     jobId: missView.jobId,
     grantSource: "test_fake_transport",
     executionIntent: EXECUTION_GRANT_INTENT,
-    fetchImpl: fakeFetchFactory({ projectId: "999900006" })
+    fetchImpl: fakeFetchFactory({ projectId: "999900006" }),
+    projectStatePath: missState
   });
-  assert(nodeStatuses(missedSecond).std_project_create_executor === "blocked", "failed job second grant should be blocked");
+  assert(missedSecond.executionGrant.status === "blocked", "failed job second grant should be blocked");
   assert(missedSecond.executionGrant.createCalled === false, "failed job second grant should not create");
   assertNoSensitiveLeak(missed);
 
@@ -267,15 +370,17 @@ try {
     jobId: successView.jobId,
     grantSource: "test_fake_transport",
     executionIntent: EXECUTION_GRANT_INTENT,
-    fetchImpl: fakeFetchFactory({ projectId: "999900003" })
+    fetchImpl: fakeFetchFactory({ projectId: "999900003" }),
+    projectStatePath: successState
   });
-  const secondCreate = nodeStatuses(second).std_project_create_executor;
-  assert(secondCreate === "blocked", "second create attempt should be blocked");
+  assert(second.executionGrant.status === "blocked", "second create attempt should be blocked");
   assert(second.executionGrant.createCalled === false, "second grant should not create");
 
   console.log(JSON.stringify({
     status: "passed",
     invalidGrantBlocked: true,
+    missingScopeBlocked: true,
+    wrongHashBlocked: true,
     successJobId: successView.jobId,
     recoveredJobId: recoveredView.jobId,
     missedJobId: missView.jobId,
@@ -294,5 +399,8 @@ try {
 } finally {
   for (const jobId of createdJobIds.reverse()) {
     await repo.deleteTestJobCascade(jobId);
+  }
+  for (const dir of tempDirs.reverse()) {
+    await rm(dir, { recursive: true, force: true });
   }
 }

@@ -73,6 +73,24 @@ export function mockReadyBundle(bundle = {}) {
   return {
     ...bundle,
     resources: (bundle.resources || []).map((item) => {
+      if (item.resource_type === "video_asset") {
+        return {
+          ...item,
+          visibility_status: "visible",
+          readback_status: "readback_verified",
+          metadata: {
+            ...(item.metadata || {}),
+            readonly_check: {
+              ...(item.metadata?.readonly_check || {}),
+              status: "passed",
+              video_id_present: true,
+              video_cover_id_present: true,
+              cover_mode: "platform_default_cover_allowed",
+              mock: true
+            }
+          }
+        };
+      }
       if (item.resource_type !== "dmp_audience_package") return item;
       return {
         ...item,
