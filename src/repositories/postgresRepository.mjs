@@ -96,79 +96,6 @@ export class PostgresRepository {
     this.database = database;
   }
 
-  async latestJobId() {
-    const result = await queryJson(`
-      SELECT coalesce(
-        (
-          SELECT to_jsonb(j.job_id)
-          FROM mwb.launch_jobs j
-          WHERE j.source_usage = 'runtime_truth'
-            AND j.job_status IN ('draft_ready', 'diagnosed', 'created_pending_readback', 'created', 'confirm_placeholder_recorded')
-            AND NOT EXISTS (
-              SELECT 1
-              FROM mwb.platform_actions pa
-              WHERE pa.job_id = j.job_id
-                AND pa.action_type IN ('oceanengine_std_project_create', 'mock_oceanengine_std_project_create')
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM mwb.created_objects co
-              WHERE co.job_id = j.job_id
-            )
-          ORDER BY
-            CASE j.job_status
-              WHEN 'draft_ready' THEN 1
-              WHEN 'confirm_placeholder_recorded' THEN 2
-              WHEN 'diagnosed' THEN 3
-              WHEN 'created_pending_readback' THEN 4
-              WHEN 'created' THEN 5
-              ELSE 9
-            END,
-            j.updated_at DESC,
-            j.created_at DESC
-          LIMIT 1
-        ),
-        (
-          SELECT to_jsonb(j.job_id)
-          FROM mwb.launch_jobs j
-          WHERE j.source_usage = 'runtime_truth'
-            AND EXISTS (
-              SELECT 1
-              FROM mwb.platform_actions pa
-              WHERE pa.job_id = j.job_id
-            )
-          ORDER BY j.updated_at DESC, j.created_at DESC
-          LIMIT 1
-        ),
-        (
-          SELECT to_jsonb(job_id)
-          FROM mwb.launch_jobs
-          WHERE source_usage <> 'test_run'
-          ORDER BY updated_at DESC, created_at DESC
-          LIMIT 1
-        ),
-        to_jsonb('JOB-MWBV2-DEMO-001'::text)
-      )::text;
-    `, this.database);
-    return result;
-  }
-
-  async latestTestJobId() {
-    const result = await queryJson(`
-      SELECT coalesce(
-        (
-          SELECT to_jsonb(job_id)
-          FROM mwb.launch_jobs
-          WHERE source_usage = 'test_run'
-          ORDER BY updated_at DESC, created_at DESC
-          LIMIT 1
-        ),
-        to_jsonb(''::text)
-      )::text;
-    `, this.database);
-    return result;
-  }
-
   async sourceUsageForJob(jobId) {
     assertId("job_id", jobId);
     return queryJson(`
@@ -403,59 +330,119 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async getOccupiedProjectNames({ routeId, gameCode, advertiserId }) {
+  async getOccupiedProjectNames({ routeId, gameCode, advertiserId, objectType = "std_project" }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("object_type", objectType);
 
     return queryJson(`
       SELECT coalesce(jsonb_agg(project_name ORDER BY project_name), '[]'::jsonb)::text
-      FROM (
-        SELECT d.project_name
-        FROM mwb.launch_drafts d
-        JOIN mwb.launch_jobs j ON j.job_id = d.job_id
-        WHERE j.route_id = ${sqlLiteral(routeId)}
-          AND j.game_code = ${sqlLiteral(gameCode)}
-          AND j.advertiser_id = ${sqlLiteral(advertiserId)}
-          AND j.source_usage = 'runtime_truth'
-          AND (
-            coalesce(j.source_record_ref, '') <> 'api:intake:97f20040f3d3d423'
-            OR EXISTS (
-              SELECT 1
-              FROM mwb.platform_actions pa
-              WHERE pa.job_id = j.job_id
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM mwb.created_objects co
-              WHERE co.job_id = j.job_id
-            )
-          )
-        UNION
-        SELECT r.object_name AS project_name
-        FROM mwb.readback_records r
-        JOIN mwb.launch_jobs j ON j.job_id = r.job_id
-        WHERE j.route_id = ${sqlLiteral(routeId)}
-          AND j.game_code = ${sqlLiteral(gameCode)}
-          AND j.advertiser_id = ${sqlLiteral(advertiserId)}
-          AND j.source_usage = 'runtime_truth'
-          AND (
-            coalesce(j.source_record_ref, '') <> 'api:intake:97f20040f3d3d423'
-            OR EXISTS (
-              SELECT 1
-              FROM mwb.platform_actions pa
-              WHERE pa.job_id = j.job_id
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM mwb.created_objects co
-              WHERE co.job_id = j.job_id
-            )
-          )
-      ) occupied
-      WHERE project_name IS NOT NULL
-        AND project_name <> '';
+      FROM mwb.project_name_reservations
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND object_type = ${sqlLiteral(objectType)}
+        AND source_usage = 'runtime_truth'
+        AND reservation_status IN ('reserved', 'consumed');
     `, this.database);
+  }
+
+  async reserveProjectName({
+    jobId,
+    draftId,
+    routeId,
+    gameCode,
+    advertiserId,
+    objectType,
+    namePrefix,
+    yyyymmdd,
+    sourceUsage = "runtime_truth",
+    reservationAttempt = 0
+  }) {
+    assertId("job_id", jobId);
+    assertId("draft_id", draftId);
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("object_type", objectType);
+    if (!String(namePrefix || "").trim()) throw new Error("name_prefix_required");
+    if (!/^\d{8}$/.test(String(yyyymmdd || ""))) throw new Error("invalid_yyyymmdd");
+    assertId("source_usage", sourceUsage);
+
+    const reservationId = `PNR-${jobId}`;
+    const scopeKey = [routeId, gameCode, advertiserId, objectType, namePrefix, yyyymmdd, sourceUsage].join(":");
+    const reservation = await queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(scopeKey)}, 0)) AS locked
+      ),
+      existing AS (
+        SELECT *
+        FROM mwb.project_name_reservations
+        WHERE job_id = ${sqlLiteral(jobId)}
+        FOR UPDATE
+      ),
+      next_sequence AS (
+        SELECT candidate.project_seq
+        FROM generate_series(1, 9999) AS candidate(project_seq)
+        CROSS JOIN scope_lock
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM mwb.project_name_reservations reservation
+          WHERE reservation.route_id = ${sqlLiteral(routeId)}
+            AND reservation.game_code = ${sqlLiteral(gameCode)}
+            AND reservation.advertiser_id = ${sqlLiteral(advertiserId)}
+            AND reservation.object_type = ${sqlLiteral(objectType)}
+            AND reservation.name_prefix = ${sqlLiteral(namePrefix)}
+            AND reservation.yyyymmdd = ${sqlLiteral(yyyymmdd)}
+            AND reservation.source_usage = ${sqlLiteral(sourceUsage)}
+            AND reservation.project_seq = candidate.project_seq
+        )
+        ORDER BY candidate.project_seq
+        LIMIT 1
+      ),
+      inserted AS (
+        INSERT INTO mwb.project_name_reservations (
+          reservation_id, job_id, draft_id, route_id, game_code, advertiser_id,
+          object_type, name_prefix, yyyymmdd, project_seq, project_name,
+          reservation_status, source_usage, created_at
+        )
+        SELECT
+          ${sqlLiteral(reservationId)}, ${sqlLiteral(jobId)}, ${sqlLiteral(draftId)},
+          ${sqlLiteral(routeId)}, ${sqlLiteral(gameCode)}, ${sqlLiteral(advertiserId)},
+          ${sqlLiteral(objectType)}, ${sqlLiteral(namePrefix)}, ${sqlLiteral(yyyymmdd)},
+          next_sequence.project_seq,
+          ${sqlLiteral(namePrefix)} || '_P' || lpad(next_sequence.project_seq::text, 2, '0') || '_' || ${sqlLiteral(yyyymmdd)},
+          'reserved', ${sqlLiteral(sourceUsage)}, now()
+        FROM next_sequence
+        WHERE NOT EXISTS (SELECT 1 FROM existing)
+        ON CONFLICT DO NOTHING
+        RETURNING *
+      )
+      SELECT to_jsonb(reservation)::text
+      FROM (
+        SELECT * FROM existing
+        UNION ALL
+        SELECT * FROM inserted
+      ) reservation
+      LIMIT 1;
+    `, this.database);
+    if (!reservation && reservationAttempt < 4) {
+      return this.reserveProjectName({
+        jobId,
+        draftId,
+        routeId,
+        gameCode,
+        advertiserId,
+        objectType,
+        namePrefix,
+        yyyymmdd,
+        sourceUsage,
+        reservationAttempt: reservationAttempt + 1
+      });
+    }
+    if (!reservation) throw new Error("project_name_reservation_unavailable");
+    return reservation;
   }
 
   async getTouchpointVerification({ routeId, gameCode, advertiserId, monitorId }) {
@@ -820,6 +807,57 @@ export class PostgresRepository {
   async upsertDraft(draft) {
     assertId("draft_id", draft.draftId);
     assertId("job_id", draft.jobId);
+    if (draft.reservationId) {
+      assertId("reservation_id", draft.reservationId);
+      const persisted = await queryJson(`
+        WITH reservation AS (
+          SELECT reservation_id
+          FROM mwb.project_name_reservations
+          WHERE reservation_id = ${sqlLiteral(draft.reservationId)}
+            AND job_id = ${sqlLiteral(draft.jobId)}
+            AND draft_id = ${sqlLiteral(draft.draftId)}
+            AND project_name = ${sqlLiteral(draft.projectName)}
+          FOR UPDATE
+        ),
+        persisted_draft AS (
+          INSERT INTO mwb.launch_drafts (
+            draft_id, job_id, object_type, project_name, payload_summary,
+            payload_hash, duplicate_status, write_policy, created_at
+          )
+          SELECT
+            ${sqlLiteral(draft.draftId)}, ${sqlLiteral(draft.jobId)}, ${sqlLiteral(draft.objectType)},
+            ${sqlLiteral(draft.projectName)}, ${sqlJson(draft.payloadSummary)},
+            ${sqlLiteral(draft.payloadHash)}, ${sqlLiteral(draft.duplicateStatus)},
+            ${sqlLiteral(draft.writePolicy)}, now()
+          FROM reservation
+          ON CONFLICT (draft_id) DO UPDATE SET
+            object_type = EXCLUDED.object_type,
+            project_name = EXCLUDED.project_name,
+            payload_summary = EXCLUDED.payload_summary,
+            payload_hash = EXCLUDED.payload_hash,
+            duplicate_status = EXCLUDED.duplicate_status,
+            write_policy = EXCLUDED.write_policy,
+            created_at = EXCLUDED.created_at
+          RETURNING draft_id
+        ),
+        consumed AS (
+          UPDATE mwb.project_name_reservations reservation
+          SET reservation_status = 'consumed',
+              consumed_at = coalesce(consumed_at, now())
+          FROM persisted_draft
+          WHERE reservation.reservation_id = ${sqlLiteral(draft.reservationId)}
+          RETURNING reservation_id
+        )
+        SELECT to_jsonb(jsonb_build_object(
+          'draftPersisted', EXISTS (SELECT 1 FROM persisted_draft),
+          'reservationConsumed', EXISTS (SELECT 1 FROM consumed)
+        ))::text;
+      `, this.database);
+      if (!persisted?.draftPersisted || !persisted?.reservationConsumed) {
+        throw new Error("project_name_reservation_persist_failed");
+      }
+      return;
+    }
     await runPsql(`
       INSERT INTO mwb.launch_drafts (
         draft_id,
@@ -962,6 +1000,55 @@ export class PostgresRepository {
         metadata = EXCLUDED.metadata,
         confirmed_at = EXCLUDED.confirmed_at;
     `, this.database);
+  }
+
+  async claimStdProjectCreateAction({ confirmation, action }) {
+    assertId("confirmation_id", confirmation.confirmationId);
+    assertId("action_id", action.actionId);
+    assertId("job_id", action.jobId);
+    const result = await queryJson(`
+      WITH claimed AS (
+        INSERT INTO mwb.platform_actions (
+          action_id, job_id, confirmation_id, action_type, endpoint, method,
+          action_status, attempt_no, request_hash, response_hash, http_status,
+          api_code, request_id_present, object_id_present, error_summary,
+          request_id, platform_error_message_safe, platform_error_field,
+          request_field_manifest, response_summary, metadata, started_at, finished_at
+        ) VALUES (
+          ${sqlLiteral(action.actionId)}, ${sqlLiteral(action.jobId)}, ${sqlLiteral(action.confirmationId)},
+          ${sqlLiteral(action.actionType)}, ${sqlLiteral(action.endpoint)}, ${sqlLiteral(action.method || "POST")},
+          'started', ${Number(action.attemptNo || 1)}, ${sqlLiteral(action.requestHash || "")}, '', NULL,
+          '', false, false, '', '', '', '', ${sqlJson({})}, ${sqlJson({})},
+          ${sqlJson(action.metadata || {})}, now(), NULL
+        )
+        ON CONFLICT DO NOTHING
+        RETURNING action_id
+      ),
+      confirmed AS (
+        INSERT INTO mwb.launch_confirmations (
+          confirmation_id, job_id, draft_id, object_type, object_name,
+          payload_hash, confirmation_status, confirm_variable, confirmed_by,
+          metadata, confirmed_at
+        )
+        SELECT
+          ${sqlLiteral(confirmation.confirmationId)}, ${sqlLiteral(confirmation.jobId)},
+          ${sqlLiteral(confirmation.draftId)}, ${sqlLiteral(confirmation.objectType)},
+          ${sqlLiteral(confirmation.objectName)}, ${sqlLiteral(confirmation.payloadHash)},
+          ${sqlLiteral(confirmation.confirmationStatus)}, ${sqlLiteral(confirmation.confirmVariable)},
+          ${sqlLiteral(confirmation.confirmedBy || "local_operator")}, ${sqlJson(confirmation.metadata || {})}, now()
+        FROM claimed
+        ON CONFLICT (confirmation_id) DO UPDATE SET
+          confirmation_status = EXCLUDED.confirmation_status,
+          metadata = EXCLUDED.metadata,
+          confirmed_at = EXCLUDED.confirmed_at
+        RETURNING confirmation_id
+      )
+      SELECT to_jsonb(jsonb_build_object(
+        'claimed', EXISTS (SELECT 1 FROM claimed),
+        'confirmationRecorded', EXISTS (SELECT 1 FROM confirmed)
+      ))::text;
+    `, this.database);
+    return result || { claimed: false, confirmationRecorded: false };
   }
 
   async upsertPlatformAction(action) {

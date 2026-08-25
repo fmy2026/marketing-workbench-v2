@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-  allocateProjectSequence,
-  buildStdProjectName,
   buildStdProjectNamePrefix,
   cstYyyymmdd
 } from "../../stdProjectNameBuilder.mjs";
@@ -95,11 +93,6 @@ function projectNameMatches(projectName, payload) {
   return pattern.test(projectName);
 }
 
-function projectSeqFromName(projectName) {
-  const match = clean(projectName).match(/_P(\d{2,})_\d{8}$/);
-  return match ? Number(match[1]) : null;
-}
-
 function basePayloadSummary({ bundle, projectName, namePrefix, projectSeq, yyyymmdd }) {
   return {
     route_id: bundle.job.route_id,
@@ -152,17 +145,24 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     yyyymmdd
   };
   const namePrefix = buildStdProjectNamePrefix(nameContext);
+  const draftId = `DRAFT-${effectiveBundle.job.job_id}`;
   const existingProjectName = clean(effectiveBundle.draft?.project_name);
-  const projectSeq = projectSeqFromName(existingProjectName) || allocateProjectSequence({
+  const reservation = await repo.reserveProjectName({
+    jobId: effectiveBundle.job.job_id,
+    draftId,
+    routeId: effectiveBundle.job.route_id,
+    gameCode: effectiveBundle.job.game_code,
+    advertiserId: effectiveBundle.job.advertiser_id,
+    objectType: effectiveBundle.job.object_type,
     namePrefix,
     yyyymmdd,
-    occupiedNames: await repo.getOccupiedProjectNames({
-      routeId: effectiveBundle.job.route_id,
-      gameCode: effectiveBundle.job.game_code,
-      advertiserId: effectiveBundle.job.advertiser_id
-    })
+    sourceUsage: effectiveBundle.job.source_usage || "runtime_truth"
   });
-  const projectName = existingProjectName || buildStdProjectName({ ...nameContext, projectSeq });
+  if (existingProjectName && existingProjectName !== reservation.project_name) {
+    throw new Error("project_name_reservation_mismatch");
+  }
+  const projectSeq = Number(reservation.project_seq);
+  const projectName = reservation.project_name;
   const baseSummary = basePayloadSummary({
     bundle: effectiveBundle,
     projectName,
@@ -179,7 +179,7 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
   const finalBundle = {
     ...effectiveBundle,
     draft: {
-      draft_id: `DRAFT-${effectiveBundle.job.job_id}`,
+      draft_id: draftId,
       job_id: effectiveBundle.job.job_id,
       object_type: effectiveBundle.job.object_type,
       project_name: projectName,
@@ -201,14 +201,15 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     controlled_touchpoint_stored_in_payload_summary: false
   };
   return {
-    draftId: `DRAFT-${effectiveBundle.job.job_id}`,
+    draftId,
     jobId: effectiveBundle.job.job_id,
     objectType: effectiveBundle.job.object_type,
     projectName,
     payloadSummary,
     payloadHash: finalPayload.payloadHash,
     duplicateStatus: effectiveBundle.draft?.duplicate_status || "not_checked",
-    writePolicy: mockReady ? "workflow_skill_mock_execute_once_confirm_required" : "workflow_skill_execute_once_confirm_required"
+    writePolicy: mockReady ? "workflow_skill_mock_execute_once_confirm_required" : "workflow_skill_execute_once_confirm_required",
+    reservationId: reservation.reservation_id
   };
 }
 

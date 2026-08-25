@@ -63,11 +63,11 @@ async function serveStatic(req, res, pathname) {
 }
 
 async function handleApi(req, res, pathname) {
-  if (req.method === "GET" && pathname === "/api/launch/jobs/latest") {
-    const jobId = await repo.latestJobId();
-    const view = await getJobView(repo, jobId);
-    if (!view) return sendJson(res, 404, { error: "job_not_found" });
-    return sendJson(res, 200, view);
+  if (req.method === "GET" && pathname === "/api/launch/workbench") {
+    return sendJson(res, 200, {
+      state: "idle",
+      workbenchUrl: "http://127.0.0.1:3000/"
+    });
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {

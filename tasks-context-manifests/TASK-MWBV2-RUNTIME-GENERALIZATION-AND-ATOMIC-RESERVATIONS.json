@@ -1,0 +1,52 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "将 v2 工作台空态、项目名占用和单次创建防重统一为独立通用运行时逻辑。",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "v2 task/manifest/project.state files",
+    "v2 source, frontend, scripts, package.json, db migration",
+    "Postgres marketing_workbench_v2.mwb only"
+  ],
+  "forbidden_actions": [
+    "OceanEngine platform API call",
+    "std_project/create retry",
+    "token refresh",
+    "legacy project runtime import",
+    "saving token, Cookie, full touchpoint URL, raw payload, or raw response"
+  ],
+  "acceptance": [
+    "runtime job history retained without implicit last-job workbench state",
+    "atomic project-name reservation and create-action claim",
+    "test_run isolation",
+    "P04 one-off script archive cleanup",
+    "generic CLI/check inputs"
+  ],
+  "completion": {
+    "project_status": "idle",
+    "platform_write_called": false,
+    "credential_refresh_called": false,
+    "legacy_runtime_dependency": false,
+    "next_gate": "new independent intake or a separately scoped apiCode=40000 read-only review"
+  }
+}

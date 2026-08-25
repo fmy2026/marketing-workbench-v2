@@ -96,10 +96,8 @@ try {
 
   const firstBundle = await repo.getLaunchJobBundle(firstDraft.jobId);
   const secondBundle = await repo.getLaunchJobBundle(secondDraft.jobId);
-  const latestJobId = await repo.latestJobId();
   if (firstBundle.job.source_usage !== "test_run") throw new Error("first smoke job source_usage is not test_run");
   if (secondBundle.job.source_usage !== "test_run") throw new Error("second smoke job source_usage is not test_run");
-  if (latestJobId === firstDraft.jobId || latestJobId === secondDraft.jobId) throw new Error("latestJobId returned a smoke test job");
   if (firstBundle.platformAction || secondBundle.platformAction) throw new Error("dry_run recorded platform action");
   if (firstBundle.createdObject || secondBundle.createdObject) throw new Error("dry_run recorded created object");
 
@@ -116,7 +114,6 @@ try {
     secondPayloadHash: secondDraft.draft.payloadHash,
     firstSourceUsage: firstBundle.job.source_usage,
     secondSourceUsage: secondBundle.job.source_usage,
-    latestJobId,
     touchpointStatus: firstDraft.touchpoint.status,
     touchpointHash: firstDraft.touchpoint.urlHash,
     payloadContract: firstContract,

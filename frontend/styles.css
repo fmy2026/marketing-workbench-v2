@@ -385,6 +385,12 @@ p {
   gap: 7px;
 }
 
+.empty-workflow {
+  margin: 24px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .node-row {
   min-height: 52px;
   gap: 10px;

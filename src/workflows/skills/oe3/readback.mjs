@@ -17,7 +17,7 @@ function readbackPlaceholder({ jobId, projectName }) {
   };
 }
 
-export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "" } = {}) {
+export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "", createResult = null } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const isMock = latestBundle.platformAction?.action_type === "mock_oceanengine_std_project_create";
   if (mode !== "readback_only" && mode !== "execute_once") {
@@ -27,6 +27,19 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
       outputSummary: {
         readbackStatus: "not_applicable",
         reason: "dry_run 不执行 Node 7。"
+      }
+    };
+  }
+
+  if (createResult?.status === "blocked_before_create" ||
+    (createResult?.status === "blocked" && createResult?.outputSummary?.createNodeStatus === "blocked_before_create")) {
+    return {
+      status: "locked",
+      blockers: ["readback_skipped_when_create_claim_not_owned"],
+      outputSummary: {
+        readbackStatus: "not_run",
+        objectNameSource: "launch_drafts.project_name",
+        realPlatformReadbackCalled: false
       }
     };
   }

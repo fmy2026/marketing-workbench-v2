@@ -172,6 +172,20 @@ function checkInteger(payload, path, { blockerCode = `invalid_integer_field:${pa
   });
 }
 
+function checkIntegerOrDigitString(payload, path, { blockerCode = `invalid_integer_or_digit_string_field:${path}` } = {}) {
+  const value = valueAt(payload, path);
+  const ok = Number.isSafeInteger(value) || (typeof value === "string" && /^\d+$/.test(value));
+  return diag({
+    checkId: `integer_or_digit_string:${path}`,
+    fieldPath: path,
+    status: ok ? "passed" : "blocked",
+    expectedTypeOrRule: "safe_integer_number_or_decimal_digit_string",
+    actualValue: value,
+    blockerCode,
+    repairHint: `${path} 必须是安全 integer；超过 JS 安全整数范围的平台长 ID 必须保持数字字符串。`
+  });
+}
+
 function checkIntegerArray(payload, path) {
   const value = valueAt(payload, path);
   const ok = Array.isArray(value) && value.length > 0 && value.every((item) => Number.isInteger(item));
@@ -326,7 +340,9 @@ export function evaluateStdProjectCreatePreflight({
     }));
     diagnostics.push(checkType(payload, "name", "string"));
     diagnostics.push(checkInteger(payload, "asset_id"));
-    diagnostics.push(checkInteger(payload, "instance_id"));
+    diagnostics.push(checkIntegerOrDigitString(payload, "instance_id", {
+      blockerCode: "invalid_lossless_platform_id:instance_id"
+    }));
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
     diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
     diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
@@ -376,6 +392,26 @@ export function evaluateStdProjectCreatePreflight({
       },
       blockerCode: "advertiser_id_not_safe_integer_for_platform_payload",
       repairHint: "Postgres/Job 保持 string，仅最终受控 create payload 转为 safe integer number。"
+    }));
+    diagnostics.push(diag({
+      checkId: "manifest:micro_app_instance_id_transport",
+      fieldPath: "final_payload_manifest.microAppInstanceIdTransportLossless",
+      status: requestFieldManifest.microAppInstanceIdPresent === true &&
+        (
+          requestFieldManifest.microAppInstanceIdTransportLossless === true ||
+          requestFieldManifest.microAppInstanceIdType === "string"
+        )
+        ? "passed"
+        : "blocked",
+      expectedTypeOrRule: "present_and_lossless_number_or_digit_string",
+      actualValue: {
+        present: requestFieldManifest.microAppInstanceIdPresent === true,
+        type: requestFieldManifest.microAppInstanceIdType || "",
+        strategy: requestFieldManifest.microAppInstanceIdTransportStrategy || "",
+        lossless: requestFieldManifest.microAppInstanceIdTransportLossless === true
+      },
+      blockerCode: "micro_app_instance_id_not_lossless_for_platform_payload",
+      repairHint: "字节小游戏 instance_id 为平台长数字 ID；超过 JS safe integer 时必须以数字字符串进入最终受控 payload。"
     }));
     diagnostics.push(diag({
       checkId: "contract:payload_contract",

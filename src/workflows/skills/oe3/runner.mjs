@@ -297,7 +297,8 @@ async function executeSkill({ repo, context, skillKey }) {
       bundle: context.bundle,
       mode: context.mode,
       fetchImpl: context.fetchImpl || globalThis.fetch,
-      grantSource: context.grantSource || ""
+      grantSource: context.grantSource || "",
+      createResult: output(context, "create-once")
     });
   } else {
     throw new Error(`skill_not_implemented:${skillKey}`);

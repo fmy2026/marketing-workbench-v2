@@ -1,0 +1,14 @@
+{
+  "archived_at": "2026-08-25 CST",
+  "task_id": "TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS",
+  "reason": "P04-only video material prepare/bind scripts completed their one-time task and contained fixed P04 job, asset, and account context.",
+  "files": [
+    "scripts/oe3-video-material-prepare.mjs",
+    "scripts/oe3-video-material-bind-once.mjs"
+  ],
+  "runtime_policy": "Archived files must not be imported by src, referenced by package.json, exposed by API routes, or called by runtime shell scripts.",
+  "reference_tasks": [
+    "TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY",
+    "TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS"
+  ]
+}

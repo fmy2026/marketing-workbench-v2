@@ -283,6 +283,30 @@ try {
   assert(statuses.std_project_draft_builder === "needs_confirmation", "node 5 should need confirmation");
   assert(statuses.std_project_create_executor === "passed", "node 6 should pass");
   assert(statuses.readback_closer === "passed", "node 7 should pass");
+
+  const concurrentView = await createReadyTestJob("execution-grant-smoke:atomic-claim");
+  const concurrentState = await writeProjectStateForScope(concurrentView);
+  const concurrentFetch = fakeFetchFactory({ projectId: "999900008" });
+  const concurrentResults = await Promise.all([
+    executeConfirmedLaunch({
+      repo,
+      jobId: concurrentView.jobId,
+      grantSource: "test_fake_transport",
+      executionIntent: EXECUTION_GRANT_INTENT,
+      fetchImpl: concurrentFetch,
+      projectStatePath: concurrentState
+    }),
+    executeConfirmedLaunch({
+      repo,
+      jobId: concurrentView.jobId,
+      grantSource: "test_fake_transport",
+      executionIntent: EXECUTION_GRANT_INTENT,
+      fetchImpl: concurrentFetch,
+      projectStatePath: concurrentState
+    })
+  ]);
+  assertOneCreateOneReadback(concurrentFetch);
+  assert(concurrentResults.filter((view) => view.executionGrant?.createCalled === true).length === 1, "atomic claim must allow one create caller");
   assert(result.headline.status === "created", "job should be created after fake readback");
   assert(result.executionGrant.createCalled === true, "execution grant should report createCalled");
   assert(result.readback?.status === "readback_verified", "readback should be verified");
@@ -389,6 +413,7 @@ try {
     anomalyRecovered: true,
     anomalyMissStopped: true,
     invalidShapePreflightBlocked: true,
+    atomicClaimAllowedOneCreate: true,
     preCreateGateBlockedWithoutCalls: true,
     node6Status: statuses.std_project_create_executor,
     node7Status: statuses.readback_closer,

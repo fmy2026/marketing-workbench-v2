@@ -15,7 +15,8 @@
 | 启动命令 | `npm run dev` |
 | 工作台地址 | `http://127.0.0.1:3000/` |
 | API 根路径 | `http://127.0.0.1:3000/api/` |
-默认只使用上述地址。端口冲突只能临时排障，不能把其他地址写成项目入口。
+| 默认状态 | `idle`；不自动加载最后一次 job |
+默认只使用上述地址。端口冲突只能临时排障，不能把其他地址写成项目入口。历史 job 只允许显式 `?job_id=` 只读查看，后续列表界面另建任务。
 
 ## 真值
 优先级：`project.state.json` -> Postgres `marketing_workbench_v2.mwb` -> active task / manifest -> `schemas/` -> 稳定 docs。
@@ -61,7 +62,7 @@ frontend/API
 
 ## 记录规则
 Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。
-`source_usage` 规则：`runtime_truth` 是真实用户轮次；`test_run` 是临时测试，必须由 smoke/CLI 清理；`seed_source` 是初始化基准，不得当运行真值。
+`source_usage` 规则：`runtime_truth` 是真实用户轮次；`test_run` 是临时测试，必须由 smoke/CLI 清理且不影响真实项目名占用；`seed_source` 是初始化基准，不得当运行真值。项目名占用只写 `mwb.project_name_reservations`，不能由最后 job 或 source record 魔法值推断。
 
 ## 红线
 - `project.state.json.guardrails` 是当前权限边界；任务可以收紧，不能自行放宽。

@@ -1,0 +1,191 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE",
+  "status": "completed_create_failed_waiting_manual_review",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "为 fresh runtime job 消耗一次且仅一次真实 OceanEngine std_project/create，并在失败后收回写权限与记录复盘 gate。",
+    "mode": "single_real_std_project_create_once_consumed_failed",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency",
+    "confirmation_required_before_write": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.json",
+    "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.md",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "scripts/launch-execute-once.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "allowed_writes_before_confirmation": [
+    "tasks/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.json",
+    "project.state.json",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_drafts",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.readback_records with dry_run not_applicable only"
+  ],
+  "allowed_writes_after_explicit_confirmation": [
+    "project.state.json exact one-time platform_write_scope",
+    "Postgres marketing_workbench_v2.mwb.launch_confirmations",
+    "Postgres marketing_workbench_v2.mwb.platform_actions",
+    "Postgres marketing_workbench_v2.mwb.created_objects",
+    "Postgres marketing_workbench_v2.mwb.readback_records",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs"
+  ],
+  "forbidden_actions": [
+    "std_project/create before explicit user confirmation",
+    "create retry",
+    "promotion create",
+    "video upload",
+    "video material bind",
+    "cover image upload or bind",
+    "token refresh",
+    "DMP write or push",
+    "event asset create",
+    "budget or bid update",
+    "restoring P03 or P04 create scope",
+    "runtime import from /Users/hys/Projects/marketing-workbench",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/raw payload/raw response"
+  ],
+  "target": {
+    "job_id": "JOB-MWBV2-20260825041227-12D2B5",
+    "draft_id": "DRAFT-JOB-MWBV2-20260825041227-12D2B5",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922175825993",
+    "object_type": "std_project",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260825",
+    "payload_hash": "sha256:1a1e605d82f4bcd482ad3a06eac190d3b1ba088009abfecf196bbe28da5291bd"
+  },
+  "execution_gate": {
+    "required_cli_env": "MWBV2_OE_EXECUTION_CONFIRM=EXECUTE_ONE_LAUNCH",
+    "required_executor_confirm_value": "CREATE_ONE_STD_PROJECT",
+    "allowed_actions": [
+      "oceanengine_std_project_create"
+    ],
+    "maximum_actions": 1,
+    "retry_allowed": false,
+    "unique_entrypoint": "npm run launch:execute-once -- --job-id JOB-MWBV2-20260825041227-12D2B5"
+  },
+  "validation_plan": [
+    "Run npm run token:status",
+    "Run npm run workflow:dry-run -- --job-id JOB-MWBV2-20260825041227-12D2B5",
+    "Verify fixed draft_id/project_name/payload_hash did not drift",
+    "Verify node statuses are 1-4 passed, 5 needs_confirmation, 6 locked, 7 waiting",
+    "Verify duplicate_status=platform_not_duplicate, payload contract passed, create preflight passed",
+    "Verify create action, launch confirmation, created object, and real readback counts are all zero before confirmation",
+    "Verify project.state guardrails still have platform_write_allowed=false before confirmation",
+    "After explicit confirmation only: open exact scope, run launch:execute-once once, verify scope revoked"
+  ],
+  "risk_notes": [
+    "This task contains real platform write, but current user message only asked to prepare and advance the task; do not execute create until explicit confirmation is received.",
+    "A successful create generates a real OceanEngine std_project and must not be retried.",
+    "Failure still consumes the single create attempt for this job; record redacted evidence and stop."
+  ],
+  "pre_confirmation_check_summary": {
+    "checked_at": "2026-08-25 CST",
+    "status": "passed_waiting_explicit_create_confirmation",
+    "token_status": "valid_redacted",
+    "dry_run": {
+      "status": "passed",
+      "job_status": "draft_ready",
+      "current_node": "5",
+      "no_real_platform_write": true,
+      "no_token_refresh": true
+    },
+    "node_statuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "needs_confirmation",
+      "std_project_create_executor": "locked",
+      "readback_closer": "waiting"
+    },
+    "readiness": {
+      "create_readiness_status": "ready_for_user_create_confirmation",
+      "duplicate_status": "platform_not_duplicate",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "final_payload_blockers": [],
+      "final_material_readiness": {
+        "selected_required_video_count": 2,
+        "verified_video_count": 2,
+        "cover_ready_count": 2
+      }
+    },
+    "attempt_state": {
+      "create_actions": 0,
+      "confirmations": 0,
+      "created_objects": 0,
+      "real_readbacks": 0
+    },
+    "remaining_blocker": ""
+  },
+  "execution_confirmation": {
+    "confirmed_at": "2026-08-25 CST",
+    "user_confirmation_text": "确认执行，直接执行",
+    "scope_status": "consumed_and_revoked"
+  },
+  "execution_result": {
+    "status": "failed_waiting_manual_review",
+    "local_preflight_first_attempt": {
+      "create_called": false,
+      "blocker": "invalid_integer_field:instance_id",
+      "resolution": "instance_id kept as digit string long platform ID",
+      "payload_hash_after_fix": "sha256:1a1e605d82f4bcd482ad3a06eac190d3b1ba088009abfecf196bbe28da5291bd"
+    },
+    "platform_create_attempt": {
+      "create_called": true,
+      "action_id": "ACTION-JOB-MWBV2-20260825041227-12D2B5-STD-PROJECT-CREATE-ONCE",
+      "action_status": "failed_or_unconfirmed",
+      "http_status": 200,
+      "api_code": 40000,
+      "request_id_present": true,
+      "object_id_present": false,
+      "error_summary": "platform_create_response_not_confirmed",
+      "raw_payload_stored": false,
+      "raw_response_stored": false,
+      "retry_allowed": false
+    },
+    "readback": {
+      "status": "not_found_after_create",
+      "object_id": "NOT_FOUND_AFTER_CREATE",
+      "object_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260825",
+      "created_objects": 0,
+      "real_platform_readback_called": true
+    },
+    "final_node_statuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "needs_confirmation",
+      "std_project_create_executor": "failed",
+      "readback_closer": "failed"
+    },
+    "final_guardrail": {
+      "platform_write_allowed": false,
+      "allowed_actions": [],
+      "maximum_actions": 0,
+      "retry_allowed": false
+    },
+    "next_gate": "apiCode=40000 failure review or user-provided platform-side error details; this job must not be retried"
+  }
+}

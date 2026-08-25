@@ -7,33 +7,34 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "fresh_runtime_draft_ready_waiting_single_create_authorization",
+  "project_status": "idle",
   "phase": {
-    "id": "OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY",
+    "id": "RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS",
     "status": "completed",
     "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.md",
-  "next_gate": "fresh runtime job/draft 已就绪：JOB-MWBV2-20260825041227-12D2B5 / DRAFT-JOB-MWBV2-20260825041227-12D2B5，duplicate check、payload contract、create preflight 均通过。下一步另建新的单次真实 std_project/create 授权任务；当前仍禁止 std_project/create，不恢复 P04 旧 create scope。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS.md",
+  "next_gate": "等待新的独立 intake。历史 job 仅通过显式 job_id 只读查看；如需复盘 apiCode=40000，必须另建只读失败复盘任务，禁止重试既有 create。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "completed_single_oceanengine_video_material_bind_for_p04",
-      "target_job_id": "JOB-MWBV2-20260824151431-ECA120",
-      "target_draft_id": "DRAFT-JOB-MWBV2-20260824151431-ECA120",
-      "source_asset_id": "JSZC-HUNT-4GE6-14",
-      "source_advertiser_id": "1760246749825031",
-      "target_advertiser_id": "1871922175825993",
-      "previous_create_scope_status": "superseded_p04_create_scope_material_strategy_changed",
-      "previous_create_scope_payload_hash": "sha256:cbdb497145254b17c8c87c1863ffea4f28c6d69ddfc246f329e56947b4896b5a",
-      "current_p04_payload_hash": "sha256:11e4a6623b5aba40a63d134cda6346b84de4c89550f1859f6dbef6b5d4e10e80",
-      "allowed_actions": [
-        "oceanengine_material_bind_target"
-      ],
-      "maximum_actions": 1,
+      "mode": "read_only_no_platform_write_after_single_create_attempt",
+      "target_job_id": "",
+      "target_draft_id": "",
+      "target_payload_hash": "",
+      "target_project_name": "",
+      "target_advertiser_id": "",
+      "allowed_actions": [],
+      "maximum_actions": 0,
       "retry_allowed": false,
-      "revoked_at": "2026-08-25T03:59:32.666Z"
+      "granted_at": "2026-08-25T05:09:00.000Z",
+      "granted_by": "user_explicit_confirmation_after_lossless_instance_id_fix",
+      "previous_blocked_before_create": {
+        "create_called": false,
+        "blocker": "invalid_integer_field:instance_id",
+        "resolution": "instance_id kept as digit string long platform ID"
+      }
     },
     "credential_refresh_allowed": false,
     "credential_refresh_scope": {
@@ -88,11 +89,10 @@
     "local_scripts": "scripts/",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
-    "runtime_state": "fresh_runtime_draft_ready_waiting_single_create_authorization",
-    "latest_fresh_runtime_job": "JOB-MWBV2-20260825041227-12D2B5",
-    "latest_fresh_runtime_draft": "DRAFT-JOB-MWBV2-20260825041227-12D2B5",
+    "runtime_state": "idle",
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
+    "project_name_reservations": "database-level durable project-name occupancy; runtime_truth is durable and test_run is isolated",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",
     "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence",
     "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"

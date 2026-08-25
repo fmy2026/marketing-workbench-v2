@@ -275,38 +275,50 @@ export async function createStdProjectForTargetOnce({
   const confirmationId = `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
   const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
   const requestHash = `sha256:${sha256(canonicalJson(prepared.payload))}`;
-  await repo.upsertLaunchConfirmation({
-    confirmationId,
-    jobId: runtimeTarget.jobId,
-    draftId: runtimeTarget.draftId,
-    objectType: runtimeTarget.objectType,
-    objectName: runtimeTarget.projectName,
-    payloadHash: runtimeTarget.payloadHash,
-    confirmationStatus: "confirmed_for_single_create",
-    confirmVariable: `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
-    metadata: {
-      grant_source: grantSource || "unknown",
-      execution_grant_id: executionGrantId || "",
-      job_id: runtimeTarget.jobId,
-      payload_hash: runtimeTarget.payloadHash,
-      maximum_actions: 1,
-      retry_allowed: false,
-      raw_payload_stored: false,
-      raw_response_stored: false
+  const claim = await repo.claimStdProjectCreateAction({
+    confirmation: {
+      confirmationId,
+      jobId: runtimeTarget.jobId,
+      draftId: runtimeTarget.draftId,
+      objectType: runtimeTarget.objectType,
+      objectName: runtimeTarget.projectName,
+      payloadHash: runtimeTarget.payloadHash,
+      confirmationStatus: "confirmed_for_single_create",
+      confirmVariable: `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
+      metadata: {
+        grant_source: grantSource || "unknown",
+        execution_grant_id: executionGrantId || "",
+        job_id: runtimeTarget.jobId,
+        payload_hash: runtimeTarget.payloadHash,
+        maximum_actions: 1,
+        retry_allowed: false,
+        raw_payload_stored: false,
+        raw_response_stored: false
+      }
+    },
+    action: {
+      actionId,
+      jobId: runtimeTarget.jobId,
+      confirmationId,
+      actionType: "oceanengine_std_project_create",
+      endpoint: CREATE_ENDPOINT,
+      method: "POST",
+      attemptNo: 1,
+      requestHash,
+      metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
     }
   });
-  await repo.upsertPlatformAction({
-    actionId,
-    jobId: runtimeTarget.jobId,
-    confirmationId,
-    actionType: "oceanengine_std_project_create",
-    endpoint: CREATE_ENDPOINT,
-    method: "POST",
-    actionStatus: "started",
-    attemptNo: 1,
-    requestHash,
-    metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
-  });
+  if (!claim.claimed) {
+    return {
+      status: "blocked_before_create",
+      createCalled: false,
+      blockers: ["platform_action_already_recorded"],
+      credentialStatus: credentialSummary.status,
+      attemptState: await createAttemptState(repo, runtimeTarget.jobId),
+      redactedPayloadSummary: prepared.redactedPayloadSummary,
+      createPreflight: prepared.createPreflight
+    };
+  }
 
   const response = await fetchImpl(`${API_BASE}${CREATE_ENDPOINT}`, {
     method: "POST",

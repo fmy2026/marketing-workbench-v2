@@ -1,6 +1,7 @@
 (function () {
   let job = null;
   let busy = false;
+  let viewOnly = false;
 
   const DONE_STATUSES = new Set(["passed", "needs_confirmation"]);
   const REASON_STATUSES = new Set(["blocked", "repairable", "failed", "needs_confirmation"]);
@@ -32,11 +33,6 @@
       throw error;
     }
     return body;
-  }
-
-  function currentJobPath() {
-    if (!job?.jobId) return "/api/launch/jobs/latest";
-    return `/api/launch/jobs/${encodeURIComponent(job.jobId)}`;
   }
 
   function allNodes() {
@@ -71,6 +67,7 @@
   function renderChat() {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
+    if (!job) return;
     (job?.chat || []).slice(-4).forEach((message) => {
       if (message?.text) addMessage(message.role === "user" ? "user" : "agent", message.text);
     });
@@ -126,8 +123,12 @@
       grid.append(section);
     });
 
+    if (!job) {
+      grid.append(el("p", "empty-workflow", "等待新的投放需求"));
+    }
+
     document.getElementById("workflowHint").textContent = currentReason();
-    document.getElementById("runState").textContent = job?.headline?.statusLabel || "待执行";
+    document.getElementById("runState").textContent = job?.headline?.statusLabel || "空闲";
   }
 
   function renderCommand() {
@@ -141,8 +142,10 @@
       job?.headline?.status === "failed_waiting_manual_review" ||
       job?.headline?.status === "created_pending_readback" ||
       job?.headline?.status === "created";
-    button.disabled = busy || !job?.jobId || createAttempted;
-    label.textContent = busy ? "执行中" : (createAttempted ? "禁止重试" : "开始执行");
+    button.disabled = busy || !job?.jobId || createAttempted || viewOnly;
+    label.textContent = busy ? "执行中" : (viewOnly ? "查看记录" : (createAttempted ? "禁止重试" : "开始执行"));
+    document.getElementById("chatInput").disabled = viewOnly;
+    document.querySelector(".send-button").disabled = viewOnly;
     refreshIcons();
   }
 
@@ -159,19 +162,31 @@
   }
 
   async function refreshJob() {
-    job = await api(currentJobPath());
+    if (!job?.jobId) return;
+    job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}`);
+    renderAll();
+  }
+
+  function terminalJob(view) {
+    return ["created", "failed_waiting_manual_review"].includes(view?.headline?.status);
+  }
+
+  function returnToIdle() {
+    job = null;
+    viewOnly = false;
     renderAll();
   }
 
   async function runWorkflow() {
-    if (!job?.jobId || busy) return;
+    if (!job?.jobId || busy || viewOnly) return;
     setBusy(true);
     try {
       job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/execute-once`, {
         method: "POST",
         body: JSON.stringify({ execution_intent: "EXECUTE_ONE_LAUNCH" })
       });
-      renderAll();
+      if (terminalJob(job)) returnToIdle();
+      else renderAll();
     } catch (error) {
       showError(error);
     } finally {
@@ -186,7 +201,7 @@
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (!text || busy) return;
+      if (!text || busy || viewOnly) return;
       addMessage("user", text);
       input.value = "";
       setBusy(true);
@@ -222,7 +237,12 @@
     try {
       const params = new URLSearchParams(window.location.search);
       const jobId = params.get("job_id");
-      job = await api(jobId ? `/api/launch/jobs/${encodeURIComponent(jobId)}` : "/api/launch/jobs/latest");
+      viewOnly = Boolean(jobId);
+      if (jobId) {
+        job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}`);
+      } else {
+        await api("/api/launch/workbench");
+      }
       renderAll();
     } catch (error) {
       document.getElementById("agentStatus").textContent = "加载失败";
@@ -232,6 +252,6 @@
 
   document.addEventListener("DOMContentLoaded", init);
   window.addEventListener("focus", () => {
-    refreshJob().catch(() => {});
+    if (job?.jobId) refreshJob().catch(() => {});
   });
 })();

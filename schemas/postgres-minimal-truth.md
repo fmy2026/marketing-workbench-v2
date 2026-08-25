@@ -35,6 +35,7 @@
 | `mwb.launch_jobs` | 一次投放创建任务 |
 | `mwb.launch_node_runs` | 7 个 Workflow 节点状态、脱敏 `output_summary` 和证据引用 |
 | `mwb.launch_drafts` | 创建草稿摘要和稳定 hash |
+| `mwb.project_name_reservations` | 数据库级项目名占用；`runtime_truth` 持久占用，`test_run` 独立并随测试清理 |
 | `mwb.launch_confirmations` | 单次真实写入前的确认记录：确认哪个 draft/hash、确认变量和状态 |
 | `mwb.platform_actions` | 平台动作审计记录：endpoint、次数、状态、hash 和 request id 是否存在，不保存 raw payload/response |
 | `mwb.created_objects` | 真实创建对象记录：对象 ID、对象名、readback 状态和证据引用 |
@@ -56,6 +57,7 @@
 | `db/009_create_platform_write_records.sql` | 新增 `launch_confirmations`、`platform_actions`、`created_objects`，用于单次真实创建闭环 |
 | `db/010_runtime_consistency_cleanup.sql` | 结构一致性清理：`test_run` 标记、目标失败态修正、移除 `games.app_id` |
 | `db/011_purge_runtime_test_data_and_psequence_cleanup.sql` | 清理历史测试/占位运行数据，保留真实失败 job 和维度真值表，固化 `P**` 真实业务占用边界 |
+| `db/015_add_project_name_reservations.sql` | 新增项目名 reservation、回填历史草稿，并由唯一约束保护并发序号 |
 
 ## 读取约定
 

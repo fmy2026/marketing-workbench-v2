@@ -53,6 +53,15 @@ function numberString(value) {
   return /^\d+$/.test(text) ? text : "";
 }
 
+function platformLongIdString(value) {
+  return numberString(value);
+}
+
+function platformIdTransportLossless(value) {
+  if (Number.isSafeInteger(value)) return true;
+  return typeof value === "string" && /^\d+$/.test(value);
+}
+
 function resource(bundle = {}, type) {
   return (bundle.resources || []).find((item) => item.resource_type === type) || {};
 }
@@ -241,7 +250,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, { configBlockers = [], 
     ...configBlockers,
     ...(!Number.isSafeInteger(payload.advertiser_id) ? ["advertiser_id_not_safe_integer_for_platform_payload"] : []),
     ...(!payload.asset_id ? ["asset_id_missing_or_not_integer"] : []),
-    ...(!payload.instance_id ? ["micro_app_instance_id_missing_or_not_integer"] : []),
+    ...(!platformIdTransportLossless(payload.instance_id) ? ["micro_app_instance_id_missing_or_not_lossless_platform_id"] : []),
     ...(!payload.aweme_id ? ["aweme_id_missing"] : []),
     ...(!payload.project_materials?.mini_program_info?.url ? ["mini_program_url_missing"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
@@ -285,6 +294,8 @@ function fieldManifest(payload = {}, blockers = [], { advertiserIdStorageValue =
     eventAssetIdType: payload.asset_id === null ? "null" : typeof payload.asset_id,
     microAppInstanceIdPresent: Boolean(payload.instance_id),
     microAppInstanceIdType: payload.instance_id === null ? "null" : typeof payload.instance_id,
+    microAppInstanceIdTransportLossless: platformIdTransportLossless(payload.instance_id),
+    microAppInstanceIdTransportStrategy: typeof payload.instance_id === "string" ? "digit_string_long_platform_id" : "safe_integer_number",
     awemeIdPresent: Boolean(payload.aweme_id),
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
@@ -364,7 +375,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
     delivery_type: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_type", configBlockers)),
     delivery_medium: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_medium", configBlockers)),
     micro_promotion_type: clean(requiredConfigValue(payloadDefaults, "strategy.micro_promotion_type", configBlockers)),
-    [instanceCreateField]: intOrNull(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"])),
+    [instanceCreateField]: platformLongIdString(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"])),
     asset_id: intOrNull(eventAsset.platform_resource_id),
     schedule_type: clean(requiredConfigValue(payloadDefaults, "schedule.schedule_type", configBlockers)),
     bid_type: clean(requiredConfigValue(payloadDefaults, "strategy.bid_type", configBlockers)),
