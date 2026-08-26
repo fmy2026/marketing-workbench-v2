@@ -7,7 +7,13 @@ import {
 
 const ALLOWED_ENDPOINTS = new Set([
   "/tf/account_info/accountIndex",
+  "/ajax/selectList/getList",
   "/tf/ad/index",
+  "/tf/ad/changeCateId",
+  "/tf/ad/changeVestId",
+  "/tf/ad/changePackageId",
+  "/tf/ad/changeMediaId",
+  "/tf/ad/changeMediaAccountId",
   "/tf/ad/monitorSerialNumberAdd"
 ]);
 
@@ -141,6 +147,130 @@ function compactMonitorList(payload = {}, { includeControlledTouchpointUrl = fal
   });
 }
 
+function compactVestList(payload = {}) {
+  const list = Array.isArray(payload.data?.vestList) ? payload.data.vestList : [];
+  return list.map((item) => ({
+    label: clean(item?.label),
+    value: clean(item?.value),
+    labelPresent: clean(item?.label) !== "",
+    valuePresent: clean(item?.value) !== "",
+    rawValueType: typeof item?.value
+  }));
+}
+
+function compactPackageList(payload = {}) {
+  const list = Array.isArray(payload.data) ? payload.data : [];
+  return list.map((item) => ({
+    label: clean(item?.label),
+    value: clean(item?.value),
+    labelPresent: clean(item?.label) !== "",
+    valuePresent: clean(item?.value) !== "",
+    rawValueType: typeof item?.value
+  }));
+}
+
+function compactOptionList(list = []) {
+  return (Array.isArray(list) ? list : []).map((item) => ({
+    label: clean(item?.label),
+    value: clean(item?.value),
+    labelPresent: clean(item?.label) !== "",
+    valuePresent: clean(item?.value) !== "",
+    rawValueType: typeof item?.value
+  }));
+}
+
+function firstArray(...values) {
+  return values.find((value) => Array.isArray(value)) || [];
+}
+
+function compactSelectList(payload = {}) {
+  const list = firstArray(
+    payload.data,
+    payload.data?.list,
+    payload.data?.cateList,
+    payload.data?.mediaList,
+    payload.list
+  );
+  return {
+    listPresent: Array.isArray(list),
+    listCount: Array.isArray(list) ? list.length : 0,
+    list: compactOptionList(list)
+  };
+}
+
+function compactPackageBaseInfo(payload = {}) {
+  const data = payload && typeof payload.data === "object" && !Array.isArray(payload.data) && payload.data
+    ? payload.data
+    : {};
+  return {
+    dataObjectPresent: Boolean(data && Object.keys(data).length),
+    fieldsPresent: {
+      cateId: data.cateId !== undefined && data.cateId !== null,
+      vestId: data.vestId !== undefined && data.vestId !== null,
+      vestList: Array.isArray(data.vestList),
+      owner: clean(data.owner) !== "",
+      channel: clean(data.channel) !== "",
+      package_download_url: clean(data.packageDownloadUrl) !== "",
+      isTfDepartment: data.isTfDepartment !== undefined && data.isTfDepartment !== null,
+      hasMonitorSerialNumber: data.hasMonitorSerialNumber !== undefined && data.hasMonitorSerialNumber !== null,
+      mediaId: data.mediaId !== undefined && data.mediaId !== null && clean(data.mediaId) !== "",
+      agentId: data.agentId !== undefined && data.agentId !== null && clean(data.agentId) !== "",
+      mediaList: Array.isArray(data.mediaList),
+      accountIdList: Array.isArray(data.accountIdList),
+      monitorApiList: Array.isArray(data.monitorApiList)
+    },
+    cateId: clean(data.cateId),
+    vestId: clean(data.vestId),
+    owner: clean(data.owner),
+    channel: clean(data.channel),
+    package_download_url_present: clean(data.packageDownloadUrl) !== "",
+    isTfDepartment: typeof data.isTfDepartment === "boolean" ? data.isTfDepartment : null,
+    hasMonitorSerialNumber: typeof data.hasMonitorSerialNumber === "boolean" ? data.hasMonitorSerialNumber : null,
+    mediaId: clean(data.mediaId),
+    agentId: clean(data.agentId),
+    mediaList: compactOptionList(data.mediaList),
+    accountIdList: compactOptionList(data.accountIdList),
+    monitorApiList: compactOptionList(data.monitorApiList)
+  };
+}
+
+function compactMediaInfo(payload = {}) {
+  const data = payload && typeof payload.data === "object" && !Array.isArray(payload.data) && payload.data
+    ? payload.data
+    : {};
+  return {
+    dataObjectPresent: Boolean(data && Object.keys(data).length),
+    fieldsPresent: {
+      mediaId: data.mediaId !== undefined && data.mediaId !== null && clean(data.mediaId) !== "",
+      mediaName: clean(data.mediaName || data.media_name) !== "",
+      accountIdList: Array.isArray(data.accountIdList),
+      monitorApiList: Array.isArray(data.monitorApiList)
+    },
+    mediaId: clean(data.mediaId),
+    mediaName: clean(data.mediaName || data.media_name),
+    accountIdList: compactOptionList(data.accountIdList),
+    monitorApiList: compactOptionList(data.monitorApiList)
+  };
+}
+
+function compactMediaAccountInfo(payload = {}) {
+  const data = payload && typeof payload.data === "object" && !Array.isArray(payload.data) && payload.data
+    ? payload.data
+    : {};
+  const agentList = firstArray(data.agentList, data.agent_id_list, data.agentIdList);
+  return {
+    dataObjectPresent: Boolean(data && Object.keys(data).length),
+    fieldsPresent: {
+      agentId: data.agentId !== undefined && data.agentId !== null && clean(data.agentId) !== "",
+      agentName: clean(data.agentName || data.agent_name) !== "",
+      agentList: Array.isArray(agentList)
+    },
+    agentId: clean(data.agentId),
+    agentName: clean(data.agentName || data.agent_name),
+    agentList: compactOptionList(agentList)
+  };
+}
+
 function endpointSummary(endpoint, payload = {}, options = {}) {
   if (endpoint === "/tf/account_info/accountIndex") {
     return {
@@ -148,12 +278,38 @@ function endpointSummary(endpoint, payload = {}, options = {}) {
       list: compactAccountList(payload)
     };
   }
+  if (endpoint === "/ajax/selectList/getList") {
+    return compactSelectList(payload);
+  }
   if (endpoint === "/tf/ad/index") {
     return {
       resultTotal: Number(payload.data?.resultTotal || 0),
       list: compactMonitorList(payload, options),
       columnNames: Array.isArray(payload.data?.columns) ? payload.data.columns.map((item) => clean(item.name)).filter(Boolean) : []
     };
+  }
+  if (endpoint === "/tf/ad/changeCateId") {
+    return {
+      vestListPresent: Array.isArray(payload.data?.vestList),
+      vestListCount: Array.isArray(payload.data?.vestList) ? payload.data.vestList.length : 0,
+      vestList: compactVestList(payload)
+    };
+  }
+  if (endpoint === "/tf/ad/changeVestId") {
+    return {
+      packageListPresent: Array.isArray(payload.data),
+      packageListCount: Array.isArray(payload.data) ? payload.data.length : 0,
+      packageList: compactPackageList(payload)
+    };
+  }
+  if (endpoint === "/tf/ad/changePackageId") {
+    return compactPackageBaseInfo(payload);
+  }
+  if (endpoint === "/tf/ad/changeMediaId") {
+    return compactMediaInfo(payload);
+  }
+  if (endpoint === "/tf/ad/changeMediaAccountId") {
+    return compactMediaAccountInfo(payload);
   }
   return {
     dataPresent: dataPresent(payload)
@@ -310,6 +466,60 @@ export class QiankunMonitorClient {
       ownerKey,
       params: { pageNo: 1, pageSize: 50, ...params },
       includeControlledTouchpointUrl
+    });
+  }
+
+  queryVestsByCate({ ownerKey, cateId, os }) {
+    return this.postForm({
+      label: "qiankun_cate_vest_readonly",
+      endpoint: "/tf/ad/changeCateId",
+      ownerKey,
+      params: { cateId, os }
+    });
+  }
+
+  queryPackagesByVest({ ownerKey, vestId, os }) {
+    return this.postForm({
+      label: "qiankun_vest_package_readonly",
+      endpoint: "/tf/ad/changeVestId",
+      ownerKey,
+      params: { vestId, os }
+    });
+  }
+
+  queryPackageBaseInfo({ ownerKey, packageId, os, host }) {
+    return this.postForm({
+      label: "qiankun_package_base_info_readonly",
+      endpoint: "/tf/ad/changePackageId",
+      ownerKey,
+      params: { package_id: packageId, os, host }
+    });
+  }
+
+  querySelectList({ ownerKey, type }) {
+    return this.postForm({
+      label: `qiankun_select_list_${clean(type) || "unknown"}`,
+      endpoint: "/ajax/selectList/getList",
+      ownerKey,
+      params: { type }
+    });
+  }
+
+  queryMediaInfo({ ownerKey, mediaId, os }) {
+    return this.postForm({
+      label: "qiankun_media_info_readonly",
+      endpoint: "/tf/ad/changeMediaId",
+      ownerKey,
+      params: { os, media_id: mediaId }
+    });
+  }
+
+  queryMediaAccountInfo({ ownerKey, mediaAccountId }) {
+    return this.postForm({
+      label: "qiankun_media_account_info_readonly",
+      endpoint: "/tf/ad/changeMediaAccountId",
+      ownerKey,
+      params: { media_account_id: mediaAccountId }
     });
   }
 

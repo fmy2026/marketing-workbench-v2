@@ -1,0 +1,121 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.md",
+  "status": "paused_pending_rebreakdown",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "历史只读底座大需求记录。已按用户要求暂停，等待重新评估并拆分为更小任务。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It narrows this task to readonly Qiankun APIs and does not authorize any real platform write.",
+    "api_contract_ref": "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "paused_historical_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "second_create_paused": true,
+    "implementation_paused": true,
+    "pause_reason": "Requirement scope is too large and may be unreasonable without rebreakdown."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/021_monitor_provision_defaults_reports.sql",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "paused_needs_rebreakdown",
+    "reason": "The direction removes write risk, but the proposed scope combines schema design, live sync, matching correction, workflow defaults, and reports into one task.",
+    "key_risks": [
+      "Qiankun readonly endpoints may return display labels without hidden technical IDs, which must produce incomplete instead of a false exact match.",
+      "Historical fixed parameters may be wrong for the target advertiser until verified through the documented option cascade.",
+      "Live readonly sync depends on the locally stored Qiankun passport token remaining active."
+    ],
+    "recommendation": "Do not continue this task as one large implementation. Re-split before any code, database, or live API work."
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /ajax/selectList/getList",
+      "POST /tf/ad/changeCateId",
+      "POST /tf/ad/changeVestId",
+      "POST /tf/ad/changePackageId",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId",
+      "POST /tf/ad/index"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "token refresh"
+    ],
+    "sensitive_data_rule": "Do not write token, access token, request headers, raw request, raw response, raw callback URL, or complete touchpoint URL to task files, ordinary logs, frontend, API summaries, reports, or new foundation tables."
+  },
+  "database_plan": {
+    "migration": "not_created_or_applied_after_pause",
+    "new_tables": [
+      "mwb.qiankun_sync_runs",
+      "mwb.qiankun_account_profiles",
+      "mwb.qiankun_option_catalog",
+      "mwb.qiankun_monitor_config_candidates",
+      "mwb.qiankun_monitor_serial_inventory"
+    ],
+    "existing_tables_to_preserve": [
+      "mwb.monitor_provision_runs",
+      "mwb.monitor_provision_attempts",
+      "mwb.account_touchpoints"
+    ],
+    "defaults_change": "not_applied"
+  },
+  "implementation_plan": [
+    "Add readonly table migration and redacted foundation report view.",
+    "Extend the existing Qiankun monitor client with documented readonly endpoints and compact summaries.",
+    "Add repository methods for foundation sync rows, candidates, inventory, reports, and validated default lookup.",
+    "Add qiankun-monitor-foundation-sync skill and route monitor:foundation:sync through the existing CLI.",
+    "Correct monitor query filters and exactMonitorRows to compare advertiser_id, os, cate_id, vest_id, package_id, channel, media_id, agent_id, monitor_api, and usage.",
+    "Run readonly sync and verification commands, then update task records and project state."
+  ],
+  "acceptance": [
+    "Five readonly foundation tables exist and are queryable.",
+    "Target advertiser readonly sync writes redacted rows.",
+    "Historical defaults are downgraded to reference_candidate.",
+    "At least one config candidate exists with valid, invalid, incomplete, or stale status.",
+    "Monitor serial inventory produces exact_unique, no_match, ambiguous, or incomplete conclusion.",
+    "Second create count remains 0 and total attempt count remains 1.",
+    "No fake monitor_id and no complete URL leakage.",
+    "Validation commands complete or any external blocker is explicitly recorded."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, the request file, and the paused final ensure task.",
+    "Assessed the direction as safer than immediate retry, but user paused it as too large.",
+    "Removed unfinished code and unapplied migration draft from the active implementation path.",
+    "Kept this manifest only as a paused planning record."
+  ],
+  "execution_result": {
+    "code_changes_kept": false,
+    "postgres_migration_applied": false,
+    "qiankun_readonly_api_called": false,
+    "qiankun_write_api_called": false
+  },
+  "completion_gate": "paused_pending_rebreakdown; no implementation should continue from this large task."
+}

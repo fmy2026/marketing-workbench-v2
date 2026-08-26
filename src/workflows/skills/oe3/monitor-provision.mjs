@@ -1,6 +1,12 @@
 import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./contracts.mjs";
+import {
+  runQiankunCateVestReadonlySync,
+  runQiankunMonitorTechnicalCombinationReadonlySync,
+  runQiankunPackageBaseInfoReadonlySync,
+  runQiankunVestPackageReadonlySync
+} from "./qiankun-option-relation-sync.mjs";
 
 export const MONITOR_PROVISION_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -79,7 +85,7 @@ export function monitorProvisionFingerprint({ routeId, gameCode, advertiserId, t
 
 function monitorDefaultsReadiness(defaults = {}) {
   const config = defaults.monitor_provision || {};
-  const required = ["os", "package_id", "cate_id", "vest_id", "channel", "media_id", "monitor_api", "usage", "num"];
+  const required = ["os", "package_id", "cate_id", "vest_id", "channel", "media_id", "agent_id", "monitor_api", "usage", "num"];
   const missing = required.filter((key) => clean(config[key]) === "");
   return {
     present: defaults.monitor_provision_present === true,
@@ -280,7 +286,7 @@ function monitorCreateParams({ target = MONITOR_PROVISION_TARGET, account = {}, 
     num: technicalConfig.num,
     usage: technicalConfig.usage,
     monitor_api: clean(technicalConfig.monitor_api),
-    media_account_id: clean(account.mediaAccountId),
+    media_account_id: clean(account.qiankunAccountRecordId || account.technicalAccountRecordId || account.mediaAccountId),
     remark: `mwbv2-${target.gameCode}-${target.advertiserId}`
   };
   return Object.fromEntries(Object.entries(params).filter(([, value]) => clean(value) !== ""));
@@ -568,6 +574,17 @@ export async function runMonitorProvisionEnsure({
     gameCode: target.gameCode,
     advertiserId: target.advertiserId
   }) : null;
+  let storedAccount = null;
+  try {
+    const core = repo ? await repo.getCoreContext({
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId
+    }) : null;
+    storedAccount = core?.account || null;
+  } catch {
+    storedAccount = null;
+  }
   const attemptState = repo ? await repo.getMonitorProvisionAttemptState({ provisionId }) : null;
   const attempts = Array.isArray(attemptState?.attempts) ? attemptState.attempts : [];
   const attemptCount = attempts.length || Number(latestRun?.create_attempt_no || 0);
@@ -584,6 +601,10 @@ export async function runMonitorProvisionEnsure({
   if (!readiness.readyForReadonlyReconcile) {
     blockers.push(readiness.present ? `monitor_provision_defaults_incomplete:${readiness.missingFields.join(",")}` : "monitor_provision_defaults_missing");
   }
+  const qiankunIdentityVerified = storedAccount?.qiankun_identity_status === "verified" &&
+    Boolean(clean(storedAccount?.qiankun_account_record_id)) &&
+    Boolean(clean(storedAccount?.qiankun_owner_key));
+  if (!qiankunIdentityVerified) blockers.push("qiankun_monitor_config_unverified");
   if (!latestRun) blockers.push("monitor_provision_run_missing");
   if (attemptCount === 0) blockers.push("monitor_first_attempt_missing");
   if (attemptCount >= MONITOR_MAX_ATTEMPTS) blockers.push("monitor_create_attempt_limit_reached");
@@ -611,7 +632,8 @@ export async function runMonitorProvisionEnsure({
       defaults: {
         monitorProvisionPresent: readiness.present,
         missingFields: readiness.missingFields,
-        exactMonitorMatchingEnabled: readiness.readyForReadonlyReconcile
+        exactMonitorMatchingEnabled: readiness.readyForReadonlyReconcile,
+        qiankunMonitorConfigStatus: qiankunIdentityVerified ? "verified" : "qiankun_monitor_config_unverified"
       },
       latestRunBeforeCreate: latestRun ? {
         status: latestRun.status,
@@ -628,6 +650,7 @@ export async function runMonitorProvisionEnsure({
         retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
         maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
       },
+      qiankunMonitorConfigStatus: qiankunIdentityVerified ? "verified" : "qiankun_monitor_config_unverified",
       blockers,
       accountApiCalled: false,
       monitorListApiCalled: false,
@@ -690,11 +713,13 @@ export async function runMonitorProvisionEnsure({
     } else {
       const accountRow = accountRows[0];
       const resolvedOwnerKey = clean(accountRow.ssoOwnerKey || accountRow.ssoOwner);
+      const qiankunAccountRecordId = clean(storedAccount?.qiankun_account_record_id || accountRow.mediaAccountRecordId || accountRow.id);
       account = {
-        technicalAccountRecordId: clean(accountRow.id),
+        technicalAccountRecordId: qiankunAccountRecordId,
+        qiankunAccountRecordId,
         accountId: clean(accountRow.accountId),
         advertiserId: clean(accountRow.accountId),
-        mediaAccountId: clean(accountRow.mediaAccountRecordId || accountRow.id),
+        mediaAccountId: qiankunAccountRecordId,
         agentId: clean(accountRow.agentId),
         agentName: clean(accountRow.agentName),
         ownerKey: resolvedOwnerKey,
@@ -1129,6 +1154,18 @@ export async function runMonitorProvisionCommand({
     const safe = sanitizeForPublic(result);
     assertNoSensitiveLeak(safe);
     return safe;
+  }
+  if (cleanMode === "sync_cate_vest") {
+    return runQiankunCateVestReadonlySync({ repo, ownerKey });
+  }
+  if (cleanMode === "sync_vest_package") {
+    return runQiankunVestPackageReadonlySync({ repo, ownerKey });
+  }
+  if (cleanMode === "sync_package_base_info") {
+    return runQiankunPackageBaseInfoReadonlySync({ repo, ownerKey });
+  }
+  if (cleanMode === "sync_technical_combination") {
+    return runQiankunMonitorTechnicalCombinationReadonlySync({ repo, ownerKey });
   }
   throw new Error(`unsupported_monitor_provision_mode:${cleanMode}`);
 }

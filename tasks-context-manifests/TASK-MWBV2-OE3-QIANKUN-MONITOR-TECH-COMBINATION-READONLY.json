@@ -1,0 +1,174 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "补齐乾坤监测创建前的媒体账户技术组合只读核验链路，降级历史默认技术字段，避免未核验参数进入 monitor 创建。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It does not authorize real platform writes, token refresh, monitor serial creation, material upload, event asset creation, DMP push, or budget/bid change.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "observed_package_chain": {
+      "cate_id": "122",
+      "vest_id": "1414",
+      "package_id": "36820",
+      "channel": "dymini3k"
+    },
+    "reference_candidates": {
+      "media_id": "310",
+      "agent_id": "613",
+      "monitor_api": "toutiao_wxgame"
+    },
+    "new_evidence_type": "qiankun_monitor_technical_combination_readonly"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/021_monitor_provision_defaults_reports.sql",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "db/023_add_qiankun_option_relations.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json",
+    "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The request separates package selection from account/media technical configuration and prevents historical defaults from being used as creation truth before readonly verification.",
+    "non_blocking_caveats": [
+      "Qiankun internal endpoint contracts are not directly found in the local public OE3 docs; rely on project-provided Qiankun docs and live readonly checks.",
+      "Historical media_id, agent_id, and monitor_api values are reference candidates only until observed through readonly APIs.",
+      "Any zero, multiple, or mismatched account/media/agent result blocks config readiness."
+    ]
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /ajax/selectList/getList",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "monitor:ensure real write branch",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "token refresh"
+    ],
+    "allowed_database_writes": [
+      "mwb.advertiser_accounts",
+      "mwb.qiankun_option_relations",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Do not write token, host/domain, complete URL, raw request, raw response, headers, Cookie, auth_code, callback URL, touchpoint URL, or secrets to project files, ordinary logs, frontend/API summaries, or evidence summaries."
+  },
+  "database_plan": {
+    "migration": "db/024_add_qiankun_account_identity.sql",
+    "changes": [
+      "Add qiankun_account_record_id to mwb.advertiser_accounts.",
+      "Add qiankun_owner_key to mwb.advertiser_accounts.",
+      "Add qiankun_agent_id to mwb.advertiser_accounts.",
+      "Add qiankun_identity_status to mwb.advertiser_accounts.",
+      "Add qiankun_verified_at to mwb.advertiser_accounts."
+    ],
+    "ids_as_text": true
+  },
+  "implementation_plan": [
+    "Create task card, manifest, and active project state.",
+    "Add advertiser account Qiankun identity migration.",
+    "Extend repository account upsert to preserve and write Qiankun identity fields.",
+    "Extend QiankunMonitorClient for selectList, changeMediaId, and changeMediaAccountId readonly calls.",
+    "Add technical-combination readonly sync in the existing qiankun-option-relation-sync skill.",
+    "Add monitor-provision mode and npm command.",
+    "Tighten monitor create parameter readiness so reference defaults cannot drive creation.",
+    "Run readonly sync and validation commands.",
+    "Update relation HTML and close task/project state."
+  ],
+  "acceptance": [
+    "Target advertiser account has Qiankun account record ID, owner key, agent ID, identity status, and verified timestamp only after a unique accountIndex hit.",
+    "Only live readonly API-supported relations are inserted into qiankun_option_relations.",
+    "No package_to_media, package_to_agent, or package_to_monitor_api relation is generated.",
+    "monitor_provision_attempts remains one attempt.",
+    "Unverified monitor config returns qiankun_monitor_config_unverified before create.",
+    "Validation commands pass."
+  ],
+  "current_progress": [
+    "Read startup state and source requirement.",
+    "Confirmed active_task was null before opening this task.",
+    "Assessed the request as reasonable and non-blocking.",
+    "Created task contract and manifest."
+    ,
+    "Applied db/024_add_qiankun_account_identity.sql.",
+    "Moved historical media_id, agent_id, and monitor_api defaults to monitor_provision_reference_candidates with reference_only status.",
+    "Added readonly technical-combination client and skill support.",
+    "Added npm run monitor:sync:technical-combination.",
+    "Tightened monitor:ensure so unverified Qiankun monitor config blocks creation.",
+    "Ran readonly technical-combination sync; accountIndex returned apiCode=302 and apiMessage=login redirect, so downstream technical cascade was skipped.",
+    "Updated relation HTML to show package selection and media-account technical layers separately."
+  ],
+  "execution_result": {
+    "status": "blocked",
+    "blocker": "account_index_query_failed:302:login_redirect",
+    "qiankun_readonly_api_called": true,
+    "qiankun_write_api_called": false,
+    "token_refresh_called": false,
+    "account_exact_match_count": 0,
+    "downstream_select_list_called": false,
+    "change_media_id_called": false,
+    "change_media_account_id_called": false,
+    "technical_combination_ready": false,
+    "unready_code": "qiankun_monitor_config_unverified",
+    "evidence_artifact_id": "EV-QK-MONITOR-TECH-COMBO-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "monitor_provision_attempt_count": 1,
+    "fake_package_relation_count": 0,
+    "technical_relation_count": 0
+  },
+  "validation": {
+    "passed": [
+      "db/024_add_qiankun_account_identity.sql applied",
+      "npm run monitor:sync:technical-combination returned blocked without downstream guessing",
+      "npm run monitor:ensure returned qiankun_monitor_config_unverified with createCalled=false",
+      "database readback: monitor_provision old media_id/agent_id/monitor_api keys absent",
+      "database readback: monitor_provision_reference_candidates status=reference_only",
+      "database readback: monitor_provision_attempts attempt_nos=[1]",
+      "database readback: fake package_to_media/package_to_agent/package_to_monitor_api count=0",
+      "database readback: technical relation count=0 after accountIndex blocker",
+      "evidence readback: no host/raw request/raw response leak",
+      "npm run test:monitor-bootstrap",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:api",
+      "node --check src/platforms/qiankunMonitorClient.mjs",
+      "node --check src/repositories/postgresRepository.mjs",
+      "node --check src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+      "node --check src/workflows/skills/oe3/monitor-provision.mjs"
+    ],
+    "blocked": [
+      {
+        "step": "POST /tf/account_info/accountIndex",
+        "reason": "Qiankun returned apiCode=302 login redirect with current local credential/session. Token refresh is forbidden by current guardrails."
+      }
+    ]
+  },
+  "completion_gate": "Closed with blocker. Restore or confirm a Qiankun session that can call accountIndex, then rerun npm run monitor:sync:technical-combination. Do not create monitor_id before technicalCombinationReady=true."
+}

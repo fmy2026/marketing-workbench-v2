@@ -7,32 +7,19 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "monitor_final_ensure_waiting_user_confirmation",
+  "project_status": "qiankun_monitor_technical_combination_readonly_blocked_by_login",
   "phase": {
-    "id": "OE3-MONITOR-FINAL-ENSURE-EXECUTE",
-    "status": "waiting_user_confirmation",
-    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md"
+    "id": "OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY",
+    "status": "completed_with_blockers",
+    "plan_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.md"
   },
-  "active_task": {
-    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
-    "owner_agent": "codex",
-    "read_order": [
-      "AGENTS.md",
-      "project.state.json",
-      "/Users/hys/Desktop/需求表述.md",
-      "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
-      "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json"
-    ]
-  },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
-  "next_gate": "已按新需求创建最终 monitor:ensure 执行任务并完成执行前状态复核。当前 attempt_count=1，第一次为 code=500/server_busy，monitor_id 与 touchpoint_url 仍未解析。由于附件命令不能作为直接写入授权，真实第二次创建等待用户在聊天中明确确认；确认后才临时开启一次写入 scope，并运行 MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE + MWBV2_MONITOR_PROVISION_ID 精确匹配的 npm run monitor:ensure。未确认前平台写入保持关闭。",
+  "active_task": null,
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.md",
+  "next_gate": "乾坤监测技术组合只读核验代码、数据库和关系图已收口，但真实执行在第一步 /tf/account_info/accountIndex 返回 apiCode=302、apiMessage=跳转登录，未获得唯一 qiankun_account_record_id，因此未继续调用 selectList/getList、changeMediaId 或 changeMediaAccountId。旧 media_id=310、agent_id=613、monitor_api=toutiao_wxgame 已从可创建默认块降级为 monitor_provision_reference_candidates(reference_only)；monitor:ensure 已返回 qiankun_monitor_config_unverified 且 createCalled=false。下一 gate：恢复或确认可访问 accountIndex 的乾坤会话后，重跑 npm run monitor:sync:technical-combination；技术组合未 verified 前禁止创建 monitor_id。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_after_single_qiankun_monitor_create_attempt",
+      "mode": "paused_pending_rebreakdown",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
@@ -72,6 +59,8 @@
       "未带确认变量的 std_project 创建或重试",
       "未另建单次真实创建任务的 std_project 创建",
       "监测链接组创建",
+      "乾坤监测序号第二次创建",
+      "monitor:ensure 真实写入分支",
       "预算/出价修改",
       "凭据刷新",
       "本任务范围外的真实平台写入",
@@ -91,10 +80,10 @@
     "agent_entrypoints": "src/agents/launchAgent.mjs",
     "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
     "repositories": "src/repositories/postgresRepository.mjs",
-    "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, and Qiankun monitor provision status/reconcile/create-once. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
-    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql",
+    "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, Qiankun monitor provision status/reconcile/create-once, Qiankun cate_to_vest readonly option relation sync, Qiankun vest_to_package readonly option relation sync, Qiankun package base-info readonly sync, and Qiankun monitor technical-combination readonly sync. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
+    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql; qiankun option relation facts introduced by db/023_add_qiankun_option_relations.sql; Qiankun account technical identity fields and reference-only monitor technical candidates introduced by db/024_add_qiankun_account_identity.sql",
     "schemas": "schemas/",
-    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:ensure, monitor:report",
+    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:ensure, monitor:report, monitor:sync:cate-vest, monitor:sync:vest-package, monitor:sync:package-base-info, monitor:sync:technical-combination",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
     "runtime_state": "idle",
@@ -103,7 +92,8 @@
     "project_name_reservations": "database-level durable project-name occupancy; runtime_truth is durable and test_run is isolated",
     "landing_page_assets": "game-route backup landing page inventory; controlled landing_url column only, public summaries expose site/hash/status",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",
-    "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence",
+    "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence; includes qiankun_cate_vest_readonly, qiankun_vest_package_readonly, qiankun_package_base_info_readonly, and qiankun_monitor_technical_combination_readonly artifact summaries",
+    "qiankun_option_relations": "mwb.qiankun_option_relations stores observed/confirmed/stale/invalid Qiankun readonly option relations; current observed package chain: route oceanengine_3_byte_mini_game, game JSZC, os 3, cate_id 122 -> vest_id 1414 巨兽战场 -> package_id 36820 -> channel dymini3k, with 22 observed package options under vest_id 1414. Media/account/agent/monitor_api technical relations are unresolved because /tf/account_info/accountIndex returned login redirect in the latest readonly sync; fake package_to_media/package_to_agent/package_to_monitor_api relations must remain absent.",
     "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"
   }
 }

@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>乾坤系统与 v2 报表字段关系图</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --surface-soft: #f0f3f7;
+      --text: #172033;
+      --muted: #687386;
+      --line: #dbe1e8;
+      --blue: #2673dd;
+      --blue-soft: #eaf2ff;
+      --green: #168767;
+      --green-soft: #e7f6f0;
+      --orange: #b96912;
+      --orange-soft: #fff2df;
+      --purple: #7456c9;
+      --purple-soft: #f0ebff;
+      --red: #b84040;
+      --red-soft: #fdecec;
+      --shadow: 0 16px 42px rgba(23, 32, 51, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .page { max-width: 1460px; margin: 0 auto; padding: 24px; }
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; overflow-wrap: anywhere; }
+    h2 { margin: 0 0 14px; font-size: 18px; font-weight: 600; }
+    h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    p { margin: 0; }
+    .subtitle { color: var(--muted); line-height: 1.65; max-width: 820px; }
+    .principle {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .metric { padding: 16px 18px; border-right: 1px solid var(--line); }
+    .metric:last-child { border-right: 0; }
+    .metric-label { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    .metric-value { font-size: 20px; font-weight: 600; }
+    .metric-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 12px;
+      flex-wrap: wrap;
+    }
+    .segmented { display: flex; gap: 4px; padding: 4px; background: var(--surface-soft); border-radius: 7px; }
+    .segmented button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 13px;
+    }
+    .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(23,32,51,.1); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(300px, .7fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .graph-shell, .detail, .section {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .graph-shell { min-width: 0; overflow: hidden; }
+    .graph-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+    .graph-head small { color: var(--muted); }
+    .graph-scroll { overflow-x: auto; }
+    #relationGraph { display: block; width: 100%; min-width: 880px; height: 620px; background: #fbfcfe; }
+    .edge { stroke: #bbc5d2; stroke-width: 1.5; fill: none; }
+    .edge.is-focus { stroke: var(--blue); stroke-width: 2.5; }
+    .edge-label { fill: var(--muted); font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: #fbfcfe; stroke-width: 4px; stroke-linejoin: round; }
+    .node { cursor: pointer; outline: none; }
+    .node circle { stroke-width: 2; transition: transform .18s ease, filter .18s ease; transform-origin: center; }
+    .node:hover circle, .node:focus circle, .node.is-selected circle { filter: drop-shadow(0 5px 8px rgba(23,32,51,.18)); transform: scale(1.04); }
+    .node-label { text-anchor: middle; fill: var(--text); font-size: 12px; font-weight: 600; pointer-events: none; }
+    .node-sub { text-anchor: middle; fill: var(--muted); font-size: 10px; pointer-events: none; }
+
+    .detail { padding: 18px; min-height: 360px; }
+    .detail-kicker { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .detail-title { font-size: 19px; font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+    .decision { display: inline-flex; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 14px; }
+    .decision.keep { color: var(--green); background: var(--green-soft); }
+    .decision.new { color: var(--blue); background: var(--blue-soft); }
+    .decision.view { color: var(--purple); background: var(--purple-soft); }
+    .decision.deprecate { color: var(--orange); background: var(--orange-soft); }
+    .detail-desc { color: var(--muted); line-height: 1.65; margin-bottom: 16px; }
+    .field-list { display: grid; gap: 7px; }
+    .field-row { display: grid; grid-template-columns: minmax(112px, .8fr) 1.5fr; gap: 10px; padding-top: 7px; border-top: 1px solid var(--line); font-size: 12px; }
+    .field-row code { color: var(--blue); overflow-wrap: anywhere; }
+    .field-row span { color: var(--muted); line-height: 1.45; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0;
+      align-items: stretch;
+      margin-top: 12px;
+    }
+    .flow-step { position: relative; padding: 13px 14px; border: 1px solid var(--line); border-right: 0; background: var(--surface); min-height: 84px; }
+    .flow-step:first-child { border-radius: 6px 0 0 6px; }
+    .flow-step:last-child { border-right: 1px solid var(--line); border-radius: 0 6px 6px 0; }
+    .flow-index { color: var(--blue); font-size: 11px; margin-bottom: 5px; }
+    .flow-step strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .flow-step small { color: var(--muted); line-height: 1.4; }
+
+    .section { padding: 18px; margin-bottom: 16px; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .section-head p { color: var(--muted); font-size: 12px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { color: var(--muted); font-weight: 600; text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; }
+    tr:last-child td { border-bottom: 0; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .status { font-weight: 600; white-space: nowrap; }
+    .status.keep { color: var(--green); }
+    .status.new { color: var(--blue); }
+    .status.view { color: var(--purple); }
+    .status.deprecate { color: var(--orange); }
+    .status.defer { color: var(--muted); }
+    .final-rule { padding: 13px 15px; background: var(--green-soft); color: #11664f; border-left: 3px solid var(--green); line-height: 1.65; font-size: 13px; }
+
+    @media (max-width: 980px) {
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .workspace { grid-template-columns: 1fr; }
+      .detail { min-height: 0; }
+      .flow { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .flow-step, .flow-step:first-child, .flow-step:last-child { border: 1px solid var(--line); border-radius: 6px; }
+    }
+    @media (max-width: 640px) {
+      .page { padding: 14px; }
+      .topbar { display: block; }
+      .principle { margin-top: 12px; display: inline-block; }
+      h1 { font-size: 21px; max-width: 100%; }
+      .subtitle { overflow-wrap: anywhere; }
+      .segmented { max-width: 100%; overflow-x: auto; }
+      .graph-head { align-items: flex-start; flex-wrap: wrap; }
+      .summary { grid-template-columns: 1fr; }
+      .metric { border-right: 0; border-bottom: 1px solid var(--line); }
+      .metric:last-child { border-bottom: 0; }
+      .flow { grid-template-columns: 1fr; }
+      .field-row { grid-template-columns: 1fr; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>乾坤系统 × Marketing Workbench v2</h1>
+        <p class="subtitle">以业务名称为主、乾坤官方字段为技术事实；乾坤级联下拉先进入通用关系底表，完整可创建组合再进入最终配置表，组合结果优先通过 View 查询。</p>
+      </div>
+      <div class="principle">一套名称 · 关系底表 · 最终配置</div>
+    </header>
+
+    <section class="summary" aria-label="方案摘要">
+      <div class="metric"><div class="metric-label">必要新增实体表</div><div class="metric-value">2</div><div class="metric-note">option_relations + monitor_configs</div></div>
+      <div class="metric"><div class="metric-label">复用并轻量扩展</div><div class="metric-value">3</div><div class="metric-note">账户、触点、provision</div></div>
+      <div class="metric"><div class="metric-label">新增查询 View</div><div class="metric-value">2</div><div class="metric-note">完整上下文、精确匹配</div></div>
+      <div class="metric"><div class="metric-label">明确暂缓实体表</div><div class="metric-value">3</div><div class="metric-note">profile、inventory、sync</div></div>
+    </section>
+
+    <div class="toolbar">
+      <div class="segmented" role="group" aria-label="关系图模式">
+        <button type="button" data-mode="recommended" aria-pressed="true">推荐模型</button>
+        <button type="button" data-mode="mapping" aria-pressed="false">字段映射</button>
+        <button type="button" data-mode="runtime" aria-pressed="false">运行链路</button>
+        <button type="button" data-mode="api" aria-pressed="false">接口来源</button>
+      </div>
+      <div class="legend" aria-label="图例">
+        <span><i class="dot" style="background:var(--green)"></i>保留</span>
+        <span><i class="dot" style="background:var(--blue)"></i>必要新增</span>
+        <span><i class="dot" style="background:var(--purple)"></i>查询 View</span>
+        <span><i class="dot" style="background:var(--orange)"></i>兼容后弱化</span>
+      </div>
+    </div>
+
+    <section class="workspace">
+      <div class="graph-shell">
+        <div class="graph-head"><h3 id="graphTitle">最小实体关系</h3><small>点击节点查看字段职责</small></div>
+        <div class="graph-scroll"><svg id="relationGraph" viewBox="0 0 1000 620" role="img" aria-labelledby="graphTitle graphDesc"><desc id="graphDesc">以乾坤监测配置为中心，连接游戏、平台应用、路线、账户、触点、运行记录和查询视图。</desc></svg></div>
+      </div>
+      <aside class="detail" aria-live="polite">
+        <div class="detail-kicker" id="detailKicker">未来编译产物</div>
+        <div class="detail-title" id="detailTitle">qiankun_monitor_configs</div>
+        <div class="decision deprecate" id="detailDecision">当前未建表</div>
+        <p class="detail-desc" id="detailDesc"></p>
+        <div class="field-list" id="detailFields"></div>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>只读到创建的唯一链路</h2><p>第二次创建前，必须先完成两条事实链的核验</p></div>
+      <div class="flow">
+        <div class="flow-step"><div class="flow-index">01</div><strong>账户核验</strong><small>accountIndex → advertiser_accounts</small></div>
+        <div class="flow-step"><div class="flow-index">02</div><strong>包选择层</strong><small>cate --(os)--> vest → package → channel</small></div>
+        <div class="flow-step"><div class="flow-index">03</div><strong>媒体账户技术层</strong><small>account record → media → monitor API → agent</small></div>
+        <div class="flow-step"><div class="flow-index">04</div><strong>序号精确匹配</strong><small>/tf/ad/index → v_qiankun_monitor_match</small></div>
+        <div class="flow-step"><div class="flow-index">05</div><strong>必要时创建</strong><small>provision run → 最多两次 attempt</small></div>
+        <div class="flow-step"><div class="flow-index">06</div><strong>触点与 Workflow</strong><small>account_touchpoints → 节点 2</small></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>最终名称决策</h2><p>同义字段只保留一个主名称</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>业务概念</th><th>最终保留名称</th><th>乾坤字段</th><th>决策</th><th>理由</th></tr></thead>
+          <tbody>
+            <tr><td>游戏</td><td><code>game_code / game_name</code></td><td><code>cate_id / cate_name</code></td><td class="status keep">分别保留</td><td>业务游戏不等于乾坤游戏组，通过配置表关联，不改成 <code>app_name</code>。</td></tr>
+            <tr><td>平台</td><td><code>platform</code></td><td><code>media_id / media_name</code></td><td class="status keep">保留 platform</td><td><code>oceanengine</code> 是业务平台，乾坤 media 是资源位，不强行同名。</td></tr>
+            <tr><td>应用类型</td><td><code>app_type</code></td><td><code>os + channel + monitor_api</code></td><td class="status keep">保留 app_type</td><td>这是组合映射，不新增单独映射表。</td></tr>
+            <tr><td>广告账户</td><td><code>advertiser_id</code></td><td><code>qiankun_account_record_id</code></td><td class="status keep">两种 ID 并存</td><td>前者是广告平台账户，后者是乾坤内部账号记录；只有输出创建字段时才映射为 <code>media_account_id</code>。</td></tr>
+            <tr><td>技术路线</td><td><code>route_id</code></td><td><code>os + channel + media_id + monitor_api</code></td><td class="status keep">保留 route_id</td><td>route 是 v2 的稳定业务组合键。</td></tr>
+            <tr><td>监测序号</td><td><code>monitor_id</code></td><td><code>monitor_id</code></td><td class="status keep">完全一致</td><td>直接使用官方名称。</td></tr>
+            <tr><td>触点</td><td><code>touchpoint_ref / touchpoint_url</code></td><td><code>wxgame_click_url</code> 等实际返回字段</td><td class="status keep">受控归一</td><td>完整 URL 只进入受控列，普通查询只暴露 ref/hash/status。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>实体表去留</h2><p>只增加真正承载独立事实的表</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>表</th><th>处理</th><th>最终职责</th><th>关键调整</th></tr></thead>
+          <tbody>
+            <tr><td><code>games</code></td><td class="status keep">保留</td><td>业务游戏主档</td><td>继续使用 <code>game_code/game_name</code>。</td></tr>
+            <tr><td><code>game_platform_apps</code></td><td class="status keep">保留</td><td>游戏在不同平台与应用类型下的 App 身份</td><td>继续使用 <code>platform/app_type/app_id/app_name</code>。</td></tr>
+            <tr><td><code>platform_routes</code></td><td class="status keep">保留</td><td>业务投放路线</td><td>不承载具体乾坤下拉项。</td></tr>
+            <tr><td><code>advertiser_accounts</code></td><td class="status keep">轻量扩展</td><td>业务账户 + 当前乾坤技术身份</td><td>新增 <code>qiankun_account_record_id, qiankun_owner_key, qiankun_agent_id, qiankun_identity_status, qiankun_verified_at</code>；当前因 <code>accountIndex</code> 返回登录跳转，仍未核验。</td></tr>
+            <tr><td><code>qiankun_option_relations</code></td><td class="status new">必要新增</td><td>乾坤级联下拉的底层关系事实</td><td>当前已写入 <code>cate_to_vest</code>、<code>vest_to_package</code> 与 <code>package_to_channel</code>：<code>122 -> 1414 -> 36820 -> dymini3k</code> 均已真实命中，状态 <code>observed</code>。技术层关系因凭据会话阻断，尚未新增。</td></tr>
+            <tr><td><code>qiankun_monitor_configs</code></td><td class="status deprecate">未来编译产物</td><td>经完整核验后的监测配置组合</td><td>当前未建表，不表现为数据库事实；未来只可由 <code>包选择层 + 媒体账户技术层</code> 编译生成。</td></tr>
+            <tr><td><code>account_touchpoints</code></td><td class="status keep">轻量扩展</td><td>已匹配/创建的 monitor 与受控触点</td><td>增加 <code>monitor_serial_id, monitor_config_id, last_seen_at</code>。</td></tr>
+            <tr><td><code>monitor_provision_runs</code></td><td class="status keep">保留</td><td>一次初始化生命周期</td><td><code>technical_config</code> 只作历史快照，新增 <code>monitor_config_id</code> 作为运行来源。</td></tr>
+            <tr><td><code>monitor_provision_attempts</code></td><td class="status keep">保留</td><td>最多两次真实外部创建调用</td><td>请求/响应 hash 与错误明细只放这里。</td></tr>
+            <tr><td><code>game_route_defaults.raw_defaults.monitor_provision</code></td><td class="status deprecate">弱化</td><td>只保留已观测的包选择层和运行常量</td><td>旧 <code>media_id=310</code>、<code>agent_id=613</code>、<code>monitor_api=toutiao_wxgame</code> 已移入 <code>monitor_provision_reference_candidates</code>，状态 <code>reference_only</code>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>未来配置产物字段</h2><p>当前未建表，只有技术组合完整后才可编译</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>字段</th><th>来源</th><th>用途</th><th>约束</th></tr></thead>
+          <tbody>
+            <tr><td><code>monitor_config_id</code></td><td>v2 生成</td><td>配置主键</td><td>PK</td></tr>
+            <tr><td><code>route_id, game_code, advertiser_id</code></td><td>v2</td><td>业务作用域</td><td>FK / 必填</td></tr>
+            <tr><td><code>os</code></td><td>selectList / changePackageId</td><td>乾坤系统</td><td>必填</td></tr>
+            <tr><td><code>cate_id, cate_name</code></td><td>changeCateId / changePackageId</td><td>游戏组</td><td>必填</td></tr>
+            <tr><td><code>vest_id, vest_name</code></td><td>changeVestId / changePackageId</td><td>马甲</td><td>必填</td></tr>
+            <tr><td><code>package_id, package_name</code></td><td>changePackageId</td><td>融合拿包</td><td>必填</td></tr>
+            <tr><td><code>channel</code></td><td>changePackageId</td><td>融合渠道</td><td>必填</td></tr>
+            <tr><td><code>media_id, media_name</code></td><td>changePackageId / changeMediaId</td><td>媒体资源位</td><td>必填</td></tr>
+            <tr><td><code>agent_id, agent_name</code></td><td>changeMediaAccountId</td><td>代理</td><td>必填</td></tr>
+            <tr><td><code>monitor_api</code></td><td>changePackageId / changeMediaId</td><td>监测 API</td><td>必填</td></tr>
+            <tr><td><code>usage</code></td><td>业务选择 + 官方常量</td><td>监测用途</td><td>必填</td></tr>
+            <tr><td><code>config_hash</code></td><td>以上字段编译</td><td>稳定查重</td><td>UNIQUE 作用域</td></tr>
+            <tr><td><code>validation_status, verified_at</code></td><td>只读校验</td><td>有效性与新鲜度</td><td>仅 valid 可创建</td></tr>
+            <tr><td><code>is_default</code></td><td>v2 选择</td><td>当前默认组合</td><td>作用域内最多一个</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>底层关系同步结果</h2><p>包选择层已 observed；媒体账户技术层当前被 accountIndex 登录态阻断</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>关系</th><th>候选输入</th><th>真实返回</th><th>底层表</th><th>证据状态</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>cate --(os)--> vest</code></td>
+              <td><code>cate_id=122 / os=3</code></td>
+              <td><code>vest_id=1414 / 巨兽战场</code></td>
+              <td><code>mwb.qiankun_option_relations</code></td>
+              <td><code>observed</code>；候选 <code>vest_id=1414</code> 已命中真实返回</td>
+            </tr>
+            <tr>
+              <td><code>vest --(os)--> package</code></td>
+              <td><code>vest_id=1414 / os=3</code></td>
+              <td>共 22 个 package，包含 <code>package_id=36820</code></td>
+              <td><code>mwb.qiankun_option_relations</code></td>
+              <td><code>observed</code>；候选 <code>package_id=36820</code> 已命中真实返回</td>
+            </tr>
+            <tr>
+              <td><code>package --(os)--> channel</code></td>
+              <td><code>package_id=36820 / os=3</code></td>
+              <td><code>channel=dymini3k</code>；<code>cateId</code>、<code>vestId</code>、<code>owner</code>、<code>mediaId</code>、<code>agentId</code>、<code>monitorApiList</code>、<code>accountIdList</code> 未返回</td>
+              <td><code>mwb.qiankun_option_relations</code></td>
+              <td><code>observed</code>；历史候选 <code>channel=dymini3k</code> 仍成立，未返回字段保持未确认</td>
+            </tr>
+            <tr>
+              <td><code>advertiser_id -> qiankun_account_record_id</code></td>
+              <td><code>advertiser_id=1871922346964041</code></td>
+              <td><code>accountIndex</code> 返回 <code>302: 跳转登录</code>；未获得唯一账户记录</td>
+              <td><code>mwb.advertiser_accounts</code></td>
+              <td><code>blocked</code>；不得继续调用 media/account/agent 后续级联，也不得创建 monitor</td>
+            </tr>
+            <tr>
+              <td><code>media / account / monitor API / agent</code></td>
+              <td><code>media_id=310</code>、<code>agent_id=613</code>、<code>monitor_api=toutiao_wxgame</code></td>
+              <td>未调用后续接口；候选仅保留为 <code>reference_only</code></td>
+              <td><code>mwb.qiankun_option_relations</code></td>
+              <td><code>unresolved</code>；不生成 <code>package_to_media</code> 等假关系</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>组合查询 View</h2><p>不复制数据，只组合事实</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>View</th><th>组合来源</th><th>回答的问题</th></tr></thead>
+          <tbody>
+            <tr><td><code>v_qiankun_monitor_context</code></td><td><code>games + game_platform_apps + platform_routes + advertiser_accounts + qiankun_option_relations</code></td><td>这个游戏、路线、账户是否已具备编译乾坤监测参数的事实？</td></tr>
+            <tr><td><code>v_qiankun_monitor_match</code></td><td><code>v_qiankun_monitor_context + account_touchpoints</code></td><td>是否已经存在十个维度完全一致、可直接复用的 monitor_id？</td></tr>
+            <tr><td><code>v_monitor_provision_status_report</code></td><td><code>monitor_provision_runs + attempts + touchpoints</code></td><td>当前初始化进度、尝试次数和最终阻断是什么？</td></tr>
+            <tr><td><code>v_monitor_provision_blocker_report</code></td><td><code>monitor_provision_runs + latest attempt</code></td><td>哪个条件阻止了下一步？</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>明确暂缓</h2><p>出现真实使用需求再新增</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>原建议表</th><th>当前替代</th><th>暂缓原因</th></tr></thead>
+          <tbody>
+            <tr><td><code>qiankun_account_profiles</code></td><td>扩展 <code>advertiser_accounts</code></td><td>目前一个账户只需要一份当前技术身份。</td></tr>
+            <tr><td><code>qiankun_option_catalog</code></td><td><code>qiankun_option_relations</code> + <code>evidence_artifacts</code></td><td>下拉项不按孤立 option catalog 保存，而按接口确认的父子关系保存。</td></tr>
+            <tr><td><code>qiankun_monitor_serial_inventory</code></td><td>复用 <code>account_touchpoints</code></td><td>当前只关心能被目标账户使用的 monitor，而非全量库存分析。</td></tr>
+            <tr><td><code>qiankun_sync_runs</code></td><td><code>evidence_artifacts</code> + 时间/hash</td><td>只读同步量很小，不需要独立调度审计表。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="final-rule">当前运行真值分三层：业务主档使用 v2 稳定名称；乾坤真实只读关系进入 <code>qiankun_option_relations</code>；运行与结果分别进入 provision 和 touchpoint。<code>qiankun_monitor_configs</code> 只是未来编译产物，技术组合未核验前保持 locked。</div>
+    </section>
+  </main>
+
+  <script>
+    const nodeData = {
+      qiankun_monitor_configs: {
+        label: "乾坤监测配置", sub: "最终配置实体", type: "new", group: "core", x: 500, y: 305, r: 70,
+        kicker: "未来编译产物", title: "qiankun_monitor_configs", decision: "当前未建表",
+        desc: "只有包选择层和媒体账户技术层全部只读核验通过后，才可把这些事实编译成完整可创建配置。当前它不是数据库事实。",
+        fields: [["monitor_config_id", "未来稳定主键"], ["route_id / game_code", "业务作用域"], ["advertiser_id","广告平台账户 ID"], ["qiankun_account_record_id","乾坤账户记录 ID"], ["cate / vest / package / channel","包选择层"], ["media / agent / monitor_api","技术层，当前 unresolved"], ["validation_status","未 verified 前 locked"]]
+      },
+      qiankun_option_relations: {
+        label:"乾坤关系底表", sub:"qiankun_option_relations", type:"new", group:"foundation", x:690, y:245, r:54,
+        kicker:"只读关系事实", title:"qiankun_option_relations", decision:"必要新增",
+        desc:"一行代表乾坤两个选项之间的一条有效关系。当前包选择层已观察到 cate_id=122 与 os=3 返回 vest_id=1414（巨兽战场），vest_id=1414 与 os=3 返回 22 个融合拿包且包含 package_id=36820，package_id=36820 与 os=3 返回 channel=dymini3k；媒体账户技术层因 accountIndex 登录态阻断仍 unresolved。",
+        fields:[["relation_type","cate_to_vest / vest_to_package / package_to_channel"],["cate_to_vest","122 -> 1414 / 巨兽战场"],["vest_to_package","1414 -> 22 个 package"],["package_to_channel","36820 -> dymini3k"],["technical_layer","media/account/agent/monitor_api unresolved"],["source_endpoint","changeCateId + changeVestId + changePackageId"],["validation_status","observed / unresolved"]]
+      },
+      games: { label:"游戏主档", sub:"games", type:"keep", group:"business", x:170, y:120, r:48, kicker:"业务维度", title:"games", decision:"保留", desc:"巨兽战场等业务游戏的唯一主档。继续使用 game_code/game_name，不改成乾坤 cate。", fields:[["game_code","内部稳定编码"],["game_name","业务游戏名"],["product_name / brand_name","产品身份"]] },
+      game_platform_apps: { label:"平台 App", sub:"game_platform_apps", type:"keep", group:"business", x:360, y:85, r:50, kicker:"业务维度", title:"game_platform_apps", decision:"保留", desc:"描述同一游戏在不同平台和应用形态下的 App 身份。", fields:[["platform","如 oceanengine"],["app_type","如 byte_mini_game"],["app_id / app_name","平台应用身份"]] },
+      platform_routes: { label:"投放路线", sub:"platform_routes", type:"keep", group:"business", x:640, y:85, r:48, kicker:"业务维度", title:"platform_routes", decision:"保留", desc:"把平台、营销产品和创建对象归一成稳定 route_id。", fields:[["route_id","v2 业务路线键"],["platform","业务平台"],["marketing_product","营销产品"],["capabilities","路线能力"]] },
+      advertiser_accounts: { label:"目标账户", sub:"advertiser_accounts", type:"keep", group:"account", x:830, y:125, r:52, kicker:"账户主档", title:"advertiser_accounts", decision:"保留并轻量扩展", desc:"业务广告账户继续作为账户真值，同时保存当前乾坤技术身份。本次 accountIndex 返回登录跳转，因此技术身份仍未核验。", fields:[["advertiser_id","广告平台账户 ID"],["qiankun_account_record_id","乾坤内部账号记录 ID"],["qiankun_owner_key","凭据匹配键"],["qiankun_agent_id","当前代理"],["qiankun_identity_status","unverified / observed / verified / mismatch"]] },
+      account_touchpoints: { label:"监测与触点", sub:"account_touchpoints", type:"keep", group:"result", x:835, y:475, r:58, kicker:"结果真值", title:"account_touchpoints", decision:"保留并轻量扩展", desc:"保存账户实际可用的 monitor_id 与受控触点。它承担已匹配序号库存，不另建 monitor inventory。", fields:[["monitor_id","最终监测序号"],["monitor_serial_id","乾坤列表记录 ID"],["monitor_config_id","对应配置"],["touchpoint_ref / url_hash","普通查询字段"],["touchpoint_url","受控完整 URL"]] },
+      provision_runs: { label:"初始化轮次", sub:"monitor_provision_runs", type:"keep", group:"runtime", x:610, y:515, r:54, kicker:"运行记录", title:"monitor_provision_runs", decision:"保留", desc:"一行代表一次账户监测初始化生命周期。技术参数只保留历史快照；monitor_config 未编译前不得创建。", fields:[["provision_id","生命周期主键"],["technical_config","历史快照"],["status","当前状态"],["monitor_id","本轮结果快照"]] },
+      provision_attempts: { label:"真实尝试", sub:"monitor_provision_attempts", type:"keep", group:"runtime", x:390, y:535, r:52, kicker:"运行明细", title:"monitor_provision_attempts", decision:"保留", desc:"一行代表一次真实创建 API 调用；同一 provision 最多两行。", fields:[["attempt_no","1 或 2"],["request_hash / response_hash","脱敏审计"],["api_code / error_category","调用结果"],["evidence_artifact_id","证据引用"]] },
+      workflow: { label:"Workflow 节点 2", sub:"creation_context", type:"keep", group:"runtime", x:165, y:480, r:54, kicker:"运行消费者", title:"Workflow creation_context", decision:"保留", desc:"只消费已验证配置、有效 monitor_id 与受控触点状态；历史默认技术字段已降级为 reference_only。", fields:[["route_id / game_code / advertiser_id","Intake 作用域"],["qiankun_monitor_config_unverified","当前阻断码"],["monitor_id / touchpoint_ref","创建上下文"]] },
+      context_view: { label:"完整上下文", sub:"v_qiankun_monitor_context", type:"view", group:"view", x:160, y:300, r:53, kicker:"查询 View", title:"v_qiankun_monitor_context", decision:"新增 View", desc:"组合游戏、平台应用、路线、账户与乾坤配置，供人工审阅和 Workflow 使用。", fields:[["业务字段","game / platform / app_type"],["乾坤字段","cate / vest / package / media"],["validation_status","配置是否有效"]] },
+      match_view: { label:"精确匹配", sub:"v_qiankun_monitor_match", type:"view", group:"view", x:505, y:105, r:52, kicker:"查询 View", title:"v_qiankun_monitor_match", decision:"新增 View", desc:"比较十个关键维度，输出 exact_unique、no_match、ambiguous 或 incomplete。", fields:[["十维匹配","账户、os、cate、vest、package、channel、media、agent、monitor_api、usage"],["match_status","匹配结论"],["monitor_id","仅唯一匹配时返回"]] },
+      api_sources: { label:"乾坤只读 API", sub:"api-docs-20260825", type:"api", group:"api", x:505, y:560, r:48, kicker:"项目接口资料", title:"乾坤只读 API", decision:"只读事实来源", desc:"通过账户、级联配置和监测列表接口提供技术事实；原始响应不直接成为运行真值。本次 accountIndex 返回 302 登录跳转，后续技术层未继续调用。", fields:[["accountIndex","账户身份，当前 blocked"],["changeCate/Vest/Package","游戏技术包，observed"],["changeMedia/Account","媒体与代理，unresolved"],["/tf/ad/index","监测序号列表，locked"]] }
+    };
+
+    const edgeData = [
+      ["games","qiankun_monitor_configs","game_code"], ["game_platform_apps","qiankun_monitor_configs","platform + app_type"],
+      ["platform_routes","qiankun_monitor_configs","route_id"], ["advertiser_accounts","qiankun_monitor_configs","advertiser_id"],
+      ["api_sources","qiankun_option_relations","changeCate/changeVest"], ["qiankun_option_relations","qiankun_monitor_configs","confirmed chain"],
+      ["qiankun_monitor_configs","account_touchpoints","monitor_config_id"], ["qiankun_monitor_configs","provision_runs","运行来源"],
+      ["provision_runs","provision_attempts","1 : 0..2"], ["account_touchpoints","workflow","monitor + touchpoint"],
+      ["context_view","workflow","查询上下文"], ["games","context_view","业务主档"], ["advertiser_accounts","context_view","账户身份"],
+      ["qiankun_monitor_configs","context_view","技术配置"], ["qiankun_monitor_configs","match_view","十维期望"],
+      ["account_touchpoints","match_view","已有 monitor"], ["match_view","provision_runs","no_match 才创建"],
+      ["api_sources","qiankun_monitor_configs","完整配置"], ["api_sources","advertiser_accounts","账户核验"], ["api_sources","account_touchpoints","列表回查"]
+    ];
+
+    const modeGroups = {
+      recommended: ["business","account","foundation","core","result","runtime","view","api"],
+      mapping: ["business","account","foundation","core","view"],
+      runtime: ["core","result","runtime","view"],
+      api: ["api","account","foundation","core","result","view"]
+    };
+
+    const typeStyle = {
+      keep: { fill:"var(--green-soft)", stroke:"var(--green)" },
+      new: { fill:"var(--blue-soft)", stroke:"var(--blue)" },
+      view: { fill:"var(--purple-soft)", stroke:"var(--purple)" },
+      api: { fill:"var(--orange-soft)", stroke:"var(--orange)" }
+    };
+
+    const svg = document.getElementById("relationGraph");
+    const ns = "http://www.w3.org/2000/svg";
+    let selectedId = "qiankun_monitor_configs";
+    let currentMode = "recommended";
+
+    function svgEl(name, attrs = {}) {
+      const el = document.createElementNS(ns, name);
+      Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+      return el;
+    }
+
+    function visibleIds() {
+      const groups = modeGroups[currentMode];
+      return new Set(Object.entries(nodeData).filter(([, node]) => groups.includes(node.group)).map(([id]) => id));
+    }
+
+    function renderGraph() {
+      svg.replaceChildren();
+      const visible = visibleIds();
+      const defs = svgEl("defs");
+      const marker = svgEl("marker", { id:"arrow", viewBox:"0 0 10 10", refX:"8", refY:"5", markerWidth:"5", markerHeight:"5", orient:"auto-start-reverse" });
+      marker.appendChild(svgEl("path", { d:"M 0 0 L 10 5 L 0 10 z", fill:"#9aa7b7" }));
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      edgeData.forEach(([from, to, label]) => {
+        if (!visible.has(from) || !visible.has(to)) return;
+        const a = nodeData[from], b = nodeData[to];
+        const dx = b.x-a.x, dy = b.y-a.y, distance = Math.hypot(dx,dy) || 1;
+        const x1 = a.x + dx/distance*a.r, y1 = a.y + dy/distance*a.r;
+        const x2 = b.x - dx/distance*(b.r+7), y2 = b.y - dy/distance*(b.r+7);
+        const line = svgEl("line", { x1, y1, x2, y2, class:`edge${selectedId===from||selectedId===to?" is-focus":""}`, "marker-end":"url(#arrow)" });
+        svg.appendChild(line);
+        const text = svgEl("text", { x:(x1+x2)/2, y:(y1+y2)/2-5, class:"edge-label" });
+        text.textContent = label;
+        svg.appendChild(text);
+      });
+
+      Object.entries(nodeData).forEach(([id, node]) => {
+        if (!visible.has(id)) return;
+        const style = typeStyle[node.type] || typeStyle.keep;
+        const group = svgEl("g", { class:`node${id===selectedId?" is-selected":""}`, transform:`translate(${node.x} ${node.y})`, role:"button", "aria-label":`${node.label}，${node.decision}`, tabindex:"0" });
+        group.appendChild(svgEl("circle", { r:node.r, fill:style.fill, stroke:style.stroke }));
+        const label = svgEl("text", { y:-3, class:"node-label" }); label.textContent = node.label; group.appendChild(label);
+        const sub = svgEl("text", { y:16, class:"node-sub" }); sub.textContent = node.sub; group.appendChild(sub);
+        group.addEventListener("click", () => selectNode(id));
+        group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectNode(id); } });
+        svg.appendChild(group);
+      });
+    }
+
+    function selectNode(id) {
+      selectedId = id;
+      const node = nodeData[id];
+      document.getElementById("detailKicker").textContent = node.kicker;
+      document.getElementById("detailTitle").textContent = node.title;
+      const decision = document.getElementById("detailDecision");
+      decision.textContent = node.decision;
+      decision.className = `decision ${node.type === "api" ? "deprecate" : node.type}`;
+      document.getElementById("detailDesc").textContent = node.desc;
+      const fields = document.getElementById("detailFields");
+      fields.replaceChildren(...node.fields.map(([field, desc]) => {
+        const row = document.createElement("div"); row.className = "field-row";
+        const code = document.createElement("code"); code.textContent = field;
+        const span = document.createElement("span"); span.textContent = desc;
+        row.append(code, span); return row;
+      }));
+      renderGraph();
+    }
+
+    document.querySelectorAll("[data-mode]").forEach(button => {
+      button.addEventListener("click", () => {
+        currentMode = button.dataset.mode;
+        document.querySelectorAll("[data-mode]").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+        const visible = visibleIds();
+        if (!visible.has(selectedId)) selectedId = currentMode === "api" ? "api_sources" : currentMode === "runtime" ? "provision_runs" : "qiankun_monitor_configs";
+        selectNode(selectedId);
+      });
+    });
+
+    selectNode(selectedId);
+  </script>
+</body>
+</html>

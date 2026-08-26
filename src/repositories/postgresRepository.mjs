@@ -814,6 +814,10 @@ export class PostgresRepository {
     assertId("advertiser_id", account.advertiserId, /^[0-9A-Za-z_\-.]+$/);
     assertId("route_id", account.routeId);
     assertId("game_code", account.gameCode);
+    const qiankunIdentityStatus = account.qiankunIdentityStatus
+      ? assertId("qiankun_identity_status", account.qiankunIdentityStatus)
+      : "";
+    const timestampOrNow = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "now()";
 
     await runPsql(`
       INSERT INTO mwb.advertiser_accounts (
@@ -826,6 +830,11 @@ export class PostgresRepository {
         platform_status,
         owner_name,
         monitor_id,
+        qiankun_account_record_id,
+        qiankun_owner_key,
+        qiankun_agent_id,
+        qiankun_identity_status,
+        qiankun_verified_at,
         created_at,
         updated_at
       ) VALUES (
@@ -838,6 +847,11 @@ export class PostgresRepository {
         ${sqlLiteral(account.platformStatus || "unknown")},
         ${sqlLiteral(account.ownerName || "")},
         ${sqlLiteral(account.monitorId || "")},
+        ${account.qiankunAccountRecordId ? sqlLiteral(account.qiankunAccountRecordId) : "NULL"},
+        ${sqlLiteral(assertOwnerKey(account.qiankunOwnerKey || ""))},
+        ${account.qiankunAgentId ? sqlLiteral(account.qiankunAgentId) : "NULL"},
+        ${sqlLiteral(qiankunIdentityStatus || "unverified")},
+        ${account.qiankunVerifiedAt ? timestampOrNow(account.qiankunVerifiedAt) : "NULL"},
         now(),
         now()
       )
@@ -853,8 +867,50 @@ export class PostgresRepository {
           WHEN EXCLUDED.monitor_id <> '' THEN EXCLUDED.monitor_id
           ELSE mwb.advertiser_accounts.monitor_id
         END,
+        qiankun_account_record_id = coalesce(EXCLUDED.qiankun_account_record_id, mwb.advertiser_accounts.qiankun_account_record_id),
+        qiankun_owner_key = CASE
+          WHEN EXCLUDED.qiankun_owner_key <> '' THEN EXCLUDED.qiankun_owner_key
+          ELSE mwb.advertiser_accounts.qiankun_owner_key
+        END,
+        qiankun_agent_id = coalesce(EXCLUDED.qiankun_agent_id, mwb.advertiser_accounts.qiankun_agent_id),
+        qiankun_identity_status = CASE
+          WHEN EXCLUDED.qiankun_identity_status <> 'unverified' THEN EXCLUDED.qiankun_identity_status
+          ELSE mwb.advertiser_accounts.qiankun_identity_status
+        END,
+        qiankun_verified_at = coalesce(EXCLUDED.qiankun_verified_at, mwb.advertiser_accounts.qiankun_verified_at),
         updated_at = now();
     `, this.database);
+  }
+
+  async updateQiankunAccountIdentity({
+    advertiserId,
+    routeId,
+    gameCode,
+    accountName = "",
+    authStatus = "unknown",
+    platformStatus = "unknown",
+    ownerName = "",
+    qiankunAccountRecordId,
+    qiankunOwnerKey,
+    qiankunAgentId = "",
+    qiankunIdentityStatus = "observed",
+    qiankunVerifiedAt = ""
+  }) {
+    await this.upsertAdvertiserAccount({
+      advertiserId,
+      routeId,
+      gameCode,
+      accountName: accountName || advertiserId,
+      platform: "oceanengine",
+      authStatus,
+      platformStatus,
+      ownerName,
+      qiankunAccountRecordId,
+      qiankunOwnerKey,
+      qiankunAgentId,
+      qiankunIdentityStatus,
+      qiankunVerifiedAt
+    });
   }
 
   async upsertAccountTouchpoint(touchpoint) {
@@ -918,6 +974,179 @@ export class PostgresRepository {
       FROM mwb.v_monitor_provision_blocker_report v
       ${filter};
     `, this.database);
+  }
+
+  async syncQiankunOptionRelations({
+    relationType,
+    routeId,
+    gameCode,
+    os,
+    parentType,
+    parentId,
+    parentName = "",
+    childType,
+    relations = [],
+    validationStatus = "observed",
+    sourceEndpoint,
+    requestFingerprint,
+    responseHash,
+    evidenceArtifactId = ""
+  }) {
+    assertId("relation_type", relationType);
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("os", os, /^[0-9A-Za-z_\-.]+$/);
+    assertId("parent_type", parentType);
+    assertId("parent_id", parentId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("child_type", childType);
+    assertId("source_endpoint", sourceEndpoint, /^\/[A-Za-z0-9_./:-]+$/);
+    assertId("request_fingerprint", requestFingerprint);
+    assertId("response_hash", responseHash);
+    const status = assertId("validation_status", validationStatus);
+    const rows = (Array.isArray(relations) ? relations : []).map((relation) => {
+      const childId = assertId("child_id", relation.childId, /^[0-9A-Za-z_\-.]+$/);
+      return {
+        relation_id: relation.relationId || `QKREL-${sha256Hex([
+          relationType,
+          routeId,
+          gameCode,
+          os,
+          parentId,
+          childId
+        ].join(":"))}`,
+        child_id: childId,
+        child_name: String(relation.childName || ""),
+        parent_name: String(relation.parentName || parentName || "")
+      };
+    });
+
+    const artifactSql = evidenceArtifactId ? sqlLiteral(evidenceArtifactId) : "NULL";
+    const syncResult = await queryJson(`
+      WITH incoming AS (
+        SELECT *
+        FROM jsonb_to_recordset(${sqlJson(rows)}) AS item(
+          relation_id text,
+          child_id text,
+          child_name text,
+          parent_name text
+        )
+      ),
+      upserted AS (
+        INSERT INTO mwb.qiankun_option_relations (
+          relation_id,
+          relation_type,
+          route_id,
+          game_code,
+          os,
+          parent_type,
+          parent_id,
+          parent_name,
+          child_type,
+          child_id,
+          child_name,
+          validation_status,
+          source_endpoint,
+          request_fingerprint,
+          response_hash,
+          evidence_artifact_id,
+          first_seen_at,
+          last_seen_at,
+          created_at,
+          updated_at
+        )
+        SELECT
+          relation_id,
+          ${sqlLiteral(relationType)},
+          ${sqlLiteral(routeId)},
+          ${sqlLiteral(gameCode)},
+          ${sqlLiteral(os)},
+          ${sqlLiteral(parentType)},
+          ${sqlLiteral(parentId)},
+          parent_name,
+          ${sqlLiteral(childType)},
+          child_id,
+          child_name,
+          ${sqlLiteral(status)},
+          ${sqlLiteral(sourceEndpoint)},
+          ${sqlLiteral(requestFingerprint)},
+          ${sqlLiteral(responseHash)},
+          ${artifactSql},
+          now(),
+          now(),
+          now(),
+          now()
+        FROM incoming
+        ON CONFLICT (
+          relation_type,
+          route_id,
+          game_code,
+          os,
+          parent_id,
+          child_id
+        ) DO UPDATE SET
+          parent_name = EXCLUDED.parent_name,
+          child_name = EXCLUDED.child_name,
+          validation_status = CASE
+            WHEN mwb.qiankun_option_relations.validation_status = 'confirmed' THEN 'confirmed'
+            ELSE EXCLUDED.validation_status
+          END,
+          source_endpoint = EXCLUDED.source_endpoint,
+          request_fingerprint = EXCLUDED.request_fingerprint,
+          response_hash = EXCLUDED.response_hash,
+          evidence_artifact_id = EXCLUDED.evidence_artifact_id,
+          last_seen_at = now(),
+          updated_at = now()
+        RETURNING relation_id
+      ),
+      stale AS (
+        UPDATE mwb.qiankun_option_relations existing
+        SET validation_status = 'stale',
+            request_fingerprint = ${sqlLiteral(requestFingerprint)},
+            response_hash = ${sqlLiteral(responseHash)},
+            evidence_artifact_id = ${artifactSql},
+            updated_at = now()
+        WHERE existing.relation_type = ${sqlLiteral(relationType)}
+          AND existing.route_id = ${sqlLiteral(routeId)}
+          AND existing.game_code = ${sqlLiteral(gameCode)}
+          AND existing.os = ${sqlLiteral(os)}
+          AND existing.parent_type = ${sqlLiteral(parentType)}
+          AND existing.parent_id = ${sqlLiteral(parentId)}
+          AND existing.child_type = ${sqlLiteral(childType)}
+          AND existing.validation_status <> 'invalid'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM incoming
+            WHERE incoming.child_id = existing.child_id
+          )
+        RETURNING relation_id
+      )
+      SELECT jsonb_build_object(
+        'upsertedCount', (SELECT count(*) FROM upserted),
+        'staleCount', (SELECT count(*) FROM stale)
+      )::text;
+    `, this.database);
+    const currentRows = await queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'relationId', relation_id,
+        'childId', child_id,
+        'childName', child_name,
+        'validationStatus', validation_status,
+        'lastSeenAt', last_seen_at,
+        'evidenceArtifactId', evidence_artifact_id
+      ) ORDER BY child_id), '[]'::jsonb)::text
+      FROM mwb.qiankun_option_relations
+      WHERE relation_type = ${sqlLiteral(relationType)}
+        AND route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND os = ${sqlLiteral(os)}
+        AND parent_type = ${sqlLiteral(parentType)}
+        AND parent_id = ${sqlLiteral(parentId)}
+        AND child_type = ${sqlLiteral(childType)};
+    `, this.database);
+    return {
+      ...(syncResult || {}),
+      currentRows: Array.isArray(currentRows) ? currentRows : []
+    };
   }
 
   async getControlledBackupLandingPageUrl({ routeId, gameCode, advertiserId }) {

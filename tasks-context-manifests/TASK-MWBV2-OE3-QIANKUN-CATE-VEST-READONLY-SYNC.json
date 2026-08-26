@@ -1,0 +1,166 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "把乾坤 /tf/ad/changeCateId 的 cate_to_vest 单跳只读同步落到可复用关系表 mwb.qiankun_option_relations，并更新关系图证据标注。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It does not authorize any real platform write, token refresh, monitor serial creation, material upload, event asset creation, DMP push, or budget/bid change.",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "candidate_cate_id": "122",
+    "candidate_os": "3",
+    "candidate_vest_id_to_check": "1414",
+    "relation_type": "cate_to_vest",
+    "source_endpoint": "/tf/ad/changeCateId"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.json",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/021_monitor_provision_defaults_reports.sql",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json",
+    "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "This is a single readonly option-cascade step with a reusable storage model and clear non-goals. It avoids the oversized paused foundation scope while reducing monitor creation risk.",
+    "implementation_suggestion": "Use one generic qiankun_option_relations table instead of per-endpoint tables, and keep status as observed until downstream vest/package/media/account/agent relations confirm full usability.",
+    "non_blocking_caveats": [
+      "cateId=122 and os=3 are candidates and must remain labeled as observed unless downstream checks confirm them.",
+      "A successful response proves the pair returns options, not that the full launch monitor configuration is valid.",
+      "Readonly API execution depends on locally available Qiankun passport credentials."
+    ]
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/ad/changeCateId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "POST /tf/ad/index for this task unless a later task explicitly expands scope",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "token refresh"
+    ],
+    "allowed_database_writes": [
+      "mwb.qiankun_option_relations",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Do not write X-Passport-Token, access token, request headers, raw request, raw response, raw callback URL, complete touchpoint URL, Cookie, auth_code, or secrets to task files, ordinary logs, frontend, API summaries, reports, or new relation rows."
+  },
+  "database_plan": {
+    "migration": "db/023_add_qiankun_option_relations.sql",
+    "new_tables": [
+      "mwb.qiankun_option_relations"
+    ],
+    "relation_statuses": [
+      "observed",
+      "confirmed",
+      "stale",
+      "invalid"
+    ],
+    "ids_as_text": true
+  },
+  "implementation_plan": [
+    "Add migration for mwb.qiankun_option_relations with unique relation scope and redaction constraints.",
+    "Extend QiankunMonitorClient allowed readonly endpoints and add queryVestsByCate.",
+    "Add repository upsert/stale-mark methods for option relations.",
+    "Add qiankun-option-relation-sync skill that normalizes vestList and writes redacted evidence.",
+    "Add monitor-provision-cli mode plus npm run monitor:sync:cate-vest.",
+    "Update Qiankun/v2 report relation HTML after sync outcome is known.",
+    "Run validation commands and update task records/project state."
+  ],
+  "acceptance": [
+    "Migration can be applied to Postgres.",
+    "Readonly sync writes observed cate_to_vest rows and redacted evidence on success.",
+    "Failure responses do not stale or delete existing rows.",
+    "Duplicate or malformed vest rows are reported safely.",
+    "vest_id=1414 hit/miss is reported and reflected in HTML.",
+    "No sensitive value leakage is detected by existing public sanitization checks.",
+    "No real write API is called."
+  ],
+  "current_progress": [
+    "Read startup state and source requirement.",
+    "Confirmed active_task was null before opening this smaller task.",
+    "Assessed the request as reasonable and non-blocking.",
+    "Created task contract and manifest.",
+    "Applied db/023_add_qiankun_option_relations.sql.",
+    "Added Qiankun client support for POST /tf/ad/changeCateId.",
+    "Added qiankun-option-relation-sync skill and monitor:sync:cate-vest CLI entry.",
+    "Ran readonly sync successfully; Qiankun returned vest_id=1414 / 巨兽战场 for cateId=122 and os=3.",
+    "Persisted one observed cate_to_vest relation and redacted evidence artifact EV-QK-CATE-VEST-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-122-3.",
+    "Updated the Qiankun/v2 relation HTML to include qiankun_option_relations and the observed cate --(os)--> vest result."
+  ],
+  "execution_result": {
+    "status": "completed",
+    "postgres_migration_applied": true,
+    "qiankun_readonly_api_called": true,
+    "qiankun_write_api_called": false,
+    "token_refresh_called": false,
+    "source_endpoint": "/tf/ad/changeCateId",
+    "api_code": "0",
+    "vest_list_count": 1,
+    "expected_vest_id": "1414",
+    "expected_vest_returned": true,
+    "observed_relations": [
+      {
+        "relation_type": "cate_to_vest",
+        "route_id": "oceanengine_3_byte_mini_game",
+        "game_code": "JSZC",
+        "os": "3",
+        "parent_type": "cate",
+        "parent_id": "122",
+        "child_type": "vest",
+        "child_id": "1414",
+        "child_name": "巨兽战场",
+        "validation_status": "observed"
+      }
+    ],
+    "request_fingerprint": "sha256:aa1e712c06634b1f6f3497f0d8b94f58d4242a695569b6614e7d4825b5226e4b",
+    "response_hash": "sha256:df0bc24d49af8b8bf5bf174e33251ecf1e3affa6ff5fbd696b2bd4bf717e8958",
+    "evidence_artifact_id": "EV-QK-CATE-VEST-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-122-3"
+  },
+  "validation": {
+    "passed": [
+      "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/023_add_qiankun_option_relations.sql",
+      "npm run monitor:sync:cate-vest",
+      "database readback: relation_count=1, expected_vest_hit=true, child_names=[巨兽战场]",
+      "npm run test:monitor-bootstrap",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:api",
+      "node --check src/platforms/qiankunMonitorClient.mjs",
+      "node --check src/repositories/postgresRepository.mjs",
+      "node --check src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+      "node --check src/workflows/skills/oe3/monitor-provision.mjs"
+    ],
+    "not_completed": [
+      {
+        "command": "npm run check:runtime-consistency",
+        "reason": "Existing script requires an explicit job id and exits with job_id_required when run directly."
+      }
+    ]
+  },
+  "completion_gate": "Closed. Next gate is to split the next readonly cascade step, likely vest_to_package, before forming qiankun_monitor_configs."
+}

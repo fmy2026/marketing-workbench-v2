@@ -1,0 +1,177 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "把乾坤 /tf/ad/changePackageId 的 package 基础信息只读核验接入现有关系表和 evidence，核验 package_id=36820 的真实字段返回。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It does not authorize any real platform write, token refresh, monitor serial creation, material upload, event asset creation, DMP push, or budget/bid change.",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "package_id": "36820",
+    "candidate_os": "3",
+    "expected_cate_id": "122",
+    "expected_vest_id": "1414",
+    "expected_channel": "dymini3k",
+    "source_endpoint": "/tf/ad/changePackageId",
+    "previous_observed_relation_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.md"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.md",
+    "db/023_add_qiankun_option_relations.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json",
+    "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "This is a single readonly package-info step that reuses the existing relation table and skill, verifies historical defaults against live readonly data, and treats missing os=3 fields as not_returned rather than failures.",
+    "implementation_suggestion": "Derive host from Qiankun API base URL at runtime, store only returned business-useful relations, and keep package download URL data as presence only.",
+    "non_blocking_caveats": [
+      "For os=3, official examples only guarantee channel, so absent media/agent/account/monitorApi fields must not be inferred.",
+      "A successful package_base_info response does not prove a full monitor config is ready.",
+      "Readonly API execution depends on locally available Qiankun passport credentials."
+    ]
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/ad/changePackageId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "POST /tf/ad/index for this task unless a later task explicitly expands scope",
+      "POST /tf/account_info/accountIndex for this task unless a later task explicitly expands scope",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "token refresh"
+    ],
+    "allowed_database_writes": [
+      "mwb.qiankun_option_relations",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Do not write package download URL field/raw value, X-Passport-Token, access token, request headers, raw request, raw response, raw callback URL, complete touchpoint URL, Cookie, auth_code, host/domain, or secrets to task files, ordinary logs, frontend, API summaries, reports, or relation rows."
+  },
+  "database_plan": {
+    "migration": "none",
+    "existing_table": "mwb.qiankun_option_relations",
+    "relation_status": "observed",
+    "ids_as_text": true
+  },
+  "implementation_plan": [
+    "Extend QiankunMonitorClient allowed readonly endpoints and add queryPackageBaseInfo.",
+    "Extend qiankun-option-relation-sync with package base-info normalization and evidence writing.",
+    "Add monitor-provision command mode plus npm run monitor:sync:package-base-info.",
+    "Run readonly sync and database readback.",
+    "Confirm monitor_provision_attempts still has only the first create attempt for the target provision.",
+    "Update Qiankun/v2 relation HTML after sync outcome is known.",
+    "Run validation commands and update task records/project state."
+  ],
+  "acceptance": [
+    "Readonly sync writes observed package-derived relations for returned business-useful fields.",
+    "Failure responses do not stale or delete existing rows.",
+    "Missing os=3 fields are reported as not_returned_for_os_3.",
+    "channel=dymini3k hit/miss is reported and reflected in HTML.",
+    "Package download URL is recorded as package_download_url_present only.",
+    "monitor_provision_attempts remains at one recorded attempt for the target provision.",
+    "No sensitive value leakage is detected by existing public sanitization checks.",
+    "No real write API is called."
+  ],
+  "current_progress": [
+    "Read startup state and source requirement.",
+    "Confirmed active_task was null before opening this smaller task.",
+    "Assessed the request as reasonable and non-blocking.",
+    "Created task contract and manifest.",
+    "Extended QiankunMonitorClient with POST /tf/ad/changePackageId via queryPackageBaseInfo.",
+    "Extended the existing qiankun-option-relation-sync skill with package_base_info support.",
+    "Added npm run monitor:sync:package-base-info.",
+    "Ran readonly sync successfully; Qiankun returned channel=dymini3k for package_id=36820 and os=3.",
+    "Recorded cateId, vestId, owner, mediaId, agentId, monitorApiList, and accountIdList as not_returned_for_os_3.",
+    "Persisted one observed package_to_channel relation and redacted evidence artifact EV-QK-PACKAGE-BASE-INFO-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-36820-3.",
+    "Confirmed package download URL data is represented only as package_download_url_present=false.",
+    "Confirmed the target monitor provision still has only attempt_no=1.",
+    "Updated the Qiankun/v2 relation HTML to include 122 -> 1414 -> 36820 -> dymini3k and mark missing fields as not confirmed."
+  ],
+  "execution_result": {
+    "status": "completed",
+    "postgres_migration_applied": false,
+    "qiankun_readonly_api_called": true,
+    "qiankun_write_api_called": false,
+    "token_refresh_called": false,
+    "source_endpoint": "/tf/ad/changePackageId",
+    "api_code": "0",
+    "package_id": "36820",
+    "os": "3",
+    "field_checks": {
+      "cate_id": "not_returned_for_os_3",
+      "vest_id": "not_returned_for_os_3",
+      "channel": "matched:dymini3k",
+      "owner": "not_returned_for_os_3",
+      "media_id": "not_returned_for_os_3",
+      "agent_id": "not_returned_for_os_3",
+      "monitor_api_list": "not_returned_for_os_3",
+      "account_id_list": "not_returned_for_os_3"
+    },
+    "package_download_url_present": false,
+    "observed_relations": [
+      {
+        "relation_type": "package_to_channel",
+        "route_id": "oceanengine_3_byte_mini_game",
+        "game_code": "JSZC",
+        "os": "3",
+        "parent_type": "package",
+        "parent_id": "36820",
+        "child_type": "channel",
+        "child_id": "dymini3k",
+        "child_name": "dymini3k",
+        "validation_status": "observed"
+      }
+    ],
+    "request_fingerprint": "sha256:4b9bd1c897c9fb7d210b7ded020597b8cdb5e6c5c3421f047c62e3f208bdce7a",
+    "response_hash": "sha256:d43d05cbf87a25f72ba033da665b5f4aafd2153f0e851f3e1b67cb6694cde2df",
+    "evidence_artifact_id": "EV-QK-PACKAGE-BASE-INFO-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-36820-3",
+    "monitor_provision_attempt_count": 1
+  },
+  "validation": {
+    "passed": [
+      "npm run monitor:sync:package-base-info",
+      "idempotent rerun of npm run monitor:sync:package-base-info",
+      "database readback: package_base_relation_count=1, distinct_relation_count=1, channel_hit=true",
+      "evidence readback: raw package download field absent, package_download_url_present key present with value false",
+      "monitor_provision_attempts readback: attempt_count=1, attempt_nos=[1]",
+      "npm run test:monitor-bootstrap",
+      "npm run smoke:api",
+      "npm run smoke:workflow-skills",
+      "node --check src/platforms/qiankunMonitorClient.mjs",
+      "node --check src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+      "node --check src/workflows/skills/oe3/monitor-provision.mjs"
+    ],
+    "not_completed": [
+      {
+        "command": "sandboxed npm run monitor:sync:package-base-info",
+        "reason": "Sandbox cannot access local Postgres socket; readonly sync succeeded outside sandbox with user-approved command prefix."
+      }
+    ]
+  },
+  "completion_gate": "Closed. mediaId was not returned for os=3, so next gate is to identify the official source for media_id before calling /tf/ad/changeMediaId."
+}
