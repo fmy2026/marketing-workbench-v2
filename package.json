@@ -20,7 +20,7 @@
     "launch:execute-once": "node scripts/launch-execute-once.mjs",
     "monitor:status": "node scripts/monitor-provision-cli.mjs --mode status",
     "monitor:reconcile": "node scripts/monitor-provision-cli.mjs --mode reconcile",
-    "monitor:create-once": "node scripts/monitor-provision-cli.mjs --mode create_once",
+    "monitor:ensure": "node scripts/monitor-provision-cli.mjs --mode ensure",
     "monitor:report": "node scripts/monitor-provision-cli.mjs --mode report",
     "check:runtime-consistency": "node scripts/runtime-consistency-check.mjs",
     "check:oe3-instance-id-evidence": "node scripts/oe3-instance-id-create-evidence-check.mjs",

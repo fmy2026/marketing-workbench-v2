@@ -1,0 +1,191 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+  "status": "implemented_waiting_confirmation",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "把乾坤监测序号创建从单次 create-once 收口为 ensure：只允许第一次服务器繁忙失败后的用户确认第二次，总上限两次，第二次前必须只读回查。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. Runtime truth remains project.state.json, Postgres marketing_workbench_v2.mwb, task card, manifest, schemas, and live readback evidence.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "previous_attempt_count": 1,
+    "maximum_total_attempts": 2,
+    "maximum_additional_actions": 1,
+    "retry_reason": "server_busy_only",
+    "retry_interval_seconds": 5,
+    "retry_after_attempt_2_allowed": false,
+    "confirm_variable": "MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE",
+    "provision_variable": "MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/021_monitor_provision_defaults_reports.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "scripts/monitor-bootstrap-smoke.mjs",
+    "package.json"
+  ],
+  "predecessor_result": {
+    "task_id": "TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE",
+    "status": "completed_with_blockers",
+    "create_called": true,
+    "create_attempt_no": 1,
+    "api_code": "500",
+    "api_message": "服务器繁忙，请稍后重试(400)",
+    "post_create_readback_result_total": 0,
+    "monitor_id": "",
+    "touchpoint_url": "",
+    "automatic_retry_forbidden_by_previous_task": true
+  },
+  "rationality_assessment": {
+    "status": "reasonable_with_strict_gate",
+    "reason": "The request narrows retry eligibility to one known transient Qiankun server-busy response, requires readonly readback before retry, caps total attempts at two, and requires explicit user confirmation variables.",
+    "risk": "This is a controlled guardrail relaxation from the previous no-retry state; implementation must make the second write explicit, auditable, and impossible to repeat.",
+    "recommendation": "Use monitor_provision_attempts for per-call audit and keep monitor_provision_runs as the single lifecycle truth row."
+  },
+  "allowed_external_calls": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Readonly pre-retry check and post-retry readback."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Only when confirmation is present and account identity must be reconfirmed before retry."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/monitorSerialNumberAdd",
+      "purpose": "Second and final confirmed create call only when all retry gates pass.",
+      "maximum_additional_calls": 1,
+      "maximum_total_calls_for_provision": 2,
+      "confirm_variable_required": true
+    }
+  ],
+  "forbidden_actions": [
+    "third monitor serial create attempt",
+    "retrying when first failure is not code=500 server busy",
+    "retrying before readonly /tf/ad/index check",
+    "retrying without MWBV2_MONITOR_RETRY_CONFIRM and MWBV2_MONITOR_PROVISION_ID",
+    "calling OceanEngine std_project/create",
+    "creating promotions or ad projects",
+    "uploading materials",
+    "creating event assets",
+    "DMP push",
+    "budget or bid updates",
+    "token refresh",
+    "writing token/secret/auth_code/Cookie/request header/raw request/raw response/full touchpoint URL to task files, normal logs, API, frontend, or ordinary report views"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+    "project.state.json",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "scripts/monitor-bootstrap-smoke.mjs",
+    "package.json",
+    "mwb.monitor_provision_runs",
+    "mwb.monitor_provision_attempts",
+    "mwb.advertiser_accounts",
+    "mwb.account_touchpoints",
+    "mwb.evidence_artifacts"
+  ],
+  "implementation_plan": [
+    "Create db/022 migration for monitor_provision_attempts, <=2 run constraint, first-attempt backfill, and report view updates.",
+    "Add repository methods for attempt summary, first-attempt backfill visibility, atomic second-attempt claim, and attempt completion.",
+    "Rename create_once command path to ensure while keeping one implementation.",
+    "Make monitor:ensure block locally without confirmation, and with confirmation run pre-retry readback before any create call.",
+    "Persist resolved monitor/touchpoint or terminal failure, then close task and restore project guardrail to read-only."
+  ],
+  "validation_plan": [
+    "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/022_monitor_provision_attempts_and_ensure.sql",
+    "npm run monitor:ensure without confirm -> blocked before external calls",
+    "npm run monitor:status",
+    "npm run monitor:report",
+    "npm run test:monitor-bootstrap",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5",
+    "JSON parse check",
+    "git diff --check"
+  ],
+  "execution_result": {
+    "status": "implemented_waiting_confirmation",
+    "migration": {
+      "file": "db/022_monitor_provision_attempts_and_ensure.sql",
+      "applied": true,
+      "notes": "First run applied table/index/backfill and failed only on view column replacement; migration was fixed to drop/recreate views and rerun successfully."
+    },
+    "data_model": {
+      "monitor_provision_runs": "single lifecycle row retained; create_attempt_no max is now 2",
+      "monitor_provision_attempts": "created; UNIQUE(provision_id, attempt_no); attempt_no limited to 1 or 2",
+      "first_attempt_backfilled": true,
+      "first_attempt_api_code": "500",
+      "first_attempt_error_category": "server_busy",
+      "attempt_count": 1
+    },
+    "code": {
+      "long_term_entry": "npm run monitor:ensure",
+      "removed_long_term_entry": "npm run monitor:create-once",
+      "single_implementation": "runMonitorProvisionEnsure",
+      "pre_retry_readback_required": true,
+      "third_attempt_blocked_by_design": true
+    },
+    "no_confirm_validation": {
+      "command": "npm run monitor:ensure",
+      "status": "blocked",
+      "blockers": [
+        "confirm_variable_missing_or_invalid"
+      ],
+      "account_api_called": false,
+      "monitor_list_api_called": false,
+      "create_called": false
+    },
+    "postgres_reports": {
+      "monitor_status_attempt_summary": "readable",
+      "mwb.v_monitor_provision_status_report": "readable; attempt_count=1 and latest_attempt_error_category=server_busy",
+      "mwb.v_monitor_provision_blocker_report": "readable"
+    },
+    "real_second_create": {
+      "executed": false,
+      "reason": "Requires explicit user confirmation variables in the current runtime request before any second platform write."
+    },
+    "sensitive_storage": "No token, request header, raw request, raw response, access_token value, or full touchpoint URL was printed or stored in task files or ordinary reports."
+  },
+  "validation_results": [
+    "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/022_monitor_provision_attempts_and_ensure.sql -> passed after view drop/recreate fix",
+    "npm run monitor:ensure without confirm -> blocked; accountApiCalled=false; monitorListApiCalled=false; createCalled=false",
+    "npm run monitor:status -> passed; attemptCount=1; firstAttemptServerBusy=true; maximumTotalAttempts=2",
+    "npm run monitor:report -> passed; latest attempt visible in status/blocker reports",
+    "npm run test:monitor-bootstrap -> passed",
+    "npm run smoke:workflow-skills -> passed",
+    "npm run smoke:api -> passed",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5 -> passed",
+    "JSON parse check -> passed",
+    "git diff --check -> passed"
+  ],
+  "current_blockers": [
+    "second_real_create_requires_explicit_confirmation_variables"
+  ],
+  "completion_gate": "implemented_waiting_confirmation; the second real Qiankun create has not been executed because it requires explicit user confirmation variables."
+}

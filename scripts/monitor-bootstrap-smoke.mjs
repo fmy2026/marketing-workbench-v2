@@ -8,10 +8,11 @@ import {
   redactedQiankunCredentialStatus
 } from "../src/platforms/qiankunCredentialStore.mjs";
 import {
-  MONITOR_CREATE_CONFIRM_ENV,
-  MONITOR_CREATE_CONFIRM_VALUE,
+  MONITOR_PROVISION_ID_ENV,
   MONITOR_PROVISION_TARGET,
-  monitorCreateConfirmed,
+  MONITOR_RETRY_CONFIRM_ENV,
+  MONITOR_RETRY_CONFIRM_VALUE,
+  monitorEnsureConfirmed,
   monitorProvisionFingerprint,
   monitorProvisionId,
   runMonitorProvisionCommand
@@ -124,9 +125,19 @@ try {
   assert(firstFingerprint === secondFingerprint, "fingerprint_must_be_canonical");
   assert(firstFingerprint.startsWith("sha256:"), "fingerprint_must_be_hash");
 
-  assert(monitorCreateConfirmed({ [MONITOR_CREATE_CONFIRM_ENV]: MONITOR_CREATE_CONFIRM_VALUE }) === true, "confirm_helper_failed");
+  assert(monitorEnsureConfirmed({
+    [MONITOR_RETRY_CONFIRM_ENV]: MONITOR_RETRY_CONFIRM_VALUE,
+    [MONITOR_PROVISION_ID_ENV]: provisionId
+  }, provisionId) === false, "legacy_confirm_call_shape_should_not_pass");
+  assert(monitorEnsureConfirmed({
+    env: {
+      [MONITOR_RETRY_CONFIRM_ENV]: MONITOR_RETRY_CONFIRM_VALUE,
+      [MONITOR_PROVISION_ID_ENV]: provisionId
+    },
+    provisionId
+  }) === true, "confirm_helper_failed");
   const createResult = await runMonitorProvisionCommand({
-    mode: "create_once",
+    mode: "ensure",
     env: {}
   });
   assert(createResult.status === "blocked", "foundation_create_must_block");
@@ -139,7 +150,7 @@ try {
     credentialStatus: credential.status,
     provisionId,
     fingerprintStable: firstFingerprint === secondFingerprint,
-    createBlockedUntilTask3Gate: createResult.createCalled === false,
+    ensureBlockedWithoutConfirm: createResult.createCalled === false,
     tokenLeaked: false
   }, null, 2));
 } finally {

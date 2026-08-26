@@ -8,8 +8,11 @@ export const MONITOR_PROVISION_TARGET = {
   advertiserId: "1871922346964041"
 };
 
-export const MONITOR_CREATE_CONFIRM_ENV = "MWBV2_MONITOR_CREATE_CONFIRM";
-export const MONITOR_CREATE_CONFIRM_VALUE = "CREATE_ONE_MONITOR_SERIAL";
+export const MONITOR_RETRY_CONFIRM_ENV = "MWBV2_MONITOR_RETRY_CONFIRM";
+export const MONITOR_RETRY_CONFIRM_VALUE = "RETRY_ONE_BUSY_MONITOR_CREATE";
+export const MONITOR_PROVISION_ID_ENV = "MWBV2_MONITOR_PROVISION_ID";
+export const MONITOR_MAX_ATTEMPTS = 2;
+export const MONITOR_RETRY_INTERVAL_SECONDS = 5;
 
 export const MONITOR_PROVISION_STATUSES = [
   "planned",
@@ -17,7 +20,9 @@ export const MONITOR_PROVISION_STATUSES = [
   "monitor_resolved",
   "touchpoint_resolved",
   "resolved",
-  "failed"
+  "failed",
+  "monitor_resolved_touchpoint_pending",
+  "terminal_failed"
 ];
 
 export const MONITOR_CREDENTIAL_STATUSES = [
@@ -50,8 +55,9 @@ function ownedCredentialItem(credential = {}, ownerKey = "") {
     .find((item) => clean(item.ownerKey) === clean(ownerKey)) || {};
 }
 
-export function monitorCreateConfirmed(env = process.env) {
-  return env[MONITOR_CREATE_CONFIRM_ENV] === MONITOR_CREATE_CONFIRM_VALUE;
+export function monitorEnsureConfirmed({ env = process.env, provisionId = "" } = {}) {
+  return env[MONITOR_RETRY_CONFIRM_ENV] === MONITOR_RETRY_CONFIRM_VALUE &&
+    env[MONITOR_PROVISION_ID_ENV] === provisionId;
 }
 
 export function monitorProvisionId({ routeId, gameCode, advertiserId }) {
@@ -166,16 +172,16 @@ async function upsertReadonlyEvidence({ repo, provisionId, summary }) {
   return artifactId;
 }
 
-async function upsertCreateOnceEvidence({ repo, provisionId, summary }) {
+async function upsertEnsureEvidence({ repo, provisionId, summary }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
   assertNoSensitiveLeak(safeSummary);
-  const artifactId = `EV-${provisionId}-CREATE-ONCE`;
+  const artifactId = `EV-${provisionId}-ENSURE`;
   await repo.upsertEvidence({
     artifactId,
     jobId: null,
-    artifactType: "qiankun_monitor_create_once",
-    title: "乾坤监测序号单次创建证据",
+    artifactType: "qiankun_monitor_ensure",
+    title: "乾坤监测序号 ensure 证据",
     summary: JSON.stringify(safeSummary),
     contentHash: hashValue(safeSummary),
     storageRef: `postgres:mwb.monitor_provision_runs/${provisionId}`,
@@ -254,7 +260,7 @@ async function persistReadonlyReconcile({
     errorSummary,
     evidenceArtifactId,
     createCalled: createAudit.createCalled === true || monitor?.createCalled === true,
-    createAttemptNo: createAudit.createCalled === true || monitor?.createCalled === true ? 1 : 0,
+    createAttemptNo: Number(createAudit.createAttemptNo || 0) || (createAudit.createCalled === true || monitor?.createCalled === true ? 1 : 0),
     createConfirmedAt: monitor?.createConfirmedAt || createAudit.createConfirmedAt || "",
     createCompletedAt: monitor?.createCompletedAt || createAudit.createCompletedAt || ""
   });
@@ -298,6 +304,28 @@ function requestFieldManifest(params = {}) {
     ].every((key) => clean(params[key]) !== ""),
     rawRequestStored: false
   };
+}
+
+function busyServerError(value = {}) {
+  const apiCode = clean(value.apiCode || value.api_code);
+  const summary = clean(value.errorSummary || value.error_summary || value.apiMessage || value.api_message);
+  return apiCode === "500" && summary.includes("服务器繁忙");
+}
+
+function secondsSince(value) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) return Number.POSITIVE_INFINITY;
+  return Math.floor((Date.now() - timestamp) / 1000);
+}
+
+function attemptId(provisionId, attemptNo) {
+  return `${provisionId}-ATTEMPT-${String(attemptNo).padStart(2, "0")}`;
+}
+
+function createErrorCategory(result = {}) {
+  if (busyServerError({ apiCode: result.apiCode, apiMessage: result.apiMessage })) return "server_busy";
+  if (result.status === "passed") return "";
+  return result.apiCode ? "api_failure" : "transport_failure";
 }
 
 function monitorFromRow(item = {}, { requestHash = "", responseHash = "", source = "", createCalled = false, createConfirmedAt = "", createCompletedAt = "" } = {}) {
@@ -513,14 +541,16 @@ export async function runMonitorProvisionReadonlyReconcile({
   return output;
 }
 
-export async function runMonitorProvisionCreateOnce({
+export async function runMonitorProvisionEnsure({
   repo,
   ownerKey = "",
   target = MONITOR_PROVISION_TARGET,
   env = process.env
 } = {}) {
   const provisionId = monitorProvisionId(target);
-  const confirmationPresent = monitorCreateConfirmed(env);
+  const confirmationPresent = monitorEnsureConfirmed({ env, provisionId });
+  const confirmValuePresent = env[MONITOR_RETRY_CONFIRM_ENV] === MONITOR_RETRY_CONFIRM_VALUE;
+  const provisionValuePresent = env[MONITOR_PROVISION_ID_ENV] === provisionId;
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
@@ -538,26 +568,39 @@ export async function runMonitorProvisionCreateOnce({
     gameCode: target.gameCode,
     advertiserId: target.advertiserId
   }) : null;
-  const previousCreateCalled = latestRun?.create_called === true || Number(latestRun?.create_attempt_no || 0) > 0;
+  const attemptState = repo ? await repo.getMonitorProvisionAttemptState({ provisionId }) : null;
+  const attempts = Array.isArray(attemptState?.attempts) ? attemptState.attempts : [];
+  const attemptCount = attempts.length || Number(latestRun?.create_attempt_no || 0);
+  const firstAttempt = attemptState?.firstAttempt || attempts.find((item) => Number(item.attempt_no) === 1) || null;
+  const latestAttempt = attemptState?.latestAttempt || attempts[attempts.length - 1] || null;
+  const retryElapsedSeconds = secondsSince(firstAttempt?.completed_at || latestRun?.create_completed_at || latestRun?.updated_at);
 
   const blockers = [];
-  if (!confirmationPresent) blockers.push("confirm_variable_missing_or_invalid");
+  if (!confirmationPresent) {
+    if (!confirmValuePresent || !provisionValuePresent) blockers.push("confirm_variable_missing_or_invalid");
+  }
   if (!effectiveOwnerKey) blockers.push("owner_key_missing_or_not_persisted");
   if (effectiveOwnerKey && credential.status !== "active") blockers.push(`credential_not_active:${credential.status}`);
   if (!readiness.readyForReadonlyReconcile) {
     blockers.push(readiness.present ? `monitor_provision_defaults_incomplete:${readiness.missingFields.join(",")}` : "monitor_provision_defaults_missing");
   }
-  if (previousCreateCalled) blockers.push("monitor_create_attempt_already_recorded");
+  if (!latestRun) blockers.push("monitor_provision_run_missing");
+  if (attemptCount === 0) blockers.push("monitor_first_attempt_missing");
+  if (attemptCount >= MONITOR_MAX_ATTEMPTS) blockers.push("monitor_create_attempt_limit_reached");
+  if (firstAttempt && !busyServerError(firstAttempt)) blockers.push("first_attempt_not_server_busy");
+  if (firstAttempt && retryElapsedSeconds < MONITOR_RETRY_INTERVAL_SECONDS) blockers.push("retry_interval_not_elapsed");
   if (latestRun?.monitor_id) blockers.push("monitor_id_already_resolved_no_create_needed");
 
   if (!confirmationPresent) {
     const output = {
       status: "blocked",
-      mode: "create_once",
+      mode: "ensure",
       target,
       provisionId,
       requestFingerprint,
       confirmationPresent,
+      confirmValuePresent,
+      provisionValuePresent,
       credential: {
         status: credential.status,
         ownerKeyPresent: Boolean(effectiveOwnerKey),
@@ -577,6 +620,44 @@ export async function runMonitorProvisionCreateOnce({
         createAttemptNo: Number(latestRun.create_attempt_no || 0)
       } : {
         present: false
+      },
+      attemptState: {
+        attemptCount,
+        latestAttemptNo: Number(latestAttempt?.attempt_no || 0),
+        firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+        retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
+        maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
+      },
+      blockers,
+      accountApiCalled: false,
+      monitorListApiCalled: false,
+      createCalled: false,
+      retryAllowed: false,
+      rawRequestStored: false,
+      rawResponseStored: false
+    };
+    const safe = sanitizeForPublic(output);
+    assertNoSensitiveLeak(safe);
+    return safe;
+  }
+
+  const hardBlockers = blockers.filter((blocker) => blocker !== "confirm_variable_missing_or_invalid");
+  if (hardBlockers.length) {
+    const output = {
+      status: "blocked",
+      mode: "ensure",
+      target,
+      provisionId,
+      requestFingerprint,
+      confirmationPresent,
+      confirmValuePresent,
+      provisionValuePresent,
+      attemptState: {
+        attemptCount,
+        latestAttemptNo: Number(latestAttempt?.attempt_no || 0),
+        firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+        retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
+        maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
       },
       blockers,
       accountApiCalled: false,
@@ -637,7 +718,11 @@ export async function runMonitorProvisionCreateOnce({
       technicalConfig: defaults.monitor_provision,
       exact: true
     });
-    preflightMonitorResult = await client.queryMonitorIndex({ ownerKey: effectiveOwnerKey, params });
+    preflightMonitorResult = await client.queryMonitorIndex({
+      ownerKey: effectiveOwnerKey,
+      params,
+      includeControlledTouchpointUrl: true
+    });
     preflightRows = compactMonitorRows(preflightMonitorResult);
     preflightExactRows = exactMonitorRows(preflightMonitorResult, defaults.monitor_provision);
     if (preflightMonitorResult.status !== "passed") {
@@ -655,7 +740,8 @@ export async function runMonitorProvisionCreateOnce({
   let createParams = {};
   let createRequestHash = "";
   let createCompletedAt = "";
-  const createConfirmedAt = confirmationPresent ? new Date().toISOString() : "";
+  let claimedAttempt = null;
+  const createConfirmedAt = new Date().toISOString();
 
   if (preflightExactRows.length === 1) {
     const existing = preflightExactRows[0];
@@ -664,7 +750,7 @@ export async function runMonitorProvisionCreateOnce({
       responseHash: preflightMonitorResult.responseHash,
       source: "qiankun_monitor_preflight_existing"
     });
-    if (!monitor.touchpointUrlHash) blockers.push("touchpoint_url_unresolved_after_monitor_list");
+    if (!monitor.touchpointUrlHash || !monitor.touchpointUrl) blockers.push("touchpoint_url_unresolved_after_monitor_list");
   }
 
   if (
@@ -673,6 +759,23 @@ export async function runMonitorProvisionCreateOnce({
     && account
     && readiness.readyForReadonlyReconcile
     && preflightExactRows.length === 0
+  ) {
+    claimedAttempt = await repo.claimMonitorProvisionAttempt({
+      provisionId,
+      attemptNo: 2,
+      triggerReason: "server_busy_retry",
+      scheduledAt: createConfirmedAt,
+      startedAt: createConfirmedAt
+    });
+    if (!claimedAttempt?.claimed) {
+      blockers.push("monitor_second_attempt_claim_failed");
+    }
+  }
+
+  if (
+    confirmationPresent
+    && blockers.length === 0
+    && claimedAttempt?.claimed
   ) {
     createParams = monitorCreateParams({
       target,
@@ -711,7 +814,7 @@ export async function runMonitorProvisionCreateOnce({
       monitor = monitorFromRow(readbackExactRows[0], {
         requestHash: createRequestHash,
         responseHash: readbackResult.responseHash,
-        source: "qiankun_monitor_create_once_readback",
+        source: "qiankun_monitor_ensure_readback",
         createCalled: true,
         createConfirmedAt,
         createCompletedAt
@@ -721,12 +824,18 @@ export async function runMonitorProvisionCreateOnce({
   }
 
   const createCalled = Boolean(createResult);
+  const finalAttemptCount = createCalled ? 2 : attemptCount;
+  const finalLifecycleSummary = monitor
+    ? monitor.touchpointUrl ? "monitor_resolved" : "monitor_resolved_touchpoint_pending"
+    : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "monitor_create_busy_retry_exhausted" : "monitor_create_terminal_failure";
   const publicSummary = {
-    mode: "create_once",
+    mode: "ensure",
     target,
     provisionId,
     requestFingerprint,
     confirmationPresent,
+    confirmValuePresent,
+    provisionValuePresent,
     credential: {
       status: credential.status,
       ownerKeyPresent: Boolean(effectiveOwnerKey),
@@ -741,6 +850,16 @@ export async function runMonitorProvisionCreateOnce({
       createAttemptNo: Number(latestRun.create_attempt_no || 0)
     } : {
       present: false
+    },
+    attemptState: {
+      attemptCountBeforeEnsure: attemptCount,
+      attemptCountAfterEnsure: finalAttemptCount,
+      firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+      retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
+      claimedAttemptNo: Number(claimedAttempt?.attemptNo || 0),
+      claimed: claimedAttempt?.claimed === true,
+      maximumTotalAttempts: MONITOR_MAX_ATTEMPTS,
+      retryAllowedAfterAttempt2: false
     },
     defaults: {
       monitorProvisionPresent: readiness.present,
@@ -814,20 +933,34 @@ export async function runMonitorProvisionCreateOnce({
     } : null,
     blockers,
     createCalled,
-    retryAllowed: false,
+    retryAllowed: finalAttemptCount < MONITOR_MAX_ATTEMPTS && !monitor,
     rawRequestStored: false,
     rawResponseStored: false
   };
   const safeSummary = sanitizeForPublic(publicSummary);
   assertNoSensitiveLeak(safeSummary);
-  const evidenceArtifactId = await upsertCreateOnceEvidence({
+  const evidenceArtifactId = await upsertEnsureEvidence({
     repo,
     provisionId,
     summary: safeSummary
   });
+  if (createCalled) {
+    await repo.completeMonitorProvisionAttempt({
+      attemptId: claimedAttempt.attemptId || attemptId(provisionId, 2),
+      attemptStatus: monitor ? "passed" : "failed",
+      httpStatus: createResult.httpStatus,
+      apiCode: createResult.apiCode || "",
+      errorCategory: createErrorCategory(createResult),
+      errorSummary: createResult.status === "passed" ? "monitor_create_passed" : `monitor_create_failed:${createResult.apiCode || "unknown"}:${createResult.apiMessage || "unknown"}`,
+      requestHash: createRequestHash,
+      responseHash: createResult.responseHash,
+      evidenceArtifactId,
+      completedAt: createCompletedAt
+    });
+  }
   const runStatus = monitor
-    ? monitor.touchpointUrl ? "resolved" : "monitor_resolved"
-    : createCalled ? "failed" : account ? "account_resolved" : "failed";
+    ? monitor.touchpointUrl ? "resolved" : "monitor_resolved_touchpoint_pending"
+    : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "terminal_failed" : account ? "account_resolved" : "failed";
   const writes = await persistReadonlyReconcile({
     repo,
     target,
@@ -838,10 +971,11 @@ export async function runMonitorProvisionCreateOnce({
     account,
     monitor,
     status: runStatus,
-    errorSummary: blockers.join(";"),
+    errorSummary: finalLifecycleSummary,
     evidenceArtifactId,
     createAudit: {
       createCalled,
+      createAttemptNo: finalAttemptCount,
       requestHash: createRequestHash,
       responseHash: createResult?.responseHash || "",
       createConfirmedAt,
@@ -872,6 +1006,8 @@ export async function runMonitorProvisionFoundationStatus({
   let defaultsError = "";
   let latestRun = null;
   let latestRunError = "";
+  let attemptState = null;
+  let attemptStateError = "";
   if (repo) {
     try {
       defaults = await repo.getMonitorProvisionDefaults({
@@ -889,6 +1025,11 @@ export async function runMonitorProvisionFoundationStatus({
       });
     } catch (error) {
       latestRunError = clean(error.message || error.code || "latest_run_read_failed");
+    }
+    try {
+      attemptState = await repo.getMonitorProvisionAttemptState({ provisionId: monitorProvisionId(target) });
+    } catch (error) {
+      attemptStateError = clean(error.message || error.code || "attempt_state_read_failed");
     }
   }
   const readiness = monitorDefaultsReadiness(defaults || {});
@@ -930,8 +1071,20 @@ export async function runMonitorProvisionFoundationStatus({
       present: false,
       error: latestRunError
     },
+    attemptState: attemptState ? {
+      attemptCount: Number(attemptState.attemptCount || 0),
+      latestAttemptNo: Number(attemptState.latestAttempt?.attempt_no || 0),
+      latestAttemptStatus: clean(attemptState.latestAttempt?.attempt_status),
+      latestAttemptApiCode: clean(attemptState.latestAttempt?.api_code),
+      latestAttemptErrorCategory: clean(attemptState.latestAttempt?.error_category),
+      firstAttemptServerBusy: attemptState.firstAttempt ? busyServerError(attemptState.firstAttempt) : false,
+      maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
+    } : {
+      present: false,
+      error: attemptStateError
+    },
     createAllowedInCurrentTask: false,
-    createConfirmationPresent: monitorCreateConfirmed(),
+    createConfirmationPresent: monitorEnsureConfirmed({ provisionId: monitorProvisionId(target) }),
     allowedReadonlyEndpoints: [
       "POST /tf/account_info/accountIndex",
       "POST /tf/ad/index"
@@ -960,8 +1113,8 @@ export async function runMonitorProvisionCommand({
   if (cleanMode === "reconcile") {
     return runMonitorProvisionReadonlyReconcile({ repo, ownerKey, target });
   }
-  if (cleanMode === "create_once") {
-    return runMonitorProvisionCreateOnce({ repo, ownerKey, target, env });
+  if (cleanMode === "ensure") {
+    return runMonitorProvisionEnsure({ repo, ownerKey, target, env });
   }
   if (cleanMode === "report") {
     const provisionId = monitorProvisionId(target);

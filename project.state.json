@@ -7,15 +7,28 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "blocked_after_single_qiankun_monitor_create_attempt",
+  "project_status": "monitor_busy_retry_ensure_implemented_waiting_confirmation",
   "phase": {
-    "id": "OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE",
-    "status": "completed_with_blockers",
-    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md"
+    "id": "OE3-MONITOR-BUSY-RETRY-ENSURE",
+    "status": "implemented_waiting_confirmation",
+    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md"
   },
-  "active_task": null,
+  "active_task": {
+    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+    "owner_agent": "codex",
+    "read_order": [
+      "AGENTS.md",
+      "project.state.json",
+      "/Users/hys/Desktop/需求表述.md",
+      "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json"
+    ]
+  },
   "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
-  "next_gate": "第三关已完成但平台返回 blocker。已回填本地 owner_key=fengmeiyu，已写入 JSZC monitor_provision 默认值，已新增 PostgreSQL 报表 view；确认变量下已调用一次 /tf/ad/monitorSerialNumberAdd，HTTP 200 但业务 code=500、message=服务器繁忙，请稍后重试(400)，创建后 /tf/ad/index 回查 resultTotal=0。已记录 create_called=true、create_attempt_no=1、retry_allowed=false；当前 monitor_id 与 touchpoint_url 仍未解析，Workflow 节点 2 不可通过。下一步需要人工/乾坤技术侧排查该 code=500，禁止自动重试创建。",
+  "next_gate": "监测序号 busy retry ensure 已实现并验证到无确认阻断。已新增 monitor_provision_attempts，回填第一次 code=500/服务器繁忙为 attempt_no=1；长期入口已改为 npm run monitor:ensure；报表可读 attempt_count=1。真实第二次创建尚未执行，必须由用户明确授权 MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE 且 MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041。执行前会先 /tf/ad/index 只读回查；若仍无唯一 monitor_id，最多再调用一次 /tf/ad/monitorSerialNumberAdd，随后永久禁止第三次。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -79,9 +92,9 @@
     "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
     "repositories": "src/repositories/postgresRepository.mjs",
     "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, and Qiankun monitor provision status/reconcile/create-once. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
-    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql",
+    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql",
     "schemas": "schemas/",
-    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:create-once, monitor:report",
+    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:ensure, monitor:report",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
     "runtime_state": "idle",

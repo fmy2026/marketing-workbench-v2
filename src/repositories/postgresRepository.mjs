@@ -603,6 +603,112 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getMonitorProvisionAttemptState({ provisionId }) {
+    assertId("provision_id", provisionId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'run', (
+          SELECT to_jsonb(r)
+          FROM mwb.monitor_provision_runs r
+          WHERE r.provision_id = ${sqlLiteral(provisionId)}
+          LIMIT 1
+        ),
+        'attempts', coalesce((
+          SELECT jsonb_agg(to_jsonb(a) ORDER BY a.attempt_no)
+          FROM mwb.monitor_provision_attempts a
+          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+        ), '[]'::jsonb),
+        'attemptCount', (
+          SELECT count(*)
+          FROM mwb.monitor_provision_attempts a
+          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+        ),
+        'latestAttempt', (
+          SELECT to_jsonb(a)
+          FROM mwb.monitor_provision_attempts a
+          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+          ORDER BY a.attempt_no DESC, coalesce(a.completed_at, a.started_at, a.created_at) DESC
+          LIMIT 1
+        ),
+        'firstAttempt', (
+          SELECT to_jsonb(a)
+          FROM mwb.monitor_provision_attempts a
+          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+            AND a.attempt_no = 1
+          LIMIT 1
+        )
+      )::text;
+    `, this.database);
+  }
+
+  async claimMonitorProvisionAttempt({ provisionId, attemptNo, triggerReason, scheduledAt = "", startedAt = "" }) {
+    assertId("provision_id", provisionId);
+    const numericAttemptNo = Number(attemptNo);
+    if (![1, 2].includes(numericAttemptNo)) throw new Error("invalid_attempt_no");
+    const id = `${provisionId}-ATTEMPT-${String(numericAttemptNo).padStart(2, "0")}`;
+    const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
+    return queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(provisionId)}, 0)) AS locked
+      ),
+      current_attempts AS (
+        SELECT count(*)::integer AS attempt_count
+        FROM mwb.monitor_provision_attempts
+        WHERE provision_id = ${sqlLiteral(provisionId)}
+      ),
+      claimed AS (
+        INSERT INTO mwb.monitor_provision_attempts (
+          attempt_id,
+          provision_id,
+          attempt_no,
+          trigger_reason,
+          attempt_status,
+          scheduled_at,
+          started_at,
+          created_at
+        )
+        SELECT
+          ${sqlLiteral(id)},
+          ${sqlLiteral(provisionId)},
+          ${numericAttemptNo},
+          ${sqlLiteral(triggerReason || "monitor_ensure")},
+          'started',
+          ${timestampOrNull(scheduledAt)},
+          coalesce(${timestampOrNull(startedAt)}, now()),
+          now()
+        FROM scope_lock, current_attempts
+        WHERE current_attempts.attempt_count < 2
+        ON CONFLICT DO NOTHING
+        RETURNING attempt_id
+      )
+      SELECT jsonb_build_object(
+        'attemptId', ${sqlLiteral(id)},
+        'claimed', EXISTS (SELECT 1 FROM claimed),
+        'attemptNo', ${numericAttemptNo},
+        'attemptCountBeforeClaim', (SELECT attempt_count FROM current_attempts)
+      )::text;
+    `, this.database);
+  }
+
+  async completeMonitorProvisionAttempt(attempt) {
+    assertId("attempt_id", attempt.attemptId);
+    const status = assertId("attempt_status", attempt.attemptStatus || "failed");
+    const timestampOrNow = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "now()";
+    await runPsql(`
+      UPDATE mwb.monitor_provision_attempts
+      SET attempt_status = ${sqlLiteral(status)},
+          http_status = ${attempt.httpStatus === null || attempt.httpStatus === undefined ? "NULL" : Number(attempt.httpStatus)},
+          api_code = ${sqlLiteral(attempt.apiCode || "")},
+          error_category = ${sqlLiteral(attempt.errorCategory || "")},
+          error_summary = ${sqlLiteral(attempt.errorSummary || "")},
+          request_hash = ${attempt.requestHash ? sqlLiteral(attempt.requestHash) : "NULL"},
+          response_hash = ${attempt.responseHash ? sqlLiteral(attempt.responseHash) : "NULL"},
+          evidence_artifact_id = ${attempt.evidenceArtifactId ? sqlLiteral(attempt.evidenceArtifactId) : "NULL"},
+          completed_at = ${timestampOrNow(attempt.completedAt)}
+      WHERE attempt_id = ${sqlLiteral(attempt.attemptId)};
+    `, this.database);
+  }
+
   async upsertMonitorProvisionRun(run) {
     assertId("provision_id", run.provisionId);
     assertId("route_id", run.routeId);
