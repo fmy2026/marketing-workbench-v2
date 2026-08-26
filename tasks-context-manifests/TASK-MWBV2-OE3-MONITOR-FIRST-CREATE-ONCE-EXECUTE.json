@@ -1,0 +1,127 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.md",
+  "status": "completed_server_busy_retry_available",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Execute and record one real Qiankun monitor first-create attempt for advertiser 1871922414575753.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The desktop markdown is treated as requirements input, not direct authorization for real platform writes.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922414575753",
+    "qiankun_account_record_id": "8449",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753",
+    "create_plan_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+    "real_create_allowed_without_chat_confirmation": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.json",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/qiankunMonitorClient.mjs"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_executed_with_authorization_gate",
+    "questions": [
+      "无待答疑问；第二次且最后一次重试必须另行聊天授权。"
+    ],
+    "reason": "All technical preconditions were prepared, the real platform write was authorized in chat, and the first create attempt was executed once."
+  },
+  "allowed_before_confirmation": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Readonly identity preflight."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Readonly duplicate check before create."
+    }
+  ],
+  "forbidden_until_confirmation": [
+    "POST /tf/ad/monitorSerialNumberAdd",
+    "real create attempt for advertiser 1871922414575753"
+  ],
+  "forbidden_actions": [
+    "third monitor create for advertiser 1871922346964041",
+    "token refresh",
+    "OceanEngine std_project/create",
+    "promotion creation",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "storing token/Cookie/raw request/raw response/full touchpoint URL in project files or ordinary logs"
+  ],
+  "implementation_plan": [
+    "Create task card and context manifest.",
+    "Mark the task active in project.state.json while platform_write_allowed remains false.",
+    "Run plan-only preflight to reconfirm attempt_count=0, account record 8449, duplicate count 0, callback readiness, and create_plan_hash stability.",
+    "If chat confirmation is missing, stop at waiting_user_authorization and record the exact required confirmation bindings.",
+    "If chat confirmation is later provided, run the single monitor:ensure command with bound confirmation variables."
+  ],
+  "preflight_result": {
+    "status": "passed",
+    "run_status": "planned",
+    "attempt_count": 0,
+    "attempt_policy_action": "first_create",
+    "next_attempt_no": 1,
+    "trigger_reason": "initial_create_once",
+    "account_record_id": "8449",
+    "owner": "fengmeiyu",
+    "agent_id": "613",
+    "existing_monitor": false,
+    "monitor_result_total": 0,
+    "monitor_exact_match_count": 0,
+    "manual_contract_fixed_mismatches": [],
+    "manual_contract_account_difference": "media_account_id 8448 -> 8449 expected",
+    "callback_contract_hash": "sha256:224d383b42f1a1a89774f85c267f16758f6b9e5acb4488724b9cfa387ded3819",
+    "create_plan_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+    "create_called": false
+  },
+  "execution_result": {
+    "status": "server_busy_retry_available",
+    "chat_confirmation_received": true,
+    "create_called": true,
+    "attempt_no": 1,
+    "trigger_reason": "initial_create_once",
+    "claim_status": "claimed",
+    "create_http_status": 200,
+    "create_api_code": "500",
+    "create_api_message": "服务器繁忙，请稍后重试(400)",
+    "create_request_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+    "create_response_hash": "sha256:a85b2886b658ea6421161c5c1583dde35d4863025ad732278be57e56992be719",
+    "post_create_readback_status": "passed",
+    "post_create_exact_match_count": 0,
+    "monitor_id": "",
+    "latest_attempt_status": "failed",
+    "latest_attempt_error_category": "server_busy",
+    "run_error_summary": "monitor_create_server_busy_retry_available",
+    "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-ENSURE",
+    "second_retry_requires_new_confirmation": true,
+    "real_create_attempts_remaining": 1
+  },
+  "validation": [
+    "plan-only preflight passed for advertiser 1871922414575753 with createCalled=false",
+    "unconfirmed ensure for advertiser 1871922414575753 blocked by confirm_variable_missing_or_invalid and did not create",
+    "monitor:status confirmed advertiser 1871922414575753 attemptCount=0 and monitorIdPresent=false",
+    "old advertiser 1871922346964041 remains blocked by monitor_id_already_resolved_no_create_needed and monitor_create_attempt_limit_reached",
+    "first real create executed once and returned apiCode=500 server_busy",
+    "post-create readonly readback returned exactMatchCount=0",
+    "monitor:report confirmed attemptCount=1, createAttemptNo=1, latestAttemptErrorCategory=server_busy",
+    "run error_summary corrected to monitor_create_server_busy_retry_available"
+  ],
+  "completion_gate": "Completed first real create attempt. Next gate is a separately authorized second and final server-busy retry for advertiser 1871922414575753, after readonly preflight confirms no existing monitor."
+}

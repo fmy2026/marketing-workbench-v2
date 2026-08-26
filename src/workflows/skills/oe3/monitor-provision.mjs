@@ -1721,6 +1721,11 @@ export async function runMonitorProvisionEnsure({
   const client = createQiankunMonitorClient();
   let accountResult = null;
   let account = null;
+  let identityPreflight = {
+    status: "not_checked",
+    verified: false,
+    checks: []
+  };
   if (effectiveOwnerKey && credential.status === "active") {
     accountResult = await client.queryAccountIndex({
       ownerKey: effectiveOwnerKey,
@@ -1928,9 +1933,11 @@ export async function runMonitorProvisionEnsure({
 
   const createCalled = Boolean(createResult);
   const finalAttemptCount = createCalled ? Number(attemptPolicy.nextAttemptNo || attemptCount) : attemptCount;
+  const createFailedWithServerBusy = createCalled && createErrorCategory(createResult) === "server_busy";
   const finalLifecycleSummary = monitor
     ? monitor.touchpointUrl ? "monitor_resolved" : "monitor_resolved_touchpoint_pending"
-    : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "monitor_create_busy_retry_exhausted" : "monitor_create_terminal_failure";
+    : createFailedWithServerBusy && finalAttemptCount < MONITOR_MAX_ATTEMPTS ? "monitor_create_server_busy_retry_available"
+      : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "monitor_create_busy_retry_exhausted" : "monitor_create_terminal_failure";
   const publicSummary = {
     mode: "ensure",
     target,
