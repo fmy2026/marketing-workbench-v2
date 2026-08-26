@@ -7,28 +7,28 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "monitor_busy_retry_ensure_implemented_waiting_confirmation",
+  "project_status": "monitor_final_ensure_waiting_user_confirmation",
   "phase": {
-    "id": "OE3-MONITOR-BUSY-RETRY-ENSURE",
-    "status": "implemented_waiting_confirmation",
-    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md"
+    "id": "OE3-MONITOR-FINAL-ENSURE-EXECUTE",
+    "status": "waiting_user_confirmation",
+    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md"
   },
   "active_task": {
-    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
     "owner_agent": "codex",
     "read_order": [
       "AGENTS.md",
       "project.state.json",
       "/Users/hys/Desktop/需求表述.md",
-      "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
       "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json"
+      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+      "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json"
     ]
   },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
-  "next_gate": "监测序号 busy retry ensure 已实现并验证到无确认阻断。已新增 monitor_provision_attempts，回填第一次 code=500/服务器繁忙为 attempt_no=1；长期入口已改为 npm run monitor:ensure；报表可读 attempt_count=1。真实第二次创建尚未执行，必须由用户明确授权 MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE 且 MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041。执行前会先 /tf/ad/index 只读回查；若仍无唯一 monitor_id，最多再调用一次 /tf/ad/monitorSerialNumberAdd，随后永久禁止第三次。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+  "next_gate": "已按新需求创建最终 monitor:ensure 执行任务并完成执行前状态复核。当前 attempt_count=1，第一次为 code=500/server_busy，monitor_id 与 touchpoint_url 仍未解析。由于附件命令不能作为直接写入授权，真实第二次创建等待用户在聊天中明确确认；确认后才临时开启一次写入 scope，并运行 MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE + MWBV2_MONITOR_PROVISION_ID 精确匹配的 npm run monitor:ensure。未确认前平台写入保持关闭。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {

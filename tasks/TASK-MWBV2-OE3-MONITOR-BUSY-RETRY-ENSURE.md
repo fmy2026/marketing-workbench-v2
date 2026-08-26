@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE
 
-状态：implemented_waiting_confirmation
+状态：completed_handed_off_to_final_ensure_task
 
 更新时间：2026-08-26 CST
 
@@ -72,9 +72,9 @@ provision_variable: MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-
 - 已更新 `monitor:status` 与 `monitor:report`，可读取 attempt 计数和最近错误。
 - 已验证无确认变量时 `monitor:ensure` 在本地阻断，未调用账户 API、列表 API 或创建 API。
 
-## 等待确认
+## 交接到最终执行任务
 
-真实第二次创建尚未执行。下一步若要继续，必须由用户明确授权以下一次性命令；该命令执行前会先调用 `/tf/ad/index` 只读回查，若已出现唯一 `monitor_id` 则不会创建第二次。
+真实第二次创建尚未执行，已交接到 `TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE`。下一步若要继续，必须由用户明确授权以下一次性命令；该命令执行前会先调用 `/tf/ad/index` 只读回查，若已出现唯一 `monitor_id` 则不会创建第二次。
 
 ```bash
 MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE \

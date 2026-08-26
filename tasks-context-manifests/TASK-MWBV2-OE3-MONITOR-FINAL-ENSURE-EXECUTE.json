@@ -1,0 +1,150 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+  "status": "waiting_user_confirmation",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "执行最终 monitor:ensure：先只读回查；如仍无唯一 monitor_id 且用户聊天中明确授权，则最多执行一次也是最后一次乾坤监测序号创建。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. Its command block is not treated as direct user approval for a real platform write.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "current_attempt_count": 1,
+    "maximum_total_attempts": 2,
+    "maximum_additional_actions": 1,
+    "retry_reason": "server_busy_only",
+    "requires_chat_confirmation_before_real_write": true,
+    "confirm_variable": "MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE",
+    "provision_variable": "MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json"
+  ],
+  "preflight_snapshot": {
+    "commands_run": [
+      "npm run monitor:status",
+      "npm run monitor:ensure without confirm"
+    ],
+    "monitor_status": {
+      "credential_status": "active",
+      "defaults_ready": true,
+      "latest_run_status": "failed",
+      "monitor_id_present": false,
+      "attempt_count": 1,
+      "latest_attempt_no": 1,
+      "latest_attempt_status": "failed",
+      "latest_attempt_api_code": "500",
+      "latest_attempt_error_category": "server_busy",
+      "first_attempt_server_busy": true,
+      "maximum_total_attempts": 2
+    },
+    "ensure_without_confirm": {
+      "status": "blocked",
+      "blockers": [
+        "confirm_variable_missing_or_invalid"
+      ],
+      "account_api_called": false,
+      "monitor_list_api_called": false,
+      "create_called": false
+    }
+  },
+  "rationality_assessment": {
+    "status": "reasonable_but_requires_explicit_confirmation",
+    "reason": "The task is bounded to one provision with one prior server-busy failure, enforces readonly readback before retry, and has a hard total attempt cap of two.",
+    "risk": "The next step may perform a real Qiankun platform write. The attachment alone must not be interpreted as approval.",
+    "recommendation": "Keep this task active in waiting_user_confirmation until the user explicitly authorizes the exact final ensure execution in chat."
+  },
+  "allowed_external_calls_after_confirmation": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Mandatory pre-create readonly readback and post-create readback."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Reconfirm target account identity before any write."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/monitorSerialNumberAdd",
+      "purpose": "Second and final monitor serial creation only if readonly readback still has no unique monitor.",
+      "maximum_additional_calls": 1,
+      "maximum_total_calls_for_provision": 2
+    }
+  ],
+  "forbidden_actions": [
+    "treating the attached markdown command block as direct write approval",
+    "third monitor serial create attempt",
+    "creating without exact MWBV2_MONITOR_RETRY_CONFIRM and MWBV2_MONITOR_PROVISION_ID",
+    "creating before /tf/ad/index readonly readback",
+    "calling OceanEngine std_project/create",
+    "creating promotions or ad projects",
+    "uploading materials",
+    "creating event assets",
+    "DMP push",
+    "budget or bid updates",
+    "token refresh",
+    "writing token/secret/auth_code/Cookie/request header/raw request/raw response/full touchpoint URL to task files, normal logs, API, frontend, or ordinary report views"
+  ],
+  "allowed_writes_before_confirmation": [
+    "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json"
+  ],
+  "allowed_writes_after_confirmation": [
+    "mwb.monitor_provision_runs",
+    "mwb.monitor_provision_attempts",
+    "mwb.advertiser_accounts",
+    "mwb.account_touchpoints",
+    "mwb.evidence_artifacts",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+    "project.state.json"
+  ],
+  "execution_plan_after_confirmation": [
+    "Set project.state.json platform_write_scope only for this provision and one additional Qiankun monitor serial create action.",
+    "Run MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041 npm run monitor:ensure.",
+    "Record whether readonly preflight found an existing monitor or whether attempt_no=2 was created.",
+    "Run monitor:status and monitor:report.",
+    "Run project validation commands.",
+    "Close task and revoke write scope."
+  ],
+  "validation_plan": [
+    "npm run monitor:status",
+    "npm run monitor:report",
+    "npm run test:monitor-bootstrap",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5",
+    "JSON parse check",
+    "git diff --check"
+  ],
+  "execution_result": {
+    "status": "not_executed_waiting_user_confirmation",
+    "real_second_create_executed": false
+  },
+  "current_blockers": [
+    "waiting_for_explicit_chat_confirmation_for_final_monitor_ensure"
+  ],
+  "completion_gate": "waiting_user_confirmation; no real second Qiankun create has been executed by this task."
+}

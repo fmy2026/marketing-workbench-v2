@@ -2,7 +2,7 @@
   "schema_version": "2026-08-23.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE",
   "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.md",
-  "status": "implemented_waiting_confirmation",
+  "status": "completed_handed_off_to_final_ensure_task",
   "created_at": "2026-08-26 CST",
   "updated_at": "2026-08-26 CST",
   "owner_agent": "codex",
@@ -187,5 +187,7 @@
   "current_blockers": [
     "second_real_create_requires_explicit_confirmation_variables"
   ],
-  "completion_gate": "implemented_waiting_confirmation; the second real Qiankun create has not been executed because it requires explicit user confirmation variables."
+  "next_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
+  "next_context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+  "completion_gate": "completed_handed_off_to_final_ensure_task; implementation is ready and the second real Qiankun create remains unexecuted until explicit chat confirmation."
 }
