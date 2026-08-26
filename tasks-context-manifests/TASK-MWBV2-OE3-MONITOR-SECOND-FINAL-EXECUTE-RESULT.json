@@ -1,0 +1,133 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-SECOND-FINAL-EXECUTE-RESULT",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-SECOND-FINAL-EXECUTE-RESULT.md",
+  "status": "completed_terminal_failed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Execute the user-authorized second and final real Qiankun monitor creation attempt for the new account, then close the provision result.",
+    "user_authorization": "Confirmed in current chat: new account, second and final Qiankun monitor real creation.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "maximum_total_attempts": 2,
+    "executed_attempt_no": 2
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-SECOND-CREATE-MANUAL-L3-CONFIRM.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-SECOND-CREATE-MANUAL-L3-CONFIRM.json",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json"
+  ],
+  "authorization_and_scope": {
+    "required_env": {
+      "MWBV2_MONITOR_RETRY_CONFIRM": "RETRY_ONE_BUSY_MONITOR_CREATE",
+      "MWBV2_MONITOR_PROVISION_ID": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+      "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM": "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR"
+    },
+    "allowed_write_endpoint": "POST /tf/ad/monitorSerialNumberAdd",
+    "forbidden_after_this_task": [
+      "third monitor serial creation attempt",
+      "token refresh",
+      "OceanEngine std_project/create",
+      "promotion creation",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "sensitive_data_rule": "No token, Cookie, raw request, raw response, full request headers, callback URL, or complete touchpoint URL is stored in project files or ordinary logs."
+  },
+  "execution": {
+    "command": "MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041 MWBV2_MONITOR_L3_OVERRIDE_CONFIRM=CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR npm run monitor:ensure",
+    "status": "blocked",
+    "run_status": "terminal_failed",
+    "preflight_monitor_index": {
+      "status": "passed",
+      "api_code": "0",
+      "result_total": 0,
+      "exact_match_count": 0
+    },
+    "create_attempt": {
+      "called": true,
+      "endpoint": "/tf/ad/monitorSerialNumberAdd",
+      "http_status": 200,
+      "api_code": "500",
+      "api_message": "服务器繁忙，请稍后重试(400)",
+      "attempt_no": 2,
+      "request_hash": "sha256:74993013f10e42d83b82547fbc5587a95f256eb4bd6a5acd7a0da5e42c00a174",
+      "response_hash": "sha256:a85b2886b658ea6421161c5c1583dde35d4863025ad732278be57e56992be719",
+      "raw_request_stored": false,
+      "raw_response_stored": false
+    },
+    "post_create_monitor_index": {
+      "status": "passed",
+      "api_code": "0",
+      "result_total": 0,
+      "exact_match_count": 0
+    },
+    "resolved_monitor": null,
+    "blockers": [
+      "monitor_create_failed:500:服务器繁忙，请稍后重试(400)",
+      "post_create_monitor_readback_missing"
+    ]
+  },
+  "database_readback": {
+    "monitor_provision_runs": {
+      "status": "terminal_failed",
+      "monitor_serial_id_present": false,
+      "monitor_id_present": false,
+      "create_called": true,
+      "create_attempt_no": 2,
+      "error_summary": "monitor_create_busy_retry_exhausted",
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-ENSURE"
+    },
+    "monitor_provision_attempts": [
+      {
+        "attempt_no": 1,
+        "trigger_reason": "initial_create_once",
+        "attempt_status": "failed",
+        "api_code": "500",
+        "error_category": "server_busy"
+      },
+      {
+        "attempt_no": 2,
+        "trigger_reason": "server_busy_retry",
+        "attempt_status": "failed",
+        "http_status": 200,
+        "api_code": "500",
+        "error_category": "server_busy"
+      }
+    ],
+    "attempt_count": 2,
+    "retry_allowed": false
+  },
+  "evidence": [
+    {
+      "artifact_id": "EV-QK-MANUAL-L3-CONFIRM-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310",
+      "artifact_type": "qiankun_manual_l3_confirm",
+      "source_ref": "user:qiankun_backend_manual_confirmation"
+    },
+    {
+      "artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-ENSURE",
+      "artifact_type": "qiankun_monitor_ensure",
+      "source_ref": "qiankun:/tf/ad/monitorSerialNumberAdd+/tf/ad/index"
+    }
+  ],
+  "validation": [
+    "npm run monitor:ensure executed with all three confirmation variables",
+    "npm run monitor:status confirmed terminal_failed and attempt_count=2",
+    "npm run monitor:report confirmed monitor_create_busy_retry_exhausted",
+    "psql readback confirmed exactly two attempts and latest attempt_no=2 failed with server_busy",
+    "npm run monitor:ensure without confirmation stayed blocked with accountApiCalled=false, monitorListApiCalled=false, createCalled=false, and monitor_create_attempt_limit_reached"
+  ],
+  "completion_gate": "Closed as terminal_failed. The second and final real create attempt has been consumed; future work must not call /tf/ad/monitorSerialNumberAdd for this provision again."
+}

@@ -2,12 +2,12 @@
   "schema_version": "2026-08-23.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE",
   "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.md",
-  "status": "waiting_user_confirmation",
+  "status": "paused_by_readonly_foundation_recheck",
   "created_at": "2026-08-26 CST",
   "updated_at": "2026-08-26 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "执行最终 monitor:ensure：先只读回查；如仍无唯一 monitor_id 且用户聊天中明确授权，则最多执行一次也是最后一次乾坤监测序号创建。",
+    "goal": "历史最终 monitor:ensure 执行任务。已按新的只读底座复核需求暂停；不得作为当前真实创建依据。",
     "source_request_file": "/Users/hys/Desktop/需求表述.md",
     "document_instruction_boundary": "The source request file is requirements input only. Its command block is not treated as direct user approval for a real platform write.",
     "route_id": "oceanengine_3_byte_mini_game",
@@ -19,6 +19,7 @@
     "maximum_additional_actions": 1,
     "retry_reason": "server_busy_only",
     "requires_chat_confirmation_before_real_write": true,
+    "paused_by_task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.md",
     "confirm_variable": "MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE",
     "provision_variable": "MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041"
   },
@@ -144,7 +145,8 @@
     "real_second_create_executed": false
   },
   "current_blockers": [
-    "waiting_for_explicit_chat_confirmation_for_final_monitor_ensure"
+    "paused_by_readonly_foundation_recheck",
+    "waiting_for_valid_config_candidate_and_no_match_inventory_before_any_future_final_ensure"
   ],
-  "completion_gate": "waiting_user_confirmation; no real second Qiankun create has been executed by this task."
+  "completion_gate": "paused_by_readonly_foundation_recheck; no real second Qiankun create has been executed by this task."
 }

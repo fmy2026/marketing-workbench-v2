@@ -578,6 +578,8 @@ export class PostgresRepository {
         'source_usage', coalesce(d.source_usage, 'runtime_truth'),
         'monitor_provision_present', d.raw_defaults ? 'monitor_provision',
         'monitor_provision', coalesce(d.raw_defaults->'monitor_provision', '{}'::jsonb),
+        'monitor_provision_reference_candidates', coalesce(d.raw_defaults->'monitor_provision_reference_candidates', '{}'::jsonb),
+        'monitor_provision_status', coalesce(d.raw_defaults->>'monitor_provision_status', ''),
         'updated_at', d.updated_at
       )::text
       FROM mwb.game_route_defaults d
@@ -810,6 +812,33 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async updateMonitorProvisionRunStatus({
+    provisionId,
+    status,
+    requestFingerprint,
+    credentialStatus = "",
+    responseHash = "",
+    errorSummary = "",
+    evidenceArtifactId = ""
+  }) {
+    assertId("provision_id", provisionId);
+    assertId("status", status);
+    assertId("request_fingerprint", requestFingerprint);
+    const credentialStatusValue = credentialStatus ? assertId("credential_status", credentialStatus) : "";
+
+    await runPsql(`
+      UPDATE mwb.monitor_provision_runs
+      SET status = ${sqlLiteral(status)},
+          request_fingerprint = ${sqlLiteral(requestFingerprint)},
+          credential_status = coalesce(nullif(${sqlLiteral(credentialStatusValue)}, ''), credential_status),
+          response_hash = coalesce(nullif(${sqlLiteral(responseHash)}, ''), response_hash),
+          error_summary = ${sqlLiteral(errorSummary || "")},
+          evidence_artifact_id = ${evidenceArtifactId ? sqlLiteral(evidenceArtifactId) : "NULL"},
+          updated_at = now()
+      WHERE provision_id = ${sqlLiteral(provisionId)};
+    `, this.database);
+  }
+
   async upsertAdvertiserAccount(account) {
     assertId("advertiser_id", account.advertiserId, /^[0-9A-Za-z_\-.]+$/);
     assertId("route_id", account.routeId);
@@ -833,6 +862,8 @@ export class PostgresRepository {
         qiankun_account_record_id,
         qiankun_owner_key,
         qiankun_agent_id,
+        qiankun_media_master_id,
+        qiankun_media_master_name,
         qiankun_identity_status,
         qiankun_verified_at,
         created_at,
@@ -850,6 +881,8 @@ export class PostgresRepository {
         ${account.qiankunAccountRecordId ? sqlLiteral(account.qiankunAccountRecordId) : "NULL"},
         ${sqlLiteral(assertOwnerKey(account.qiankunOwnerKey || ""))},
         ${account.qiankunAgentId ? sqlLiteral(account.qiankunAgentId) : "NULL"},
+        ${account.qiankunMediaMasterId ? sqlLiteral(account.qiankunMediaMasterId) : "NULL"},
+        ${sqlLiteral(account.qiankunMediaMasterName || "")},
         ${sqlLiteral(qiankunIdentityStatus || "unverified")},
         ${account.qiankunVerifiedAt ? timestampOrNow(account.qiankunVerifiedAt) : "NULL"},
         now(),
@@ -873,6 +906,11 @@ export class PostgresRepository {
           ELSE mwb.advertiser_accounts.qiankun_owner_key
         END,
         qiankun_agent_id = coalesce(EXCLUDED.qiankun_agent_id, mwb.advertiser_accounts.qiankun_agent_id),
+        qiankun_media_master_id = coalesce(EXCLUDED.qiankun_media_master_id, mwb.advertiser_accounts.qiankun_media_master_id),
+        qiankun_media_master_name = CASE
+          WHEN EXCLUDED.qiankun_media_master_name <> '' THEN EXCLUDED.qiankun_media_master_name
+          ELSE mwb.advertiser_accounts.qiankun_media_master_name
+        END,
         qiankun_identity_status = CASE
           WHEN EXCLUDED.qiankun_identity_status <> 'unverified' THEN EXCLUDED.qiankun_identity_status
           ELSE mwb.advertiser_accounts.qiankun_identity_status
@@ -893,6 +931,8 @@ export class PostgresRepository {
     qiankunAccountRecordId,
     qiankunOwnerKey,
     qiankunAgentId = "",
+    qiankunMediaMasterId = "",
+    qiankunMediaMasterName = "",
     qiankunIdentityStatus = "observed",
     qiankunVerifiedAt = ""
   }) {
@@ -908,6 +948,8 @@ export class PostgresRepository {
       qiankunAccountRecordId,
       qiankunOwnerKey,
       qiankunAgentId,
+      qiankunMediaMasterId,
+      qiankunMediaMasterName,
       qiankunIdentityStatus,
       qiankunVerifiedAt
     });

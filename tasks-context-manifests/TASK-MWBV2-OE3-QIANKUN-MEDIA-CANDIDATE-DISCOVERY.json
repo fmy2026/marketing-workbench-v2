@@ -1,0 +1,141 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Discover current Qiankun media_id candidates from historical real monitors intersected with current mediaList, then readonly-validate account/API/agent relations for at most three candidates.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "cate_id": "122",
+    "vest_id": "1414",
+    "package_id": "36820",
+    "channel": "dymini3k",
+    "historical_monitor_id": "245791",
+    "qiankun_account_record_id": "8448",
+    "qiankun_agent_id": "613",
+    "previous_task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.md"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.md",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The prior readonly run recovered account identity and isolated the blocker to the stale historical media_id 310. Intersecting real historical monitor rows with the current media list is a controlled way to discover current candidates.",
+    "blocking_questions": [],
+    "caveat": "changeMediaId and changeMediaAccountId are treated only as readonly dependent-select probes in this task; monitor creation and token refresh remain forbidden."
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_change_media_id_calls": 3,
+    "maximum_change_media_account_id_calls": 1,
+    "allowed_external_calls": [
+      "POST /tf/ad/index",
+      "POST /ajax/selectList/getList",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "second monitor create attempt",
+      "token refresh",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.advertiser_accounts",
+      "mwb.qiankun_option_relations",
+      "mwb.monitor_provision_runs",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Never print, persist, or expose token, Cookie, raw request, raw response, complete touchpoint URLs, or other secrets."
+  },
+  "implementation_plan": [
+    "Add a long-lived monitor:discover:media-candidates npm command using the existing monitor provision CLI.",
+    "Extend the existing Qiankun option relation skill with media candidate discovery.",
+    "Run the command once with network approval and inspect redacted output.",
+    "Read back database evidence, relation rows, account identity, and attempt count.",
+    "Update the task card, manifest, current docs, and project state with the actual outcome."
+  ],
+  "acceptance": [
+    "Historical monitor and current mediaList have explicit readonly outcomes.",
+    "Candidate media ids derive only from historical real monitor rows intersected with current mediaList values.",
+    "No more than three changeMediaId calls are made.",
+    "No monitorSerialNumberAdd, token refresh, or create retry occurs.",
+    "monitor_provision_attempts remains one."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, and the full user-provided requirements document.",
+    "Assessed the request as reasonable with no blocking questions.",
+    "Created this task context manifest.",
+    "Added npm run monitor:discover:media-candidates through the existing CLI.",
+    "Extended the existing Qiankun option relation skill for historical monitor and current mediaList intersection discovery.",
+    "Ran one real readonly discovery command: exact historical monitor and scoped monitor list passed, current mediaList passed, strict intersection count was zero.",
+    "Updated the two existing Qiankun docs and corrected the diagnostic prefix from account identity unresolved to media candidate unresolved."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "command": "npm run monitor:discover:media-candidates",
+    "historical_monitor_exact": {
+      "status": "passed",
+      "monitor_id": "245791",
+      "result_total": 1,
+      "package_id": "36820",
+      "cate_id": "122",
+      "vest_id": "1414",
+      "os": "3",
+      "channel": "dymini3k",
+      "media_id": "310",
+      "monitor_api": "toutiao_wxgame",
+      "agent_id": "613",
+      "media_account_record_id": "8443",
+      "usage": "reference_only"
+    },
+    "historical_monitor_scoped": {
+      "status": "passed",
+      "result_total": 10,
+      "row_count": 10,
+      "rows_with_internal_media_id": 10
+    },
+    "media_list": {
+      "status": "passed",
+      "list_count": 177
+    },
+    "candidate_intersection_count": 0,
+    "blocker": "current_media_candidate_unresolved",
+    "change_media_id_call_count": 0,
+    "change_media_account_id_called": false,
+    "relations_written": [],
+    "monitor_provision_error_summary": "qiankun_media_candidate_unresolved:current_media_candidate_unresolved",
+    "monitor_provision_attempt_count": 1,
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "evidence_artifact_id": "EV-QK-MEDIA-CANDIDATE-DISCOVERY-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041"
+  },
+  "validation": [
+    "node import monitor-provision passed",
+    "npm run smoke:workflow-skills passed",
+    "npm run smoke:api passed",
+    "psql readback confirmed attempts remain 1 and no media/API/agent relation rows were added"
+  ],
+  "completion_gate": "Closed with blocker. Business or Qiankun technical side must provide the current media_id or an additional historical anchor scope before a new readonly single-candidate validation task can proceed."
+}

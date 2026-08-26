@@ -1,12 +1,14 @@
 # TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE
 
-状态：waiting_user_confirmation
+状态：paused_by_readonly_foundation_recheck
 
 更新时间：2026-08-26 CST
 
 ## 目标
 
 对 provision `MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041` 执行最终 `monitor:ensure`：先做乾坤 `/tf/ad/index` 只读回查；若已出现唯一匹配 `monitor_id`，直接入库收口且不创建；若仍无匹配，并且用户显式确认变量齐备，则最多再调用一次 `/tf/ad/monitorSerialNumberAdd`，随后立即回查并写入最终状态。
+
+本任务已按 2026-08-26 新需求暂停。新的当前任务是 `TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION`，在只读底座、配置候选验证和精确匹配结论完成前，本任务不得作为任何真实创建依据。
 
 ## 需求来源与边界
 
@@ -84,4 +86,5 @@ MWBV2_MONITOR_PROVISION_ID=MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-187192234696404
 - 已完整阅读并理解需求。
 - 合理性评估：可以执行，但真实写入不能只依赖附件中的命令文本，必须等待聊天中的显式授权。
 - 已完成执行前只读状态复核：`attempt_count=1`，第一次为 `server_busy`，`monitor_id` 未解析。
-- 当前状态：waiting_user_confirmation。
+- 当前状态：paused_by_readonly_foundation_recheck。
+- 暂停原因：新需求要求先暂停第二次创建，按乾坤 API 文档建立只读数据底座并修正十维精确匹配；只有配置候选为 `valid` 且列表结论为 `no_match` 时，才另建最终 ensure 执行任务。

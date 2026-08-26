@@ -1,0 +1,165 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "乾坤账户会话恢复后，重跑现有核心关系只读同步链路，将真实账户、媒体、监测 API、代理关系写入现有表，并更新两份 Markdown 状态。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It does not authorize real platform writes, token refresh, monitor serial creation, material upload, event asset creation, DMP push, or budget/bid change.",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "relation_doc_ref": "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+    "dictionary_doc_ref": "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "observed_package_chain": {
+      "cate_id": "122",
+      "vest_id": "1414",
+      "package_id": "36820",
+      "channel": "dymini3k"
+    },
+    "reference_candidates": {
+      "media_id": "310",
+      "agent_id": "613",
+      "monitor_api": "toutiao_wxgame"
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+    "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+    "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The request aligns with the previous next_gate, uses the existing readonly sync command, and preserves the no-create/no-refresh guardrails.",
+    "blocking_questions": [],
+    "non_blocking_caveats": [
+      "If accountIndex still returns login redirect, downstream readonly calls must remain skipped.",
+      "Historical media, agent, and monitor API values stay reference_only until observed in this task.",
+      "The requested relation document path currently exists at docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md and will be updated in place."
+    ]
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /ajax/selectList/getList",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId",
+      "POST /tf/ad/index"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "monitor:ensure real write branch",
+      "second monitor create attempt",
+      "token refresh",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.advertiser_accounts",
+      "mwb.qiankun_option_relations",
+      "mwb.monitor_provision_runs",
+      "mwb.account_touchpoints",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Do not write token, host/domain, complete URL, raw request, raw response, headers, Cookie, auth_code, callback URL, touchpoint URL, or secrets to project files, ordinary logs, frontend/API summaries, or evidence summaries."
+  },
+  "database_plan": {
+    "migration": "none",
+    "new_tables": [],
+    "relation_types_allowed": [
+      "game_to_cate",
+      "media_to_allowed_account_record",
+      "media_to_allowed_monitor_api",
+      "account_record_to_agent"
+    ],
+    "relation_types_forbidden": [
+      "package_to_media",
+      "package_to_agent",
+      "package_to_monitor_api"
+    ],
+    "ids_as_text": true
+  },
+  "implementation_plan": [
+    "Create task card, manifest, and active project state.",
+    "Run npm run monitor:sync:technical-combination through the existing readonly chain.",
+    "Read back database state for account identity, relation counts, evidence, and attempt count.",
+    "Update the two existing Markdown docs based on the actual result.",
+    "Run smoke and safety validation.",
+    "Close task and update project.state.json next gate."
+  ],
+  "acceptance": [
+    "accountIndex has a clear session result with no blind retry.",
+    "advertiser_id and qiankun_account_record_id remain distinct.",
+    "Only supported observed relation types are written.",
+    "No package_to_media/package_to_agent/package_to_monitor_api fake relation exists.",
+    "monitor_provision_attempts remains one row.",
+    "npm run monitor:sync:technical-combination, npm run smoke:workflow-skills, and npm run smoke:api pass.",
+    "Next gate is final monitor config compilation and readonly exact match if the technical combination is complete; otherwise the next gate is manual Qiankun session recovery."
+  ],
+  "current_progress": [
+    "Read startup state and source requirement.",
+    "Confirmed active_task was null before opening this task.",
+    "Read current docs and implementation entry points.",
+    "Assessed request as reasonable and non-blocking.",
+    "Created task contract and manifest.",
+    "Ran npm run monitor:sync:technical-combination after network approval.",
+    "Confirmed accountIndex returned apiCode 302 login redirect.",
+    "Stopped downstream selectList, changeMediaId, changeMediaAccountId, and ad/index calls.",
+    "Patched the existing readonly Skill to update monitor_provision_runs with a schema-compatible failed status and qiankun_session_invalid error summary.",
+    "Updated both Markdown docs with qiankun_session_invalid and skipped_due_to_qiankun_session_invalid states.",
+    "Validated database counts, smoke tests, JSON parsing, and sensitive-output scan.",
+    "Closed this task with blockers."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "account_index_status": "qiankun_session_invalid",
+    "account_index_api_code": "302",
+    "downstream_calls_skipped": true,
+    "evidence_artifact_id": "EV-QK-MONITOR-TECH-COMBO-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041",
+    "monitor_provision_run_status": "failed",
+    "monitor_provision_run_error_summary": "qiankun_session_invalid:account_index_query_failed:302:跳转登录",
+    "account_identity_written": false,
+    "relation_rows_written": false,
+    "technical_relation_count": 0,
+    "fake_package_relation_count": 0,
+    "monitor_provision_attempt_count": 1,
+    "status_mapping_note": "monitor_provision_runs.status cannot store qiankun_session_invalid because the existing schema constrains it to lifecycle statuses; the concrete session result is stored in error_summary and evidence."
+  },
+  "validation": {
+    "passed": [
+      "npm run monitor:sync:technical-combination returned account_index_query_failed:302:跳转登录 and skipped downstream calls",
+      "database readback: technical_relation_count=0",
+      "database readback: fake_package_relation_count=0",
+      "database readback: monitor_provision_attempt_count=1",
+      "database readback: advertiser account identity remains unverified with no record id",
+      "database readback: monitor_provision_runs.error_summary records qiankun_session_invalid",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:api",
+      "npm run test:monitor-bootstrap",
+      "JSON parse check for project.state.json and this manifest",
+      "sensitive value scan for task, manifest, and Markdown docs"
+    ]
+  },
+  "completion_gate": "Closed with blocker. Next gate is manual Qiankun accountIndex session recovery, then rerun npm run monitor:sync:technical-combination; no monitor creation is authorized."
+}

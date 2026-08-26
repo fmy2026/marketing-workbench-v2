@@ -1,0 +1,141 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Read Qiankun mediaList once as catalog evidence and prepare a technical escalation doc for repeated changeMediaId(310) server-busy failures.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "media_id": "310",
+    "media_name": "通投智选（原生竞价）",
+    "qiankun_account_record_id": "8448",
+    "expected_monitor_api": "toutiao_wxgame",
+    "expected_agent_id": "613"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+    "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+    "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The media catalog read can provide directory evidence for media_id=310 after changeMediaId returned server-busy twice. It does not replace the account availability contract of changeMediaId and must not unlock monitor creation.",
+    "blocking_questions": []
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_media_list_calls": 1,
+    "maximum_change_media_id_calls": 0,
+    "maximum_change_media_account_id_calls": 0,
+    "allowed_external_calls": [
+      "POST /ajax/selectList/getList type=mediaList"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /tf/ad/index",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId",
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "token refresh",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.evidence_artifacts",
+      "project.state.json"
+    ],
+    "sensitive_data_rule": "Never persist token, Cookie, raw request, raw response, full request headers, full callback URL, complete touchpoint URL, or secret values in project files or ordinary logs."
+  },
+  "implementation_plan": [
+    "Create this task card and context manifest, then set project.state.json active_task.",
+    "Add a small readonly media catalog sync path on the existing monitor-provision CLI.",
+    "Run exactly one mediaList call and write an independent evidence artifact.",
+    "Update v2 docs to distinguish catalog evidence from changeMediaId account availability.",
+    "Create the technical escalation document.",
+    "Validate JSON, imports, database evidence, attempt count, and smoke commands.",
+    "Close the task with the next gate pointing to Qiankun technical confirmation."
+  ],
+  "acceptance": [
+    "mediaList is called once and only once for this task.",
+    "No third changeMediaId call is made.",
+    "A media catalog evidence artifact records count, value=310 match, name match, and uniqueness.",
+    "Escalation doc contains the minimal sanitized technical facts.",
+    "monitor_provision_attempts remains one.",
+    "No monitor creation, token refresh, or platform write occurs."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, and the latest user-provided requirements document.",
+    "Assessed the task as reasonable with no blocking questions.",
+    "Created this context manifest.",
+    "Added monitor:sync:media-catalog on the existing monitor-provision CLI path.",
+    "Ran exactly one mediaList readonly call.",
+    "mediaList returned 177 items and did not include value=310 or the expected name.",
+    "Wrote evidence artifact EV-QK-MEDIA-CATALOG-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-310.",
+    "Updated the v2 interface dictionary and relation-bottom-table document.",
+    "Created docs/乾坤-changeMediaId-310-服务端500排查单_20260826.md.",
+    "Confirmed no third changeMediaId call, no changeMediaAccountId call, and no monitorSerialNumberAdd call.",
+    "Confirmed monitor_provision_attempts remains one."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "command": "npm run monitor:sync:media-catalog",
+    "external_calls": {
+      "mediaList": true,
+      "accountIndex": false,
+      "historicalMonitorIndex": false,
+      "changeMediaId": false,
+      "changeMediaAccountId": false,
+      "monitorSerialNumberAdd": false
+    },
+    "media_list": {
+      "called": true,
+      "status": "passed",
+      "api_code": "0",
+      "api_message": "Success",
+      "returned_count": 177,
+      "value_310_present": false,
+      "expected_name_exact_present": false,
+      "expected_name_contains_match_count": 0,
+      "request_fingerprint": "sha256:999d368e137cd397583a91e589d1bcbb131cb941870709894ff4de127616621b",
+      "response_hash": "sha256:8aea00aec9f5fc0a8026c9ebcae42003607036b450237051e10f36215741dbbb"
+    },
+    "evidence_artifact_id": "EV-QK-MEDIA-CATALOG-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-310",
+    "relations_written": [],
+    "monitor_provision_attempt_count": 1,
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "raw_request_stored": false,
+    "raw_response_stored": false
+  },
+  "validation": [
+    "project.state.json and this manifest parse as JSON",
+    "node import monitor-provision passed",
+    "psql readback confirmed level-3 relation types remain zero rows",
+    "psql readback confirmed monitor_provision_attempts remains one",
+    "npm run smoke:workflow-skills passed",
+    "npm run smoke:api passed; payload contract blocked is an existing dry-run blocker, not introduced by this task"
+  ],
+  "completion_gate": "Closed with blocker. Wait for Qiankun technical support to confirm changeMediaId(310) server-side behavior or provide a valid current L3 media_id. Monitor creation remains forbidden."
+}

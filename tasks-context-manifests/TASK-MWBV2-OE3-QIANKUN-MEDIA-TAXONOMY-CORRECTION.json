@@ -1,0 +1,37 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Record the corrected Qiankun three-level media taxonomy and update the relation base-table document for the next task.",
+    "source": "User clarification plus screenshot showing tabs: 资源位, 媒体, 媒体系.",
+    "key_correction": "mediaList and accountIndex.media_master_id are level-2 media; ad/index mediaId and historical monitor media_id are level-3 media resource position IDs."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION.md",
+    "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.md"
+  ],
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "external_calls_allowed": false,
+    "database_writes_allowed": false,
+    "sensitive_data_rule": "No token, Cookie, raw request, raw response, or complete touchpoint URL may be written."
+  },
+  "execution_result": {
+    "status": "completed",
+    "docs_updated": [
+      "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION.md",
+      "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+      "project.state.json"
+    ],
+    "next_gate": "Find the level-3 media resource-position source, then validate a level-3 media_id with changeMediaId/changeMediaAccountId."
+  }
+}

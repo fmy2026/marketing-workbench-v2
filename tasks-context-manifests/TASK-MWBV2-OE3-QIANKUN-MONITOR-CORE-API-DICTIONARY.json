@@ -1,0 +1,138 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "整理乾坤监测序号 8 个核心接口的数据字典、字段来源、v2 落点、关系类型和当前真实状态。",
+    "source_request_file": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source request file is requirements input only. It does not authorize real platform writes, token refresh, monitor serial creation, material upload, event asset creation, DMP push, or budget/bid change.",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "output_doc_ref": "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "observed_package_chain": {
+      "cate_id": "122",
+      "vest_id": "1414",
+      "package_id": "36820",
+      "channel": "dymini3k"
+    },
+    "reference_candidates": {
+      "media_id": "310",
+      "agent_id": "613",
+      "monitor_api": "toutiao_wxgame"
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The request documents interface semantics and current truth before touching credentials or monitor creation. This is lower risk than attempting downstream technical cascade while accountIndex is blocked.",
+    "non_blocking_caveats": [
+      "The public OE3 local docs are separate from the Qiankun internal API document; the data dictionary should cite the project Qiankun API document as the contract source.",
+      "If accountIndex still returns login redirect, all downstream live fields must be marked blocked_by_qiankun_login.",
+      "Historical media/agent/monitor_api candidates remain reference_only until observed by live readonly APIs."
+    ]
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "monitor:ensure real write branch",
+      "second monitor create attempt",
+      "token refresh",
+      "OceanEngine std_project/create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Do not write token, host/domain, complete URL, raw request, raw response, headers, Cookie, auth_code, callback URL, touchpoint URL, or secrets to project files, ordinary logs, frontend/API summaries, or evidence summaries."
+  },
+  "database_plan": {
+    "migration": "none",
+    "new_tables": [],
+    "relationship_tables": [
+      "mwb.qiankun_option_relations"
+    ],
+    "ids_as_text": true
+  },
+  "implementation_plan": [
+    "Create task card, manifest, and active project state.",
+    "Run a single readonly accountIndex status check through existing technical-combination command and stop if login redirect persists.",
+    "Read current database facts for observed relations, reference candidates, attempts, and evidence states.",
+    "Create docs/乾坤监测序号-核心接口数据字典_20260826.md.",
+    "Run validation and sensitive-leak checks.",
+    "Close task and update project.state.json next gate."
+  ],
+  "acceptance": [
+    "The data dictionary lists 8 monitor-core interfaces with request parameters, response fields, requiredness, v2 sink, relation type, and current status.",
+    "Current verified facts, login blocker, and historical reference candidates are separated.",
+    "No fake package_to_media/package_to_agent/package_to_monitor_api relation is created.",
+    "monitor_provision_attempts remains one row for the target provision.",
+    "smoke:workflow-skills and smoke:api pass."
+  ],
+  "current_progress": [
+    "Read startup state and source requirement.",
+    "Confirmed active_task was null before opening this task.",
+    "Read the Qiankun API document sections for accountIndex, monitorSerialNumberAdd, changeCateId, changeVestId, changePackageId, changeMediaId, changeMediaAccountId, ad index, and selectList.",
+    "Assessed the request as reasonable and non-blocking.",
+    "Created task contract and manifest.",
+    "Ran npm run monitor:sync:technical-combination as a single readonly status check; accountIndex still returned apiCode=302 login redirect and downstream calls were skipped.",
+    "Read current database facts for observed package chain, reference candidates, monitor_provision_status, and monitor attempt count.",
+    "Created docs/乾坤监测序号-核心接口数据字典_20260826.md.",
+    "Ran smoke and safety validation.",
+    "Closed task and project state."
+  ],
+  "execution_result": {
+    "status": "completed",
+    "output_doc_ref": "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "account_index_status": "blocked_by_qiankun_login",
+    "account_index_api_code": "302",
+    "downstream_calls_skipped": true,
+    "observed_package_chain": "cate_id=122 -> vest_id=1414 -> package_id=36820 -> channel=dymini3k",
+    "reference_candidates_status": "reference_only",
+    "monitor_provision_status": "qiankun_monitor_config_unverified",
+    "fake_package_relation_count": 0,
+    "technical_relation_count": 0,
+    "monitor_provision_attempt_count": 1
+  },
+  "validation": {
+    "passed": [
+      "npm run monitor:sync:technical-combination returned blocked_by_qiankun_login and skipped downstream calls",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:api",
+      "JSON parse check for project.state.json and this manifest",
+      "sensitive value scan for new dictionary/task/manifest",
+      "database readback: fake_package_relation_count=0",
+      "database readback: technical_relation_count=0",
+      "database readback: monitor_provision_attempt_count=1",
+      "document heading check includes eight core interfaces and create-boundary section"
+    ]
+  },
+  "completion_gate": "Closed. Next gate is a separate Qiankun accountIndex session recovery task. If accountIndex becomes uniquely resolvable, rerun npm run monitor:sync:technical-combination; still do not create monitor_id."
+}

@@ -1,0 +1,154 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Correct v2 os=3/media taxonomy wording and run one explicitly confirmed readonly retry for Qiankun level-3 media resource 310.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "channel": "dymini3k",
+    "media_resource_id": "310",
+    "expected_monitor_api": "toutiao_wxgame",
+    "qiankun_account_record_id": "8448",
+    "expected_agent_id": "613",
+    "historical_monitor_id": "245791",
+    "historical_media_account_record_id": "8443",
+    "taxonomy": {
+      "level1": "Qiankun media system; roughly v2 platform",
+      "level2": "Qiankun media; appears in selectList(mediaList) and accountIndex.media_master_id",
+      "level3": "Qiankun media resource position; appears in /tf/ad/index mediaId[] and historical monitor media_id"
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.json",
+    "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+    "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The new requirement corrects a semantic ambiguity: os=3 is a Qiankun mini-game technical system type, while business media ownership is decided by platform/media/media_id/monitor_api/channel together. A single controlled readonly retry is justified because the previous blocker was a 500 server-busy response from changeMediaId(310).",
+    "blocking_questions": [],
+    "caveat": "The retry must not become enumeration or monitor creation, and it must not overwrite the first monitor creation failure lifecycle record."
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_change_media_id_calls": 1,
+    "maximum_change_media_account_id_calls": 1,
+    "required_confirm_variable": "MWBV2_QK_L3_MEDIA_RETRY_CONFIRM=RETRY_ONE_LEVEL3_MEDIA_READONLY",
+    "required_cli_flag": "--retry-once",
+    "allowed_external_calls": [
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId only if account 8448 is returned by changeMediaId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /tf/ad/index",
+      "POST /ajax/selectList/getList type=mediaList",
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "second monitor create attempt",
+      "token refresh",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.evidence_artifacts",
+      "mwb.qiankun_option_relations",
+      "project.state.json"
+    ],
+    "sensitive_data_rule": "Never persist token, Cookie, raw request, raw response, full callback URL, complete touchpoint URL, or secret values in project files or ordinary logs."
+  },
+  "implementation_plan": [
+    "Create the task card and context manifest, then set project.state.json active_task.",
+    "Update v2 docs for os=3 and the three-level media taxonomy.",
+    "Add retry-once CLI plumbing and guard the L3 readonly retry with an explicit confirm variable.",
+    "Ensure L3 readonly validation does not update monitor_provision_runs.",
+    "Execute the one allowed readonly retry and record redacted evidence.",
+    "Read back evidence, relations, monitor attempt count, and project state.",
+    "Close or block the task according to the returned changeMediaId result."
+  ],
+  "acceptance": [
+    "Docs are corrected without editing docs/.参考文档/乾坤系统/api-docs-20260825.md.",
+    "Retry mode does not call accountIndex, ad/index, or mediaList.",
+    "changeMediaId(310) is called at most once under this task.",
+    "A new independent evidence artifact records the retry result.",
+    "monitor_provision_runs is not overwritten by the L3 readonly retry.",
+    "monitor_provision_attempts remains one and monitorSerialNumberAdd is not called."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, and the full user-provided requirements document.",
+    "Assessed the request as reasonable with no blocking questions.",
+    "Created this context manifest.",
+    "Updated v2 docs to explain os=3 as a Qiankun mini-game technical system type, not standalone WeChat business ownership.",
+    "Added --retry-once CLI plumbing and the MWBV2_QK_L3_MEDIA_RETRY_CONFIRM guard.",
+    "Removed monitor_provision_runs updates from the level-3 readonly validation function.",
+    "Restored monitor_provision_runs to the first real monitor creation failure fact from monitor_provision_attempts.",
+    "Ran one confirmed readonly retry for changeMediaId(os=3, media_id=310).",
+    "changeMediaId returned apiCode 500 with server-busy message again.",
+    "Skipped changeMediaAccountId because changeMediaId did not pass.",
+    "Wrote independent evidence artifact EV-QK-LEVEL3-MEDIA-RESOURCE-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310-R02.",
+    "Confirmed no level-3 relations were written and monitor_provision_attempts remains one."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "command": "MWBV2_QK_L3_MEDIA_RETRY_CONFIRM=RETRY_ONE_LEVEL3_MEDIA_READONLY npm run monitor:sync:level3-media-resource -- --retry-once",
+    "external_calls": {
+      "accountIndex": false,
+      "historicalMonitorIndex": false,
+      "mediaList": false,
+      "changeMediaId": true,
+      "changeMediaAccountId": false,
+      "monitorSerialNumberAdd": false
+    },
+    "change_media_id": {
+      "called": true,
+      "os": "3",
+      "media_id": "310",
+      "status": "blocked",
+      "api_code": "500",
+      "api_message": "服务器繁忙，请稍后重试(400)",
+      "request_fingerprint": "sha256:ff0ce171f052f7d2c2c8acc859c0e61c720a3a3327efa4b3b2fd20f5939c761b",
+      "response_hash": "sha256:a85b2886b658ea6421161c5c1583dde35d4863025ad732278be57e56992be719"
+    },
+    "evidence_artifact_id": "EV-QK-LEVEL3-MEDIA-RESOURCE-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310-R02",
+    "relations_written": [],
+    "monitor_provision_run_updated_by_l3_retry": false,
+    "monitor_provision_attempt_count": 1,
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "raw_request_stored": false,
+    "raw_response_stored": false
+  },
+  "validation": [
+    "node import monitor-provision passed",
+    "unconfirmed retry guard passed with zero external calls",
+    "confirmed retry completed and only changeMediaId was called",
+    "psql readback confirmed R02 evidence source_ref is qiankun:/tf/ad/changeMediaId",
+    "psql readback confirmed level-3 relation types remain zero rows",
+    "psql readback confirmed monitor_provision_runs retains first create failure and monitor_provision_attempts remains one",
+    "npm run smoke:workflow-skills passed",
+    "npm run smoke:api passed; payload contract blocked is an existing dry-run blocker, not introduced by this task"
+  ],
+  "completion_gate": "Closed with blocker. Qiankun technical support should investigate changeMediaId(os=3, media_id=310) returning 500, or provide the current valid level-3 media resource ID. Monitor creation remains forbidden until the L3 relation passes."
+}

@@ -1,4 +1,4 @@
-import { redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
+import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./contracts.mjs";
 
@@ -42,6 +42,37 @@ export const QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET = {
   candidateMediaId: "310",
   candidateAgentId: "613",
   candidateMonitorApi: "toutiao_wxgame"
+};
+
+export const QIANKUN_MEDIA_CANDIDATE_DISCOVERY_TARGET = {
+  ...QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET,
+  historicalMonitorId: "245791",
+  qiankunAccountRecordId: "8448",
+  qiankunAgentId: "613"
+};
+
+export const QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET = {
+  ...QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET,
+  historicalMonitorId: "245791",
+  mediaResourceId: "310",
+  qiankunAccountRecordId: "8448",
+  expectedAgentId: "613",
+  expectedMonitorApi: "toutiao_wxgame"
+};
+
+export const QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_ENV = "MWBV2_QK_L3_MEDIA_RETRY_CONFIRM";
+export const QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_VALUE = "RETRY_ONE_LEVEL3_MEDIA_READONLY";
+
+export const QIANKUN_MEDIA_CATALOG_TARGET = {
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  advertiserId: "1871922346964041",
+  os: "3",
+  mediaId: "310",
+  mediaName: "通投智选（原生竞价）",
+  qiankunAccountRecordId: "8448",
+  expectedMonitorApi: "toutiao_wxgame",
+  expectedAgentId: "613"
 };
 
 const CHANGE_CATE_ENDPOINT = "/tf/ad/changeCateId";
@@ -101,6 +132,45 @@ function packageBaseInfoEvidenceId(target = QIANKUN_PACKAGE_BASE_INFO_TARGET) {
 function technicalCombinationEvidenceId(target = QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET) {
   return [
     "EV-QK-MONITOR-TECH-COMBO",
+    stableIdPart(target.routeId),
+    stableIdPart(target.gameCode),
+    stableIdPart(target.advertiserId)
+  ].join("-");
+}
+
+function mediaCandidateDiscoveryEvidenceId(target = QIANKUN_MEDIA_CANDIDATE_DISCOVERY_TARGET) {
+  return [
+    "EV-QK-MEDIA-CANDIDATE-DISCOVERY",
+    stableIdPart(target.routeId),
+    stableIdPart(target.gameCode),
+    stableIdPart(target.advertiserId)
+  ].join("-");
+}
+
+function level3MediaResourceEvidenceId(target = QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET, suffix = "") {
+  const parts = [
+    "EV-QK-LEVEL3-MEDIA-RESOURCE",
+    stableIdPart(target.routeId),
+    stableIdPart(target.gameCode),
+    stableIdPart(target.advertiserId),
+    stableIdPart(target.mediaResourceId)
+  ];
+  if (suffix) parts.push(stableIdPart(suffix));
+  return parts.join("-");
+}
+
+function mediaCatalogEvidenceId(target = QIANKUN_MEDIA_CATALOG_TARGET) {
+  return [
+    "EV-QK-MEDIA-CATALOG",
+    stableIdPart(target.routeId),
+    stableIdPart(target.gameCode),
+    stableIdPart(target.mediaId)
+  ].join("-");
+}
+
+function monitorProvisionId(target = QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET) {
+  return [
+    "MPR",
     stableIdPart(target.routeId),
     stableIdPart(target.gameCode),
     stableIdPart(target.advertiserId)
@@ -250,6 +320,63 @@ async function upsertTechnicalCombinationEvidence({ repo, target, summary }) {
   return artifactId;
 }
 
+async function upsertMediaCandidateDiscoveryEvidence({ repo, target, summary }) {
+  if (!repo) return "";
+  const safeSummary = sanitizeForPublic(summary);
+  assertNoSensitiveLeak(safeSummary);
+  const artifactId = mediaCandidateDiscoveryEvidenceId(target);
+  await repo.upsertEvidence({
+    artifactId,
+    jobId: null,
+    artifactType: "qiankun_media_candidate_discovery_readonly",
+    title: "乾坤当前媒体候选只读发现证据",
+    summary: JSON.stringify(safeSummary),
+    contentHash: hashValue(safeSummary),
+    storageRef: `postgres:mwb.qiankun_option_relations/${target.routeId}/${target.gameCode}/${target.packageId}/${target.os}`,
+    sourceRef: `qiankun:/tf/ad/index+${SELECT_LIST_ENDPOINT}+${CHANGE_MEDIA_ENDPOINT}+${CHANGE_MEDIA_ACCOUNT_ENDPOINT}`,
+    sourceUsage: "runtime_truth"
+  });
+  return artifactId;
+}
+
+async function upsertLevel3MediaResourceEvidence({ repo, target, summary, artifactId = "", sourceRef = "" }) {
+  if (!repo) return "";
+  const safeSummary = sanitizeForPublic(summary);
+  assertNoSensitiveLeak(safeSummary);
+  const resolvedArtifactId = artifactId || level3MediaResourceEvidenceId(target);
+  await repo.upsertEvidence({
+    artifactId: resolvedArtifactId,
+    jobId: null,
+    artifactType: "qiankun_level3_media_resource_readonly",
+    title: "乾坤 L3 媒体资源位只读核验证据",
+    summary: JSON.stringify(safeSummary),
+    contentHash: hashValue(safeSummary),
+    storageRef: `postgres:mwb.qiankun_option_relations/${target.routeId}/${target.gameCode}/media_resource/${target.mediaResourceId}`,
+    sourceRef: sourceRef || `qiankun:${ACCOUNT_INDEX_ENDPOINT}+/tf/ad/index+${CHANGE_MEDIA_ENDPOINT}+${CHANGE_MEDIA_ACCOUNT_ENDPOINT}`,
+    sourceUsage: "runtime_truth"
+  });
+  return resolvedArtifactId;
+}
+
+async function upsertMediaCatalogEvidence({ repo, target, summary }) {
+  if (!repo) return "";
+  const safeSummary = sanitizeForPublic(summary);
+  assertNoSensitiveLeak(safeSummary);
+  const artifactId = mediaCatalogEvidenceId(target);
+  await repo.upsertEvidence({
+    artifactId,
+    jobId: null,
+    artifactType: "qiankun_media_catalog_readonly",
+    title: "乾坤媒体目录只读对照证据",
+    summary: JSON.stringify(safeSummary),
+    contentHash: hashValue(safeSummary),
+    storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
+    sourceRef: `qiankun:${SELECT_LIST_ENDPOINT}?type=mediaList`,
+    sourceUsage: "runtime_truth"
+  });
+  return artifactId;
+}
+
 function fieldCheck({ present, actual = "", expected = "", missingStatus = "not_returned_for_os_3" }) {
   const actualText = clean(actual);
   const expectedText = clean(expected);
@@ -288,6 +415,85 @@ function findOptionByValue(items = [], value = "") {
 function exactAccountRows(accountResult = {}, advertiserId = "") {
   const rows = Array.isArray(accountResult.summary?.list) ? accountResult.summary.list : [];
   return rows.filter((item) => clean(item.accountId) === clean(advertiserId));
+}
+
+function scopedMonitorRows(monitorResult = {}, target = QIANKUN_MEDIA_CANDIDATE_DISCOVERY_TARGET) {
+  const rows = Array.isArray(monitorResult?.summary?.list) ? monitorResult.summary.list : [];
+  return rows.map((item) => ({
+    id: clean(item.id),
+    monitorId: clean(item.monitorId),
+    packageId: clean(item.packageId),
+    cateId: clean(item.cateId),
+    cateName: clean(item.cateName),
+    vestId: clean(item.vestId),
+    vestName: clean(item.vestName),
+    os: clean(item.os),
+    osName: clean(item.osName),
+    channel: clean(item.channel),
+    mediaId: clean(item.mediaId),
+    mediaName: clean(item.mediaName),
+    mediaIdPresent: Boolean(clean(item.mediaId)),
+    mediaAccountRecordId: clean(item.mediaAccountRecordId),
+    mediaAccountIdPresent: item.mediaAccountIdPresent === true || Boolean(clean(item.mediaAccountRecordId)),
+    agentId: clean(item.agentId),
+    agentIdPresent: item.agentIdPresent === true || Boolean(clean(item.agentId)),
+    monitorApi: clean(item.monitorApi),
+    monitorApiName: clean(item.monitorApiName),
+    monitorApiPresent: item.monitorApiPresent === true || Boolean(clean(item.monitorApi)),
+    ssoOwnerPresent: item.ssoOwnerPresent === true,
+    ssoOwnerKeyPresent: Boolean(clean(item.ssoOwnerKey)),
+    sameScope: [
+      !clean(target.packageId) || clean(item.packageId) === clean(target.packageId),
+      !clean(target.cateId) || !clean(item.cateId) || clean(item.cateId) === clean(target.cateId),
+      !clean(target.vestId) || !clean(item.vestId) || clean(item.vestId) === clean(target.vestId),
+      !clean(target.os) || !clean(item.os) || clean(item.os) === clean(target.os) || clean(item.osName) === clean(target.os),
+      !clean(target.channel) || !clean(item.channel) || clean(item.channel) === clean(target.channel)
+    ].every(Boolean)
+  }));
+}
+
+function mediaOptionMap(mediaItems = []) {
+  const { normalized, invalidItems, duplicateChildIds } = normalizeOptionList(mediaItems);
+  return {
+    options: normalized,
+    byId: new Map(normalized.map((item) => [item.childId, item])),
+    invalidItems,
+    duplicateChildIds
+  };
+}
+
+function mediaCandidatesFromHistoricalRows({ rows = [], currentMediaById = new Map(), maxMonitorIds = 5 } = {}) {
+  const byMediaId = new Map();
+  rows.filter((row) => row.sameScope && row.mediaIdPresent && currentMediaById.has(row.mediaId)).forEach((row) => {
+    const media = currentMediaById.get(row.mediaId) || {};
+    const existing = byMediaId.get(row.mediaId) || {
+      mediaId: row.mediaId,
+      mediaName: clean(media.childName || row.mediaName),
+      historicalMonitorCount: 0,
+      monitorIds: [],
+      monitorApis: new Set(),
+      agentIds: new Set(),
+      accountRecordIds: new Set()
+    };
+    existing.historicalMonitorCount += 1;
+    const monitorKey = clean(row.monitorId || row.id);
+    if (monitorKey && existing.monitorIds.length < maxMonitorIds && !existing.monitorIds.includes(monitorKey)) {
+      existing.monitorIds.push(monitorKey);
+    }
+    if (row.monitorApi) existing.monitorApis.add(row.monitorApi);
+    if (row.agentId) existing.agentIds.add(row.agentId);
+    if (row.mediaAccountRecordId) existing.accountRecordIds.add(row.mediaAccountRecordId);
+    byMediaId.set(row.mediaId, existing);
+  });
+  return [...byMediaId.values()].map((item) => ({
+    mediaId: item.mediaId,
+    mediaName: item.mediaName,
+    historicalMonitorCount: item.historicalMonitorCount,
+    monitorIds: item.monitorIds,
+    monitorApis: [...item.monitorApis].sort(),
+    agentIds: [...item.agentIds].sort(),
+    accountRecordIds: [...item.accountRecordIds].sort()
+  })).sort((a, b) => b.historicalMonitorCount - a.historicalMonitorCount || a.mediaId.localeCompare(b.mediaId));
 }
 
 async function syncSingleRelation({
@@ -888,6 +1094,1182 @@ export async function runQiankunPackageBaseInfoReadonlySync({
   return output;
 }
 
+export async function runQiankunMediaCatalogReadonlySync({
+  repo,
+  ownerKey = "",
+  target = QIANKUN_MEDIA_CATALOG_TARGET
+} = {}) {
+  const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
+  const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
+  const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
+  const allowPendingOwnerKeyBootstrap = !clean(effectiveOwnerKey) && initialCredential.pendingOwnerKeyCount === 1;
+  const client = createQiankunMonitorClient({
+    allowPendingOwnerKeyBootstrap,
+    pendingOwnerKeyBootstrapEndpoints: [SELECT_LIST_ENDPOINT]
+  });
+  const blockers = [];
+  const warnings = [];
+  const mediaId = clean(target.mediaId);
+  const mediaName = clean(target.mediaName);
+  if (!mediaId) blockers.push("target_media_id_missing");
+  if (!mediaName) warnings.push("target_media_name_missing");
+  if (!allowPendingOwnerKeyBootstrap && credential.status !== "active") {
+    blockers.push(`credential_not_active:${credential.status}`);
+  }
+
+  const mediaListFingerprint = requestFingerprint({
+    endpoint: SELECT_LIST_ENDPOINT,
+    params: { type: "mediaList" }
+  });
+  const mediaListResult = blockers.length
+    ? null
+    : await client.querySelectList({
+      ownerKey: effectiveOwnerKey,
+      type: "mediaList"
+    });
+  if (mediaListResult && mediaListResult.status !== "passed") {
+    blockers.push(`media_list_query_failed:${mediaListResult.apiCode || "unknown"}:${mediaListResult.apiMessage || "unknown"}`);
+  }
+
+  const optionMap = mediaOptionMap(mediaListResult?.summary?.list || []);
+  const valueMatches = optionMap.options.filter((item) => item.childId === mediaId);
+  const exactNameMatches = mediaName
+    ? optionMap.options.filter((item) => item.childName === mediaName)
+    : [];
+  const containsNameMatches = mediaName
+    ? optionMap.options.filter((item) => item.childName.includes(mediaName) || mediaName.includes(item.childName))
+    : [];
+  const byValue = valueMatches[0] || null;
+  const exactNameUnique = exactNameMatches.length === 1;
+  const valueUnique = valueMatches.length === 1;
+  const catalogSupportsManualPair = Boolean(byValue && (!mediaName || byValue.childName === mediaName));
+
+  const publicSummary = {
+    mode: "sync_media_catalog",
+    target: {
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId,
+      os: target.os,
+      mediaId,
+      mediaName,
+      qiankunAccountRecordId: clean(target.qiankunAccountRecordId),
+      expectedMonitorApi: clean(target.expectedMonitorApi),
+      expectedAgentId: clean(target.expectedAgentId)
+    },
+    catalog: {
+      called: Boolean(mediaListResult),
+      status: mediaListResult?.status || "skipped",
+      apiCode: mediaListResult?.apiCode || "",
+      apiMessage: mediaListResult?.apiMessage || "",
+      listPresent: mediaListResult?.summary?.listPresent === true,
+      returnedCount: Number(mediaListResult?.summary?.listCount || 0),
+      normalizedCount: optionMap.options.length,
+      value310Present: valueMatches.length > 0,
+      value310Unique: valueUnique,
+      value310Name: byValue?.childName || "",
+      expectedNameExactPresent: exactNameMatches.length > 0,
+      expectedNameExactUnique: exactNameUnique,
+      expectedNameValue: exactNameUnique ? exactNameMatches[0].childId : "",
+      expectedNameContainsMatchCount: containsNameMatches.length,
+      catalogSupportsManualPair,
+      valueMatches: valueMatches.slice(0, 5),
+      exactNameMatches: exactNameMatches.slice(0, 5),
+      containsNameMatches: containsNameMatches.slice(0, 5),
+      invalidItemCount: optionMap.invalidItems.length,
+      duplicateChildIds: optionMap.duplicateChildIds.slice(0, 10)
+    },
+    interpretation: {
+      evidenceScope: "catalog_observation_only",
+      notAccountAvailabilityProof: true,
+      notMonitorCreateApproval: true,
+      changeMediaIdStillRequiredForAccountAndMonitorApi: true
+    },
+    externalCalls: {
+      mediaList: Boolean(mediaListResult),
+      accountIndex: false,
+      historicalMonitorIndex: false,
+      changeMediaId: false,
+      changeMediaAccountId: false,
+      monitorSerialNumberAdd: false
+    },
+    requestFingerprints: {
+      mediaList: mediaListFingerprint
+    },
+    responseHashes: {
+      mediaList: mediaListResult?.responseHash || ""
+    },
+    credential: {
+      status: credential.status,
+      ownerKeyPresent: Boolean(clean(effectiveOwnerKey)),
+      pendingOwnerKeyBootstrap: allowPendingOwnerKeyBootstrap,
+      credentialStorePresent: credential.credentialStorePresent,
+      activeCredentialCount: credential.activeCredentialCount,
+      pendingOwnerKeyCount: credential.pendingOwnerKeyCount
+    },
+    warnings,
+    blockers,
+    platformWriteCalled: false,
+    rawRequestStored: false,
+    rawResponseStored: false
+  };
+  const safeSummary = sanitizeForPublic(publicSummary);
+  assertNoSensitiveLeak(safeSummary);
+  const evidenceArtifactId = await upsertMediaCatalogEvidence({ repo, target, summary: safeSummary });
+  const output = {
+    ...safeSummary,
+    status: blockers.length ? "blocked" : "passed",
+    evidenceArtifactId,
+    writes: {
+      evidenceWritten: Boolean(evidenceArtifactId),
+      relationRowsWritten: false,
+      monitorProvisionRunUpdated: false
+    }
+  };
+  assertNoSensitiveLeak(output);
+  return output;
+}
+
+export async function runQiankunMediaCandidateDiscoveryReadonlySync({
+  repo,
+  ownerKey = "",
+  target = QIANKUN_MEDIA_CANDIDATE_DISCOVERY_TARGET
+} = {}) {
+  const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
+  const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
+  const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
+  const allowPendingOwnerKeyBootstrap = !clean(effectiveOwnerKey) && initialCredential.pendingOwnerKeyCount === 1;
+  const client = createQiankunMonitorClient({
+    allowPendingOwnerKeyBootstrap,
+    pendingOwnerKeyBootstrapEndpoints: [
+      SELECT_LIST_ENDPOINT,
+      CHANGE_MEDIA_ENDPOINT,
+      CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+      "/tf/ad/index"
+    ]
+  });
+  const blockers = [];
+  const warnings = [];
+  const writes = [];
+  const verifiedAt = new Date().toISOString();
+  let storedAccount = null;
+  try {
+    storedAccount = repo ? (await repo.getCoreContext({
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId
+    }))?.account || null : null;
+  } catch {
+    storedAccount = null;
+  }
+  const qiankunAccountRecordId = clean(target.qiankunAccountRecordId || storedAccount?.qiankun_account_record_id);
+  const expectedAgentId = clean(target.qiankunAgentId || target.candidateAgentId || storedAccount?.qiankun_agent_id);
+  const storedOwnerKey = clean(storedAccount?.qiankun_owner_key);
+  const relationEvidenceArtifactId = mediaCandidateDiscoveryEvidenceId(target);
+
+  if (!effectiveOwnerKey && !allowPendingOwnerKeyBootstrap) {
+    blockers.push("owner_key_missing_or_ambiguous");
+  }
+  if (!qiankunAccountRecordId) blockers.push("qiankun_account_record_id_missing");
+
+  const exactMonitorParams = {
+    monitorId: target.historicalMonitorId,
+    pageNo: 1,
+    pageSize: 10
+  };
+  const exactMonitorFingerprint = requestFingerprint({
+    endpoint: "/tf/ad/index",
+    params: exactMonitorParams
+  });
+  const exactMonitorResult = blockers.length
+    ? null
+    : await client.queryMonitorIndex({ ownerKey: effectiveOwnerKey, params: exactMonitorParams });
+  if (exactMonitorResult && exactMonitorResult.status !== "passed") {
+    warnings.push(`historical_monitor_query_failed:${exactMonitorResult.apiCode || "unknown"}:${exactMonitorResult.apiMessage || "unknown"}`);
+  }
+  const exactRows = scopedMonitorRows(exactMonitorResult, target);
+  if (exactMonitorResult?.status === "passed" && exactRows.length === 0) {
+    warnings.push("historical_monitor_not_visible");
+  }
+
+  const scopedMonitorParams = {
+    packageId: target.packageId,
+    cateId: [target.cateId],
+    vestId: [target.vestId],
+    os: [target.os],
+    channel: [target.channel],
+    ssoOwner: effectiveOwnerKey ? [effectiveOwnerKey] : [],
+    pageNo: 1,
+    pageSize: 50
+  };
+  const scopedMonitorFingerprint = requestFingerprint({
+    endpoint: "/tf/ad/index",
+    params: {
+      packageId: target.packageId,
+      cateId: [target.cateId],
+      vestId: [target.vestId],
+      os: [target.os],
+      channel: [target.channel],
+      ssoOwnerPresent: Boolean(effectiveOwnerKey),
+      pageNo: 1,
+      pageSize: 50
+    }
+  });
+  const scopedMonitorResult = blockers.length
+    ? null
+    : await client.queryMonitorIndex({ ownerKey: effectiveOwnerKey, params: scopedMonitorParams });
+  if (scopedMonitorResult && scopedMonitorResult.status !== "passed") {
+    blockers.push(`historical_monitor_scope_query_failed:${scopedMonitorResult.apiCode || "unknown"}:${scopedMonitorResult.apiMessage || "unknown"}`);
+  }
+  const scopedRows = scopedMonitorRows(scopedMonitorResult, target);
+
+  const mediaListFingerprint = requestFingerprint({
+    endpoint: SELECT_LIST_ENDPOINT,
+    params: { type: "mediaList" }
+  });
+  const mediaListResult = blockers.length
+    ? null
+    : await client.querySelectList({ ownerKey: effectiveOwnerKey, type: "mediaList" });
+  if (mediaListResult && mediaListResult.status !== "passed") {
+    blockers.push(`media_list_query_failed:${mediaListResult.apiCode || "unknown"}:${mediaListResult.apiMessage || "unknown"}`);
+  }
+  const mediaItems = Array.isArray(mediaListResult?.summary?.list) ? mediaListResult.summary.list : [];
+  const mediaOptions = mediaOptionMap(mediaItems);
+  const allHistoricalRows = [...exactRows, ...scopedRows];
+  const candidates = mediaCandidatesFromHistoricalRows({
+    rows: allHistoricalRows,
+    currentMediaById: mediaOptions.byId
+  });
+
+  if (mediaListResult?.status === "passed" && scopedMonitorResult?.status === "passed" && candidates.length === 0) {
+    blockers.push("current_media_candidate_unresolved");
+  }
+  if (candidates.length > 3) {
+    blockers.push(`current_media_candidate_ambiguous:${candidates.length}`);
+  }
+
+  const mediaValidationResults = [];
+  if (candidates.length > 0 && candidates.length <= 3 && !blockers.some((item) => item.startsWith("historical_monitor_scope_query_failed") || item.startsWith("media_list_query_failed"))) {
+    for (const candidate of candidates) {
+      const mediaFingerprint = requestFingerprint({
+        endpoint: CHANGE_MEDIA_ENDPOINT,
+        params: { os: target.os, media_id: candidate.mediaId }
+      });
+      const mediaResult = await client.queryMediaInfo({
+        ownerKey: effectiveOwnerKey,
+        mediaId: candidate.mediaId,
+        os: target.os
+      });
+      const accountOptions = optionListRelations(mediaResult?.summary?.accountIdList || []);
+      const monitorApiOptions = optionListRelations(mediaResult?.summary?.monitorApiList || []);
+      const targetAccountAllowed = accountOptions.relations.some((item) => item.childId === qiankunAccountRecordId);
+      const historicalMonitorApis = new Set(candidate.monitorApis);
+      const allowedHistoricalMonitorApis = monitorApiOptions.relations
+        .filter((item) => !historicalMonitorApis.size || historicalMonitorApis.has(item.childId));
+      const selectedMonitorApis = allowedHistoricalMonitorApis.length
+        ? allowedHistoricalMonitorApis
+        : monitorApiOptions.relations;
+      const validation = {
+        mediaId: candidate.mediaId,
+        mediaName: candidate.mediaName,
+        historicalMonitorCount: candidate.historicalMonitorCount,
+        historicalMonitorApis: candidate.monitorApis,
+        status: mediaResult.status,
+        apiCode: mediaResult.apiCode || "",
+        accountIdListReturned: mediaResult.summary?.fieldsPresent?.accountIdList === true,
+        targetAccountAllowed,
+        monitorApiListReturned: mediaResult.summary?.fieldsPresent?.monitorApiList === true,
+        allowedMonitorApiCount: monitorApiOptions.relations.length,
+        selectedMonitorApis: selectedMonitorApis.map((item) => item.childId),
+        requestFingerprint: mediaFingerprint,
+        responseHash: mediaResult.responseHash || ""
+      };
+      mediaValidationResults.push(validation);
+      if (repo && mediaResult?.status === "passed" && targetAccountAllowed) {
+        writes.push(await syncSingleRelation({
+          repo,
+          target,
+          relationType: "media_to_allowed_account_record",
+          os: target.os,
+          parentType: "media",
+          parentId: candidate.mediaId,
+          parentName: candidate.mediaName,
+          childType: "account_record",
+          relations: relationFromValue(qiankunAccountRecordId),
+          sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+          requestFingerprint: mediaFingerprint,
+          responseHash: mediaResult.responseHash,
+          evidenceArtifactId: relationEvidenceArtifactId
+        }));
+      }
+      if (repo && mediaResult?.status === "passed" && targetAccountAllowed && selectedMonitorApis.length) {
+        writes.push(await syncSingleRelation({
+          repo,
+          target,
+          relationType: "media_to_allowed_monitor_api",
+          os: target.os,
+          parentType: "media",
+          parentId: candidate.mediaId,
+          parentName: candidate.mediaName,
+          childType: "monitor_api",
+          relations: selectedMonitorApis,
+          sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+          requestFingerprint: mediaFingerprint,
+          responseHash: mediaResult.responseHash,
+          evidenceArtifactId: relationEvidenceArtifactId
+        }));
+      }
+    }
+  }
+
+  const usableCandidates = mediaValidationResults.filter((item) => item.status === "passed" && item.targetAccountAllowed);
+  if (candidates.length > 0 && candidates.length <= 3 && usableCandidates.length === 0) {
+    blockers.push("target_qiankun_account_record_not_allowed_by_candidates");
+  }
+  if (usableCandidates.length > 1) {
+    blockers.push(`media_candidate_ambiguous_after_account_validation:${usableCandidates.length}`);
+  }
+
+  let mediaAccountResult = null;
+  let mediaAccountFingerprint = "";
+  let returnedAccountAgentId = "";
+  let returnedAccountAgentName = "";
+  let accountAgentOptions = { relations: [] };
+  let agentVerified = false;
+  if (usableCandidates.length === 1 && !blockers.some((item) => item.includes("ambiguous_after_account_validation"))) {
+    mediaAccountFingerprint = requestFingerprint({
+      endpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+      params: { media_account_id_present: Boolean(qiankunAccountRecordId) }
+    });
+    mediaAccountResult = await client.queryMediaAccountInfo({
+      ownerKey: effectiveOwnerKey,
+      mediaAccountId: qiankunAccountRecordId
+    });
+    if (mediaAccountResult.status !== "passed") {
+      blockers.push(`change_media_account_query_failed:${mediaAccountResult.apiCode || "unknown"}:${mediaAccountResult.apiMessage || "unknown"}`);
+    }
+    accountAgentOptions = optionListRelations(mediaAccountResult?.summary?.agentList || []);
+    returnedAccountAgentId = clean(mediaAccountResult?.summary?.agentId);
+    returnedAccountAgentName = clean(mediaAccountResult?.summary?.agentName || returnedAccountAgentId);
+    const agentRelationCandidates = returnedAccountAgentId
+      ? relationFromValue(returnedAccountAgentId, returnedAccountAgentName)
+      : accountAgentOptions.relations;
+    agentVerified = agentRelationCandidates.some((item) => item.childId === expectedAgentId);
+    if (mediaAccountResult.status === "passed" && returnedAccountAgentId && returnedAccountAgentId !== expectedAgentId) {
+      blockers.push("agent_id_mismatch");
+    }
+    if (mediaAccountResult.status === "passed" && !returnedAccountAgentId) {
+      blockers.push("account_record_agent_not_returned");
+    }
+    if (repo && mediaAccountResult.status === "passed" && agentVerified) {
+      writes.push(await syncSingleRelation({
+        repo,
+        target,
+        relationType: "account_record_to_agent",
+        os: target.os,
+        parentType: "account_record",
+        parentId: qiankunAccountRecordId,
+        parentName: "",
+        childType: "agent",
+        relations: relationFromValue(expectedAgentId, returnedAccountAgentName || expectedAgentId),
+        sourceEndpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+        requestFingerprint: mediaAccountFingerprint,
+        responseHash: mediaAccountResult.responseHash,
+        evidenceArtifactId: relationEvidenceArtifactId
+      }));
+      await repo.updateQiankunAccountIdentity({
+        advertiserId: target.advertiserId,
+        routeId: target.routeId,
+        gameCode: target.gameCode,
+        accountName: storedAccount?.account_name || target.advertiserId,
+        authStatus: storedAccount?.auth_status || "unknown",
+        platformStatus: storedAccount?.platform_status || "unknown",
+        ownerName: storedAccount?.owner_name || "",
+        qiankunAccountRecordId,
+        qiankunOwnerKey: storedOwnerKey || effectiveOwnerKey,
+        qiankunAgentId: expectedAgentId,
+        qiankunIdentityStatus: "verified",
+        qiankunVerifiedAt: verifiedAt
+      });
+    }
+  }
+
+  const uniqueReadyCandidate = usableCandidates.length === 1 && agentVerified
+    ? usableCandidates[0]
+    : null;
+  const readinessCode = uniqueReadyCandidate
+    ? "unique_media_combination_ready"
+    : candidates.length === 0
+      ? "current_media_candidate_unresolved"
+      : "qiankun_media_candidate_unresolved";
+
+  const publicSummary = {
+    mode: "discover_media_candidates",
+    target: {
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId,
+      os: target.os,
+      cateId: target.cateId,
+      vestId: target.vestId,
+      packageId: target.packageId,
+      channel: target.channel,
+      historicalMonitorId: target.historicalMonitorId,
+      qiankunAccountRecordId,
+      expectedAgentId
+    },
+    historicalMonitor: {
+      exactQueryCalled: Boolean(exactMonitorResult),
+      exactStatus: exactMonitorResult?.status || "skipped",
+      exactApiCode: exactMonitorResult?.apiCode || "",
+      exactResultTotal: Number(exactMonitorResult?.summary?.resultTotal || 0),
+      exactRows: exactRows.slice(0, 3),
+      scopedQueryCalled: Boolean(scopedMonitorResult),
+      scopedStatus: scopedMonitorResult?.status || "skipped",
+      scopedApiCode: scopedMonitorResult?.apiCode || "",
+      scopedResultTotal: Number(scopedMonitorResult?.summary?.resultTotal || 0),
+      scopedRowCount: scopedRows.length,
+      scopedRowsWithInternalMediaId: scopedRows.filter((item) => item.sameScope && item.mediaIdPresent).length
+    },
+    mediaList: {
+      called: Boolean(mediaListResult),
+      status: mediaListResult?.status || "skipped",
+      apiCode: mediaListResult?.apiCode || "",
+      listCount: Number(mediaListResult?.summary?.listCount || 0),
+      invalidItemCount: mediaOptions.invalidItems.length,
+      duplicateMediaIdCount: mediaOptions.duplicateChildIds.length
+    },
+    candidates: {
+      count: candidates.length,
+      truncatedForValidation: candidates.length > 3,
+      items: candidates.slice(0, 10)
+    },
+    validation: {
+      changeMediaIdCallCount: mediaValidationResults.length,
+      mediaResults: mediaValidationResults,
+      usableCandidateCount: usableCandidates.length,
+      changeMediaAccountIdCalled: Boolean(mediaAccountResult),
+      mediaAccountStatus: mediaAccountResult?.status || "skipped",
+      mediaAccountApiCode: mediaAccountResult?.apiCode || "",
+      returnedAgentIdPresent: Boolean(returnedAccountAgentId),
+      expectedAgentId,
+      agentVerified
+    },
+    requestFingerprints: {
+      exactMonitorIndex: exactMonitorFingerprint,
+      scopedMonitorIndex: scopedMonitorFingerprint,
+      mediaList: mediaListFingerprint,
+      changeMediaAccount: mediaAccountFingerprint
+    },
+    responseHashes: {
+      exactMonitorIndex: exactMonitorResult?.responseHash || "",
+      scopedMonitorIndex: scopedMonitorResult?.responseHash || "",
+      mediaList: mediaListResult?.responseHash || "",
+      changeMediaAccount: mediaAccountResult?.responseHash || ""
+    },
+    readiness: {
+      mediaCandidateDiscoveryReady: Boolean(uniqueReadyCandidate),
+      readinessCode,
+      uniqueCandidate: uniqueReadyCandidate ? {
+        mediaId: uniqueReadyCandidate.mediaId,
+        mediaName: uniqueReadyCandidate.mediaName,
+        selectedMonitorApis: uniqueReadyCandidate.selectedMonitorApis
+      } : null,
+      monitorCreateBlockedUntilFinalReconcile: true
+    },
+    credential: {
+      status: credential.status,
+      ownerKeyPresent: Boolean(clean(effectiveOwnerKey)),
+      pendingOwnerKeyBootstrap: allowPendingOwnerKeyBootstrap,
+      credentialStorePresent: credential.credentialStorePresent,
+      activeCredentialCount: credential.activeCredentialCount,
+      pendingOwnerKeyCount: credential.pendingOwnerKeyCount
+    },
+    warnings,
+    blockers,
+    platformWriteCalled: false,
+    rawRequestStored: false,
+    rawResponseStored: false
+  };
+  const safeSummary = sanitizeForPublic(publicSummary);
+  assertNoSensitiveLeak(safeSummary);
+  const evidenceArtifactId = await upsertMediaCandidateDiscoveryEvidence({
+    repo,
+    target,
+    summary: safeSummary
+  });
+
+  if (repo) {
+    await repo.updateMonitorProvisionRunStatus({
+      provisionId: monitorProvisionId(target),
+      status: uniqueReadyCandidate ? "account_resolved" : "failed",
+      requestFingerprint: hashValue({
+        mode: "discover_media_candidates",
+        target: {
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          advertiserId: target.advertiserId,
+          os: target.os,
+          cateId: target.cateId,
+          vestId: target.vestId,
+          packageId: target.packageId,
+          channel: target.channel,
+          historicalMonitorId: target.historicalMonitorId,
+          qiankunAccountRecordId
+        }
+      }),
+      credentialStatus: credentialStatusForDatabase(credential),
+      responseHash: mediaListResult?.responseHash || scopedMonitorResult?.responseHash || exactMonitorResult?.responseHash || "",
+      errorSummary: uniqueReadyCandidate ? "" : `qiankun_media_candidate_unresolved:${blockers.join(";")}`,
+      evidenceArtifactId
+    });
+  }
+
+  const output = {
+    ...safeSummary,
+    status: uniqueReadyCandidate ? "passed" : "blocked",
+    evidenceArtifactId,
+    writes: {
+      accountIdentityVerified: agentVerified,
+      relationRowsWritten: writes.some((item) => item.inputCount > 0),
+      relationTypesWritten: writes.filter((item) => item.inputCount > 0).map((item) => item.relationType),
+      relationWriteResults: writes
+    }
+  };
+  assertNoSensitiveLeak(output);
+  return output;
+}
+
+export async function runQiankunLevel3MediaResourceReadonlySync({
+  repo,
+  ownerKey = "",
+  target = QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET,
+  retryOnce = false,
+  env = process.env
+} = {}) {
+  const retryMode = retryOnce === true;
+  const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
+  const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
+  const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
+  const allowPendingOwnerKeyBootstrap = !clean(effectiveOwnerKey) && initialCredential.pendingOwnerKeyCount === 1;
+  const client = createQiankunMonitorClient({
+    allowPendingOwnerKeyBootstrap,
+    pendingOwnerKeyBootstrapEndpoints: retryMode ? [
+      CHANGE_MEDIA_ENDPOINT,
+      CHANGE_MEDIA_ACCOUNT_ENDPOINT
+    ] : [
+      ACCOUNT_INDEX_ENDPOINT,
+      "/tf/ad/index",
+      CHANGE_MEDIA_ENDPOINT,
+      CHANGE_MEDIA_ACCOUNT_ENDPOINT
+    ]
+  });
+  const blockers = [];
+  const warnings = [];
+  const writes = [];
+  const verifiedAt = new Date().toISOString();
+  const mediaResourceId = clean(target.mediaResourceId || target.candidateMediaId);
+  const expectedAccountRecordId = clean(target.qiankunAccountRecordId);
+  const expectedAgentId = clean(target.expectedAgentId || target.qiankunAgentId || target.candidateAgentId);
+  const expectedMonitorApi = clean(target.expectedMonitorApi || target.candidateMonitorApi);
+  const evidenceArtifactId = level3MediaResourceEvidenceId(target, retryMode ? "R02" : "");
+
+  if (!mediaResourceId) blockers.push("level3_media_resource_id_missing");
+  if (!expectedAccountRecordId) blockers.push("qiankun_account_record_id_missing");
+  if (!expectedAgentId) blockers.push("expected_agent_id_missing");
+
+  if (retryMode) {
+    const confirmValuePresent = env[QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_ENV] === QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_VALUE;
+    if (!confirmValuePresent) {
+      const output = {
+        status: "blocked",
+        mode: "sync_level3_media_resource",
+        retryOnce: true,
+        target: {
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          advertiserId: target.advertiserId,
+          os: target.os,
+          mediaResourceId,
+          qiankunAccountRecordId: expectedAccountRecordId,
+          expectedAgentId,
+          expectedMonitorApi
+        },
+        confirmation: {
+          requiredEnv: QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_ENV,
+          expectedValue: QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_VALUE,
+          present: false
+        },
+        externalCalls: {
+          accountIndex: false,
+          historicalMonitorIndex: false,
+          mediaList: false,
+          changeMediaId: false,
+          changeMediaAccountId: false,
+          monitorSerialNumberAdd: false
+        },
+        blockers: ["level3_media_retry_confirm_missing_or_invalid"],
+        rawRequestStored: false,
+        rawResponseStored: false
+      };
+      const safe = sanitizeForPublic(output);
+      assertNoSensitiveLeak(safe);
+      return safe;
+    }
+
+    if (!allowPendingOwnerKeyBootstrap && credential.status !== "active") {
+      blockers.push(`credential_not_active:${credential.status}`);
+    }
+
+    const mediaFingerprint = requestFingerprint({
+      endpoint: CHANGE_MEDIA_ENDPOINT,
+      params: { os: target.os, media_id: mediaResourceId }
+    });
+    let mediaResult = null;
+    if (blockers.length === 0) {
+      mediaResult = await client.queryMediaInfo({
+        ownerKey: effectiveOwnerKey,
+        mediaId: mediaResourceId,
+        os: target.os
+      });
+      if (mediaResult.status !== "passed") {
+        blockers.push(`change_media_query_failed:${mediaResult.apiCode || "unknown"}:${mediaResult.apiMessage || "unknown"}`);
+      }
+    }
+
+    const accountOptions = optionListRelations(mediaResult?.summary?.accountIdList || []);
+    const monitorApiOptions = optionListRelations(mediaResult?.summary?.monitorApiList || []);
+    const targetAccountAllowed = accountOptions.relations.some((item) => item.childId === expectedAccountRecordId);
+    const expectedMonitorApiAllowed = expectedMonitorApi
+      ? monitorApiOptions.relations.some((item) => item.childId === expectedMonitorApi)
+      : monitorApiOptions.relations.length > 0;
+
+    if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.accountIdList !== true) {
+      blockers.push("media_resource_account_id_list_not_returned");
+    }
+    if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.accountIdList === true && !targetAccountAllowed) {
+      blockers.push("level3_media_resource_not_available_for_target_account");
+    }
+    if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.monitorApiList !== true) {
+      blockers.push("media_resource_monitor_api_list_not_returned");
+    }
+    if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.monitorApiList === true && !expectedMonitorApiAllowed) {
+      blockers.push("expected_monitor_api_not_allowed_by_media_resource");
+    }
+
+    const writes = [];
+    if (repo && mediaResult?.status === "passed" && targetAccountAllowed) {
+      writes.push(await syncSingleRelation({
+        repo,
+        target,
+        relationType: "media_resource_to_allowed_account_record",
+        os: target.os,
+        parentType: "media_resource",
+        parentId: mediaResourceId,
+        parentName: mediaResult.summary?.mediaName || "",
+        childType: "account_record",
+        relations: relationFromValue(expectedAccountRecordId),
+        sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+        requestFingerprint: mediaFingerprint,
+        responseHash: mediaResult.responseHash,
+        evidenceArtifactId
+      }));
+    }
+    if (repo && mediaResult?.status === "passed" && targetAccountAllowed && monitorApiOptions.relations.length) {
+      writes.push(await syncSingleRelation({
+        repo,
+        target,
+        relationType: "media_resource_to_allowed_monitor_api",
+        os: target.os,
+        parentType: "media_resource",
+        parentId: mediaResourceId,
+        parentName: mediaResult.summary?.mediaName || "",
+        childType: "monitor_api",
+        relations: monitorApiOptions.relations,
+        sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+        requestFingerprint: mediaFingerprint,
+        responseHash: mediaResult.responseHash,
+        evidenceArtifactId
+      }));
+    }
+
+    let mediaAccountResult = null;
+    let mediaAccountFingerprint = "";
+    let returnedAccountAgentId = "";
+    let agentVerified = false;
+    if (targetAccountAllowed && expectedMonitorApiAllowed && blockers.length === 0) {
+      mediaAccountFingerprint = requestFingerprint({
+        endpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+        params: { media_account_id: expectedAccountRecordId }
+      });
+      mediaAccountResult = await client.queryMediaAccountInfo({
+        ownerKey: effectiveOwnerKey,
+        mediaAccountId: expectedAccountRecordId
+      });
+      if (mediaAccountResult.status !== "passed") {
+        blockers.push(`change_media_account_query_failed:${mediaAccountResult.apiCode || "unknown"}:${mediaAccountResult.apiMessage || "unknown"}`);
+      }
+      returnedAccountAgentId = clean(mediaAccountResult?.summary?.agentId);
+      const accountAgentOptions = optionListRelations(mediaAccountResult?.summary?.agentList || []);
+      const agentRelations = returnedAccountAgentId
+        ? relationFromValue(returnedAccountAgentId, mediaAccountResult?.summary?.agentName || returnedAccountAgentId)
+        : accountAgentOptions.relations;
+      agentVerified = agentRelations.some((item) => item.childId === expectedAgentId);
+      if (mediaAccountResult.status === "passed" && returnedAccountAgentId && returnedAccountAgentId !== expectedAgentId) {
+        blockers.push("agent_id_mismatch");
+      }
+      if (mediaAccountResult.status === "passed" && !returnedAccountAgentId) {
+        blockers.push("account_record_agent_not_returned");
+      }
+      if (repo && mediaAccountResult.status === "passed" && agentVerified) {
+        writes.push(await syncSingleRelation({
+          repo,
+          target,
+          relationType: "account_record_to_agent",
+          os: target.os,
+          parentType: "account_record",
+          parentId: expectedAccountRecordId,
+          childType: "agent",
+          relations: relationFromValue(expectedAgentId, mediaAccountResult?.summary?.agentName || expectedAgentId),
+          sourceEndpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+          requestFingerprint: mediaAccountFingerprint,
+          responseHash: mediaAccountResult.responseHash,
+          evidenceArtifactId
+        }));
+      }
+    }
+
+    const ready = [
+      mediaResult?.status === "passed",
+      targetAccountAllowed,
+      expectedMonitorApiAllowed,
+      mediaAccountResult?.status === "passed",
+      agentVerified
+    ].every(Boolean);
+    const publicSummary = {
+      mode: "sync_level3_media_resource",
+      retryOnce: true,
+      target: {
+        routeId: target.routeId,
+        gameCode: target.gameCode,
+        advertiserId: target.advertiserId,
+        os: target.os,
+        channel: target.channel,
+        historicalMonitorId: target.historicalMonitorId,
+        mediaResourceId,
+        qiankunAccountRecordId: expectedAccountRecordId,
+        expectedAgentId,
+        expectedMonitorApi
+      },
+      semantics: {
+        osMeaning: "qiankun_mini_game_technical_system_type",
+        businessMeaningDecision: "platform_media_mediaId_monitorApi_channel_combined",
+        routeBusinessInterpretation: "oceanengine_toutiao_wxgame_dymini3k"
+      },
+      mediaResource: {
+        called: Boolean(mediaResult),
+        status: mediaResult?.status || "skipped",
+        apiCode: mediaResult?.apiCode || "",
+        apiMessage: mediaResult?.apiMessage || "",
+        accountIdListReturned: mediaResult?.summary?.fieldsPresent?.accountIdList === true,
+        allowedAccountRecordCount: accountOptions.relations.length,
+        targetAccountAllowed,
+        monitorApiListReturned: mediaResult?.summary?.fieldsPresent?.monitorApiList === true,
+        allowedMonitorApiCount: monitorApiOptions.relations.length,
+        expectedMonitorApiAllowed
+      },
+      mediaAccount: {
+        called: Boolean(mediaAccountResult),
+        status: mediaAccountResult?.status || "skipped",
+        apiCode: mediaAccountResult?.apiCode || "",
+        returnedAgentIdPresent: Boolean(returnedAccountAgentId),
+        agentVerified
+      },
+      externalCalls: {
+        accountIndex: false,
+        historicalMonitorIndex: false,
+        mediaList: false,
+        changeMediaId: Boolean(mediaResult),
+        changeMediaAccountId: Boolean(mediaAccountResult),
+        monitorSerialNumberAdd: false
+      },
+      requestFingerprints: {
+        changeMediaId: mediaFingerprint,
+        changeMediaAccountId: mediaAccountFingerprint
+      },
+      responseHashes: {
+        changeMediaId: mediaResult?.responseHash || "",
+        changeMediaAccountId: mediaAccountResult?.responseHash || ""
+      },
+      readiness: {
+        level3MediaResourceReady: ready,
+        readinessCode: ready
+          ? "level3_media_resource_verified"
+          : targetAccountAllowed === false && mediaResult?.status === "passed"
+            ? "level3_media_resource_not_available_for_target_account"
+            : "level3_media_resource_not_available",
+        monitorCreateBlockedUntilFinalReconcile: true
+      },
+      credential: {
+        status: credential.status,
+        ownerKeyPresent: Boolean(clean(effectiveOwnerKey)),
+        pendingOwnerKeyBootstrap: allowPendingOwnerKeyBootstrap,
+        credentialStorePresent: credential.credentialStorePresent,
+        activeCredentialCount: credential.activeCredentialCount,
+        pendingOwnerKeyCount: credential.pendingOwnerKeyCount
+      },
+      warnings,
+      blockers,
+      monitorProvisionRunUpdated: false,
+      platformWriteCalled: false,
+      rawRequestStored: false,
+      rawResponseStored: false
+    };
+    const safeSummary = sanitizeForPublic(publicSummary);
+    assertNoSensitiveLeak(safeSummary);
+    await upsertLevel3MediaResourceEvidence({
+      repo,
+      target,
+      summary: safeSummary,
+      artifactId: evidenceArtifactId,
+      sourceRef: mediaAccountResult
+        ? `qiankun:${CHANGE_MEDIA_ENDPOINT}+${CHANGE_MEDIA_ACCOUNT_ENDPOINT}`
+        : `qiankun:${CHANGE_MEDIA_ENDPOINT}`
+    });
+    const output = {
+      ...safeSummary,
+      status: ready ? "passed" : "blocked",
+      evidenceArtifactId,
+      writes: {
+        relationRowsWritten: writes.some((item) => item.inputCount > 0),
+        relationTypesWritten: writes.filter((item) => item.inputCount > 0).map((item) => item.relationType),
+        relationWriteResults: writes
+      }
+    };
+    assertNoSensitiveLeak(output);
+    return output;
+  }
+
+  const accountFingerprint = requestFingerprint({
+    endpoint: ACCOUNT_INDEX_ENDPOINT,
+    params: { accountId: target.advertiserId, pageNo: 1, pageSize: 10 }
+  });
+  const accountResult = blockers.length
+    ? null
+    : await client.queryAccountIndex({
+      ownerKey: effectiveOwnerKey,
+      accountId: target.advertiserId,
+      pageNo: 1,
+      pageSize: 10
+    });
+  if (accountResult && accountResult.status !== "passed") {
+    blockers.push(`account_index_query_failed:${accountResult.apiCode || "unknown"}:${accountResult.apiMessage || "unknown"}`);
+  }
+  const accountRows = exactAccountRows(accountResult, target.advertiserId);
+  if (accountResult?.status === "passed" && accountRows.length !== 1) {
+    blockers.push(`account_index_exact_match_count:${accountRows.length}`);
+  }
+  const accountRow = accountRows[0] || {};
+  const qiankunAccountRecordId = clean(accountRow.mediaAccountRecordId || accountRow.id || expectedAccountRecordId);
+  const qiankunOwnerKey = clean(accountRow.ssoOwnerKey || accountRow.ssoOwner || effectiveOwnerKey);
+  const accountAgentId = clean(accountRow.agentId);
+  const mediaMasterId = clean(accountRow.mediaMasterId);
+  const mediaMasterName = clean(accountRow.mediaMasterName);
+  if (accountRows.length === 1 && qiankunAccountRecordId !== expectedAccountRecordId) {
+    blockers.push("qiankun_account_record_id_mismatch");
+  }
+  if (accountRows.length === 1 && !mediaMasterId) {
+    warnings.push("account_index_media_master_id_not_returned");
+  }
+  if (repo && accountRows.length === 1 && qiankunAccountRecordId && qiankunOwnerKey) {
+    await repo.updateQiankunAccountIdentity({
+      advertiserId: target.advertiserId,
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      accountName: accountRow.advertiserName || target.advertiserId,
+      authStatus: accountRow.authStatusName || "unknown",
+      platformStatus: accountRow.status || "unknown",
+      ownerName: accountRow.ssoOwnerName || accountRow.ssoOwner || "",
+      qiankunAccountRecordId,
+      qiankunOwnerKey,
+      qiankunAgentId: accountAgentId || expectedAgentId,
+      qiankunMediaMasterId: mediaMasterId,
+      qiankunMediaMasterName: mediaMasterName,
+      qiankunIdentityStatus: "observed",
+      qiankunVerifiedAt: verifiedAt
+    });
+  }
+
+  const historicalMonitorParams = {
+    monitorId: target.historicalMonitorId,
+    pageNo: 1,
+    pageSize: 10
+  };
+  const historicalMonitorFingerprint = requestFingerprint({
+    endpoint: "/tf/ad/index",
+    params: historicalMonitorParams
+  });
+  const historicalMonitorResult = blockers.length
+    ? null
+    : await client.queryMonitorIndex({
+      ownerKey: effectiveOwnerKey,
+      params: historicalMonitorParams
+    });
+  if (historicalMonitorResult && historicalMonitorResult.status !== "passed") {
+    blockers.push(`historical_monitor_query_failed:${historicalMonitorResult.apiCode || "unknown"}:${historicalMonitorResult.apiMessage || "unknown"}`);
+  }
+  const historicalRows = scopedMonitorRows(historicalMonitorResult, target);
+  const historicalMediaResourceRows = historicalRows.filter((item) => clean(item.mediaId) === mediaResourceId);
+  if (historicalMonitorResult?.status === "passed" && historicalMediaResourceRows.length === 0) {
+    blockers.push("historical_level3_media_resource_not_visible");
+  }
+  const historicalMonitorApiMatched = !expectedMonitorApi ||
+    historicalMediaResourceRows.some((item) => clean(item.monitorApi) === expectedMonitorApi);
+  if (historicalMediaResourceRows.length && !historicalMonitorApiMatched) {
+    warnings.push("historical_monitor_api_differs_from_expected");
+  }
+
+  const mediaFingerprint = requestFingerprint({
+    endpoint: CHANGE_MEDIA_ENDPOINT,
+    params: { os: target.os, media_id: mediaResourceId }
+  });
+  const mediaResult = blockers.length
+    ? null
+    : await client.queryMediaInfo({
+      ownerKey: effectiveOwnerKey,
+      mediaId: mediaResourceId,
+      os: target.os
+    });
+  if (mediaResult && mediaResult.status !== "passed") {
+    blockers.push(`change_media_query_failed:${mediaResult.apiCode || "unknown"}:${mediaResult.apiMessage || "unknown"}`);
+  }
+  const accountOptions = optionListRelations(mediaResult?.summary?.accountIdList || []);
+  const monitorApiOptions = optionListRelations(mediaResult?.summary?.monitorApiList || []);
+  const targetAccountAllowed = accountOptions.relations.some((item) => item.childId === expectedAccountRecordId);
+  const expectedMonitorApiAllowed = expectedMonitorApi
+    ? monitorApiOptions.relations.some((item) => item.childId === expectedMonitorApi)
+    : monitorApiOptions.relations.length > 0;
+  if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.accountIdList !== true) {
+    blockers.push("media_resource_account_id_list_not_returned");
+  }
+  if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.accountIdList === true && !targetAccountAllowed) {
+    blockers.push("level3_media_resource_not_available_for_target_account");
+  }
+  if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.monitorApiList !== true) {
+    blockers.push("media_resource_monitor_api_list_not_returned");
+  }
+  if (mediaResult?.status === "passed" && mediaResult.summary?.fieldsPresent?.monitorApiList === true && !expectedMonitorApiAllowed) {
+    blockers.push("expected_monitor_api_not_allowed_by_media_resource");
+  }
+  if (repo && mediaResult?.status === "passed" && targetAccountAllowed) {
+    writes.push(await syncSingleRelation({
+      repo,
+      target,
+      relationType: "media_resource_to_allowed_account_record",
+      os: target.os,
+      parentType: "media_resource",
+      parentId: mediaResourceId,
+      parentName: mediaResult.summary?.mediaName || historicalMediaResourceRows[0]?.mediaName || "",
+      childType: "account_record",
+      relations: relationFromValue(expectedAccountRecordId),
+      sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+      requestFingerprint: mediaFingerprint,
+      responseHash: mediaResult.responseHash,
+      evidenceArtifactId
+    }));
+  }
+  if (repo && mediaResult?.status === "passed" && targetAccountAllowed && monitorApiOptions.relations.length) {
+    writes.push(await syncSingleRelation({
+      repo,
+      target,
+      relationType: "media_resource_to_allowed_monitor_api",
+      os: target.os,
+      parentType: "media_resource",
+      parentId: mediaResourceId,
+      parentName: mediaResult.summary?.mediaName || historicalMediaResourceRows[0]?.mediaName || "",
+      childType: "monitor_api",
+      relations: monitorApiOptions.relations,
+      sourceEndpoint: CHANGE_MEDIA_ENDPOINT,
+      requestFingerprint: mediaFingerprint,
+      responseHash: mediaResult.responseHash,
+      evidenceArtifactId
+    }));
+  }
+
+  let mediaAccountResult = null;
+  let mediaAccountFingerprint = "";
+  let returnedAccountAgentId = "";
+  let agentVerified = false;
+  if (targetAccountAllowed && blockers.length === 0) {
+    mediaAccountFingerprint = requestFingerprint({
+      endpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+      params: { media_account_id_present: Boolean(expectedAccountRecordId) }
+    });
+    mediaAccountResult = await client.queryMediaAccountInfo({
+      ownerKey: effectiveOwnerKey,
+      mediaAccountId: expectedAccountRecordId
+    });
+    if (mediaAccountResult.status !== "passed") {
+      blockers.push(`change_media_account_query_failed:${mediaAccountResult.apiCode || "unknown"}:${mediaAccountResult.apiMessage || "unknown"}`);
+    }
+    returnedAccountAgentId = clean(mediaAccountResult?.summary?.agentId);
+    const accountAgentOptions = optionListRelations(mediaAccountResult?.summary?.agentList || []);
+    const agentRelations = returnedAccountAgentId
+      ? relationFromValue(returnedAccountAgentId, mediaAccountResult?.summary?.agentName || returnedAccountAgentId)
+      : accountAgentOptions.relations;
+    agentVerified = agentRelations.some((item) => item.childId === expectedAgentId);
+    if (mediaAccountResult.status === "passed" && returnedAccountAgentId && returnedAccountAgentId !== expectedAgentId) {
+      blockers.push("agent_id_mismatch");
+    }
+    if (mediaAccountResult.status === "passed" && !returnedAccountAgentId) {
+      blockers.push("account_record_agent_not_returned");
+    }
+    if (repo && mediaAccountResult.status === "passed" && agentVerified) {
+      writes.push(await syncSingleRelation({
+        repo,
+        target,
+        relationType: "account_record_to_agent",
+        os: target.os,
+        parentType: "account_record",
+        parentId: expectedAccountRecordId,
+        childType: "agent",
+        relations: relationFromValue(expectedAgentId, mediaAccountResult?.summary?.agentName || expectedAgentId),
+        sourceEndpoint: CHANGE_MEDIA_ACCOUNT_ENDPOINT,
+        requestFingerprint: mediaAccountFingerprint,
+        responseHash: mediaAccountResult.responseHash,
+        evidenceArtifactId
+      }));
+      await repo.updateQiankunAccountIdentity({
+        advertiserId: target.advertiserId,
+        routeId: target.routeId,
+        gameCode: target.gameCode,
+        accountName: accountRow.advertiserName || target.advertiserId,
+        authStatus: accountRow.authStatusName || "unknown",
+        platformStatus: accountRow.status || "unknown",
+        ownerName: accountRow.ssoOwnerName || accountRow.ssoOwner || "",
+        qiankunAccountRecordId: expectedAccountRecordId,
+        qiankunOwnerKey,
+        qiankunAgentId: expectedAgentId,
+        qiankunMediaMasterId: mediaMasterId,
+        qiankunMediaMasterName: mediaMasterName,
+        qiankunIdentityStatus: "verified",
+        qiankunVerifiedAt: verifiedAt
+      });
+    }
+  }
+
+  const ready = [
+    accountRows.length === 1,
+    qiankunAccountRecordId === expectedAccountRecordId,
+    historicalMediaResourceRows.length > 0,
+    mediaResult?.status === "passed",
+    targetAccountAllowed,
+    expectedMonitorApiAllowed,
+    mediaAccountResult?.status === "passed",
+    agentVerified
+  ].every(Boolean);
+
+  const publicSummary = {
+    mode: "sync_level3_media_resource",
+    target: {
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId,
+      os: target.os,
+      historicalMonitorId: target.historicalMonitorId,
+      mediaResourceId,
+      qiankunAccountRecordId: expectedAccountRecordId,
+      expectedAgentId,
+      expectedMonitorApi
+    },
+    account: {
+      called: Boolean(accountResult),
+      status: accountResult?.status || "skipped",
+      apiCode: accountResult?.apiCode || "",
+      exactMatchCount: accountRows.length,
+      qiankunAccountRecordIdPresent: Boolean(qiankunAccountRecordId),
+      mediaMasterIdPresent: Boolean(mediaMasterId),
+      mediaMasterNamePresent: Boolean(mediaMasterName),
+      agentIdPresent: Boolean(accountAgentId)
+    },
+    historicalMonitor: {
+      called: Boolean(historicalMonitorResult),
+      status: historicalMonitorResult?.status || "skipped",
+      apiCode: historicalMonitorResult?.apiCode || "",
+      resultTotal: Number(historicalMonitorResult?.summary?.resultTotal || 0),
+      mediaResourceIdFound: historicalMediaResourceRows.length > 0,
+      matchedRows: historicalMediaResourceRows.slice(0, 3)
+    },
+    mediaResource: {
+      called: Boolean(mediaResult),
+      status: mediaResult?.status || "skipped",
+      apiCode: mediaResult?.apiCode || "",
+      accountIdListReturned: mediaResult?.summary?.fieldsPresent?.accountIdList === true,
+      allowedAccountRecordCount: accountOptions.relations.length,
+      targetAccountAllowed,
+      monitorApiListReturned: mediaResult?.summary?.fieldsPresent?.monitorApiList === true,
+      allowedMonitorApiCount: monitorApiOptions.relations.length,
+      expectedMonitorApiAllowed
+    },
+    mediaAccount: {
+      called: Boolean(mediaAccountResult),
+      status: mediaAccountResult?.status || "skipped",
+      apiCode: mediaAccountResult?.apiCode || "",
+      returnedAgentIdPresent: Boolean(returnedAccountAgentId),
+      agentVerified
+    },
+    requestFingerprints: {
+      accountIndex: accountFingerprint,
+      historicalMonitorIndex: historicalMonitorFingerprint,
+      changeMediaId: mediaFingerprint,
+      changeMediaAccountId: mediaAccountFingerprint
+    },
+    responseHashes: {
+      accountIndex: accountResult?.responseHash || "",
+      historicalMonitorIndex: historicalMonitorResult?.responseHash || "",
+      changeMediaId: mediaResult?.responseHash || "",
+      changeMediaAccountId: mediaAccountResult?.responseHash || ""
+    },
+    readiness: {
+      level3MediaResourceReady: ready,
+      readinessCode: ready ? "level3_media_resource_verified" : "level3_media_resource_not_available",
+      monitorCreateBlockedUntilFinalReconcile: true
+    },
+    credential: {
+      status: credential.status,
+      ownerKeyPresent: Boolean(clean(effectiveOwnerKey)),
+      pendingOwnerKeyBootstrap: allowPendingOwnerKeyBootstrap,
+      credentialStorePresent: credential.credentialStorePresent,
+      activeCredentialCount: credential.activeCredentialCount,
+      pendingOwnerKeyCount: credential.pendingOwnerKeyCount
+    },
+    warnings,
+    blockers,
+    platformWriteCalled: false,
+    rawRequestStored: false,
+    rawResponseStored: false
+  };
+  const safeSummary = sanitizeForPublic(publicSummary);
+  assertNoSensitiveLeak(safeSummary);
+  await upsertLevel3MediaResourceEvidence({ repo, target, summary: safeSummary });
+
+  const output = {
+    ...safeSummary,
+    status: ready ? "passed" : "blocked",
+    evidenceArtifactId,
+    writes: {
+      accountIdentityWritten: Boolean(repo && accountRows.length === 1 && qiankunAccountRecordId),
+      accountIdentityVerified: agentVerified,
+      monitorProvisionRunUpdated: false,
+      relationRowsWritten: writes.some((item) => item.inputCount > 0),
+      relationTypesWritten: writes.filter((item) => item.inputCount > 0).map((item) => item.relationType),
+      relationWriteResults: writes
+    }
+  };
+  assertNoSensitiveLeak(output);
+  return output;
+}
+
 export async function runQiankunMonitorTechnicalCombinationReadonlySync({
   repo,
   ownerKey = "",
@@ -1151,6 +2533,45 @@ export async function runQiankunMonitorTechnicalCombinationReadonlySync({
     target,
     summary: safeSummary
   });
+
+  if (repo && blockers.length) {
+    const sessionInvalid = accountResult.status !== "passed" && clean(accountResult.apiCode) === "302";
+    const accountIdentityUnresolved = blockers.some((item) => [
+      "account_index_query_failed",
+      "account_index_exact_match_count",
+      "qiankun_account_record_id_missing",
+      "qiankun_owner_key_missing"
+    ].some((prefix) => item.startsWith(prefix)));
+    const errorPrefix = sessionInvalid
+      ? "qiankun_session_invalid"
+      : accountIdentityUnresolved
+        ? "qiankun_account_identity_unresolved"
+        : "qiankun_media_candidate_unresolved";
+    await repo.updateMonitorProvisionRunStatus({
+      provisionId: monitorProvisionId(target),
+      status: "failed",
+      requestFingerprint: hashValue({
+        mode: "sync_technical_combination",
+        target: {
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          advertiserId: target.advertiserId,
+          os: target.os,
+          cateId: target.cateId,
+          vestId: target.vestId,
+          packageId: target.packageId,
+          channel: target.channel,
+          candidateMediaId: target.candidateMediaId,
+          candidateAgentId: target.candidateAgentId,
+          candidateMonitorApi: target.candidateMonitorApi
+        }
+      }),
+      credentialStatus: credentialStatusForDatabase(credential),
+      responseHash: accountResult.responseHash || "",
+      errorSummary: `${errorPrefix}:${blockers.join(";")}`,
+      evidenceArtifactId
+    });
+  }
 
   if (repo && accountRows.length === 1 && qiankunAccountRecordId && qiankunOwnerKey) {
     await repo.updateQiankunAccountIdentity({

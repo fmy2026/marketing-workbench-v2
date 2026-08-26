@@ -77,6 +77,7 @@ function compactAccountList(payload = {}) {
     accountId: clean(item.account_id),
     mediaAccountRecordId: clean(item._media_account_id || item.id),
     mediaMasterId: clean(item.media_master_id),
+    mediaMasterName: clean(item.media_master_id_name || item.media_master_name),
     agentId: clean(item._agent_id || item.agent_id),
     agentName: clean(item.agent_id_name || item.agent_id),
     ssoOwner: clean(item.sso_owner),

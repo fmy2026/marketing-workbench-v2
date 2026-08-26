@@ -1,0 +1,148 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Validate historical level-3 Qiankun media resource position 310 directly via changeMediaId/changeMediaAccountId and store level-2 media identity from accountIndex.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "qiankun_account_record_id": "8448",
+    "qiankun_agent_id": "613",
+    "historical_monitor_id": "245791",
+    "media_resource_id": "310",
+    "taxonomy": {
+      "level1": "media system, roughly v2 platform",
+      "level2": "media, from selectList(mediaList) and accountIndex.media_master_id",
+      "level3": "media resource position, from ad/index mediaId[] and historical monitor media_id"
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION.md",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.md",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "db/",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The prior mediaList check compared level-3 resource position IDs with a level-2 media list. The corrected path is to validate level-3 media_resource_id=310 directly.",
+    "blocking_questions": [],
+    "caveat": "changeMediaId and changeMediaAccountId are readonly dependent-configuration probes in this task; monitor creation and token refresh remain forbidden."
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_change_media_id_calls": 1,
+    "maximum_change_media_account_id_calls": 1,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /tf/ad/index",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId"
+    ],
+    "forbidden_external_calls": [
+      "POST /ajax/selectList/getList type=mediaList for rejecting media_resource_id=310",
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "second monitor create attempt",
+      "token refresh",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.advertiser_accounts",
+      "mwb.qiankun_option_relations",
+      "mwb.monitor_provision_runs",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Never print, persist, or expose token, Cookie, raw request, raw response, complete touchpoint URLs, or other secrets."
+  },
+  "implementation_plan": [
+    "Add a migration for advertiser_accounts.qiankun_media_master_id and qiankun_media_master_name.",
+    "Extend accountIndex compacting and account identity persistence for level-2 media fields.",
+    "Replace the old media candidate discovery mode with a level-3 media resource validation command.",
+    "Run one readonly validation for media_resource_id=310.",
+    "Read back database state, update task docs, context manifest, project.state.json, and existing Qiankun docs."
+  ],
+  "acceptance": [
+    "advertiser_accounts stores level-2 media master id/name when accountIndex returns them.",
+    "media_resource_id=310 is validated directly with changeMediaId, without using mediaList intersection.",
+    "Relations are written only when returned by real interfaces.",
+    "monitor_provision_attempts remains one.",
+    "monitorSerialNumberAdd is not called."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, and the full user-provided requirements document.",
+    "Assessed the request as reasonable with no blocking questions.",
+    "Created this context manifest.",
+    "Added and applied db/025_add_qiankun_media_master_identity.sql.",
+    "Persisted the level-2 accountIndex media_master_id value to advertiser_accounts.",
+    "Removed the old monitor:discover:media-candidates package entry and added monitor:sync:level3-media-resource.",
+    "Ran one real readonly level-3 media resource validation for media_resource_id=310.",
+    "Historical monitor 245791 was readable and still exposed media_id=310, monitor_api=toutiao_wxgame, and agent_id=613.",
+    "changeMediaId(310) returned apiCode 500 server busy, so changeMediaAccountId was skipped and no level-3 relations were written."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "command": "npm run monitor:sync:level3-media-resource",
+    "account_index": {
+      "status": "passed",
+      "exact_match_count": 1,
+      "qiankun_account_record_id": "8448",
+      "qiankun_agent_id": "613",
+      "qiankun_media_master_id": "今日头条",
+      "qiankun_media_master_name_present": false
+    },
+    "historical_monitor": {
+      "status": "passed",
+      "monitor_id": "245791",
+      "media_resource_id": "310",
+      "monitor_api": "toutiao_wxgame",
+      "agent_id": "613"
+    },
+    "change_media_id": {
+      "called": true,
+      "os": "3",
+      "media_id": "310",
+      "status": "blocked",
+      "api_code": "500",
+      "api_message": "服务器繁忙，请稍后重试(400)"
+    },
+    "change_media_account_id": {
+      "called": false,
+      "reason": "changeMediaId did not pass"
+    },
+    "relations_written": [],
+    "monitor_provision_error_summary": "level3_media_resource_not_available:change_media_query_failed:500:服务器繁忙，请稍后重试(400)",
+    "monitor_provision_attempt_count": 1,
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "evidence_artifact_id": "EV-QK-LEVEL3-MEDIA-RESOURCE-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310"
+  },
+  "validation": [
+    "psql migration applied",
+    "node import monitor-provision passed",
+    "psql readback confirmed level-2 media field persisted",
+    "psql readback confirmed no level-3 media resource relations were written",
+    "psql readback confirmed monitor_provision_attempts remains one",
+    "npm run smoke:workflow-skills passed",
+    "npm run smoke:api passed with existing test-run payload blockers only"
+  ],
+  "completion_gate": "Closed with blocker. The next task may perform one controlled readonly retry of changeMediaId(310); repeated 500 should be escalated to Qiankun technical support or replaced by a tech-confirmed level-3 media resource ID."
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC",
+  "task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "人工更新本机私密乾坤 token 后，执行一次既有技术组合只读同步；accountIndex 成功时继续落地真实关系。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "os": "3",
+    "previous_task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "observed_package_chain": {
+      "cate_id": "122",
+      "vest_id": "1414",
+      "package_id": "36820",
+      "channel": "dymini3k"
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
+    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable_to_proceed",
+    "reason": "The user manually updated the local private credential and the prior task explicitly set one readonly technical-combination rerun as the next gate.",
+    "blocking_questions": [],
+    "caveat": "A non-success accountIndex response stops all downstream calls and does not authorize retry, token refresh, or monitor creation."
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "execution_count": 1,
+    "allowed_external_calls": [
+      "POST /tf/account_info/accountIndex",
+      "POST /ajax/selectList/getList",
+      "POST /tf/ad/changeMediaId",
+      "POST /tf/ad/changeMediaAccountId"
+    ],
+    "forbidden_external_calls": [
+      "POST /tf/ad/monitorSerialNumberAdd",
+      "second monitor create attempt",
+      "token refresh",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update"
+    ],
+    "allowed_database_writes": [
+      "mwb.advertiser_accounts",
+      "mwb.qiankun_option_relations",
+      "mwb.monitor_provision_runs",
+      "mwb.evidence_artifacts"
+    ],
+    "sensitive_data_rule": "Never print, persist, or expose token, Cookie, raw request, raw response, or other secrets."
+  },
+  "acceptance": [
+    "accountIndex is run once and has a clear result.",
+    "Successful queries only write observed identity and approved relation types.",
+    "Failed accountIndex skips all downstream queries.",
+    "No platform write is triggered and monitor_provision_attempts remains one."
+  ],
+  "implementation_plan": [
+    "Run the existing readonly technical-combination command once.",
+    "Read back account identity, relation counts, evidence, run state, and attempt count.",
+    "Run focused smoke validation.",
+    "Update task, manifest, and project state with the actual result."
+  ],
+  "current_progress": [
+    "Read AGENTS.md, project.state.json, the prior task, its manifest, and the existing command entrypoint.",
+    "Confirmed accountIndex request shape complies with the supplied API documentation.",
+    "Opened this one-run readonly revalidation task after the user manually updated the private token.",
+    "Ran the command once: accountIndex uniquely matched and account identity was written; cateList wrote game_to_cate.",
+    "mediaList returned 177 items but not historical candidate media_id 310, so downstream calls were skipped without guessing."
+  ],
+  "execution_result": {
+    "status": "completed_with_blockers",
+    "account_index": "passed_unique_match",
+    "account_identity_status": "observed",
+    "game_to_cate": "observed:122",
+    "media_list": "passed:177_items",
+    "blocker": "candidate_media_id_not_returned",
+    "downstream_calls_skipped": [
+      "changeMediaId",
+      "changeMediaAccountId",
+      "ad/index"
+    ],
+    "platform_write_called": false,
+    "monitor_provision_attempt_count": 1,
+    "evidence_artifact_id": "EV-QK-MONITOR-TECH-COMBO-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041"
+  },
+  "completion_gate": "Closed with blocker. Obtain a business- or technology-confirmed current media_id, then open a new readonly task to validate media/account/API/agent relations; monitor creation remains forbidden."
+}
