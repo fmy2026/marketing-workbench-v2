@@ -1,0 +1,87 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY",
+  "task_ref": "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Sync GitHub to the current local docs directory layout as an independent documentation reorganization task.",
+    "user_instruction": "只按新位置的最新情况，确保 GitHub 和目前文件夹一致。",
+    "scope": "Document path moves, startup path references, and task/context records only."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md",
+    "tasks-context-manifests/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.json"
+  ],
+  "moved_paths": [
+    {
+      "from": "docs/plan1-新项目最高效启动框架_20260823.md",
+      "to": "docs/开发方案/plan1-新项目最高效启动框架_20260823.md",
+      "hash_match": true
+    },
+    {
+      "from": "docs/方案-投放创建Agent开发方案_20260823.md",
+      "to": "docs/开发方案/方案-投放创建Agent开发方案_20260823.md",
+      "hash_match": true
+    },
+    {
+      "from": "docs/方案-前端页面效果_html_20260823.html",
+      "to": "docs/开发方案/方案-前端页面效果_html_20260823.html",
+      "hash_match": true
+    },
+    {
+      "from": "docs/工作流-7节点-数据真值逻辑图_20260825.html",
+      "to": "docs/工作台逻辑底层/工作流-7节点-数据真值逻辑图_20260825.html",
+      "hash_match": true
+    },
+    {
+      "from": "docs/乾坤-changeMediaId-310-服务端500排查单_20260826.md",
+      "to": "docs/.问题排查/乾坤-changeMediaId-310-服务端500排查单_20260826.md",
+      "hash_match": true
+    },
+    {
+      "from": "docs/乾坤accountIndex会话卡点排查说明_20260826.md",
+      "to": "docs/.问题排查/乾坤accountIndex会话卡点排查说明_20260826.md",
+      "hash_match": true
+    },
+    {
+      "from": "docs/乾坤monitor第二次最终创建-技术请求排查单_20260826.md",
+      "to": "docs/.问题排查/乾坤monitor第二次最终创建-技术请求排查单_20260826.md",
+      "hash_match": true
+    },
+    {
+      "from": "docs/方案-乾坤与v2报表字段关系图_20260826.html",
+      "to": ".archive/方案-乾坤与v2报表字段关系图_20260826.html",
+      "hash_match": true
+    },
+    {
+      "from": "docs/OE3-std-project-create字段来源复盘_JOB-MWBV2-20260825041227-12D2B5_20260825.md",
+      "to": "docs/.参考文档/3.0创建/OE3-std-project-create字段来源复盘_JOB-MWBV2-20260825041227-12D2B5_20260825.md",
+      "hash_match": true,
+      "tracking_note": "Target path is under ignored docs/.参考文档/ and must be force-added as this specific migrated file."
+    }
+  ],
+  "updated_references": [
+    "AGENTS.md startup stable docs",
+    "project.state.json source_of_truth stable docs",
+    "project.state.json Qiankun escalation doc path",
+    "docs/开发方案/plan1-新项目最高效启动框架_20260823.md reference table"
+  ],
+  "non_goals": [
+    "No runtime code changes.",
+    "No platform calls.",
+    "No changes to ignored local credentials or .DS_Store files.",
+    "No mass tracking of docs/.参考文档/."
+  ],
+  "validation": [
+    "All moved pairs verified hash_match=true before staging.",
+    "JSON parse validation required after edits.",
+    "git diff --check required before commit.",
+    "git status should only show ignored/local files after commit and push."
+  ],
+  "completion_gate": "Docs reorganization committed and pushed; monitor retry authorization gate remains the next business gate."
+}

@@ -7,7 +7,7 @@
 2. 再读 `project.state.json`。
 3. 若 `active_task` 为对象，按其中 `read_order` 继续读取任务卡和 context manifest。
 4. 若 `active_task = null`，只报告 `project_status` 和 `next_gate`，等待用户指定新任务。
-稳定文档优先看 `docs/plan1-新项目最高效启动框架_20260823.md` 和 `docs/方案-投放创建Agent开发方案_20260823.md`；Markdown 只解释规则，不保存动态任务状态。
+稳定文档优先看 `docs/开发方案/plan1-新项目最高效启动框架_20260823.md` 和 `docs/开发方案/方案-投放创建Agent开发方案_20260823.md`；Markdown 只解释规则，不保存动态任务状态。
 
 ## 工作台
 | 项 | 固定值 |

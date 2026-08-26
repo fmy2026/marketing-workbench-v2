@@ -7,15 +7,15 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "monitor_first_create_once_executed_server_busy_waiting_retry_authorization",
+  "project_status": "docs_directory_reorg_synced_waiting_monitor_retry_authorization",
   "phase": {
-    "id": "OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE",
-    "status": "completed_server_busy_retry_available",
-    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.md"
+    "id": "DOCS-DIRECTORY-REORG-CONSISTENCY",
+    "status": "completed",
+    "plan_ref": "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.md",
-  "next_gate": "新账户 1871922414575753 首次真实乾坤 monitor 创建已执行一次：attempt_no=1，trigger_reason=initial_create_once，/tf/ad/monitorSerialNumberAdd 返回 HTTP 200 + apiCode=500 + 服务器繁忙，请稍后重试(400)，创建后 /tf/ad/index 精确回查 0 条，monitor_id 仍为空。v2 已记录 evidence EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-ENSURE，run error_summary=monitor_create_server_busy_retry_available。下一 gate：如需执行第二次且最后一次重试，必须另建或继续单次重试任务，并由用户在聊天中明确授权；重试仍需先只读查重，旧账户 1871922346964041 仍禁止第三次创建。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md",
+  "next_gate": "文档目录整理已按当前文件夹新位置同步到 GitHub：开发方案进入 docs/开发方案/，工作台逻辑图进入 docs/工作台逻辑底层/，排查单进入 docs/.问题排查/，已归档关系图进入 .archive/，OE3 字段来源复盘进入 docs/.参考文档/3.0创建/ 并作为指定文件强制跟踪。业务下一 gate 保持不变：新账户 1871922414575753 首次真实乾坤 monitor 创建已执行一次且返回 server_busy；如需执行第二次且最后一次重试，必须另建或继续单次重试任务，并由用户在聊天中明确授权；旧账户 1871922346964041 仍禁止第三次创建。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -72,9 +72,9 @@
   "source_of_truth": {
     "task_cards": "tasks/",
     "task_context_manifests": "tasks-context-manifests/",
-    "startup_framework": "docs/plan1-新项目最高效启动框架_20260823.md",
-    "launch_agent_plan": "docs/方案-投放创建Agent开发方案_20260823.md",
-    "frontend_visual_reference": "docs/方案-前端页面效果_html_20260823.html",
+    "startup_framework": "docs/开发方案/plan1-新项目最高效启动框架_20260823.md",
+    "launch_agent_plan": "docs/开发方案/方案-投放创建Agent开发方案_20260823.md",
+    "frontend_visual_reference": "docs/开发方案/方案-前端页面效果_html_20260823.html",
     "frontend_shell": "frontend/index.html + frontend/app.js + frontend/styles.css; mock-launch-job.js is no longer the main data source",
     "server_api": "src/server/index.mjs",
     "agent_entrypoints": "src/agents/launchAgent.mjs",
@@ -93,7 +93,7 @@
     "landing_page_assets": "game-route backup landing page inventory; controlled landing_url column only, public summaries expose site/hash/status",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",
     "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence; includes qiankun_cate_vest_readonly, qiankun_vest_package_readonly, qiankun_package_base_info_readonly, and qiankun_monitor_technical_combination_readonly artifact summaries",
-    "qiankun_option_relations": "mwb.qiankun_option_relations stores observed/confirmed/stale/invalid Qiankun readonly option relations; current observed package chain: route oceanengine_3_byte_mini_game, game JSZC, os 3, cate_id 122 -> vest_id 1414 巨兽战场 -> package_id 36820 -> channel dymini3k, with 22 observed package options under vest_id 1414. accountIndex uniquely resolves advertiser_id 1871922346964041 to qiankun_account_record_id 8448 and agent_id 613 as observed, and stores level2 media_master from accountIndex. Qiankun media taxonomy has three layers: level1 media system roughly maps to v2 platform, level2 media appears in selectList(mediaList) and accountIndex.media_master_id, level3 media resource position appears in /tf/ad/index mediaId[] and historical monitor media_id. os=3 means Qiankun mini-game technical system type; business media ownership is decided by platform/media/media_id/monitor_api/channel together. Level3 media_resource_id 310 was manually confirmed for provision MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041 and evidence EV-QK-MANUAL-L3-CONFIRM-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310 was written. historical monitor 245791 exposes media_id=310, monitor_api=toutiao_wxgame, agent_id=613, and account 1871922175825993. monitor_id 245828 was read back via /tf/ad/index on 2026-08-26, belongs to old account 1871922346964041, and has been written back locally as the effective monitor_id with touchpoint hash only; the old account still has two failed attempt audit rows and third create remains forbidden. JSZC monitor callback contract is now required in game_route_defaults: server_callback_type=2 and server_callback_data_types=active/register/success_order. monitor:ensure now has a unified first-create/retry attempt policy: attempt_count=0 -> first_create, attempt_count=1 + server_busy -> retry, attempt_count>=2 -> blocked. New account 1871922414575753 plan-only resolved account record 8449, agent_id=613, preflight monitor list 0 rows, attemptPolicy=first_create, and create plan hash sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4. Its first real create was executed once on 2026-08-26 CST: /tf/ad/monitorSerialNumberAdd returned HTTP 200 + apiCode=500 server busy, post-create /tf/ad/index exact readback 0 rows, monitor_id remains empty, attempt_count=1, latest_attempt_error_category=server_busy, and run error_summary=monitor_create_server_busy_retry_available. fake package_to_media/package_to_agent/package_to_monitor_api relations must remain absent. Core interface dictionary lives at docs/乾坤监测序号-核心接口数据字典_20260826.md. Escalation doc lives at docs/乾坤-changeMediaId-310-服务端500排查单_20260826.md.",
+    "qiankun_option_relations": "mwb.qiankun_option_relations stores observed/confirmed/stale/invalid Qiankun readonly option relations; current observed package chain: route oceanengine_3_byte_mini_game, game JSZC, os 3, cate_id 122 -> vest_id 1414 巨兽战场 -> package_id 36820 -> channel dymini3k, with 22 observed package options under vest_id 1414. accountIndex uniquely resolves advertiser_id 1871922346964041 to qiankun_account_record_id 8448 and agent_id 613 as observed, and stores level2 media_master from accountIndex. Qiankun media taxonomy has three layers: level1 media system roughly maps to v2 platform, level2 media appears in selectList(mediaList) and accountIndex.media_master_id, level3 media resource position appears in /tf/ad/index mediaId[] and historical monitor media_id. os=3 means Qiankun mini-game technical system type; business media ownership is decided by platform/media/media_id/monitor_api/channel together. Level3 media_resource_id 310 was manually confirmed for provision MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041 and evidence EV-QK-MANUAL-L3-CONFIRM-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-310 was written. historical monitor 245791 exposes media_id=310, monitor_api=toutiao_wxgame, agent_id=613, and account 1871922175825993. monitor_id 245828 was read back via /tf/ad/index on 2026-08-26, belongs to old account 1871922346964041, and has been written back locally as the effective monitor_id with touchpoint hash only; the old account still has two failed attempt audit rows and third create remains forbidden. JSZC monitor callback contract is now required in game_route_defaults: server_callback_type=2 and server_callback_data_types=active/register/success_order. monitor:ensure now has a unified first-create/retry attempt policy: attempt_count=0 -> first_create, attempt_count=1 + server_busy -> retry, attempt_count>=2 -> blocked. New account 1871922414575753 plan-only resolved account record 8449, agent_id=613, preflight monitor list 0 rows, attemptPolicy=first_create, and create plan hash sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4. Its first real create was executed once on 2026-08-26 CST: /tf/ad/monitorSerialNumberAdd returned HTTP 200 + apiCode=500 server busy, post-create /tf/ad/index exact readback 0 rows, monitor_id remains empty, attempt_count=1, latest_attempt_error_category=server_busy, and run error_summary=monitor_create_server_busy_retry_available. fake package_to_media/package_to_agent/package_to_monitor_api relations must remain absent. Core interface dictionary lives at docs/乾坤监测序号-核心接口数据字典_20260826.md. Escalation doc lives at docs/.问题排查/乾坤-changeMediaId-310-服务端500排查单_20260826.md.",
     "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"
   }
 }
