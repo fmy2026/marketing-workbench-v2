@@ -1,0 +1,109 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Unify Qiankun monitor:ensure so advertiser 1871922414575753 can pass first-create preflight and plan-only contract checks without triggering a real create.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The desktop markdown is treated as requirements input, not authorization for real platform writes.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "new_advertiser_id": "1871922414575753",
+    "new_provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753",
+    "manual_success_monitor_id": "245828",
+    "manual_success_account_record_id": "8448",
+    "new_account_record_id": "8449",
+    "real_create_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-CALLBACK-CONTRACT-AND-NEW-ACCOUNT-PREFLIGHT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CALLBACK-CONTRACT-AND-NEW-ACCOUNT-PREFLIGHT.json",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The current ensure branch is retry-oriented and blocks attempt_count=0. A plan-only first-create preflight is necessary before any separately authorized real create."
+  },
+  "allowed_external_calls": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Readonly identity preflight for advertiser 1871922414575753."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Readonly duplicate/existing monitor check and manual contract evidence lookup."
+    }
+  ],
+  "forbidden_actions": [
+    "POST /tf/ad/monitorSerialNumberAdd",
+    "real create attempt for advertiser 1871922414575753",
+    "third monitor create for advertiser 1871922346964041",
+    "token refresh",
+    "OceanEngine std_project/create",
+    "promotion creation",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "storing token/Cookie/raw request/raw response/full touchpoint URL in project files or ordinary logs"
+  ],
+  "implementation_plan": [
+    "Add task card and manifest, then mark the task active in project.state.json.",
+    "Add explicit first-create and retry confirmation contract helpers.",
+    "Refactor monitor:ensure attempt policy so attempt_count=0 is first-create eligible, attempt_count=1 server-busy is retry eligible, and attempt_count>=2 is blocked.",
+    "Add manual-success contract comparison to plan-only output.",
+    "Run new-account plan-only and status checks without create.",
+    "Validate JSON, smoke, and diff hygiene; update task records."
+  ],
+  "execution_result": {
+    "status": "completed",
+    "new_account_plan_only_status": "passed",
+    "new_account_run_status": "planned",
+    "new_account_attempt_count": 0,
+    "new_account_attempt_policy_action": "first_create",
+    "new_account_next_attempt_no": 1,
+    "new_account_existing_monitor": false,
+    "new_account_create_called": false,
+    "new_account_first_create_can_be_authorized": true,
+    "new_account_account_record_id": "8449",
+    "manual_success_monitor_id": "245828",
+    "manual_contract_fixed_mismatches": [],
+    "manual_contract_account_difference": "media_account_id 8448 -> 8449 expected",
+    "callback_contract_hash": "sha256:224d383b42f1a1a89774f85c267f16758f6b9e5acb4488724b9cfa387ded3819",
+    "create_plan_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+    "old_account_blockers": [
+      "monitor_id_already_resolved_no_create_needed",
+      "monitor_create_attempt_limit_reached"
+    ],
+    "real_create_called": false
+  },
+  "validation": [
+    "node import monitor-provision passed",
+    "new-account plan-only passed with createCalled=false and attemptCount=0",
+    "new-account unconfirmed ensure blocked only by confirm_variable_missing_or_invalid and did not report monitor_first_attempt_missing",
+    "old-account unconfirmed ensure blocked with monitor_id_already_resolved_no_create_needed and monitor_create_attempt_limit_reached",
+    "new-account monitor:status shows compiled readiness complete and attemptCount=0",
+    "npm run test:monitor-bootstrap passed",
+    "npm run smoke:workflow-skills passed; dry-run blockers are existing business gates",
+    "npm run smoke:api command passed; payload contract blocked is existing prewrite gate",
+    "JSON parse passed for project.state.json and this manifest",
+    "git diff --check passed"
+  ],
+  "completion_gate": "Completed. Next gate is a separate chat-authorized first real monitor creation for advertiser 1871922414575753, bound to the recorded provision_id, route_id, game_code, advertiser_id, and create_plan_hash."
+}
