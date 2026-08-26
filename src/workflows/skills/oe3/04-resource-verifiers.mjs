@@ -1,4 +1,4 @@
-import { OE3_RESOURCE_LABELS } from "./contracts.mjs";
+import { OE3_RESOURCE_LABELS } from "./00-contracts.mjs";
 
 export function clean(value) {
   return String(value ?? "").trim();

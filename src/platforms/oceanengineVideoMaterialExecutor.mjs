@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { assertNoSensitiveLeak } from "../workflows/skills/oe3/contracts.mjs";
+import { assertNoSensitiveLeak } from "../workflows/skills/oe3/00-contracts.mjs";
 import {
   credentialReady,
   getOceanEngineCredentialSummary,

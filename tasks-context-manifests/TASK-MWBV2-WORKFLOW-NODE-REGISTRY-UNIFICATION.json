@@ -1,0 +1,85 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Unify v2 3-phase 7-node workflow metadata into one runtime registry.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The desktop markdown is treated as requirements input, not authorization for platform writes.",
+    "no_platform_write": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.json",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The codebase has duplicate workflow node metadata and already has Skill/resource contracts suitable for validation."
+  },
+  "implementation_plan": [
+    "Create a single workflow node registry under src/workflows/skills/oe3.",
+    "Import registry metadata from launchWorkflow.mjs and runner.mjs.",
+    "Add Skill-to-node validation to the existing workflow skills smoke test without changing package scripts.",
+    "Derive Node 4 resource count from OE3_REQUIRED_RESOURCE_TYPES.",
+    "Run requested validations and close the task if passed."
+  ],
+  "non_goals": [
+    "No existing skill file rename.",
+    "No package.json command change.",
+    "No HTML logic diagram update.",
+    "No AGENTS.md update.",
+    "No database migration.",
+    "No monitor retry or real platform write."
+  ],
+  "validation": [
+    {
+      "command": "node --check scripts/00-runtime-consistency-check.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node -e import('./src/workflows/launchWorkflow.mjs')",
+      "status": "passed",
+      "result": "WORKFLOW_NODES length 7"
+    },
+    {
+      "command": "validateWorkflowNodeRegistry",
+      "status": "passed",
+      "result": "7 nodes, no unregistered skill nodeKeys, no nodes without skills, Node 4 resource skill count matches OE3_REQUIRED_RESOURCE_TYPES length 8"
+    },
+    {
+      "command": "rg duplicate workflow node definitions",
+      "status": "passed",
+      "result": "Only src/workflows/skills/oe3/00-workflow-node-registry.mjs defines WORKFLOW_NODES; no NODE_DEFINITIONS remain."
+    },
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-bootstrap",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed"
+    }
+  ],
+  "completion_gate": "Completed. Next project gate is node ownership file numbering and script archive cleanup; monitor retry authorization remains separately paused."
+}

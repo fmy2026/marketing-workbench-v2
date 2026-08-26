@@ -7,7 +7,7 @@
 2. 再读 `project.state.json`。
 3. 若 `active_task` 为对象，按其中 `read_order` 继续读取任务卡和 context manifest。
 4. 若 `active_task = null`，只报告 `project_status` 和 `next_gate`，等待用户指定新任务。
-稳定文档优先看 `docs/开发方案/plan1-新项目最高效启动框架_20260823.md` 和 `docs/开发方案/方案-投放创建Agent开发方案_20260823.md`；Markdown 只解释规则，不保存动态任务状态。
+稳定文档优先看 `docs/开发方案/plan1-新项目最高效启动框架_20260823.md`、`docs/开发方案/方案-投放创建Agent开发方案_20260823.md` 和 `docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md`；Markdown 只解释规则，不保存动态任务状态。
 
 ## 工作台
 | 项 | 固定值 |
@@ -37,11 +37,24 @@ JSON、schema、数据库记录和真实回查证据优先于 Markdown 说明。
 ```text
 frontend/API
 -> src/workflows/launchWorkflow.mjs
--> src/workflows/skills/oe3
+-> src/workflows/skills/oe3/00-workflow-node-registry.mjs
+-> src/workflows/skills/oe3/00-runner.mjs
+-> src/workflows/skills/oe3/01-07 Node Skill
 -> src/platforms + src/repositories
 -> Postgres marketing_workbench_v2.mwb
 ```
 `.archive/` 只作历史参考，禁止 runtime import、API route、package script 或 shell 调用。旧项目 `/Users/hys/Projects/marketing-workbench` 只能人工借鉴，不得作为 v2 运行依赖、数据库真值或脚本入口。
+
+## 节点与文件归属
+3 阶段 7 节点的编号、名称、阶段和输出元数据唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`，禁止新增第二份节点定义数组。
+
+| 前缀 | 归属 |
+| --- | --- |
+| `00-` | 跨节点编排、公共合同、共享 CLI / smoke |
+| `01-07-` | 对应 7 节点所属 Skill 或专项脚本 |
+| 无编号基础设施 | `src/platforms/`、`src/repositories/`、`src/server/`，按职责命名 |
+
+新 OE3 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由 `00-workflow-node-registry.mjs` 校验归属。新 CLI / smoke 先判断属于 `00` 还是 `01-07`，不得新增无归属长期脚本。`package.json` 命令名是长期入口；底层脚本可以编号迁移，但不得随意改变命令名。Node 2 monitor bootstrap 与广告项目创建是权限不同的链路，不能并入广告 job 的自动真实写入。
 
 ## 目录职责
 | 目录 | 职责 |
@@ -49,7 +62,7 @@ frontend/API
 | `frontend/` | 工作台页面 |
 | `src/server/` | 本地 API |
 | `src/workflows/` | 3 阶段 7 节点编排 |
-| `src/workflows/skills/oe3/` | OE3 业务 Skill |
+| `src/workflows/skills/oe3/` | OE3 业务 Skill、唯一节点注册表和 `00-07` 节点归属实现 |
 | `src/platforms/` | OceanEngine transport、凭据状态、只读 client、单次创建 executor |
 | `src/repositories/` | Postgres 读写封装 |
 | `scripts/` | 长期可复用 CLI、smoke、check；一次性任务脚本完成后必须归档 |

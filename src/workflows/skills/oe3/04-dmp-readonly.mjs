@@ -1,7 +1,7 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
-import { hashValue, sanitizeForPublic } from "./contracts.mjs";
-import { readonlyPermissionState } from "./readonly-permission.mjs";
-import { clean, dmpCustomAudienceIds, resource } from "./resource-verifiers.mjs";
+import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
+import { readonlyPermissionState } from "./00-readonly-permission.mjs";
+import { clean, dmpCustomAudienceIds, resource } from "./04-resource-verifiers.mjs";
 
 function numberId(value) {
   const text = clean(value);

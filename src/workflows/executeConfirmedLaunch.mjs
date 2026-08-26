@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getJobView, runJob } from "./launchWorkflow.mjs";
-import { assertNoSensitiveLeak } from "./skills/oe3/contracts.mjs";
+import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
 } from "../platforms/oceanengineStdProjectCreateExecutor.mjs";

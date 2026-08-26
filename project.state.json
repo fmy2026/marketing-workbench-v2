@@ -7,15 +7,15 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "docs_directory_reorg_synced_waiting_monitor_retry_authorization",
+  "project_status": "workflow_truth_documentation_and_agents_finalization_completed_monitor_retry_paused",
   "phase": {
-    "id": "DOCS-DIRECTORY-REORG-CONSISTENCY",
+    "id": "WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION",
     "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md"
+    "plan_ref": "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md",
-  "next_gate": "文档目录整理已按当前文件夹新位置同步到 GitHub：开发方案进入 docs/开发方案/，工作台逻辑图进入 docs/工作台逻辑底层/，排查单进入 docs/.问题排查/，已归档关系图进入 .archive/，OE3 字段来源复盘进入 docs/.参考文档/3.0创建/ 并作为指定文件强制跟踪。业务下一 gate 保持不变：新账户 1871922414575753 首次真实乾坤 monitor 创建已执行一次且返回 server_busy；如需执行第二次且最后一次重试，必须另建或继续单次重试任务，并由用户在聊天中明确授权；旧账户 1871922346964041 仍禁止第三次创建。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md",
+  "next_gate": "项目结构与文档收口完成：唯一节点注册表、00-07 文件归属、AGENTS.md 长期启动协议、Markdown 工作流真值说明和旧 HTML 归档均已同步；smoke:workflow-skills、smoke:api、check:runtime-consistency、test:payload-contract、git diff --check 均通过。下一 gate：等待用户选择新的业务目标；monitor 重试仍保持暂停，必须另行聊天明确授权。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -74,16 +74,17 @@
     "task_context_manifests": "tasks-context-manifests/",
     "startup_framework": "docs/开发方案/plan1-新项目最高效启动框架_20260823.md",
     "launch_agent_plan": "docs/开发方案/方案-投放创建Agent开发方案_20260823.md",
+    "workflow_truth_documentation": "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md; previous HTML logic diagram archived at .archive/工作流-7节点-数据真值逻辑图_20260825.html",
     "frontend_visual_reference": "docs/开发方案/方案-前端页面效果_html_20260823.html",
     "frontend_shell": "frontend/index.html + frontend/app.js + frontend/styles.css; mock-launch-job.js is no longer the main data source",
     "server_api": "src/server/index.mjs",
     "agent_entrypoints": "src/agents/launchAgent.mjs",
-    "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
+    "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; 3-phase 7-node metadata is defined only in src/workflows/skills/oe3/00-workflow-node-registry.mjs; OE3 skill modules use 00-07 node ownership file prefixes; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
     "repositories": "src/repositories/postgresRepository.mjs",
     "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, Qiankun monitor provision status/reconcile/create-once, Qiankun cate_to_vest readonly option relation sync, Qiankun vest_to_package readonly option relation sync, Qiankun package base-info readonly sync, and Qiankun monitor technical-combination readonly sync. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
     "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql; qiankun option relation facts introduced by db/023_add_qiankun_option_relations.sql; Qiankun account technical identity fields and reference-only monitor technical candidates introduced by db/024_add_qiankun_account_identity.sql; Qiankun level-2 media master identity fields introduced by db/025_add_qiankun_media_master_identity.sql",
     "schemas": "schemas/",
-    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:ensure, monitor:report, monitor:sync:cate-vest, monitor:sync:vest-package, monitor:sync:package-base-info, monitor:sync:technical-combination, monitor:sync:level3-media-resource, monitor:sync:media-catalog",
+    "local_scripts": "scripts/ uses numbered implementation files while package.json command names stay stable: 00-* for cross-workflow CLI/smoke/token checks, 02-* for monitor provision, 03-* for backup landing page, 04-* for micro app instance evidence, 05-* for payload/reservation checks, 06-* for single execute-once.",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
     "runtime_state": "idle",

@@ -1,6 +1,12 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob } from "../src/workflows/launchWorkflow.mjs";
-import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/index.mjs";
+import {
+  OE3_REQUIRED_RESOURCE_TYPES,
+  OE3_SKILL_DEFINITIONS,
+  assertNoSensitiveLeak,
+  runOe3WorkflowSkills,
+  validateWorkflowNodeRegistry
+} from "../src/workflows/skills/oe3/00-index.mjs";
 
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
@@ -29,6 +35,15 @@ const repo = new PostgresRepository();
 const cleanupJobIds = [];
 
 try {
+  const registryValidation = validateWorkflowNodeRegistry({
+    skillDefinitions: OE3_SKILL_DEFINITIONS,
+    requiredResourceTypes: OE3_REQUIRED_RESOURCE_TYPES
+  });
+  assert(registryValidation.status === "passed", "workflow_node_registry_invalid");
+  assert(registryValidation.nodeCount === 7, "workflow_node_registry_count_not_7");
+  assert(registryValidation.node4ResourceSkillCountMatches === true, "node4_resource_skill_count_mismatch");
+  assert(registryValidation.monitorProvisionClassification.includes("creation-context bootstrap"), "monitor_provision_classification_missing");
+
   const dryRunJobId = await makeTestJob(repo, `smoke:workflow-skills:dry-run:${new Date().toISOString()}`, cleanupJobIds);
   const dryRun = await runOe3WorkflowSkills({ repo, jobId: dryRunJobId, mode: "dry_run" });
   const dryRunBundle = await repo.getLaunchJobBundle(dryRunJobId);
@@ -70,6 +85,7 @@ try {
     status: "passed",
     dryRun: dryRun.summary,
     executeMock: execute.summary,
+    registryValidation,
     cleanupPlanned: cleanupJobIds.length,
     noRealPlatformWrite: true,
     noTokenRefresh: true

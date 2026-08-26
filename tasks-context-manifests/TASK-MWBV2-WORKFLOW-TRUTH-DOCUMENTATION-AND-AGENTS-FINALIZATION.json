@@ -1,0 +1,86 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Output a Markdown workflow truth document, update AGENTS.md, and archive the old HTML logic diagram after node registry and 00-07 file ownership were implemented.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The desktop markdown is treated as requirements input, not authorization for platform writes.",
+    "no_platform_write": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.json",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "AGENTS.md",
+    ".archive/工作流-7节点-数据真值逻辑图_20260825.html",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "Markdown is easier for future Codex updates, AGENTS.md must reflect the durable startup protocol, and the old HTML diagram should be archived to avoid competing truth documents."
+  },
+  "implementation_plan": [
+    "Create a Markdown workflow truth document to reflect current 00-07 runtime truth.",
+    "Update AGENTS.md with durable startup and naming rules.",
+    "Archive the old HTML logic diagram.",
+    "Validate workflow smokes and diff whitespace.",
+    "Close the task in project.state.json while keeping platform write permissions paused."
+  ],
+  "non_goals": [
+    "No runtime logic changes.",
+    "No script or skill file renames.",
+    "No database migration or data update.",
+    "No monitor create or retry.",
+    "No OceanEngine create action.",
+    "No token refresh.",
+    "No raw secret, cookie, payload, response, or full URL in project files."
+  ],
+  "validation": [
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed",
+      "result": "Registry validation passed with 7 nodes, Node 4 resource type count 8, noRealPlatformWrite=true."
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed",
+      "result": "API smoke returned 7 nodes for test_run jobs."
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed",
+      "result": "Ephemeral test_run job checked; createActions=0, confirmations=0, createdObjects=0, realReadbacks=0."
+    },
+    {
+      "command": "npm run test:payload-contract",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "find . -name .DS_Store -print",
+      "status": "passed",
+      "result": "No .DS_Store files remain."
+    },
+    {
+      "command": "Documentation sensitive-data and stale-conclusion scan",
+      "status": "passed",
+      "result": "No dynamic account IDs, real token/Cookie values, full URLs, raw request/response, or stale node-definition duplication conclusion found in the new stable docs."
+    }
+  ],
+  "completion_gate": "Completed. AGENTS.md and Markdown workflow truth document now reflect current 00-07 structure; old HTML logic diagram is archived. Platform writes and monitor retry remain paused unless separately authorized."
+}

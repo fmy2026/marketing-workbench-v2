@@ -1,4 +1,4 @@
-import { hashValue } from "./contracts.mjs";
+import { hashValue } from "./00-contracts.mjs";
 import {
   applyOfficialCreateFieldSendPolicy,
   evaluateOfficialCreateFieldEvidence,
@@ -6,7 +6,7 @@ import {
   getInstanceIdCreateEvidence,
   instanceIdCreateEvidenceSummary,
   officialFieldEvidenceSummary
-} from "./official-create-field-contract.mjs";
+} from "./05-official-create-field-contract.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",

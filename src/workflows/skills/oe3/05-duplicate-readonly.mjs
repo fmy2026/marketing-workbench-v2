@@ -1,7 +1,7 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
-import { hashValue, sanitizeForPublic } from "./contracts.mjs";
-import { readonlyPermissionState } from "./readonly-permission.mjs";
-import { clean } from "./resource-verifiers.mjs";
+import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
+import { readonlyPermissionState } from "./00-readonly-permission.mjs";
+import { clean } from "./04-resource-verifiers.mjs";
 
 function objectName(item = {}) {
   return clean(item.name || item.project_name || item.std_project_name);

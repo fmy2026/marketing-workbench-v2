@@ -1,6 +1,6 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { ensureQiankunCredentialStoreScaffold, ensureQiankunMonitorEnvScaffold } from "../src/platforms/qiankunCredentialStore.mjs";
-import { MONITOR_PROVISION_TARGET, runMonitorProvisionCommand } from "../src/workflows/skills/oe3/monitor-provision.mjs";
+import { MONITOR_PROVISION_TARGET, runMonitorProvisionCommand } from "../src/workflows/skills/oe3/02-monitor-provision.mjs";
 
 function arg(name, fallback = "") {
   const inline = process.argv.find((item) => item.startsWith(`--${name}=`));

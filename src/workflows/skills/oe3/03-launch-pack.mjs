@@ -1,4 +1,4 @@
-import { materialItems } from "./resource-verifiers.mjs";
+import { materialItems } from "./04-resource-verifiers.mjs";
 
 export { materialItems };
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { STD_PROJECT_CREATE_CONFIRM_VALUE } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
-import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/create-preflight-diagnostics.mjs";
+import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import {
   EXECUTION_GRANT_INTENT,
   executeConfirmedLaunch

@@ -1,6 +1,6 @@
 import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
-import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./contracts.mjs";
+import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 
 export const QIANKUN_CATE_VEST_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",

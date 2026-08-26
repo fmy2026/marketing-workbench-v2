@@ -1,4 +1,10 @@
 export {
+  WORKFLOW_NODES,
+  getWorkflowNode,
+  getWorkflowNodeByNumber,
+  validateWorkflowNodeRegistry
+} from "./00-workflow-node-registry.mjs";
+export {
   OE3_REQUIRED_RESOURCE_TYPES,
   OE3_RESOURCE_LABELS,
   OE3_SKILL_DEFINITIONS,
@@ -6,23 +12,23 @@ export {
   canonicalJson,
   hashValue,
   sanitizeForPublic
-} from "./contracts.mjs";
+} from "./00-contracts.mjs";
 export {
   buildOe3StdProjectPayload,
   finalPayloadHashFromSummary
-} from "./payload.mjs";
+} from "./05-payload.mjs";
 export {
   buildSkillDraft,
   evaluateOe3PayloadContract,
   stablePayloadHash
-} from "./payload-contract.mjs";
+} from "./05-payload-contract.mjs";
 export {
   OE3_WORKFLOW_MODES,
   runOe3WorkflowSkills
-} from "./runner.mjs";
+} from "./00-runner.mjs";
 export {
   runDuplicateReadonlyCheck
-} from "./duplicate-readonly.mjs";
+} from "./05-duplicate-readonly.mjs";
 export {
   createNodeStatusFromSkill,
   readbackNodeStatusFromSkill,
@@ -30,4 +36,4 @@ export {
   workflowCreateCalledFromView,
   workflowJobUpdateFromSkillResults,
   workflowNoRealPlatformWrite
-} from "./result-mapping.mjs";
+} from "./00-result-mapping.mjs";

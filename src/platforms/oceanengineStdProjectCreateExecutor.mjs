@@ -4,12 +4,12 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
-import { evaluateOe3PayloadContract, stablePayloadHash } from "../workflows/skills/oe3/payload-contract.mjs";
-import { buildOe3StdProjectPayload } from "../workflows/skills/oe3/payload.mjs";
+import { evaluateOe3PayloadContract, stablePayloadHash } from "../workflows/skills/oe3/05-payload-contract.mjs";
+import { buildOe3StdProjectPayload } from "../workflows/skills/oe3/05-payload.mjs";
 import {
   evaluateStdProjectCreatePreflight,
   OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS
-} from "../workflows/skills/oe3/create-preflight-diagnostics.mjs";
+} from "../workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";

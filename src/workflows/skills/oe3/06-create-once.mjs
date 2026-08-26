@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { hashValue } from "./contracts.mjs";
+import { hashValue } from "./00-contracts.mjs";
 import { createStdProjectForTargetOnce } from "../../../platforms/oceanengineStdProjectCreateExecutor.mjs";
 
 function targetFromBundle(bundle = {}) {

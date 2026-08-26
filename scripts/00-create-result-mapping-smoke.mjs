@@ -4,7 +4,7 @@ import {
   workflowCreateCalledFromView,
   workflowJobUpdateFromSkillResults,
   workflowNoRealPlatformWrite
-} from "../src/workflows/skills/oe3/result-mapping.mjs";
+} from "../src/workflows/skills/oe3/00-result-mapping.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

@@ -1,4 +1,4 @@
-import { hashValue } from "./contracts.mjs";
+import { hashValue } from "./00-contracts.mjs";
 import { readbackStdProjectOnce } from "../../../platforms/oceanengineStdProjectCreateExecutor.mjs";
 
 function readbackPlaceholder({ jobId, projectName }) {

@@ -16,9 +16,9 @@ import {
   monitorProvisionFingerprint,
   monitorProvisionId,
   runMonitorProvisionCommand
-} from "../src/workflows/skills/oe3/monitor-provision.mjs";
+} from "../src/workflows/skills/oe3/02-monitor-provision.mjs";
 import { createQiankunMonitorClient } from "../src/platforms/qiankunMonitorClient.mjs";
-import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/contracts.mjs";
+import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

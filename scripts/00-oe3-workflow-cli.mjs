@@ -1,6 +1,6 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob } from "../src/workflows/launchWorkflow.mjs";
-import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/index.mjs";
+import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 
 function arg(name, fallback = "") {
   const inline = process.argv.find((item) => item.startsWith(`--${name}=`));

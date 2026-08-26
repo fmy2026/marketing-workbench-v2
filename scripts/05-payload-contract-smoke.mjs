@@ -1,8 +1,8 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
-import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/payload-contract.mjs";
-import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/create-preflight-diagnostics.mjs";
-import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/index.mjs";
+import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
+import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
+import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];

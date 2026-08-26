@@ -1,6 +1,6 @@
 import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
-import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./contracts.mjs";
+import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import {
   runQiankunCateVestReadonlySync,
   runQiankunLevel3MediaResourceReadonlySync,
@@ -8,7 +8,7 @@ import {
   runQiankunMonitorTechnicalCombinationReadonlySync,
   runQiankunPackageBaseInfoReadonlySync,
   runQiankunVestPackageReadonlySync
-} from "./qiankun-option-relation-sync.mjs";
+} from "./02-qiankun-option-relation-sync.mjs";
 
 export const MONITOR_PROVISION_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",

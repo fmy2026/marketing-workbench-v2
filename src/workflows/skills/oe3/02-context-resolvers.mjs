@@ -1,4 +1,4 @@
-import { clean, has } from "./resource-verifiers.mjs";
+import { clean } from "./04-resource-verifiers.mjs";
 
 export function cachedReadonlyFromBundle(bundle = {}) {
   const contextNode = (bundle.nodes || []).find((node) => node.node_key === "creation_context") || {};
@@ -16,20 +16,6 @@ export function cachedReadonlyFromBundle(bundle = {}) {
 }
 
 export function runContextSkill({ bundle, touchpointVerification, skillKey }) {
-  if (skillKey === "intake-normalize") {
-    const missingFields = ["route_id", "game_code", "advertiser_id"].filter((field) => !has(bundle.job?.[field]));
-    return {
-      status: missingFields.length ? "blocked" : "passed",
-      blockers: missingFields.map((field) => `missing_${field}`),
-      outputSummary: {
-        routeId: bundle.job.route_id || "",
-        gameCode: bundle.job.game_code || "",
-        advertiserId: bundle.job.advertiser_id || "",
-        missingFields
-      }
-    };
-  }
-
   if (skillKey === "context-resolve-account") {
     const blockers = [
       ...(!bundle.account?.advertiser_id ? ["account_missing"] : []),

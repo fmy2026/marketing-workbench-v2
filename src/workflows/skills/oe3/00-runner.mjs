@@ -4,49 +4,41 @@ import {
   recordSkillRun,
   sanitizeForPublic,
   skillDefinition
-} from "./contracts.mjs";
-import { cachedReadonlyFromBundle, runContextSkill } from "./context.mjs";
-import { evaluateStdProjectCreatePreflight } from "./create-preflight-diagnostics.mjs";
-import { runCreateOnceSkill } from "./create-once.mjs";
-import { runDuplicateReadonlyCheck } from "./duplicate-readonly.mjs";
-import { runDmpReadonlyGate } from "./dmp-readonly.mjs";
-import { runLaunchPackSkill } from "./launch-pack.mjs";
-import { runObjectiveContractReadonlyGate } from "./objective-contract-readiness.mjs";
+} from "./00-contracts.mjs";
+import { cachedReadonlyFromBundle, runContextSkill } from "./02-context-resolvers.mjs";
+import { evaluateStdProjectCreatePreflight } from "./05-create-preflight-diagnostics.mjs";
+import { runCreateOnceSkill } from "./06-create-once.mjs";
+import { runDuplicateReadonlyCheck } from "./05-duplicate-readonly.mjs";
+import { runDmpReadonlyGate } from "./04-dmp-readonly.mjs";
+import { runLaunchPackSkill } from "./03-launch-pack.mjs";
+import { runObjectiveContractReadonlyGate } from "./05-objective-contract-readiness.mjs";
 import {
   applyDraftToBundle,
   buildSkillDraft,
   evaluateOe3PayloadContract
-} from "./payload-contract.mjs";
-import { runReadbackSkill } from "./readback.mjs";
+} from "./05-payload-contract.mjs";
+import { runReadbackSkill } from "./07-readback.mjs";
 import {
   createNodeStatusFromSkill,
   readbackNodeStatusFromSkill,
   workflowJobUpdateFromSkillResults,
   workflowNoRealPlatformWrite
-} from "./result-mapping.mjs";
+} from "./00-result-mapping.mjs";
+import { WORKFLOW_NODES, getWorkflowNode } from "./00-workflow-node-registry.mjs";
 import {
   brandIndustryPassed,
   eventChainPassed,
   mockReadyBundle,
   runResourceVerifier,
   withDmpCustomAudienceIds
-} from "./resource-verifiers.mjs";
-import { runVideoMaterialReadonlyGate } from "./video-material-readiness.mjs";
+} from "./04-resource-verifiers.mjs";
+import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
+import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 
 export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only"]);
 
-const NODE_DEFINITIONS = [
-  { order: "01", number: 1, nodeKey: "launch_intake", nodeName: "Intake 规范", phase: "准备阶段", output: "launch_intake" },
-  { order: "02", number: 2, nodeKey: "creation_context", nodeName: "创建上下文装配", phase: "准备阶段", output: "creation_context" },
-  { order: "03", number: 3, nodeKey: "game_launch_pack", nodeName: "游戏保底包解析", phase: "准备阶段", output: "game_launch_pack" },
-  { order: "04", number: 4, nodeKey: "account_resource_prepare", nodeName: "账户资源诊断与补齐", phase: "就绪阶段", output: "account_ready_report" },
-  { order: "05", number: 5, nodeKey: "std_project_draft_builder", nodeName: "创建草稿生成", phase: "就绪阶段", output: "creation_draft" },
-  { order: "06", number: 6, nodeKey: "std_project_create_executor", nodeName: "创建执行", phase: "创建执行", output: "created_object" },
-  { order: "07", number: 7, nodeKey: "readback_closer", nodeName: "回查收口", phase: "创建执行", output: "readback_verified" }
-];
-
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
-const CONTEXT_SKILLS = new Set(["intake-normalize", "context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]);
+const CONTEXT_SKILLS = new Set(["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]);
 const LAUNCH_PACK_SKILLS = new Set([
   "launch-pack-resolve-game",
   "launch-pack-resolve-defaults",
@@ -55,7 +47,7 @@ const LAUNCH_PACK_SKILLS = new Set([
 ]);
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
-  const node = NODE_DEFINITIONS.find((item) => item.nodeKey === nodeKey);
+  const node = getWorkflowNode(nodeKey);
   return {
     ...node,
     status,
@@ -232,7 +224,9 @@ async function executeSkill({ repo, context, skillKey }) {
   };
   let result;
 
-  if (CONTEXT_SKILLS.has(skillKey)) {
+  if (skillKey === "intake-normalize") {
+    result = runIntakeNormalizeSkill({ bundle: context.bundle });
+  } else if (CONTEXT_SKILLS.has(skillKey)) {
     result = runContextSkill({
       bundle: context.bundle,
       touchpointVerification: context.touchpointVerification,
@@ -372,7 +366,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     nodeStatus({
       nodeKey: "account_resource_prepare",
       status: resourceBlockers.length ? "blocked" : "passed",
-      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : "八项账户资源均已通过 Skill 检查。",
+      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
       diagnosticLevel: resourceBlockers.length ? "error" : "info",
       outputSummary: {
         blockedResourceTypes: resourceOutputs

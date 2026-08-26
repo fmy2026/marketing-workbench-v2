@@ -3,8 +3,8 @@ import {
   buildStdProjectNamePrefix,
   cstYyyymmdd
 } from "../../stdProjectNameBuilder.mjs";
-import { buildOe3StdProjectPayload } from "./payload.mjs";
-import { brandInfoSummary, materialItems, mockReadyBundle } from "./resource-verifiers.mjs";
+import { buildOe3StdProjectPayload } from "./05-payload.mjs";
+import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",

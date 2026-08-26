@@ -4,73 +4,13 @@ import { evaluateOceanEnginePrewriteReadiness } from "../platforms/oceanengineRe
 import {
   evaluateOe3PayloadContract,
   runOe3WorkflowSkills
-} from "./skills/oe3/index.mjs";
-
-export const WORKFLOW_NODES = [
-  {
-    order: "01",
-    number: 1,
-    nodeKey: "launch_intake",
-    nodeName: "Intake 规范",
-    phase: "准备阶段",
-    output: "launch_intake",
-    subflows: ["路线归一", "游戏识别", "账户识别"]
-  },
-  {
-    order: "02",
-    number: 2,
-    nodeKey: "creation_context",
-    nodeName: "创建上下文装配",
-    phase: "准备阶段",
-    output: "creation_context",
-    subflows: ["账户状态", "触点引用", "monitor_id", "平台 app"]
-  },
-  {
-    order: "03",
-    number: 3,
-    nodeKey: "game_launch_pack",
-    nodeName: "游戏保底包解析",
-    phase: "准备阶段",
-    output: "game_launch_pack",
-    subflows: ["游戏主档", "路线默认值", "保底物料包", "备用落地页"]
-  },
-  {
-    order: "04",
-    number: 4,
-    nodeKey: "account_resource_prepare",
-    nodeName: "账户资源诊断与补齐",
-    phase: "就绪阶段",
-    output: "account_ready_report",
-    subflows: ["头像", "DMP", "事件链", "视频可见性", "产品图", "备用落地页"]
-  },
-  {
-    order: "05",
-    number: 5,
-    nodeKey: "std_project_draft_builder",
-    nodeName: "创建草稿生成",
-    phase: "就绪阶段",
-    output: "creation_draft",
-    subflows: ["项目名", "草稿摘要", "稳定 Hash", "查重"]
-  },
-  {
-    order: "06",
-    number: 6,
-    nodeKey: "std_project_create_executor",
-    nodeName: "创建执行",
-    phase: "创建执行",
-    output: "created_object",
-    subflows: ["确认占位", "写入禁用", "边界锁定"]
-  },
-  {
-    order: "07",
-    number: 7,
-    nodeKey: "readback_closer",
-    nodeName: "回查收口",
-    phase: "创建执行",
-    output: "readback_verified",
-    subflows: ["回查占位", "字段一致性", "证据归档"]
-  }
-];
+} from "./skills/oe3/00-index.mjs";
+export {
+  WORKFLOW_NODES,
+  getWorkflowNode,
+  getWorkflowNodeByNumber
+} from "./skills/oe3/00-workflow-node-registry.mjs";
+import { WORKFLOW_NODES, getWorkflowNode } from "./skills/oe3/00-workflow-node-registry.mjs";
 
 const PHASES = [
   { id: "prepare", title: "准备阶段", summary: "需求、上下文、保底包。" },
@@ -97,7 +37,7 @@ function publicView(value) {
 }
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
-  const node = WORKFLOW_NODES.find((item) => item.nodeKey === nodeKey);
+  const node = getWorkflowNode(nodeKey);
   return {
     ...node,
     status,

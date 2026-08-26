@@ -1,0 +1,91 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKFLOW-NODE-FILE-NAMING-AND-SCRIPT-CONSOLIDATION",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-NODE-FILE-NAMING-AND-SCRIPT-CONSOLIDATION.md",
+  "status": "completed",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Number OE3 workflow skill files and long-lived scripts by workflow node ownership while preserving runtime behavior.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The desktop markdown is treated as requirements input, not authorization for platform writes.",
+    "no_platform_write": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-WORKFLOW-NODE-FILE-NAMING-AND-SCRIPT-CONSOLIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-NODE-FILE-NAMING-AND-SCRIPT-CONSOLIDATION.json",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-index.mjs",
+    "src/workflows/skills/oe3/01-intake-normalize.mjs",
+    "src/workflows/skills/oe3/02-context-resolvers.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The previous local registry unification provides a stable node truth, and the requested changes are path/entrypoint consolidation without behavior or platform-write changes."
+  },
+  "implementation_plan": [
+    "Rename OE3 skill files by 00-07 ownership.",
+    "Split context.mjs into Node 1 intake and Node 2 context resolver modules.",
+    "Rename scripts by 00/02/03/04/05/06 ownership and update package.json script paths while preserving command names.",
+    "Remove project .DS_Store files.",
+    "Validate no old runtime imports, no old package script paths, no forwarding shells, and no platform writes.",
+    "Run requested validation commands and close the task if passed."
+  ],
+  "non_goals": [
+    "No database migration.",
+    "No 7-node registry semantic changes.",
+    "No frontend interaction changes.",
+    "No HTML logic diagram update.",
+    "No AGENTS.md update.",
+    "No monitor retry or real platform write.",
+    "No token refresh."
+  ],
+  "validation": [
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed",
+      "result": "registryValidation passed and noRealPlatformWrite=true"
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed",
+      "result": "API smoke returned 7 nodes"
+    },
+    {
+      "command": "npm run test:monitor-bootstrap",
+      "status": "passed",
+      "result": "ensure blocked without confirmation; tokenLeaked=false"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed",
+      "result": "ephemeral test_run job checked and cleaned"
+    },
+    {
+      "command": "npm run test:payload-contract",
+      "status": "passed"
+    },
+    {
+      "command": "node --check key scripts/modules",
+      "status": "passed"
+    },
+    {
+      "command": "old runtime import and old package script scan",
+      "status": "passed",
+      "result": "No old runtime imports or old package script paths remain in src/scripts/package.json."
+    },
+    {
+      "command": "find . -name .DS_Store -print",
+      "status": "passed",
+      "result": "No .DS_Store files remain."
+    }
+  ],
+  "completion_gate": "Completed. Next gate is HTML logic diagram and AGENTS.md final update; monitor retry authorization remains separately paused."
+}
