@@ -1,25 +1,38 @@
 {
   "schema_version": "2026-08-23.project-state-v1",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-25 CST",
+  "updated_at": "2026-08-26 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "idle",
+  "project_status": "active_monitor_provision_foundation",
   "phase": {
-    "id": "RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS",
-    "status": "completed",
-    "plan_ref": "docs/plan1-新项目最高效启动框架_20260823.md"
+    "id": "OE3-MONITOR-PROVISION-FOUNDATION",
+    "status": "active",
+    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md"
   },
-  "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS.md",
-  "next_gate": "等待新的独立 intake。历史 job 仅通过显式 job_id 只读查看；如需复盘 apiCode=40000，必须另建只读失败复盘任务，禁止重试既有 create。",
+  "active_task": {
+    "task_id": "TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION",
+    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+    "status": "active",
+    "owner_agent": "codex",
+    "read_order": [
+      "AGENTS.md",
+      "project.state.json",
+      "/Users/hys/Desktop/需求表述.md",
+      "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json"
+    ]
+  },
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-LANDING-PAGE-UI-CONFIRMATION-PASS.md",
+  "next_gate": "为新目标账户 1871922346964041 建立乾坤技术侧监测序号 provision foundation：先完成 DB/凭据/敏感信息合同和三任务拆分；本阶段禁止监测序号创建和 OceanEngine std_project/create。完成后进入只读账户身份与 /tf/ad/index 列表 reconcile。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_no_platform_write_after_single_create_attempt",
+      "mode": "read_only_no_platform_write",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
@@ -28,13 +41,8 @@
       "allowed_actions": [],
       "maximum_actions": 0,
       "retry_allowed": false,
-      "granted_at": "2026-08-25T05:09:00.000Z",
-      "granted_by": "user_explicit_confirmation_after_lossless_instance_id_fix",
-      "previous_blocked_before_create": {
-        "create_called": false,
-        "blocker": "invalid_integer_field:instance_id",
-        "resolution": "instance_id kept as digit string long platform ID"
-      }
+      "granted_at": "",
+      "granted_by": ""
     },
     "credential_refresh_allowed": false,
     "credential_refresh_scope": {
@@ -93,6 +101,7 @@
     "launch_jobs": "api_workflow_can_create_runtime_truth_jobs_and_node_runs",
     "launch_drafts": "api_workflow_can_generate_std_project_drafts_with_stable_hash",
     "project_name_reservations": "database-level durable project-name occupancy; runtime_truth is durable and test_run is isolated",
+    "landing_page_assets": "game-route backup landing page inventory; controlled landing_url column only, public summaries expose site/hash/status",
     "readback_records": "api_workflow_can_write_placeholder_readback_records",
     "evidence_artifacts": "api_workflow_writes_redacted_runtime_truth_evidence",
     "legacy_project_reference": "/Users/hys/Projects/marketing-workbench is reference-only and not a runtime truth source for v2"

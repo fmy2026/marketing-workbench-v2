@@ -1,4 +1,12 @@
 import { hashValue } from "./contracts.mjs";
+import {
+  applyOfficialCreateFieldSendPolicy,
+  evaluateOfficialCreateFieldEvidence,
+  getOfficialCreateFieldContract,
+  getInstanceIdCreateEvidence,
+  instanceIdCreateEvidenceSummary,
+  officialFieldEvidenceSummary
+} from "./official-create-field-contract.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -60,6 +68,10 @@ function platformLongIdString(value) {
 function platformIdTransportLossless(value) {
   if (Number.isSafeInteger(value)) return true;
   return typeof value === "string" && /^\d+$/.test(value);
+}
+
+function sha256Hex(value) {
+  return hashValue(String(value)).replace(/^sha256:/, "");
 }
 
 function resource(bundle = {}, type) {
@@ -234,12 +246,46 @@ function brandInfo(bundle = {}) {
   };
 }
 
-function finalPayloadBlockers(payload = {}, bundle = {}, { configBlockers = [], materialReadiness = {} } = {}) {
+function backupLandingPageReadiness(bundle = {}, controlled = {}) {
+  const asset = bundle.backupLandingPage || {};
+  const item = resource(bundle, "backup_landing_page");
+  const url = clean(controlled.landing_url);
+  const computedHash = url ? sha256Hex(url) : "";
+  const urlHash = clean(controlled.url_hash || asset.url_hash || item.metadata?.url_hash);
+  const readonlyStatus = clean(item.metadata?.readonly_check?.status);
+  const checks = {
+    present: Boolean(clean(asset.landing_page_asset_id || controlled.landing_page_asset_id)),
+    active: clean(controlled.status || asset.status) === "active",
+    https: /^https:\/\//.test(url),
+    targetVisible: clean(controlled.resource_visibility_status || item.visibility_status) === "visible",
+    readbackVerified: clean(controlled.resource_readback_status || item.readback_status) === "readback_verified",
+    readonlyPassed: ["passed", "passed_by_manual_confirmation"].includes(clean(controlled.resource_readonly_status || readonlyStatus)),
+    hashMatch: Boolean(url && urlHash && computedHash === urlHash)
+  };
+  const ready = Object.values(checks).every(Boolean);
+  return {
+    ready,
+    url: ready ? url : "",
+    assetId: clean(controlled.landing_page_asset_id || asset.landing_page_asset_id || item.source_asset_id),
+    siteId: clean(controlled.site_id || asset.site_id || item.platform_resource_id),
+    siteName: clean(controlled.site_name || asset.site_name || item.resource_name),
+    urlHash,
+    checks
+  };
+}
+
+function finalPayloadBlockers(payload = {}, bundle = {}, {
+  configBlockers = [],
+  materialReadiness = {},
+  backupLandingPage = {},
+  officialFieldEvidence = {},
+  instanceIdCreateEvidence = {}
+} = {}) {
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
     return value === "" || value === null || value === undefined || (Array.isArray(value) && !value.length);
   });
-  const resources = ["avatar", "dmp_audience_package", "event_asset", "product_image", "brand_info", "micro_app_instance"]
+  const resources = ["avatar", "dmp_audience_package", "event_asset", "product_image", "brand_info", "micro_app_instance", "backup_landing_page"]
     .map((type) => [type, resource(bundle, type)])
     .filter(([, item]) => !resourceReady(item))
     .map(([type]) => `resource_${type}_not_ready`);
@@ -250,11 +296,18 @@ function finalPayloadBlockers(payload = {}, bundle = {}, { configBlockers = [], 
     ...configBlockers,
     ...(!Number.isSafeInteger(payload.advertiser_id) ? ["advertiser_id_not_safe_integer_for_platform_payload"] : []),
     ...(!payload.asset_id ? ["asset_id_missing_or_not_integer"] : []),
-    ...(!platformIdTransportLossless(payload.instance_id) ? ["micro_app_instance_id_missing_or_not_lossless_platform_id"] : []),
+    ...(instanceIdCreateEvidence.blockers || []),
     ...(!payload.aweme_id ? ["aweme_id_missing"] : []),
     ...(!payload.project_materials?.mini_program_info?.url ? ["mini_program_url_missing"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
+    ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
+    ...(!backupLandingPage.checks?.present ? ["backup_landing_page_default_missing"] : []),
+    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.active ? ["backup_landing_page_not_active"] : []),
+    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.https ? ["backup_landing_page_url_missing_or_not_https"] : []),
+    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.targetVisible ? ["backup_landing_page_target_not_visible"] : []),
+    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.readbackVerified ? ["backup_landing_page_readback_not_verified"] : []),
+    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.hashMatch ? ["backup_landing_page_hash_mismatch"] : []),
     ...(!payload.project_materials?.video_material_list?.length ? ["video_material_list_missing"] : []),
     ...((payload.project_materials?.video_material_list || []).some((item) => !item.video_id) ? ["video_id_missing"] : []),
     ...(selectedRequiredVideoCount !== payload.project_materials?.video_material_list?.length ? ["selected_required_video_count_mismatch"] : []),
@@ -267,7 +320,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, { configBlockers = [], 
     ...(clean(payload.audience?.hide_if_converted) === clean(payload.external_action) ? ["hide_if_converted_uses_conversion_event"] : []),
     ...(!(payload.audience?.filter_event || []).includes(clean(payload.external_action)) ? ["filter_event_missing_primary_conversion_event"] : []),
     ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
-    ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : [])
+    ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
+    ...(officialFieldEvidence.blockerCodes || [])
   ];
   return [...new Set([
     ...missing.map((field) => `payload_required_missing:${field}`),
@@ -276,7 +330,14 @@ function finalPayloadBlockers(payload = {}, bundle = {}, { configBlockers = [], 
   ])];
 }
 
-function fieldManifest(payload = {}, blockers = [], { advertiserIdStorageValue = "", configSource = {}, materialReadiness = {} } = {}) {
+function fieldManifest(payload = {}, blockers = [], {
+  advertiserIdStorageValue = "",
+  configSource = {},
+  materialReadiness = {},
+  backupLandingPage = {},
+  officialFieldEvidence = {},
+  instanceIdCreateEvidence = {}
+} = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
   const brand = payload.brand_info || {};
@@ -292,16 +353,24 @@ function fieldManifest(payload = {}, blockers = [], { advertiserIdStorageValue =
     appIdPresent: Boolean(materials.mini_program_info?.app_id),
     eventAssetIdPresent: Boolean(payload.asset_id),
     eventAssetIdType: payload.asset_id === null ? "null" : typeof payload.asset_id,
-    microAppInstanceIdPresent: Boolean(payload.instance_id),
-    microAppInstanceIdType: payload.instance_id === null ? "null" : typeof payload.instance_id,
-    microAppInstanceIdTransportLossless: platformIdTransportLossless(payload.instance_id),
-    microAppInstanceIdTransportStrategy: typeof payload.instance_id === "string" ? "digit_string_long_platform_id" : "safe_integer_number",
+    microAppInstanceIdPresent: Boolean(payload[instanceIdCreateEvidence.candidateField || "instance_id"]),
+    microAppInstanceIdType: payload[instanceIdCreateEvidence.candidateField || "instance_id"] === null ? "null" : typeof payload[instanceIdCreateEvidence.candidateField || "instance_id"],
+    microAppInstanceIdTransportLossless: platformIdTransportLossless(payload[instanceIdCreateEvidence.candidateField || "instance_id"]),
+    microAppInstanceIdTransportStrategy: typeof payload[instanceIdCreateEvidence.candidateField || "instance_id"] === "string" ? "digit_string_long_platform_id" : "safe_integer_number",
     awemeIdPresent: Boolean(payload.aweme_id),
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
     videoCoverReadyCount: (materials.video_material_list || []).filter((item) => item.video_cover_id).length,
     titleMaterialCount: materials.title_material_list?.length || 0,
+    backupLandingPagePresent: Boolean(materials.external_url_material_list?.length),
+    backupLandingPageSiteId: backupLandingPage.siteId || "",
+    backupLandingPageAssetId: backupLandingPage.assetId || "",
+    backupLandingPageUrlHash: backupLandingPage.urlHash || "",
+    backupLandingPageHttps: backupLandingPage.checks?.https === true,
+    backupLandingPageTargetVisible: backupLandingPage.checks?.targetVisible === true,
+    backupLandingPageReadbackVerified: backupLandingPage.checks?.readbackVerified === true,
+    backupLandingPageHashMatch: backupLandingPage.checks?.hashMatch === true,
     touchpointUrlControlledPresent: Boolean(payload.track_url_setting?.action_track_url?.length),
     audienceGender: audience.gender || "",
     hideIfConverted: audience.hide_if_converted || "",
@@ -312,7 +381,7 @@ function fieldManifest(payload = {}, blockers = [], { advertiserIdStorageValue =
     businessDefaultsSource: configSource.businessDefaultsSource || "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
     businessDefaultsPresent: configSource.businessDefaultsPresent === true,
     contractMapping: {
-      miniGameInstanceCreateFieldName: configSource.contractMapping?.mini_game_instance_create_field || "",
+      miniGameInstanceCandidateCreateField: configSource.contractMapping?.mini_game_instance_candidate_create_field || "",
       optimizedGoalQueryInstanceFieldName: configSource.contractMapping?.optimized_goal_query_instance_field || "",
       optimizedGoalQueryAppFieldName: configSource.contractMapping?.optimized_goal_query_app_field || ""
     },
@@ -338,12 +407,14 @@ function fieldManifest(payload = {}, blockers = [], { advertiserIdStorageValue =
       cdpBrandNamePresent: Boolean(brand.cdp_brand_name),
       yuntuCategoryIdPresent: Boolean(brand.yuntu_category_id)
     },
+    officialFieldEvidence: officialFieldEvidenceSummary(officialFieldEvidence),
+    instanceIdCreateEvidence: instanceIdCreateEvidenceSummary(instanceIdCreateEvidence),
     forbiddenFieldsPresent: false,
     blockers
   };
 }
 
-export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
+export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLandingPageUrl = {} } = {}) {
   const summary = bundle.draft?.payload_summary || {};
   const { payloadDefaults, contractMapping } = routePayloadConfig(bundle);
   const configBlockers = [];
@@ -354,14 +425,22 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
   const productImage = resource(bundle, "product_image");
   const dmpIds = dmpAudienceIds(bundle);
   const brand = brandInfo(bundle);
+  const backupLandingPage = backupLandingPageReadiness(bundle, backupLandingPageUrl);
   const objective = clean(summary.objective || bundle.defaults?.objective);
   const deepObjective = clean(summary.deep_objective || bundle.defaults?.deep_objective);
-  const instanceCreateField = clean(requiredConfigValue(contractMapping, "mini_game_instance_create_field", configBlockers)) || "instance_id";
+  const instanceCandidateField = clean(
+    contractMapping.mini_game_instance_candidate_create_field ||
+    contractMapping.mini_game_instance_create_field ||
+    "instance_id"
+  );
   const optimizedGoalQueryInstanceField = clean(requiredConfigValue(contractMapping, "optimized_goal_query_instance_field", configBlockers));
   const optimizedGoalQueryAppField = clean(requiredConfigValue(contractMapping, "optimized_goal_query_app_field", configBlockers));
   const materialReadiness = requiredVideoMaterialReadiness(bundle);
+  const officialContract = getOfficialCreateFieldContract(bundle);
+  const instanceIdValue = platformLongIdString(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"]));
+  const instanceIdCreateEvidence = getInstanceIdCreateEvidence(officialContract, { resourceId: instanceIdValue });
 
-  const payload = {
+  const requestedPayload = {
     advertiser_id: advertiserIdForTransport(advertiserIdStorageValue),
     name: clean(summary.project_name || bundle.draft?.project_name),
     ad_type: clean(requiredConfigValue(payloadDefaults, "project.ad_type", configBlockers)),
@@ -375,7 +454,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
     delivery_type: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_type", configBlockers)),
     delivery_medium: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_medium", configBlockers)),
     micro_promotion_type: clean(requiredConfigValue(payloadDefaults, "strategy.micro_promotion_type", configBlockers)),
-    [instanceCreateField]: platformLongIdString(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"])),
+    ...(instanceIdCreateEvidence.canSend ? { [instanceCandidateField]: instanceIdValue } : {}),
     asset_id: intOrNull(eventAsset.platform_resource_id),
     schedule_type: clean(requiredConfigValue(payloadDefaults, "schedule.schedule_type", configBlockers)),
     bid_type: clean(requiredConfigValue(payloadDefaults, "strategy.bid_type", configBlockers)),
@@ -401,6 +480,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
       title_material_list: titleMaterials(bundle, payloadDefaults),
       video_material_list: videoMaterials(bundle),
       image_material_list: [],
+      external_url_material_list: backupLandingPage.ready ? [backupLandingPage.url] : [],
       source: clean(bundle.game?.brand_name || bundle.game?.game_name || "产品").slice(0, 10),
       mini_program_info: {
         app_id: clean(summary.platform_app_id || bundle.platformApp?.app_id),
@@ -422,21 +502,44 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "" } = {}) {
     layer_roi_switch: "OFF",
     is_comment_disable: "OFF"
   };
+  const policyApplied = applyOfficialCreateFieldSendPolicy({
+    payload: requestedPayload,
+    contract: officialContract
+  });
+  const payload = policyApplied.payload;
+  const officialFieldEvidence = evaluateOfficialCreateFieldEvidence({
+    payload,
+    contract: officialContract,
+    omittedFieldPaths: policyApplied.omittedFieldPaths
+  });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
     businessDefaultsPresent: configBlockers.length === 0,
     contractMapping: {
-      mini_game_instance_create_field: instanceCreateField,
+      mini_game_instance_candidate_create_field: instanceCandidateField,
       optimized_goal_query_instance_field: optimizedGoalQueryInstanceField,
       optimized_goal_query_app_field: optimizedGoalQueryAppField
     }
   };
-  const blockers = finalPayloadBlockers(payload, bundle, { configBlockers, materialReadiness });
+  const blockers = finalPayloadBlockers(payload, bundle, {
+    configBlockers,
+    materialReadiness,
+    backupLandingPage,
+    officialFieldEvidence,
+    instanceIdCreateEvidence
+  });
   const payloadHash = hashValue(payload);
   return {
     payload,
     payloadHash,
-    requestFieldManifest: fieldManifest(payload, blockers, { advertiserIdStorageValue, configSource, materialReadiness }),
+    requestFieldManifest: fieldManifest(payload, blockers, {
+      advertiserIdStorageValue,
+      configSource,
+      materialReadiness,
+      backupLandingPage,
+      officialFieldEvidence,
+      instanceIdCreateEvidence
+    }),
     blockers
   };
 }

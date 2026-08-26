@@ -6,7 +6,10 @@ import {
 } from "./oceanengineCredentialStore.mjs";
 import { evaluateOe3PayloadContract, stablePayloadHash } from "../workflows/skills/oe3/payload-contract.mjs";
 import { buildOe3StdProjectPayload } from "../workflows/skills/oe3/payload.mjs";
-import { evaluateStdProjectCreatePreflight } from "../workflows/skills/oe3/create-preflight-diagnostics.mjs";
+import {
+  evaluateStdProjectCreatePreflight,
+  OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS
+} from "../workflows/skills/oe3/create-preflight-diagnostics.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
@@ -56,6 +59,11 @@ function extractRequestId(payload = {}) {
   return clean(payload.request_id || payload.data?.request_id || "");
 }
 
+function safeRequestId(payload = {}) {
+  const requestId = extractRequestId(payload);
+  return /^[A-Za-z0-9._:-]{1,256}$/.test(requestId) ? requestId : "";
+}
+
 function extractStdProjectId(payload = {}) {
   return clean(
     payload.data?.project_id ||
@@ -80,11 +88,31 @@ function collectTextByKey(value, keyPattern, found = []) {
   return found;
 }
 
-function safePlatformErrorSummary(payload = {}) {
+const SAFE_ERROR_FIELD_PATHS = [...OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS]
+  .filter((path) => !path.includes("[]"))
+  .sort((left, right) => right.length - left.length);
+
+function safeOffendingFieldPath(text = "") {
+  const normalized = clean(text).toLowerCase();
+  return SAFE_ERROR_FIELD_PATHS.find((path) => normalized.includes(path.toLowerCase())) || "";
+}
+
+function safeErrorCategory({ text = "", fieldPath = "", apiCode = "" } = {}) {
+  const normalized = clean(text).toLowerCase();
+  if (/permission|authorize|authorization|scope|无权限|权限/.test(normalized)) return "permission_denied";
+  if (/landing|external_url_material_list|落地页|链接/.test(normalized)) return "landing_url_invalid";
+  if (/asset|resource|brand|event|image|video|素材|资源|品牌|事件/.test(normalized)) return "resource_not_eligible";
+  if (fieldPath || /invalid|required|param|field|参数|字段|必填/.test(normalized)) return "invalid_field";
+  return apiCode ? "unclassified" : "";
+}
+
+export function safePlatformErrorSummary(payload = {}) {
   const apiCode = extractApiCode(payload);
   const messageTexts = collectTextByKey(payload, /^(message|msg)$/i);
   const errorTexts = collectTextByKey(payload, /(error|reason|detail|hint|field)/i);
   const joined = [...messageTexts, ...errorTexts].join(" ").toLowerCase();
+  const offendingFieldPath = safeOffendingFieldPath(joined);
+  const errorCategory = safeErrorCategory({ text: joined, fieldPath: offendingFieldPath, apiCode });
   const keywords = [
     "advertiser",
     "permission",
@@ -112,12 +140,17 @@ function safePlatformErrorSummary(payload = {}) {
   return {
     api_code: apiCode || "",
     request_id_present: Boolean(extractRequestId(payload)),
+    request_id: safeRequestId(payload),
+    error_category: errorCategory,
+    offending_field_path: offendingFieldPath,
     message_present: messageTexts.length > 0,
     error_message_present: errorTexts.length > 0,
     error_keyword_present: keywords.length > 0,
     error_keywords_count: keywords.length,
     safe_error_fingerprint: `sha256:${sha256(canonicalJson({
       api_code: apiCode || "",
+      error_category: errorCategory,
+      offending_field_path: offendingFieldPath,
       keywords,
       message_present: messageTexts.length > 0,
       error_message_present: errorTexts.length > 0
@@ -176,6 +209,11 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     advertiserId: bundle.job.advertiser_id,
     monitorId: bundle.account.monitor_id
   });
+  const backupLandingPageUrl = await repo.getControlledBackupLandingPageUrl({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id
+  });
   const touchpointVerification = await repo.getTouchpointVerification({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
@@ -186,7 +224,11 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
   const payloadHashStable = bundle.draft?.payload_summary?.payload_hash_source === "final_controlled_payload"
     ? bundle.draft?.payload_summary?.final_payload_hash === bundle.draft?.payload_hash
     : stablePayloadHash(bundle.draft?.payload_summary || {}) === bundle.draft?.payload_hash;
-  const finalPayload = buildOe3StdProjectPayload({ bundle, touchpointUrl: touchpoint?.touchpoint_url || "" });
+  const finalPayload = buildOe3StdProjectPayload({
+    bundle,
+    touchpointUrl: touchpoint?.touchpoint_url || "",
+    backupLandingPageUrl: backupLandingPageUrl || {}
+  });
   const createPreflight = evaluateStdProjectCreatePreflight({
     payload: finalPayload.payload,
     requestFieldManifest: finalPayload.requestFieldManifest,
@@ -355,6 +397,9 @@ export async function createStdProjectForTargetOnce({
     requestIdPresent,
     objectIdPresent: Boolean(stdProjectId),
     errorSummary: passed ? "" : "platform_create_response_not_confirmed",
+    requestId: safeErrorSummary.request_id,
+    errorCategory: passed ? "" : safeErrorSummary.error_category,
+    offendingFieldPath: passed ? "" : safeErrorSummary.offending_field_path,
     responseSummary: {
       ...safeErrorSummary,
       object_id_present: Boolean(stdProjectId),

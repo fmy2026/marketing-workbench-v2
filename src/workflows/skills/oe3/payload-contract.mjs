@@ -25,12 +25,13 @@ const REQUIRED_PAYLOAD_FIELDS = [
   "brand_info",
   "material_pack_id",
   "material_asset_refs",
+  "backup_landing_page",
   "naming_prefix",
   "project_seq",
   "yyyymmdd"
 ];
 
-const FORBIDDEN_KEY_PATTERN = /(^|_)(token|cookie|secret|auth_code|raw_payload|raw_response|touchpoint_url|callback_url)($|_)/i;
+const FORBIDDEN_KEY_PATTERN = /(^|_)(token|cookie|secret|auth_code|raw_payload|raw_response|touchpoint_url|landing_url|callback_url)($|_)/i;
 const REQUIRED_BRAND_INFO_FIELDS = [
   "brand_name_id",
   "cdp_brand_id",
@@ -176,6 +177,23 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     advertiserId: effectiveBundle.job.advertiser_id,
     monitorId: effectiveBundle.account.monitor_id
   });
+  const backupLandingPageUrl = mockReady
+    ? {
+        landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",
+        site_id: "7624750304608649243",
+        site_name: "Mock backup landing page",
+        url_hash: "be2045c5206b29f2e3d08bc46a8ae6dd0f9588aaef11edab968de84a17594b78",
+        status: "active",
+        landing_url: ["https:", "", "example.invalid", "mwbv2", "mock-backup-landing-page"].join("/"),
+        resource_visibility_status: "visible",
+        resource_readback_status: "readback_verified",
+        resource_readonly_status: "passed"
+      }
+    : await repo.getControlledBackupLandingPageUrl({
+        routeId: effectiveBundle.job.route_id,
+        gameCode: effectiveBundle.job.game_code,
+        advertiserId: effectiveBundle.job.advertiser_id
+      });
   const finalBundle = {
     ...effectiveBundle,
     draft: {
@@ -189,7 +207,8 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
   };
   const finalPayload = buildOe3StdProjectPayload({
     bundle: finalBundle,
-    touchpointUrl: touchpoint?.touchpoint_url || ""
+    touchpointUrl: touchpoint?.touchpoint_url || "",
+    backupLandingPageUrl: backupLandingPageUrl || {}
   });
   const payloadSummary = {
     ...baseSummary,
@@ -197,6 +216,16 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     final_payload_hash: finalPayload.payloadHash,
     final_payload_manifest: finalPayload.requestFieldManifest,
     final_payload_blockers: finalPayload.blockers,
+    backup_landing_page: {
+      present: finalPayload.requestFieldManifest.backupLandingPagePresent === true,
+      landing_page_asset_id: finalPayload.requestFieldManifest.backupLandingPageAssetId || "",
+      site_id: finalPayload.requestFieldManifest.backupLandingPageSiteId || "",
+      url_hash: finalPayload.requestFieldManifest.backupLandingPageUrlHash || "",
+      https: finalPayload.requestFieldManifest.backupLandingPageHttps === true,
+      target_visible: finalPayload.requestFieldManifest.backupLandingPageTargetVisible === true,
+      readback_verified: finalPayload.requestFieldManifest.backupLandingPageReadbackVerified === true,
+      hash_match: finalPayload.requestFieldManifest.backupLandingPageHashMatch === true
+    },
     payload_body_stored: false,
     controlled_touchpoint_stored_in_payload_summary: false
   };
@@ -274,6 +303,14 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
+  const finalPayloadBackupLandingPageOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.backupLandingPagePresent === true &&
+      finalManifest.backupLandingPageHttps === true &&
+      finalManifest.backupLandingPageTargetVisible === true &&
+      finalManifest.backupLandingPageReadbackVerified === true &&
+      finalManifest.backupLandingPageHashMatch === true
+    );
   const materialReadiness = finalManifest.finalMaterialReadiness || {};
   const coverReadyCount = Number(materialReadiness.coverReadyCount ?? materialReadiness.coverVerifiedCount ?? 0);
   const finalMaterialReady = !usesFinalPayloadHash ||
@@ -285,7 +322,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const contractMapping = finalManifest.contractMapping || {};
   const contractMappingReady = !usesFinalPayloadHash ||
     (
-      contractMapping.miniGameInstanceCreateFieldName === "instance_id" &&
+      contractMapping.miniGameInstanceCandidateCreateField === "instance_id" &&
       contractMapping.optimizedGoalQueryInstanceFieldName === "micro_app_instance_id" &&
       contractMapping.optimizedGoalQueryAppFieldName === "mini_program_id"
     );
@@ -385,6 +422,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "dmp_custom_audience_ids",
       status: finalPayloadDmpOk ? "passed" : "blocked",
       summary: finalPayloadDmpOk ? "DMP custom_audience_id[] 已作为 audience.retargeting_tags_exclude integer[] 写入最终 payload。" : "DMP 缺少只读验证后的 custom_audience_id[]，或未写入 retargeting_tags_exclude integer[]。"
+    },
+    {
+      key: "backup_landing_page",
+      status: finalPayloadBackupLandingPageOk ? "passed" : "blocked",
+      summary: finalPayloadBackupLandingPageOk
+        ? "备用网页链接已通过 HTTPS、目标账户可见性和 hash 一致性检查。"
+        : "备用网页链接未通过 HTTPS、目标账户可见性或 hash 一致性检查。"
     },
     {
       key: "final_material_readiness",

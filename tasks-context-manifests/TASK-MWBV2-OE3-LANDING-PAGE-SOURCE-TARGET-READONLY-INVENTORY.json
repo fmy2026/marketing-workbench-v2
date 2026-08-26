@@ -1,0 +1,121 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY",
+  "status": "completed_blocked_at_gate",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "读取并沉淀 JSZC / OE3 字节小游戏物料户备用落地页库存与目标账户可见性；当前先完成模型、候选、检查入口和阻断证据。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "source_advertiser_id": "1760246749825031",
+    "target_advertiser_id": "1871922175825993",
+    "resource_type": "backup_landing_page",
+    "permissions": {
+      "platform_readonly_allowed": true,
+      "platform_write_allowed": false,
+      "credential_refresh_allowed": false,
+      "std_project_create_allowed": false,
+      "legacy_project_runtime_dependency_allowed": false
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.md",
+    "tasks/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.md",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.md",
+    "db/016_add_landing_page_assets.sql",
+    "db/019_landing_page_inventory_readonly_states.sql",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/oe3-landing-page-source-target-readonly-inventory.mjs"
+  ],
+  "official_knowledge_sources": [
+    {
+      "path": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+      "usage": "确认 external_url_material_list 是 std_project/create 的落地页链接字段；不复制或保存原文。"
+    },
+    {
+      "path": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/更新标准项目.md",
+      "usage": "交叉确认更新接口中的落地页字段来源提示；不作为创建 payload 运行真值。"
+    }
+  ],
+  "implementation": {
+    "new_files": [
+      "db/019_landing_page_inventory_readonly_states.sql",
+      "scripts/oe3-landing-page-source-target-readonly-inventory.mjs",
+      "tasks/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.json"
+    ],
+    "modified_files": [
+      "package.json",
+      "project.state.json",
+      "schemas/postgres-minimal-truth.md",
+      "src/repositories/postgresRepository.mjs"
+    ],
+    "postgres_updates": [
+      "mwb.landing_page_assets status enum extends not_found_in_source_readonly",
+      "mwb.account_resources readback_status enum extends not_found",
+      "Four JSZC/OE3 historical landing page candidates are present as reference_only",
+      "Target account backup_landing_page resources are present with unknown/not_checked until platform readonly evidence exists",
+      "Redacted evidence artifacts record the current local official endpoint blocker"
+    ],
+    "package_scripts": [
+      "check:oe3-landing-page-inventory"
+    ]
+  },
+  "current_result": {
+    "status": "blocked_local_official_site_list_endpoint_missing",
+    "blockers": [
+      "local_official_site_list_doc_missing",
+      "local_official_site_list_endpoint_missing"
+    ],
+    "platform_calls": 0,
+    "platform_writes": 0,
+    "token_refresh": false,
+    "std_project_create": false,
+    "full_landing_url_output": false,
+    "raw_response_stored": false
+  },
+  "historical_candidates": [
+    {
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-001",
+      "site_id": "7624750304608649243",
+      "site_name": "巨兽战场-抖音小游戏-狙击狩猎",
+      "is_default": true
+    },
+    {
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-002",
+      "site_id": "7450371049210462218",
+      "site_name": "巨兽战场-抖音小游戏-吃肉",
+      "is_default": false
+    },
+    {
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-003",
+      "site_id": "7450398108389376051",
+      "site_name": "巨兽战场-抖音小游戏-螺丝",
+      "is_default": false
+    },
+    {
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-004",
+      "site_id": "7582805366296346662",
+      "site_name": "巨兽战场-抖小-狙击",
+      "is_default": false
+    }
+  ],
+  "validation": {
+    "commands": [
+      "psql -X -d marketing_workbench_v2 -f db/019_landing_page_inventory_readonly_states.sql",
+      "npm run check:oe3-landing-page-inventory",
+      "node scripts/oe3-landing-page-source-target-readonly-inventory.mjs --record",
+      "npm run test:payload-contract",
+      "npm run smoke:api",
+      "node --check scripts/oe3-landing-page-source-target-readonly-inventory.mjs src/repositories/postgresRepository.mjs"
+    ],
+    "expected": "All local checks pass; inventory check remains blocked until the local official site-list endpoint contract is available."
+  },
+  "next_gate": "补入本机官方“获取橙子建站站点列表”接口正文，或通过受控只读方式取得完整 HTTPS URL 后重跑 check:oe3-landing-page-inventory -- --record；满足 active + HTTPS + hash + target visible + readback_verified 后再进入 fresh runtime job。"
+}

@@ -1,0 +1,119 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-LANDING-PAGE-2P0-SITE-READONLY-RESOLVE",
+  "status": "completed_blocked_target_not_visible",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "用本机 OceanEngine 2.0 官方资料确认橙子建站 site/get 与 orange_site/get 只读接口，并更新 v2 Postgres 默认备用落地页状态。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "source_advertiser_id": "1760246749825031",
+    "target_advertiser_id": "1871922175825993",
+    "default_site_id": "7624750304608649243",
+    "permissions": {
+      "platform_readonly_allowed": true,
+      "platform_write_allowed": false,
+      "credential_refresh_allowed": false,
+      "std_project_create_allowed": false,
+      "legacy_project_runtime_dependency_allowed": false
+    }
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.md",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-2P0-SITE-READONLY-RESOLVE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-2P0-SITE-READONLY-RESOLVE.json",
+    "db/016_add_landing_page_assets.sql",
+    "db/019_landing_page_inventory_readonly_states.sql",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "scripts/oe3-landing-page-source-target-readonly-inventory.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "official_knowledge_sources": [
+    {
+      "path": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/15-建站管理.md",
+      "confirmed": [
+        "GET https://ad.oceanengine.com/open_api/2/tools/site/get/",
+        "GET https://api.oceanengine.com/open_api/v3.0/tools/orange_site/get/",
+        "site/get does not return formal landing URL",
+        "official text allows constructing chengzijianzhan page URL from site_id",
+        "orange_site/get must be combined with site/get to distinguish shared/self-created pages"
+      ]
+    },
+    {
+      "path": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/13-建站管理.md",
+      "confirmed": [
+        "Detailed site/get request and response fields",
+        "Detailed orange_site/get request and response fields"
+      ]
+    }
+  ],
+  "readonly_result": {
+    "source_site_get": {
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "matched_default_site": true,
+      "matched_name": "巨兽战场-抖音小游戏-狙击狩猎",
+      "matched_status": "AUDIT_ACCEPTED",
+      "raw_response_stored": false
+    },
+    "target_site_get": {
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "matched_default_site": false,
+      "raw_response_stored": false
+    },
+    "target_orange_site_get": {
+      "status": "blocked",
+      "http_status": 200,
+      "api_code": "40000",
+      "request_id_present": true,
+      "matched_default_site": false,
+      "raw_response_stored": false
+    }
+  },
+  "postgres_updates": {
+    "landing_page_assets": {
+      "candidate_count": 4,
+      "controlled_landing_url_present": true,
+      "url_hash_present": true,
+      "active_default": false,
+      "source_usage": "reference_only"
+    },
+    "account_resources": {
+      "resource_type": "backup_landing_page",
+      "target_visibility_status": "unknown",
+      "target_readback_status": "not_checked",
+      "readonly_status": "blocked_landing_page_target_readonly_not_verified"
+    },
+    "evidence_artifacts": [
+      "EV-OE3-LANDING-PAGE-SOURCE-INVENTORY-1760246749825031-JSZC",
+      "EV-OE3-LANDING-PAGE-TARGET-INVENTORY-1871922175825993-JSZC"
+    ]
+  },
+  "blockers": [
+    "default_landing_page_not_visible_in_target_account",
+    "target_orange_site_probe_not_passed"
+  ],
+  "validation": {
+    "commands": [
+      "npm run check:oe3-landing-page-inventory",
+      "npm run check:oe3-landing-page-inventory -- --record",
+      "node --check scripts/oe3-landing-page-source-target-readonly-inventory.mjs",
+      "node --check src/platforms/oceanengineReadonlyClient.mjs",
+      "Postgres audit for landing_page_assets/account_resources/evidence_artifacts"
+    ],
+    "platform_writes": 0,
+    "token_refresh": false,
+    "std_project_create": false,
+    "raw_response_stored": false,
+    "full_url_output": false
+  },
+  "next_gate": "目标账户未看到默认落地页。需要平台后台共享/转赠/复制，或另建单次授权平台写入任务调用 tools/site/handsel 或 tools/site/copy；之后重跑 check:oe3-landing-page-inventory -- --record。"
+}

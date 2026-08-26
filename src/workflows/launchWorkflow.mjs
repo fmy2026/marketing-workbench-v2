@@ -32,7 +32,7 @@ export const WORKFLOW_NODES = [
     nodeName: "游戏保底包解析",
     phase: "准备阶段",
     output: "game_launch_pack",
-    subflows: ["游戏主档", "路线默认值", "保底物料包"]
+    subflows: ["游戏主档", "路线默认值", "保底物料包", "备用落地页"]
   },
   {
     order: "04",
@@ -41,7 +41,7 @@ export const WORKFLOW_NODES = [
     nodeName: "账户资源诊断与补齐",
     phase: "就绪阶段",
     output: "account_ready_report",
-    subflows: ["头像", "DMP", "事件链", "视频可见性", "产品图"]
+    subflows: ["头像", "DMP", "事件链", "视频可见性", "产品图", "备用落地页"]
   },
   {
     order: "05",
@@ -80,8 +80,8 @@ const PHASES = [
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed"]);
 
-const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
-const PUBLIC_FORBIDDEN_VALUE = /(tf-api\.3k\.com|callback\/click|Bearer\s+[A-Za-z0-9._-]{20,})/i;
+const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|landing_url|mini_program_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
+const PUBLIC_FORBIDDEN_VALUE = /(tf-api\.3k\.com|callback\/click|sslocal:\/\/|Bearer\s+[A-Za-z0-9._-]{20,})/i;
 
 function publicView(value) {
   if (Array.isArray(value)) return value.map((item) => publicView(item));
@@ -416,6 +416,8 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
 
 function draftFields(bundle, runtimeChecks = {}) {
   const touchpoint = bundle.touchpoint || {};
+  const backup = bundle.draft?.payload_summary?.backup_landing_page || {};
+  const backupSource = bundle.backupLandingPage || {};
   const contract = runtimeChecks.payloadContract || {};
   const gate = runtimeChecks.prewriteGate || {};
   const gateGaps = Array.isArray(gate.gaps) ? gate.gaps.map((gap) => gap.message).join("；") : "";
@@ -428,6 +430,8 @@ function draftFields(bundle, runtimeChecks = {}) {
       { label: "账户 ID", value: bundle.job.advertiser_id },
       { label: "触点状态", value: touchpoint.status || "未读取" },
       { label: "触点 Hash", value: touchpoint.url_hash || "未读取" },
+      { label: "备用落地页", value: backupSource.status || "未读取" },
+      { label: "备用页 Hash", value: backupSource.url_hash || "未读取" },
       { label: "payload 合同", value: contract.status || "等待草稿" },
       { label: "平台只读", value: gate.platformReadonlyApi?.status || "not_run" },
       { label: "创建前 gate", value: gate.status || "等待草稿" },
@@ -444,6 +448,9 @@ function draftFields(bundle, runtimeChecks = {}) {
     { label: "项目名", value: draft.project_name },
     { label: "触点状态", value: touchpoint.status || "未读取" },
     { label: "触点 Hash", value: touchpoint.url_hash || "未读取" },
+    { label: "备用落地页", value: backup.present ? "已就绪" : (backupSource.status || "待解析") },
+    { label: "备用页 Site", value: backup.site_id || backupSource.site_id || "未读取" },
+    { label: "备用页 Hash", value: backup.url_hash || backupSource.url_hash || "未读取" },
     { label: "payload 合同", value: contract.status || "未检查" },
     { label: "平台只读", value: gate.platformReadonlyApi?.status || "not_run" },
     { label: "创建前 gate", value: gate.status || "未检查" },
@@ -529,6 +536,16 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       touchpointRef: bundle.touchpoint?.touchpoint_ref || "",
       urlHash: bundle.touchpoint?.url_hash || "",
       status: bundle.touchpoint?.status || "missing"
+    },
+    backupLandingPage: {
+      landingPageAssetId: bundle.draft?.payload_summary?.backup_landing_page?.landing_page_asset_id || bundle.backupLandingPage?.landing_page_asset_id || "",
+      siteId: bundle.draft?.payload_summary?.backup_landing_page?.site_id || bundle.backupLandingPage?.site_id || "",
+      siteName: bundle.backupLandingPage?.site_name || "",
+      urlHash: bundle.draft?.payload_summary?.backup_landing_page?.url_hash || bundle.backupLandingPage?.url_hash || "",
+      status: bundle.backupLandingPage?.status || "missing",
+      present: bundle.draft?.payload_summary?.backup_landing_page?.present === true,
+      targetVisible: bundle.draft?.payload_summary?.backup_landing_page?.target_visible === true,
+      readbackVerified: bundle.draft?.payload_summary?.backup_landing_page?.readback_verified === true
     },
     payloadContract: runtimeChecks.payloadContract || {
       status: "waiting",

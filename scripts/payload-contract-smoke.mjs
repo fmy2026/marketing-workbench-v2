@@ -1,6 +1,7 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/payload-contract.mjs";
+import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/index.mjs";
 
 const repo = new PostgresRepository();
@@ -53,10 +54,18 @@ try {
   const dry = await contractForJob(dryCreated.jobId);
   const dryGapKeys = dry.contract.gaps.map((gap) => gap.key);
   const dryManifest = dry.bundle.draft.payload_summary.final_payload_manifest || {};
+  const dryFieldEvidence = dryManifest.officialFieldEvidence || {};
+  const dryInstanceEvidence = dryManifest.instanceIdCreateEvidence || {};
 
   assert(dry.touchpointVerification.touchpointUrlPresent, "touchpoint URL not present");
   assert(dry.touchpointVerification.urlHashMatches, "touchpoint URL hash mismatch");
   assert(dry.bundle.job.source_usage === "test_run", "dry payload contract job source_usage is not test_run");
+  assert(dryInstanceEvidence.status === "blocked", "runtime-derived instance create evidence should block");
+  assert(dryInstanceEvidence.blockers?.includes("instance_id_long_id_transport_not_verified"), "instance long-ID transport blocker missing");
+  assert(dryManifest.microAppInstanceIdPresent === false, "unverified instance candidate must not enter payload");
+  ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
+    assert(dryFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted without direct create evidence`);
+  });
   assert(dry.bundle.draft.payload_summary.payload_hash_source === "final_controlled_payload", "dry payload hash source is not final payload");
   assert(dry.contract.expectedPayloadHash === dry.bundle.draft.payload_hash, "dry payload hash is not stable");
   assert(typeof dry.bundle.draft.payload_summary.advertiser_id === "string", "dry advertiser_id storage summary is not string");
@@ -83,10 +92,17 @@ try {
   });
   const mock = await contractForJob(mockCreated.jobId);
   const mockManifest = mock.bundle.draft.payload_summary.final_payload_manifest || {};
+  const mockFieldEvidence = mockManifest.officialFieldEvidence || {};
+  const mockInstanceEvidence = mockManifest.instanceIdCreateEvidence || {};
 
   assert(mock.bundle.job.source_usage === "test_run", "mock payload contract job source_usage is not test_run");
   assert(typeof mock.bundle.draft.payload_summary.advertiser_id === "string", "mock advertiser_id storage summary is not string");
   assert(mock.contract.status === "passed", "mock payload contract did not pass");
+  assert(mockFieldEvidence.status === "passed", "complete test field evidence should pass");
+  assert(mockInstanceEvidence.status === "passed", "complete test instance evidence should pass");
+  ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
+    assert(mockFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted in complete-evidence fixture`);
+  });
   assert(mock.contract.expectedPayloadHash === mock.bundle.draft.payload_hash, "mock payload hash is not stable");
   assert(mockManifest.advertiserIdStorageType === "string", "mock advertiser_id storage type not string");
   assert(mockManifest.advertiserIdTransportType === "number", "mock advertiser_id transport type not number");
@@ -95,6 +111,23 @@ try {
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
+
+  const longIdTransportPreflight = evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      instanceIdCreateEvidence: {
+        status: "blocked",
+        candidateField: "instance_id",
+        fieldNameVerified: true,
+        createFieldType: "number",
+        fieldTypeVerified: true,
+        applicabilityVerified: true,
+        longIdTransportVerified: false,
+        longPlatformId: true,
+        blockers: ["instance_id_long_id_transport_not_verified"]
+      }
+    }
+  });
+  assert(longIdTransportPreflight.blocker_codes.includes("instance_id_long_id_transport_not_verified"), "19-digit instance transport must remain blocked without an official JSON transport contract");
 
   const result = {
     dryRun: {

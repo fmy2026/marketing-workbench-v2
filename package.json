@@ -18,6 +18,9 @@
     "test:runtime-reservations": "node scripts/runtime-reservations-smoke.mjs",
     "launch:execute-once": "node scripts/launch-execute-once.mjs",
     "check:runtime-consistency": "node scripts/runtime-consistency-check.mjs",
+    "check:oe3-instance-id-evidence": "node scripts/oe3-instance-id-create-evidence-check.mjs",
+    "check:oe3-backup-landing-page": "node scripts/oe3-backup-landing-page-readonly-resolve.mjs",
+    "check:oe3-landing-page-inventory": "node scripts/oe3-landing-page-source-target-readonly-inventory.mjs",
     "token:status": "node scripts/oceanengine-token-status.mjs",
     "token:refresh": "node scripts/oceanengine-token-refresh.mjs"
   }

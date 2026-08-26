@@ -1,0 +1,65 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "将用户确认的默认橙子落地页写入 v2 受控 DB，创建 fresh runtime job，并预置单次 std_project/create execution grant。",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency",
+    "official_doc_policy": "local_official_knowledge_docs_only"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+    "tasks/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.md",
+    "db/016_add_landing_page_assets.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/resource-verifiers.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+    "project.state.json",
+    "Postgres marketing_workbench_v2.mwb only"
+  ],
+  "forbidden_actions": [
+    "std_project/create inside this task",
+    "retrying JOB-MWBV2-20260825041227-12D2B5",
+    "token refresh",
+    "material upload or bind",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "legacy project runtime import or shell call",
+    "web search for OceanEngine docs",
+    "saving full landing URL, token, Cookie, raw payload, or raw response to project files/logs/API/frontend"
+  ],
+  "acceptance": [
+    "official local docs confirm external_url_material_list requires link string rather than bare site_id",
+    "controlled DB has default landing page active with url_hash",
+    "target account backup_landing_page resource is visible and readback_verified by manual confirmation evidence",
+    "fresh runtime job created and dry-run reaches draft confirmation",
+    "execution grant is scoped to fresh job/draft/payload hash only",
+    "no std_project/create called during this task"
+  ],
+  "result": {
+    "fresh_job_id": "JOB-MWBV2-20260825083821-9DB6FE",
+    "fresh_draft_id": "DRAFT-JOB-MWBV2-20260825083821-9DB6FE",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P02_20260825",
+    "payload_hash": "sha256:71e30949688120e2aef449e2c3350236263a8cfb2bd28625dbe2c3e8f5ac4e90",
+    "next_gate": "single_user_confirmed_std_project_create"
+  }
+}

@@ -7,7 +7,8 @@ export const OE3_REQUIRED_RESOURCE_TYPES = [
   "video_asset",
   "product_image",
   "brand_info",
-  "micro_app_instance"
+  "micro_app_instance",
+  "backup_landing_page"
 ];
 
 export const OE3_RESOURCE_LABELS = {
@@ -17,7 +18,8 @@ export const OE3_RESOURCE_LABELS = {
   video_asset: "视频",
   product_image: "产品图",
   brand_info: "品牌",
-  micro_app_instance: "小程序实例"
+  micro_app_instance: "小程序实例",
+  backup_landing_page: "备用落地页"
 };
 
 export const OE3_SKILL_DEFINITIONS = [
@@ -82,6 +84,15 @@ export const OE3_SKILL_DEFINITIONS = [
     inputContract: ["route_id", "game_code"],
     outputContract: ["material_pack_id", "material_item_count"],
     stopConditions: ["material_pack_missing"],
+    writeScope: "launch_skill_runs_only"
+  },
+  {
+    skillKey: "launch-pack-resolve-backup-landing-page",
+    nodeKey: "game_launch_pack",
+    dependsOn: ["launch-pack-resolve-game"],
+    inputContract: ["route_id", "game_code"],
+    outputContract: ["landing_page_asset_id", "site_id", "site_name", "url_hash", "status"],
+    stopConditions: ["backup_landing_page_default_missing"],
     writeScope: "launch_skill_runs_only"
   },
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
@@ -155,8 +166,8 @@ export const OE3_SKILL_DEFINITIONS = [
   }
 ];
 
-const SENSITIVE_KEY = /(^|[_-])(touchpoint_url|raw_payload|raw_response|access_token|refresh_token|app_secret|secret|auth_code|cookie|access-token)([_-]|$)/i;
-const SENSITIVE_VALUE = /(tf-api\.3k\.com|callback\/click|Bearer\s+[A-Za-z0-9._-]{20,}|OCEANENGINE_(ACCESS|REFRESH)_TOKEN|OCEANENGINE_APP_SECRET)/i;
+const SENSITIVE_KEY = /(^|[_-])(touchpoint_url|landing_url|raw_payload|raw_response|access_token|refresh_token|app_secret|secret|auth_code|cookie|access-token)([_-]|$)/i;
+const SENSITIVE_VALUE = /(tf-api\.3k\.com|callback\/click|sslocal:\/\/|Bearer\s+[A-Za-z0-9._-]{20,}|OCEANENGINE_(ACCESS|REFRESH)_TOKEN|OCEANENGINE_APP_SECRET)/i;
 
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;

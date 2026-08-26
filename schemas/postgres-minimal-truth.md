@@ -30,6 +30,7 @@
 | `mwb.game_assets` | 游戏素材、产品身份、方向包引用 |
 | `mwb.game_platform_apps` | 游戏在不同平台/形态下的 appid 唯一读取入口 |
 | `mwb.account_resources` | 账户级头像、DMP、事件、视频、产品图、品牌、小程序可用性；`metadata.readonly_check` 保存脱敏只读校验摘要 |
+| `mwb.landing_page_assets` | 游戏 x 路线备用网页落地页资产；完整 URL 仅允许进入受控列，普通摘要只输出 site/hash/status |
 | `mwb.material_packs` | 保底物料包 |
 | `mwb.material_pack_items` | 保底物料包明细 |
 | `mwb.launch_jobs` | 一次投放创建任务 |
@@ -37,7 +38,7 @@
 | `mwb.launch_drafts` | 创建草稿摘要和稳定 hash |
 | `mwb.project_name_reservations` | 数据库级项目名占用；`runtime_truth` 持久占用，`test_run` 独立并随测试清理 |
 | `mwb.launch_confirmations` | 单次真实写入前的确认记录：确认哪个 draft/hash、确认变量和状态 |
-| `mwb.platform_actions` | 平台动作审计记录：endpoint、次数、状态、hash 和 request id 是否存在，不保存 raw payload/response |
+| `mwb.platform_actions` | 平台动作审计记录：endpoint、次数、状态、request/response hash、内部 request ID，以及受控 `error_category`/白名单 `offending_field_path`；不保存 raw payload、raw response 或平台 message |
 | `mwb.created_objects` | 真实创建对象记录：对象 ID、对象名、readback 状态和证据引用 |
 | `mwb.readback_records` | 回查摘要 |
 | `mwb.evidence_artifacts` | 脱敏证据摘要和 hash |
@@ -58,6 +59,10 @@
 | `db/010_runtime_consistency_cleanup.sql` | 结构一致性清理：`test_run` 标记、目标失败态修正、移除 `games.app_id` |
 | `db/011_purge_runtime_test_data_and_psequence_cleanup.sql` | 清理历史测试/占位运行数据，保留真实失败 job 和维度真值表，固化 `P**` 真实业务占用边界 |
 | `db/015_add_project_name_reservations.sql` | 新增项目名 reservation、回填历史草稿，并由唯一约束保护并发序号 |
+| `db/016_add_landing_page_assets.sql` | 新增备用落地页资产表、目标账户资源占位与受控 URL/hash 约束 |
+| `db/017_harden_platform_action_diagnostics.sql` | 收敛平台错误为受控类别/字段路径，并写入 OE3 官方字段证据矩阵 |
+| `db/018_reconcile_oe3_instance_id_create_evidence.sql` | 记录 `instance_id` 创建字段证据与 19 位 JSON number 传输阻断；`micro_app_instance_id` 仅作优化目标查询字段 |
+| `db/019_landing_page_inventory_readonly_states.sql` | 补齐物料户落地页库存只读盘点状态枚举、四个历史候选和目标账户逐页资源记录 |
 
 ## 读取约定
 
@@ -67,4 +72,5 @@
 | 平台 appid | `mwb.game_platform_apps`，按 `game_code + platform + app_type` 查询 |
 | 游戏级素材 | `mwb.game_assets` |
 | 账户级资源可用性 | `mwb.account_resources` |
+| 备用网页落地页库存 | `mwb.landing_page_assets`，目标账户可见性继续看 `mwb.account_resources.resource_type='backup_landing_page'` |
 | 旧资料引用 | 只允许 `source_usage = 'reference_only'`，不得作为运行时真值 |

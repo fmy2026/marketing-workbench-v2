@@ -47,7 +47,12 @@ const NODE_DEFINITIONS = [
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
 const CONTEXT_SKILLS = new Set(["intake-normalize", "context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]);
-const LAUNCH_PACK_SKILLS = new Set(["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials"]);
+const LAUNCH_PACK_SKILLS = new Set([
+  "launch-pack-resolve-game",
+  "launch-pack-resolve-defaults",
+  "launch-pack-resolve-materials",
+  "launch-pack-resolve-backup-landing-page"
+]);
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
   const node = NODE_DEFINITIONS.find((item) => item.nodeKey === nodeKey);
@@ -85,6 +90,7 @@ function skillsForMode(mode) {
     "launch-pack-resolve-game",
     "launch-pack-resolve-defaults",
     "launch-pack-resolve-materials",
+    "launch-pack-resolve-backup-landing-page",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
     "payload-build",
     "payload-contract",
@@ -326,7 +332,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const readbackNode = readbackNodeStatusFromSkill({ readback, mode });
   const contextBlocked = ["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]
     .some((key) => skillOutput(key).status === "blocked");
-  const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials"]
+  const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials", "launch-pack-resolve-backup-landing-page"]
     .some((key) => skillOutput(key).status === "blocked");
   const draft = skillOutput("payload-build").outputSummary || {};
 
@@ -354,18 +360,19 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     nodeStatus({
       nodeKey: "game_launch_pack",
       status: packBlocked ? "blocked" : "passed",
-      summary: packBlocked ? "游戏主档、路线默认值或保底物料包缺失。" : "游戏主档、路线默认值和保底物料包已由 Skill 装配。",
+      summary: packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
       diagnosticLevel: packBlocked ? "error" : "info",
       outputSummary: {
         game: skillOutput("launch-pack-resolve-game").outputSummary || {},
         defaults: skillOutput("launch-pack-resolve-defaults").outputSummary || {},
-        materials: skillOutput("launch-pack-resolve-materials").outputSummary || {}
+        materials: skillOutput("launch-pack-resolve-materials").outputSummary || {},
+        backupLandingPage: skillOutput("launch-pack-resolve-backup-landing-page").outputSummary || {}
       }
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
       status: resourceBlockers.length ? "blocked" : "passed",
-      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : "七项账户资源均已通过 Skill 检查。",
+      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : "八项账户资源均已通过 Skill 检查。",
       diagnosticLevel: resourceBlockers.length ? "error" : "info",
       outputSummary: {
         blockedResourceTypes: resourceOutputs

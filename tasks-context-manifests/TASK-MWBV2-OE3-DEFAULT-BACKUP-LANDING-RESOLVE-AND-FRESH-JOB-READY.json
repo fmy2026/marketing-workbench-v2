@@ -1,0 +1,69 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY",
+  "status": "blocked",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "解析默认备用网页 site_id/site_name 与 optimized_goal 橙子落地页站点信息联动合同，验证目标账户可见性，生成 fresh runtime job，并在全通过后预置单次 execution grant。",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.md",
+    "db/016_add_landing_page_assets.sql",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/workflows/skills/oe3/launch-pack.mjs",
+    "src/workflows/skills/oe3/resource-verifiers.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "scripts/execution-grant-smoke.mjs",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+    "project.state.json",
+    "src/platforms/",
+    "src/repositories/",
+    "src/workflows/",
+    "scripts/",
+    "package.json",
+    "Postgres marketing_workbench_v2.mwb only"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion create",
+    "landing page create/update/share/delete",
+    "token refresh",
+    "material upload or bind",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "legacy project runtime import or shell call",
+    "saving token, Cookie, full URL, raw payload, or raw response to project files/logs/API/frontend",
+    "using web search for OceanEngine docs instead of local official knowledge docs",
+    "constructing or guessing landing page URLs from screenshots, site_id, legacy runtime, or external SDK notes"
+  ],
+  "acceptance": [
+    "default backup landing page optimized_goal linkage resolved or blocked with explicit reason: blocked_backend_landing_linkage_contract_not_materialized",
+    "target account visibility/readback or backend linkage verified before active",
+    "fresh runtime job created only after landing page gate passes",
+    "fresh job node 1-5 ready and payload contract/preflight passed",
+    "execution grant scoped to fresh job only if all gates pass",
+    "historical failed job has no new action",
+    "no platform write called"
+  ]
+}

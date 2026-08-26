@@ -12,7 +12,7 @@ function valueAt(value, path) {
   return path.split(".").reduce((cursor, key) => cursor?.[key], value);
 }
 
-const ALLOWED_PAYLOAD_PATHS = new Set([
+export const OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS = new Set([
   "advertiser_id",
   "name",
   "ad_type",
@@ -63,6 +63,8 @@ const ALLOWED_PAYLOAD_PATHS = new Set([
   "project_materials.video_material_list[].video_id",
   "project_materials.video_material_list[].video_cover_id",
   "project_materials.image_material_list",
+  "project_materials.external_url_material_list",
+  "project_materials.external_url_material_list[]",
   "project_materials.source",
   "project_materials.mini_program_info",
   "project_materials.mini_program_info.app_id",
@@ -200,6 +202,20 @@ function checkIntegerArray(payload, path) {
   });
 }
 
+function checkHttpsStringArray(payload, path) {
+  const value = valueAt(payload, path);
+  const ok = Array.isArray(value) && value.length === 1 && value.every((item) => typeof item === "string" && /^https:\/\//.test(item));
+  return diag({
+    checkId: `https_string_array:${path}`,
+    fieldPath: path,
+    status: ok ? "passed" : "blocked",
+    expectedTypeOrRule: "single_https_url_string_array",
+    actualValue: value,
+    blockerCode: `invalid_https_string_array:${path}`,
+    repairHint: `${path} 必须且只能包含一个已验证 HTTPS 备用网页链接。`
+  });
+}
+
 function checkEnum(payload, path, allowedValues) {
   const value = clean(valueAt(payload, path));
   return diag({
@@ -233,7 +249,7 @@ function normalizedPaths(value, prefix = "") {
 function checkAllowedFields(payload = {}) {
   const paths = [...new Set(normalizedPaths(payload))];
   const forbidden = paths.filter((path) => FORBIDDEN_PAYLOAD_PATHS.has(path));
-  const unknown = paths.filter((path) => !ALLOWED_PAYLOAD_PATHS.has(path) && !FORBIDDEN_PAYLOAD_PATHS.has(path));
+    const unknown = paths.filter((path) => !OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS.has(path) && !FORBIDDEN_PAYLOAD_PATHS.has(path));
   return [
     ...forbidden.map((path) => diag({
       checkId: `forbidden_field:${path}`,
@@ -289,23 +305,65 @@ function checkBusinessDefaults(manifest = {}) {
 
 function checkContractMapping(manifest = {}) {
   const mapping = manifest.contractMapping || {};
-  const createField = clean(mapping.miniGameInstanceCreateFieldName);
+  const candidateField = clean(mapping.miniGameInstanceCandidateCreateField);
   const optimizedGoalField = clean(mapping.optimizedGoalQueryInstanceFieldName);
   const appField = clean(mapping.optimizedGoalQueryAppFieldName);
   return diag({
     checkId: "manifest:mini_game_instance_field_mapping",
     fieldPath: "final_payload_manifest.contractMapping",
-    status: createField === "instance_id" && optimizedGoalField === "micro_app_instance_id" && appField === "mini_program_id"
+    status: candidateField === "instance_id" && optimizedGoalField === "micro_app_instance_id" && appField === "mini_program_id"
       ? "passed"
       : "blocked",
-    expectedTypeOrRule: "create:instance_id optimized_goal_query:micro_app_instance_id app:mini_program_id",
+    expectedTypeOrRule: "create_candidate:instance_id optimized_goal_query:micro_app_instance_id app:mini_program_id",
     actualValue: {
-      miniGameInstanceCreateFieldName: createField,
+      miniGameInstanceCandidateCreateField: candidateField,
       optimizedGoalQueryInstanceFieldName: optimizedGoalField,
       optimizedGoalQueryAppFieldName: appField
     },
-    blockerCode: "mini_game_instance_field_mapping_not_verified",
-    repairHint: "按官方合同分别记录查询参数字段与创建请求字段，不允许双发实例字段。"
+    blockerCode: "mini_game_instance_field_mapping_invalid",
+    repairHint: "查询参数与创建候选字段必须分开记录；候选字段仍需通过官方创建合同验证。"
+  });
+}
+
+function checkInstanceIdCreateEvidence(manifest = {}) {
+  const evidence = manifest.instanceIdCreateEvidence || {};
+  const blockers = Array.isArray(evidence.blockers) ? evidence.blockers : [];
+  return diag({
+    checkId: "manifest:instance_id_create_evidence",
+    fieldPath: "final_payload_manifest.instanceIdCreateEvidence",
+    status: evidence.status === "passed" && blockers.length === 0 ? "passed" : "blocked",
+    expectedTypeOrRule: "official_direct_field_name + type + MICRO_GAME_BYTE_GAME_condition + long_id_transport",
+    actualValue: {
+      status: evidence.status || "missing",
+      candidateField: evidence.candidateField || "",
+      fieldNameVerified: evidence.fieldNameVerified === true,
+      fieldTypeVerified: evidence.fieldTypeVerified === true,
+      applicabilityVerified: evidence.applicabilityVerified === true,
+      longIdTransportVerified: evidence.longIdTransportVerified === true,
+      longPlatformId: evidence.longPlatformId === true
+    },
+    blockerCode: blockers[0] || "instance_id_create_contract_not_verified",
+    repairHint: "仅在本机官方创建文档明确字段名、类型、BYTE_GAME 适用条件和长数字 JSON 传输策略后发送实例字段。"
+  });
+}
+
+function checkOfficialFieldEvidence(manifest = {}) {
+  const evidence = manifest.officialFieldEvidence || {};
+  const blockers = Array.isArray(evidence.blockerCodes) ? evidence.blockerCodes : [];
+  const fields = Array.isArray(evidence.fields) ? evidence.fields : [];
+  const sentUnverified = fields.filter((field) => field.status !== "passed").map((field) => field.fieldPath);
+  return diag({
+    checkId: "manifest:official_field_evidence",
+    fieldPath: "final_payload_manifest.officialFieldEvidence",
+    status: evidence.status === "passed" && blockers.length === 0 ? "passed" : "blocked",
+    expectedTypeOrRule: "all_sent_fields_have_official_direct_create_evidence_and_send_policy",
+    actualValue: {
+      status: evidence.status || "missing",
+      blockerCount: blockers.length,
+      sentUnverified
+    },
+    blockerCode: blockers[0] || "official_field_evidence_missing_or_blocked",
+    repairHint: "仅发送具有本机官方创建字段依据的字段；查询接口依据不能替代创建字段依据。"
   });
 }
 
@@ -340,9 +398,11 @@ export function evaluateStdProjectCreatePreflight({
     }));
     diagnostics.push(checkType(payload, "name", "string"));
     diagnostics.push(checkInteger(payload, "asset_id"));
-    diagnostics.push(checkIntegerOrDigitString(payload, "instance_id", {
-      blockerCode: "invalid_lossless_platform_id:instance_id"
-    }));
+    if (Object.hasOwn(payload, "instance_id")) {
+      diagnostics.push(checkIntegerOrDigitString(payload, "instance_id", {
+        blockerCode: "invalid_lossless_platform_id:instance_id"
+      }));
+    }
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
     diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
     diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
@@ -355,6 +415,7 @@ export function evaluateStdProjectCreatePreflight({
       "EXCLUDE_CUSTOMER"
     ]));
     diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude"));
+    diagnostics.push(checkHttpsStringArray(payload, "project_materials.external_url_material_list"));
     diagnostics.push(...checkAllowedFields(payload));
   } else {
     const blockers = Array.isArray(requestFieldManifest.blockers) ? requestFieldManifest.blockers : [];
@@ -394,26 +455,6 @@ export function evaluateStdProjectCreatePreflight({
       repairHint: "Postgres/Job 保持 string，仅最终受控 create payload 转为 safe integer number。"
     }));
     diagnostics.push(diag({
-      checkId: "manifest:micro_app_instance_id_transport",
-      fieldPath: "final_payload_manifest.microAppInstanceIdTransportLossless",
-      status: requestFieldManifest.microAppInstanceIdPresent === true &&
-        (
-          requestFieldManifest.microAppInstanceIdTransportLossless === true ||
-          requestFieldManifest.microAppInstanceIdType === "string"
-        )
-        ? "passed"
-        : "blocked",
-      expectedTypeOrRule: "present_and_lossless_number_or_digit_string",
-      actualValue: {
-        present: requestFieldManifest.microAppInstanceIdPresent === true,
-        type: requestFieldManifest.microAppInstanceIdType || "",
-        strategy: requestFieldManifest.microAppInstanceIdTransportStrategy || "",
-        lossless: requestFieldManifest.microAppInstanceIdTransportLossless === true
-      },
-      blockerCode: "micro_app_instance_id_not_lossless_for_platform_payload",
-      repairHint: "字节小游戏 instance_id 为平台长数字 ID；超过 JS safe integer 时必须以数字字符串进入最终受控 payload。"
-    }));
-    diagnostics.push(diag({
       checkId: "contract:payload_contract",
       fieldPath: "payload_contract.status",
       status: payloadContractStatus === "passed" ? "passed" : "blocked",
@@ -422,9 +463,35 @@ export function evaluateStdProjectCreatePreflight({
       blockerCode: "payload_contract_not_passed",
       repairHint: "先修复 payload contract gaps。"
     }));
+    diagnostics.push(diag({
+      checkId: "manifest:backup_landing_page",
+      fieldPath: "final_payload_manifest.backupLandingPagePresent",
+      status: requestFieldManifest.backupLandingPagePresent === true &&
+        requestFieldManifest.backupLandingPageHttps === true &&
+        requestFieldManifest.backupLandingPageTargetVisible === true &&
+        requestFieldManifest.backupLandingPageReadbackVerified === true &&
+        requestFieldManifest.backupLandingPageHashMatch === true
+        ? "passed"
+        : "blocked",
+      expectedTypeOrRule: "present + https + target_visible + readback_verified + hash_match",
+      actualValue: {
+        present: requestFieldManifest.backupLandingPagePresent === true,
+        siteId: requestFieldManifest.backupLandingPageSiteId || "",
+        assetId: requestFieldManifest.backupLandingPageAssetId || "",
+        urlHashPresent: Boolean(requestFieldManifest.backupLandingPageUrlHash),
+        https: requestFieldManifest.backupLandingPageHttps === true,
+        targetVisible: requestFieldManifest.backupLandingPageTargetVisible === true,
+        readbackVerified: requestFieldManifest.backupLandingPageReadbackVerified === true,
+        hashMatch: requestFieldManifest.backupLandingPageHashMatch === true
+      },
+      blockerCode: "backup_landing_page_not_ready",
+      repairHint: "解析默认备用网页 HTTPS URL，并确认目标账户可见、回查通过、hash 一致。"
+    }));
   }
   diagnostics.push(checkBusinessDefaults(requestFieldManifest));
   diagnostics.push(checkContractMapping(requestFieldManifest));
+  diagnostics.push(checkInstanceIdCreateEvidence(requestFieldManifest));
+  diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 
   const blocked = diagnostics.filter((item) => item.status === "blocked");

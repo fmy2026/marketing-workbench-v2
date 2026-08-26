@@ -61,7 +61,8 @@ function fakeFetchFactory({
   projectId,
   createApiCode = "0",
   createObjectIdPresent = true,
-  listMatch = true
+  listMatch = true,
+  createMessage = ""
 }) {
   const calls = [];
   async function fakeFetch(url, options = {}) {
@@ -71,6 +72,7 @@ function fakeFetchFactory({
       return new Response(JSON.stringify({
         code: createApiCode,
         request_id: "fake-request-create",
+        ...(createMessage ? { message: createMessage } : {}),
         data: createObjectIdPresent ? { project_id: projectId } : {}
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -321,7 +323,8 @@ try {
     projectId: "999900004",
     createApiCode: "40000",
     createObjectIdPresent: false,
-    listMatch: true
+    listMatch: true,
+    createMessage: "invalid parameter: project_materials.external_url_material_list"
   });
   const recovered = await executeConfirmedLaunch({
     repo,
@@ -339,6 +342,11 @@ try {
   assert(recovered.headline.status === "created", "readback hit should close job as created");
   assert(recovered.readback?.status === "readback_verified", "recovered readback should be verified");
   assert(recoveredReadback.outputSummary?.recoveredByReadback === true, "readback should mark recoveredByReadback");
+  const recoveredAudit = await repo.getLaunchJobBundle(recoveredView.jobId);
+  assert(recoveredAudit.platformAction?.request_id_recorded === true, "request_id should be retained only in internal action audit");
+  assert(recoveredAudit.platformAction?.error_category === "landing_url_invalid", "field error should have a safe landing URL category");
+  assert(recoveredAudit.platformAction?.offending_field_path === "project_materials.external_url_material_list", "field error should retain only the allowed field path");
+  assert(!JSON.stringify(recoveredAudit.platformAction || {}).includes("invalid parameter"), "platform error text must not be persisted in public job data");
   assertNoSensitiveLeak(recovered);
 
   const missView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-miss");
@@ -347,7 +355,8 @@ try {
     projectId: "999900005",
     createApiCode: "40000",
     createObjectIdPresent: false,
-    listMatch: false
+    listMatch: false,
+    createMessage: "permission denied for requested operation"
   });
   const missed = await executeConfirmedLaunch({
     repo,
@@ -362,6 +371,9 @@ try {
   assert(missedStatuses.std_project_create_executor === "failed", "missed create node should fail");
   assert(missedStatuses.readback_closer === "failed", "readback miss should fail node 7");
   assert(missed.headline.status === "failed_waiting_manual_review", "readback miss should stop for manual review");
+  const missedAudit = await repo.getLaunchJobBundle(missView.jobId);
+  assert(missedAudit.platformAction?.error_category === "permission_denied", "permission response should have a safe category");
+  assert(missedAudit.platformAction?.offending_field_path === "", "permission response must not invent a field path");
   const missedSecond = await executeConfirmedLaunch({
     repo,
     jobId: missView.jobId,
@@ -373,6 +385,28 @@ try {
   assert(missedSecond.executionGrant.status === "blocked", "failed job second grant should be blocked");
   assert(missedSecond.executionGrant.createCalled === false, "failed job second grant should not create");
   assertNoSensitiveLeak(missed);
+
+  const unknownView = await createReadyTestJob("execution-grant-smoke:create-40000-unclassified");
+  const unknownState = await writeProjectStateForScope(unknownView);
+  const unknown = await executeConfirmedLaunch({
+    repo,
+    jobId: unknownView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: fakeFetchFactory({
+      projectId: "999900009",
+      createApiCode: "40000",
+      createObjectIdPresent: false,
+      listMatch: false,
+      createMessage: "opaque platform condition"
+    }),
+    projectStatePath: unknownState
+  });
+  const unknownAudit = await repo.getLaunchJobBundle(unknownView.jobId);
+  assert(unknownAudit.platformAction?.error_category === "unclassified", "unknown response should be classified without retaining text");
+  assert(unknownAudit.platformAction?.offending_field_path === "", "unknown response must not retain a field path");
+  assert(!JSON.stringify(unknownAudit.platformAction || {}).includes("opaque platform condition"), "unknown platform text must not be persisted");
+  assertNoSensitiveLeak(unknown);
 
   const preGateView = await createTestJob("execution-grant-smoke:pre-create-blocked");
   const preGateFetch = fakeFetchFactory({ projectId: "999900007" });

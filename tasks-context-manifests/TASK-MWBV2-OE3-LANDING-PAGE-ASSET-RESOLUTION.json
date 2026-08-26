@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION",
+  "status": "completed",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "为 OE3 字节小游戏补齐备用网页落地页资产、账户可见性 gate 和 external_url_material_list 合同。",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "legacy_project_policy": "reference_only_no_runtime_dependency"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/方案-投放创建Agent开发方案_20260823.md",
+    "docs/OE3-std-project-create字段来源复盘_JOB-MWBV2-20260825041227-12D2B5_20260825.md",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.md",
+    "schemas/postgres-minimal-truth.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/workflows/skills/oe3/launch-pack.mjs",
+    "src/workflows/skills/oe3/resource-verifiers.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+    "project.state.json",
+    "db/",
+    "src/repositories/",
+    "src/workflows/skills/oe3/",
+    "src/server/",
+    "frontend/",
+    "scripts/",
+    "package.json",
+    "Postgres marketing_workbench_v2.mwb only"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "OceanEngine platform write API",
+    "token refresh",
+    "material upload or bind",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "legacy project runtime import or shell call",
+    "saving token, Cookie, full URL, raw payload, or raw response"
+  ],
+  "acceptance": [
+    "landing_page_assets table and constraints",
+    "backup_landing_page resource type supported",
+    "reference candidates imported without forged URL",
+    "workflow blocks until active HTTPS URL and target account readback are verified",
+    "external_url_material_list only built from controlled verified URL",
+    "API/frontend expose only safe summary",
+    "smoke:api and payload contract pass",
+    "platform write count remains zero"
+  ],
+  "completion": {
+    "project_status": "idle",
+    "migration_applied": "db/016_add_landing_page_assets.sql",
+    "default_landing_page_status": "reference_candidate",
+    "default_landing_page_url_present": false,
+    "workflow_gate": "blocked_until_backup_landing_page_url_and_target_visibility_verified",
+    "platform_write_called": false,
+    "credential_refresh_called": false,
+    "legacy_runtime_dependency": false,
+    "next_gate": "readonly resolve/verify backup landing page HTTPS URL and target account visibility"
+  }
+}

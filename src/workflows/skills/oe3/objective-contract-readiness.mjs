@@ -151,12 +151,12 @@ export async function runObjectiveContractReadonlyGate({
   const microApp = resource(bundle, "micro_app_instance");
   const { payloadDefaults, contractMapping } = routePayloadConfig(bundle);
   const mapping = {
-    miniGameInstanceCreateFieldName: clean(contractMapping.mini_game_instance_create_field),
+    miniGameInstanceCandidateCreateField: clean(contractMapping.mini_game_instance_candidate_create_field || contractMapping.mini_game_instance_create_field),
     optimizedGoalQueryInstanceFieldName: clean(contractMapping.optimized_goal_query_instance_field),
     optimizedGoalQueryAppFieldName: clean(contractMapping.optimized_goal_query_app_field)
   };
   const localReady = mockReady || resourceReady(item);
-  const mappingReady = mapping.miniGameInstanceCreateFieldName === "instance_id" &&
+  const mappingReady = mapping.miniGameInstanceCandidateCreateField === "instance_id" &&
     mapping.optimizedGoalQueryInstanceFieldName === "micro_app_instance_id" &&
     mapping.optimizedGoalQueryAppFieldName === "mini_program_id";
   if (!localReady || !mappingReady) {

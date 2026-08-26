@@ -33,6 +33,27 @@ function safeTouchpointJson(alias = "t") {
   )`;
 }
 
+function safeLandingPageJson(alias = "lpa") {
+  return `jsonb_build_object(
+    'landing_page_asset_id', ${alias}.landing_page_asset_id,
+    'route_id', ${alias}.route_id,
+    'game_code', ${alias}.game_code,
+    'site_id', ${alias}.site_id,
+    'site_name', ${alias}.site_name,
+    'url_hash', ${alias}.url_hash,
+    'source_advertiser_id', ${alias}.source_advertiser_id,
+    'share_scope', ${alias}.share_scope,
+    'is_default', ${alias}.is_default,
+    'status', ${alias}.status,
+    'source_usage', ${alias}.source_usage,
+    'landing_url_present', (${alias}.landing_url IS NOT NULL AND ${alias}.landing_url <> ''),
+    'landing_url_https', (${alias}.landing_url ~ '^https://'),
+    'metadata', ${alias}.metadata,
+    'created_at', ${alias}.created_at,
+    'updated_at', ${alias}.updated_at
+  )`;
+}
+
 function assertId(name, value, pattern = /^[A-Za-z0-9_:\-.]+$/) {
   const text = String(value ?? "");
   if (!text || !pattern.test(text)) {
@@ -160,6 +181,22 @@ export class PostgresRepository {
           ORDER BY mp.updated_at DESC
           LIMIT 1
         ),
+        'backupLandingPage', (
+          SELECT ${safeLandingPageJson("lpa")}
+          FROM mwb.landing_page_assets lpa
+          WHERE lpa.route_id = r.route_id
+            AND lpa.game_code = g.game_code
+            AND lpa.is_default = true
+          ORDER BY
+            CASE lpa.status
+              WHEN 'active' THEN 1
+              WHEN 'resolved' THEN 2
+              WHEN 'reference_candidate' THEN 3
+              ELSE 4
+            END,
+            lpa.updated_at DESC
+          LIMIT 1
+        ),
         'resources', (
           SELECT coalesce(jsonb_agg(to_jsonb(ar) ORDER BY ar.resource_type, ar.resource_id), '[]'::jsonb)
           FROM mwb.account_resources ar
@@ -231,6 +268,22 @@ export class PostgresRepository {
           ORDER BY mp.updated_at DESC
           LIMIT 1
         ),
+        'backupLandingPage', (
+          SELECT ${safeLandingPageJson("lpa")}
+          FROM mwb.landing_page_assets lpa
+          WHERE lpa.route_id = j.route_id
+            AND lpa.game_code = j.game_code
+            AND lpa.is_default = true
+          ORDER BY
+            CASE lpa.status
+              WHEN 'active' THEN 1
+              WHEN 'resolved' THEN 2
+              WHEN 'reference_candidate' THEN 3
+              ELSE 4
+            END,
+            lpa.updated_at DESC
+          LIMIT 1
+        ),
         'resources', (
           SELECT coalesce(jsonb_agg(to_jsonb(ar) ORDER BY ar.resource_type, ar.resource_id), '[]'::jsonb)
           FROM mwb.account_resources ar
@@ -280,8 +333,8 @@ export class PostgresRepository {
             'request_id_recorded', (pa.request_id <> ''),
             'object_id_present', pa.object_id_present,
             'error_summary', pa.error_summary,
-            'platform_error_message_safe', pa.platform_error_message_safe,
-            'platform_error_field', pa.platform_error_field,
+            'error_category', pa.error_category,
+            'offending_field_path', pa.offending_field_path,
             'request_field_manifest', pa.request_field_manifest,
             'response_summary', pa.response_summary,
             'started_at', pa.started_at,
@@ -505,6 +558,128 @@ export class PostgresRepository {
         AND t.monitor_id = ${sqlLiteral(monitorId)}
       ORDER BY t.updated_at DESC
       LIMIT 1;
+    `, this.database);
+  }
+
+  async getControlledBackupLandingPageUrl({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'landing_page_asset_id', lpa.landing_page_asset_id,
+        'site_id', lpa.site_id,
+        'site_name', lpa.site_name,
+        'url_hash', lpa.url_hash,
+        'status', lpa.status,
+        'landing_url', lpa.landing_url,
+        'resource_visibility_status', ar.visibility_status,
+        'resource_readback_status', ar.readback_status,
+        'resource_readonly_status', ar.metadata->'readonly_check'->>'status'
+      )::text
+      FROM mwb.landing_page_assets lpa
+      JOIN mwb.account_resources ar
+        ON ar.route_id = lpa.route_id
+       AND ar.game_code = lpa.game_code
+       AND ar.advertiser_id = ${sqlLiteral(advertiserId)}
+       AND ar.resource_type = 'backup_landing_page'
+       AND ar.source_asset_id = lpa.landing_page_asset_id
+      WHERE lpa.route_id = ${sqlLiteral(routeId)}
+        AND lpa.game_code = ${sqlLiteral(gameCode)}
+        AND lpa.is_default = true
+        AND lpa.status = 'active'
+        AND lpa.landing_url IS NOT NULL
+        AND lpa.landing_url ~ '^https://'
+        AND ar.visibility_status = 'visible'
+        AND ar.readback_status = 'readback_verified'
+        AND coalesce(ar.metadata->'readonly_check'->>'status', '') IN ('passed', 'passed_by_manual_confirmation')
+      ORDER BY lpa.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getBackupLandingPageCandidates({ routeId, gameCode }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(${safeLandingPageJson("lpa")} ORDER BY lpa.is_default DESC, lpa.landing_page_asset_id), '[]'::jsonb)::text
+      FROM mwb.landing_page_assets lpa
+      WHERE lpa.route_id = ${sqlLiteral(routeId)}
+        AND lpa.game_code = ${sqlLiteral(gameCode)};
+    `, this.database);
+  }
+
+  async upsertLandingPageAsset({
+    landingPageAssetId,
+    routeId,
+    gameCode,
+    siteId,
+    siteName,
+    landingUrl = null,
+    sourceAdvertiserId,
+    shareScope = "organization_accounts",
+    isDefault = false,
+    status = "reference_candidate",
+    sourceUsage = "reference_only",
+    metadata = {}
+  }) {
+    assertId("landing_page_asset_id", landingPageAssetId);
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("site_id", siteId, /^[0-9]+$/);
+    if (sourceAdvertiserId) assertId("source_advertiser_id", sourceAdvertiserId, /^[0-9]+$/);
+    const cleanLandingUrl = landingUrl ? String(landingUrl).trim() : "";
+    const urlHash = cleanLandingUrl ? sha256Hex(cleanLandingUrl) : "";
+    await runPsql(`
+      INSERT INTO mwb.landing_page_assets (
+        landing_page_asset_id,
+        route_id,
+        game_code,
+        site_id,
+        site_name,
+        landing_url,
+        url_hash,
+        source_advertiser_id,
+        share_scope,
+        is_default,
+        status,
+        source_usage,
+        metadata,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(landingPageAssetId)},
+        ${sqlLiteral(routeId)},
+        ${sqlLiteral(gameCode)},
+        ${sqlLiteral(siteId)},
+        ${sqlLiteral(siteName || siteId)},
+        ${cleanLandingUrl ? sqlLiteral(cleanLandingUrl) : "NULL"},
+        ${sqlLiteral(urlHash)},
+        ${sqlLiteral(sourceAdvertiserId || "")},
+        ${sqlLiteral(shareScope)},
+        ${isDefault ? "true" : "false"},
+        ${sqlLiteral(status)},
+        ${sqlLiteral(sourceUsage)},
+        ${sqlJson(metadata || {})},
+        now(),
+        now()
+      )
+      ON CONFLICT (landing_page_asset_id) DO UPDATE SET
+        site_name = EXCLUDED.site_name,
+        landing_url = coalesce(EXCLUDED.landing_url, mwb.landing_page_assets.landing_url),
+        url_hash = CASE
+          WHEN EXCLUDED.landing_url IS NOT NULL THEN EXCLUDED.url_hash
+          ELSE mwb.landing_page_assets.url_hash
+        END,
+        source_advertiser_id = EXCLUDED.source_advertiser_id,
+        share_scope = EXCLUDED.share_scope,
+        is_default = EXCLUDED.is_default,
+        status = EXCLUDED.status,
+        source_usage = EXCLUDED.source_usage,
+        metadata = mwb.landing_page_assets.metadata || EXCLUDED.metadata,
+        updated_at = now();
     `, this.database);
   }
 
@@ -1012,7 +1187,7 @@ export class PostgresRepository {
           action_id, job_id, confirmation_id, action_type, endpoint, method,
           action_status, attempt_no, request_hash, response_hash, http_status,
           api_code, request_id_present, object_id_present, error_summary,
-          request_id, platform_error_message_safe, platform_error_field,
+          request_id, error_category, offending_field_path,
           request_field_manifest, response_summary, metadata, started_at, finished_at
         ) VALUES (
           ${sqlLiteral(action.actionId)}, ${sqlLiteral(action.jobId)}, ${sqlLiteral(action.confirmationId)},
@@ -1072,8 +1247,8 @@ export class PostgresRepository {
         object_id_present,
         error_summary,
         request_id,
-        platform_error_message_safe,
-        platform_error_field,
+        error_category,
+        offending_field_path,
         request_field_manifest,
         response_summary,
         metadata,
@@ -1096,8 +1271,8 @@ export class PostgresRepository {
         ${action.objectIdPresent ? "true" : "false"},
         ${sqlLiteral(action.errorSummary || "")},
         ${sqlLiteral(action.requestId || "")},
-        ${sqlLiteral(action.platformErrorMessageSafe || "")},
-        ${sqlLiteral(action.platformErrorField || "")},
+        ${sqlLiteral(action.errorCategory || "")},
+        ${sqlLiteral(action.offendingFieldPath || "")},
         ${sqlJson(action.requestFieldManifest || {})},
         ${sqlJson(action.responseSummary || {})},
         ${sqlJson(action.metadata || {})},
@@ -1114,8 +1289,8 @@ export class PostgresRepository {
         object_id_present = EXCLUDED.object_id_present,
         error_summary = EXCLUDED.error_summary,
         request_id = EXCLUDED.request_id,
-        platform_error_message_safe = EXCLUDED.platform_error_message_safe,
-        platform_error_field = EXCLUDED.platform_error_field,
+        error_category = EXCLUDED.error_category,
+        offending_field_path = EXCLUDED.offending_field_path,
         request_field_manifest = EXCLUDED.request_field_manifest,
         response_summary = EXCLUDED.response_summary,
         metadata = EXCLUDED.metadata,

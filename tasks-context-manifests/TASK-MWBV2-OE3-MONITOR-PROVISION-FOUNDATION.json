@@ -1,0 +1,122 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+  "status": "active",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "为账户 1871922346964041 的乾坤技术侧监测序号 provision 建立 v2 基础合同、数据结构、安全边界和后续任务拆分。",
+    "source_document": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "The source document is requirements input only; external writes still require explicit project guardrails and confirmation variables.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+    "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "schemas/postgres-minimal-truth.md",
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/004_refine_minimal_truth.sql",
+    "db/006_add_account_touchpoint_url.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/workflows/skills/oe3/runner.mjs",
+    "src/workflows/skills/oe3/payload-contract.mjs",
+    "package.json"
+  ],
+  "authoritative_api_doc": {
+    "path": "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "required_endpoints": [
+      "POST /tf/account_info/accountIndex",
+      "POST /tf/ad/index",
+      "POST /tf/ad/monitorSerialNumberAdd"
+    ],
+    "obsolete_experience": "docs/.参考文档/投放序列号/monitor_create.py may be referenced for flow and edge cases only; it is not an API contract or runtime dependency."
+  },
+  "task_split": [
+    {
+      "task_id": "TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION",
+      "status": "active",
+      "purpose": "Foundation: brief, DB and credential contracts, safety boundaries, planned command surface."
+    },
+    {
+      "task_id": "TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE",
+      "status": "planned",
+      "purpose": "Readonly reconcile: account identity, monitor list query, unique existing monitor import, touchpoint parse state."
+    },
+    {
+      "task_id": "TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE",
+      "status": "planned",
+      "purpose": "Create once only if necessary, list readback, and Workflow node 2 gate integration."
+    }
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+    "project.state.json",
+    "db/<next_monitor_provision_migration>.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "forbidden_actions": [
+    "calling POST /tf/ad/monitorSerialNumberAdd in this foundation task",
+    "calling OceanEngine std_project/create",
+    "creating promotions or ad projects",
+    "uploading materials",
+    "creating event assets",
+    "DMP push",
+    "budget or bid updates",
+    "token refresh",
+    "using /Users/hys/Projects/marketing-workbench as runtime dependency",
+    "writing token/secret/auth_code/Cookie/request header/raw payload/raw response/complete touchpoint URL to task files, normal logs, API, or frontend"
+  ],
+  "credential_contract": {
+    "env_file": ".local/qiankun-monitor.env",
+    "credential_store": ".local/qiankun-passport-credentials.json",
+    "owner_match_key": "owner_key",
+    "display_only_field": "owner_name",
+    "mismatch_policy": "block_without_trying_other_credentials",
+    "sensitive_storage_policy": "local_only_not_git_not_postgres"
+  },
+  "database_contract": {
+    "new_table": "mwb.monitor_provision_runs",
+    "reuse_tables": [
+      "mwb.advertiser_accounts",
+      "mwb.game_route_defaults",
+      "mwb.account_touchpoints",
+      "mwb.evidence_artifacts"
+    ],
+    "id_policy": "All platform IDs are strings unless an API contract explicitly requires a safely bounded number.",
+    "touchpoint_url_policy": "Full URL may only live in controlled local Postgres fields used for hash verification and payload building; ordinary API/frontend/task summaries must redact it."
+  },
+  "validation_plan": [
+    "npm run test:monitor-bootstrap",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency",
+    "Verify no token/header/raw payload/raw response/full touchpoint URL appears in project files or normal output"
+  ],
+  "current_open_questions": [
+    "No blocker for task preparation. Actual monitor_provision fixed parameters must be confirmed by existing v2 data and readonly technical API behavior before any create task."
+  ],
+  "completion_gate": "Foundation contracts are implemented or explicitly recorded, then project.state can move to TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE."
+}

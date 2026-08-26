@@ -15,6 +15,8 @@ const ALLOWED_ENDPOINTS = new Set([
   "https://ad.oceanengine.com/open_api/2/event_manager/available_events/get/",
   "https://ad.oceanengine.com/open_api/2/event_manager/event_configs/get/",
   "/open_api/v3.0/event_manager/optimized_goal/get/",
+  "/open_api/v3.0/tools/orange_site/get/",
+  "https://ad.oceanengine.com/open_api/2/tools/site/get/",
   "/open_api/v3.0/event_manager/dbt/get/",
   "file/video/get",
   "file/image/get",

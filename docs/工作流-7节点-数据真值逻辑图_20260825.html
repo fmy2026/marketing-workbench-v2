@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>marketing-workbench-v2 工作流与数据真值逻辑图</title>
+  <style>
+    :root { --ink:#18243a; --muted:#607087; --line:#dce4ee; --bg:#f4f7fb; --panel:#fff; --blue:#2878ee; --green:#0e9f6e; --orange:#f59e0b; --violet:#7656e8; --red:#d84d4d; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--bg); font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+    main { max-width:1580px; margin:0 auto; padding:34px 28px 56px; }
+    h1 { margin:0; font-size:28px; letter-spacing:0; }
+    h2 { margin:0 0 14px; font-size:19px; letter-spacing:0; }
+    h3 { margin:0 0 8px; font-size:15px; }
+    p { margin:0; }
+    code { color:#243a5d; background:#edf2f8; border-radius:4px; padding:1px 5px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; white-space:normal; word-break:break-word; }
+    .subtitle { margin-top:8px; color:var(--muted); max-width:980px; }
+    .note { margin-top:18px; border-left:3px solid var(--blue); background:#edf5ff; padding:12px 14px; color:#33506e; }
+    .grid { display:grid; gap:14px; }
+    .two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px; }
+    .section { margin-top:28px; }
+    .tag { display:inline-flex; align-items:center; min-height:23px; border-radius:12px; padding:2px 9px; margin:0 5px 5px 0; font-size:12px; font-weight:600; }
+    .tag.generic { color:#176246; background:#e5f6ee; }
+    .tag.oe3 { color:#4f3ca8; background:#efeaff; }
+    .tag.db { color:#165a9c; background:#e8f3ff; }
+    .tag.write { color:#a65c00; background:#fff1dc; }
+    .tag.block { color:#a33333; background:#ffeaea; }
+    .flow { display:grid; grid-template-columns:1fr 34px 1.35fr 34px 1fr; align-items:stretch; gap:0; }
+    .arrow { display:flex; align-items:center; justify-content:center; color:#91a2b8; font-size:24px; }
+    .flow-box { border:1px solid var(--line); border-radius:8px; padding:15px; background:#fff; }
+    .flow-box strong { display:block; margin-bottom:7px; }
+    .flow-box ul { margin:6px 0 0; padding-left:18px; color:var(--muted); }
+    .phase { margin-top:16px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
+    .phase-title { padding:10px 14px; font-weight:700; background:#f8fafc; border-bottom:1px solid var(--line); }
+    .phase.prepare .phase-title { border-left:4px solid var(--blue); }
+    .phase.ready .phase-title { border-left:4px solid var(--violet); }
+    .phase.execute .phase-title { border-left:4px solid var(--orange); }
+    .nodes { display:grid; grid-template-columns:repeat(3,minmax(230px,1fr)); gap:12px; padding:13px; }
+    .node { position:relative; min-height:210px; padding:15px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+    .node .num { position:absolute; top:12px; right:12px; width:25px; height:25px; display:grid; place-items:center; border-radius:50%; color:#fff; background:var(--blue); font-size:12px; font-weight:700; }
+    .ready .node .num { background:var(--violet); }
+    .execute .node .num { background:var(--orange); }
+    .node p { color:var(--muted); font-size:12px; }
+    .node ul { padding-left:17px; margin:8px 0; font-size:12px; }
+    .node .io { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:#50627a; }
+    .data-lanes { display:grid; grid-template-columns:1fr 34px 1.15fr 34px 1fr; align-items:stretch; }
+    .lane { border:1px solid var(--line); border-radius:8px; padding:15px; background:#fff; }
+    .lane h3 { color:#263c5c; }
+    .lane ul { margin:8px 0 0; padding-left:18px; color:#53667e; }
+    .lane .db-name { display:block; margin:7px 0 2px; font-weight:700; color:#244b77; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    table { width:100%; min-width:1370px; border-collapse:collapse; background:#fff; }
+    th,td { padding:11px 12px; vertical-align:top; text-align:left; border-bottom:1px solid var(--line); }
+    th { position:sticky; top:0; z-index:1; color:#42536d; background:#f6f8fc; font-size:12px; }
+    td { font-size:12px; }
+    tr:last-child td { border-bottom:0; }
+    .small { color:var(--muted); font-size:12px; }
+    .assessment { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+    .assessment .panel { min-height:165px; }
+    .good { border-top:3px solid var(--green); }
+    .watch { border-top:3px solid var(--orange); }
+    .later { border-top:3px solid var(--violet); }
+    ol { margin:8px 0 0; padding-left:18px; color:#50627a; }
+    @media (max-width:960px) { main { padding:22px 14px 40px; } .two,.three,.assessment { grid-template-columns:1fr; } .flow,.data-lanes { grid-template-columns:1fr; gap:8px; } .arrow { min-height:24px; transform:rotate(90deg); } .nodes { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>marketing-workbench-v2：7 节点 Workflow 与 Postgres 真值逻辑图</h1>
+  <p class="subtitle">范围：当前第一版 <code>oceanengine_3_byte_mini_game</code> 路线与 <code>std_project</code>。这是“通用工作台骨架 + OE3 路线 Skill 实现”，不是已经支持所有媒体平台的通用编排器。</p>
+  <div class="note">结论先行：7 节点、单次运行包、Skill 日志、草稿 hash 与平台写入边界的分层是清晰的。最重要的真值入口是 <code>mwb.launch_jobs</code> 的一轮任务，Repository 将维度事实一次装配为 bundle，Skill 只消费 bundle 并写入可审计摘要。</div>
+
+  <section class="section">
+    <h2>一、总链路：入口、编排、数据与审计</h2>
+    <div class="flow">
+      <div class="flow-box">
+        <strong>用户与工作台</strong>
+        <span class="tag generic">通用入口</span>
+        <ul>
+          <li>自然语言 Intake</li>
+          <li>固定三元组：路线、游戏、账户</li>
+          <li>页面只显示动态节点状态与摘要</li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="flow-box">
+        <strong>统一运行链路</strong>
+        <span class="tag generic">通用骨架</span>
+        <span class="tag oe3">OE3 Skill</span>
+        <ul>
+          <li><code>src/agents/launchAgent.mjs</code></li>
+          <li><code>src/workflows/launchWorkflow.mjs</code></li>
+          <li><code>src/workflows/skills/oe3/runner.mjs</code></li>
+          <li><code>src/repositories/postgresRepository.mjs</code></li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="flow-box">
+        <strong>Postgres 与平台边界</strong>
+        <span class="tag db">Postgres 真值</span>
+        <span class="tag write">受控写入</span>
+        <ul>
+          <li>维度表装配事实</li>
+          <li>运行表记录每轮、节点、Skill、草稿</li>
+          <li>节点 6 才允许受 grant 约束的单次写入</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>二、3 阶段、7 节点与子流程</h2>
+    <div class="phase prepare">
+      <div class="phase-title">准备阶段：把自然语言收成可运行的单轮上下文</div>
+      <div class="nodes">
+        <article class="node"><span class="num">1</span><h3>Intake 规范</h3><span class="tag generic">通用</span><span class="tag oe3">当前只识别 OE3 路线</span><ul><li><code>intake-normalize</code></li><li>路线、游戏、账户归一</li></ul><div class="io"><b>读：</b><code>launch_jobs.route_id/game_code/advertiser_id</code><br><b>写：</b><code>launch_skill_runs</code>、<code>launch_node_runs</code></div></article>
+        <article class="node"><span class="num">2</span><h3>创建上下文装配</h3><span class="tag generic">通用上下文形态</span><span class="tag oe3">OE3 app 规则</span><ul><li><code>context-resolve-account</code></li><li><code>context-resolve-touchpoint</code></li><li><code>context-resolve-platform-app</code></li></ul><div class="io"><b>读：</b>账户、触点、平台 App<br><b>写：</b>Skill/节点状态摘要</div></article>
+        <article class="node"><span class="num">3</span><h3>游戏保底包解析</h3><span class="tag generic">维度装配</span><span class="tag oe3">OE3 默认策略</span><ul><li><code>launch-pack-resolve-game</code></li><li><code>launch-pack-resolve-defaults</code></li><li><code>launch-pack-resolve-materials</code></li></ul><div class="io"><b>读：</b>游戏主档、路线默认值、物料包<br><b>写：</b>Skill/节点状态摘要</div></article>
+      </div>
+    </div>
+    <div class="phase ready">
+      <div class="phase-title">就绪阶段：逐个验证账户资源，再生成可校验草稿</div>
+      <div class="nodes">
+        <article class="node"><span class="num">4</span><h3>账户资源诊断与补齐</h3><span class="tag generic">资源检查骨架</span><span class="tag oe3">7 个 OE3 资源 Skill</span><ul><li>头像、DMP、事件链、视频、产品图</li><li>品牌、小游戏实例</li><li>视频子流程：物料户 → 目标账户 → 回查</li></ul><div class="io"><b>读/更新：</b><code>account_resources.metadata</code><br><b>写：</b>Skill/节点运行、脱敏证据</div></article>
+        <article class="node"><span class="num">5</span><h3>创建草稿生成</h3><span class="tag oe3">std_project 专用</span><ul><li><code>payload-build</code></li><li><code>payload-contract</code></li><li><code>duplicate-check</code></li><li><code>create-readiness</code></li></ul><div class="io"><b>读：</b>完整 bundle + 受控触点<br><b>写：</b><code>launch_drafts</code>、查重证据、节点状态</div></article>
+      </div>
+    </div>
+    <div class="phase execute">
+      <div class="phase-title">创建执行：仅在严格 execution grant 下单次写入，随后自动回查</div>
+      <div class="nodes">
+        <article class="node"><span class="num">6</span><h3>创建执行</h3><span class="tag oe3">受控平台写入</span><span class="tag write">单次</span><ul><li><code>create-once</code> Skill</li><li><code>executeConfirmedLaunch.mjs</code></li><li><code>oceanengineStdProjectCreateExecutor.mjs</code></li></ul><div class="io"><b>读：</b>grant、fresh hash、草稿、资源<br><b>写：</b>确认、动作、创建对象</div></article>
+        <article class="node"><span class="num">7</span><h3>回查收口</h3><span class="tag generic">回查模式可复用</span><span class="tag oe3">std_project 查询</span><ul><li><code>readback-std-project</code></li><li>对象 ID、名称、状态、字段 diff</li><li>创建成功或异常后均留证据</li></ul><div class="io"><b>读：</b>创建对象/项目名<br><b>写：</b><code>readback_records</code>、证据</div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>三、Postgres 真值分层</h2>
+    <div class="data-lanes">
+      <div class="lane"><h3>维度事实：可复用的输入</h3><span class="db-name">路线与游戏</span><ul><li><code>platform_routes</code>：<code>route_id</code>、<code>platform</code>、<code>marketing_product</code>、<code>object_type</code></li><li><code>games</code>：<code>game_code</code>、产品、品类、品牌</li><li><code>game_platform_apps</code>：平台 + app 类型 → <code>app_id</code></li></ul><span class="db-name">策略与物料</span><ul><li><code>game_route_defaults</code>：目标、预算、出价、<code>raw_defaults</code></li><li><code>material_packs</code> / <code>material_pack_items</code></li><li><code>game_assets</code>：视频、产品图、身份等 <code>metadata</code></li></ul></div>
+      <div class="arrow">→</div>
+      <div class="lane"><h3>单轮 bundle：唯一装配点</h3><p class="small">由 <code>getLaunchJobBundle(jobId)</code> 以 <code>launch_jobs</code> 为锚点聚合。Workflow 不应散落地自行查询业务表。</p><ul><li><code>job</code>：当前轮次与三元组</li><li><code>route / game / account</code></li><li><code>touchpoint / defaults / platformApp</code></li><li><code>materialPack.items[]</code></li><li><code>resources[]</code></li><li><code>nodes / draft / platformAction / readback</code></li></ul></div>
+      <div class="arrow">→</div>
+      <div class="lane"><h3>运行与审计：每轮输出</h3><ul><li><code>launch_jobs</code>：轮次状态</li><li><code>launch_node_runs</code>：7 节点结果</li><li><code>launch_skill_runs</code>：细粒度 Skill</li><li><code>launch_drafts</code>：摘要 + hash，非 raw payload</li><li><code>launch_confirmations</code> / <code>platform_actions</code> / <code>created_objects</code></li><li><code>readback_records</code> / <code>evidence_artifacts</code></li></ul></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>四、节点 / Skill / 脚本 / 表字段总表</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>节点</th><th>子 Skill 与核心脚本</th><th>读取的 Postgres 表与字段</th><th>输出 / 写入</th><th>通用性与简洁性判断</th></tr></thead>
+      <tbody>
+        <tr><td>1<br>Intake</td><td><code>launchAgent.mjs</code><br><code>context.mjs / intake-normalize</code></td><td><code>launch_jobs.route_id</code><br><code>launch_jobs.game_code</code><br><code>launch_jobs.advertiser_id</code><br><span class="small">自然语言在入库前由 Agent 解析；节点本身不应读取素材表。</span></td><td><code>launch_skill_runs</code>：输入 hash、缺参、状态<br><code>launch_node_runs</code>：节点摘要</td><td><span class="tag generic">结构通用</span><br>最小且合理。不同平台只需扩 route 的解析规则。</td></tr>
+        <tr><td>2<br>账户上下文</td><td><code>context-resolve-account</code><br><code>context-resolve-touchpoint</code><br><code>context-resolve-platform-app</code></td><td><code>advertiser_accounts.auth_status</code>、<code>monitor_id</code><br><code>account_touchpoints.touchpoint_ref</code>、<code>url_hash</code>、<code>status</code>、受控 <code>touchpoint_url</code><br><code>game_platform_apps.platform/app_type/app_id/status</code><br><code>platform_routes.platform/marketing_product</code></td><td>仅写 Skill/节点运行摘要。触点 URL 不出 bundle 的公开视图，不写日志。</td><td><span class="tag generic">上下文模式通用</span><br><span class="tag oe3">平台 App 匹配规则专用</span><br>合理。</td></tr>
+        <tr><td>3<br>游戏保底包</td><td><code>launch-pack.mjs</code><br><code>launch-pack-resolve-game/defaults/materials</code></td><td><code>games.game_name/product_name/brand_name</code><br><code>game_route_defaults.objective/deep_objective/deep_bid_type/budget/bid/roi_goal/schedule/raw_defaults</code><br><code>material_packs.pack_id/status/summary</code><br><code>material_pack_items.asset_id/asset_ref/item_type/required/sort_order</code><br><code>game_assets.asset_type/asset_name/metadata</code></td><td>仅写 Skill/节点运行摘要，如物料包 ID、必需视频数。</td><td><span class="tag generic">保底包模式通用</span><br><span class="tag oe3">字段含义专用</span><br>简洁；业务默认值已回收到 DB。</td></tr>
+        <tr><td>4<br>普通资源</td><td><code>resource-verifiers.mjs</code><br>头像、产品图、品牌、小游戏实例</td><td><code>account_resources.resource_type</code>、<code>source_asset_id</code>、<code>platform_resource_id</code>、<code>visibility_status</code>、<code>readback_status</code>、<code>metadata.readonly_check</code></td><td><code>launch_skill_runs</code>、<code>launch_node_runs</code><br>仅需要时更新 <code>account_resources</code></td><td><span class="tag generic">验证器模式通用</span><br>使用一张资源表足够轻；资源专有事实放 JSONB 是当前最小做法。</td></tr>
+        <tr><td>4<br>DMP</td><td><code>dmp-readonly.mjs</code><br><code>oceanengineReadonlyClient.mjs</code></td><td><code>account_resources</code> 的 DMP 行及 <code>metadata.custom_audience_ids</code><br><code>game_route_defaults.dmp_summary</code></td><td>回写脱敏 DMP 可用状态与证据：<code>account_resources</code>、<code>evidence_artifacts</code>；最终写入草稿的 <code>audience.retargeting_tags_exclude</code>。</td><td><span class="tag oe3">接口专用</span><br>拆成独立 Skill 是正确的，不能塞进通用资源 verifier。</td></tr>
+        <tr><td>4<br>事件与目标</td><td><code>objective-contract-readiness.mjs</code><br><code>readonly-permission.mjs</code></td><td><code>account_resources</code> 的 <code>event_asset</code>、<code>micro_app_instance</code> 行及 <code>metadata</code><br><code>game_route_defaults.objective/deep_objective/deep_bid_type/raw_defaults</code></td><td>写只读证据与 Skill 摘要；确认优化目标、深度目标、实例映射可用。</td><td><span class="tag oe3">OE3 合同专用</span><br>独立 Skill 合理，便于精确定位 40000 类字段问题。</td></tr>
+        <tr><td>4<br>视频素材</td><td><code>video-material-readiness.mjs</code><br><code>oceanengineVideoMaterialExecutor.mjs</code></td><td><code>material_pack_items.required/item_type/asset_id</code><br><code>game_assets.metadata.video_id/video_cover_id/local_file</code><br><code>game_route_defaults.raw_defaults.material_source_account</code><br><code>account_resources</code> 中每条 <code>video_asset + source_asset_id</code></td><td>逐条写资源回查与证据；manifest 仅保留 <code>finalMaterialReadiness</code> 摘要。必要时在独立 grant 下上传/绑定。</td><td><span class="tag oe3">OE3 素材接口专用</span><br>当前拆分最合理：视频按 asset 逐条，而非一条泛化资源。</td></tr>
+        <tr><td>5<br>Payload 构建</td><td><code>payload.mjs</code><br><code>payload-contract.mjs / buildSkillDraft</code><br><code>stdProjectNameBuilder.mjs</code></td><td>读取完整 bundle：<code>launch_jobs</code>、账户、触点、默认值、平台 App、物料、资源。<br>关键：受控 <code>account_touchpoints.touchpoint_url</code> 只在内存取用。</td><td><code>launch_drafts.project_name</code>、<code>payload_summary</code>、<code>payload_hash</code>、<code>write_policy</code>。<br>不保存 raw payload。</td><td><span class="tag oe3">std_project 专用</span><br>边界清楚；路线业务值主要来自 DB，安全性良好。</td></tr>
+        <tr><td>5<br>合同、查重、放行</td><td><code>evaluateOe3PayloadContract</code><br><code>create-preflight-diagnostics.mjs</code><br><code>duplicate-readonly.mjs</code></td><td><code>launch_drafts.payload_summary/payload_hash/duplicate_status</code><br><code>platform_actions</code>、<code>created_objects</code><br>只读平台项目列表与资源证据</td><td>更新 <code>launch_drafts.duplicate_status</code>；写 <code>launch_skill_runs</code>、<code>launch_node_runs</code>、<code>evidence_artifacts</code>。</td><td><span class="tag generic">hash/查重模式通用</span><br><span class="tag oe3">字段合同专用</span><br>合理。</td></tr>
+        <tr><td>6<br>单次创建</td><td><code>executeConfirmedLaunch.mjs</code><br><code>create-once.mjs</code><br><code>oceanengineStdProjectCreateExecutor.mjs</code></td><td><code>project.state.json.guardrails.platform_write_scope</code><br><code>launch_jobs</code>、<code>launch_drafts.payload_hash</code><br><code>launch_confirmations</code>、<code>platform_actions</code>、<code>created_objects</code></td><td>一次确认 → 一次平台动作 → 创建对象记录。写入后撤销 scope；失败不可重试。</td><td><span class="tag generic">grant / once 模式通用</span><br><span class="tag oe3">请求体与接口专用</span><br>安全边界正确。</td></tr>
+        <tr><td>7<br>回查收口</td><td><code>readback.mjs</code><br><code>oceanengineStdProjectCreateExecutor.mjs</code> 的 list 逻辑</td><td><code>launch_jobs</code>、<code>launch_drafts.project_name</code><br><code>created_objects.object_id/object_name</code><br>平台只读项目列表</td><td><code>readback_records.object_id/object_name/readback_status/field_diff_summary</code><br><code>evidence_artifacts</code>、节点/Skill 记录。</td><td><span class="tag generic">回查模型通用</span><br><span class="tag oe3">项目字段 diff 专用</span><br>合理。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="section">
+    <h2>五、当前是否“通用且最简洁”</h2>
+    <div class="assessment">
+      <article class="panel good"><h3>已经正确的部分</h3><ol><li>一轮任务以 <code>launch_jobs</code> 为锚点，运行记录不再依赖文件夹。</li><li>Repository 聚合 bundle，避免 Skill 到处拼 SQL。</li><li>节点状态与 Skill 状态分表，既保持工作台简洁，也能定位最小故障单元。</li><li>raw payload 与受控触点不落普通记录，只保留 hash 与摘要。</li></ol></article>
+      <article class="panel watch"><h3>应保持警觉的三点</h3><ol><li><code>launchWorkflow.mjs</code> 与 <code>runner.mjs</code> 各自维护 7 节点定义，存在双写漂移风险；应以后者或独立 definition 模块为唯一来源。</li><li>当前 runner 以 <code>if/else</code> 分发 OE3 Skill，第一版可读，但它并非多平台通用注册器。</li><li>物料包按“当前最新 active/baseline”装配；关键创建轮次最好在草稿摘要中固化实际 <code>pack_id</code> 与资源版本，防止运行期间基准包变化。</li></ol></article>
+      <article class="panel later"><h3>现在不必提前做的事</h3><ol><li>不必为了未来平台先搭通用 DAG 引擎或插件系统。</li><li>不必把 <code>account_resources.metadata</code> 立即拆成多张资源表；现阶段只需为重要 JSONB shape 配 schema/test。</li><li>不必让前端理解 Skill；前端只读节点摘要、进度、阻断与一次确认状态。</li></ol></article>
+    </div>
+  </section>
+</main>
+</body>
+</html>

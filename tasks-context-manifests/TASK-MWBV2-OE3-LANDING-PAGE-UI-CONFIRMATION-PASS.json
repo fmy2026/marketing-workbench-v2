@@ -1,0 +1,70 @@
+{
+  "manifest_version": "2026-08-23.task-context-v1",
+  "task_id": "TASK-MWBV2-OE3-LANDING-PAGE-UI-CONFIRMATION-PASS",
+  "status": "completed",
+  "owner_agent": "codex",
+  "created_at": "2026-08-25 CST",
+  "updated_at": "2026-08-25 CST",
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-LANDING-PAGE-2P0-SITE-READONLY-RESOLVE.md",
+    "scripts/oe3-landing-page-source-target-readonly-inventory.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/15-建站管理.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/13-建站管理.md"
+  ],
+  "user_supplied_fact": {
+    "target_advertiser_id": "1871922175825993",
+    "target_project_id": "7675218401040220179",
+    "default_site_id": "7624750304608649243",
+    "fact": "target account project edit page can select and display the default landing page"
+  },
+  "official_doc_interpretation": {
+    "site_get_can_query_site_list": true,
+    "site_get_share_type_is_source_classifier": true,
+    "site_url_construct_allowed_from_site_id": true,
+    "orange_site_get_is_auxiliary": true,
+    "orange_site_get_does_not_distinguish_self_created_or_shared": true
+  },
+  "decision": {
+    "previous_blocker": "default_landing_page_not_visible_in_target_account",
+    "new_status": "passed_by_manual_confirmation",
+    "reason": "The target account UI has stronger direct evidence for create/edit usability than the inconclusive readonly list probe.",
+    "api_probe_inconsistency_retained": true
+  },
+  "postgres_updates": [
+    {
+      "table": "mwb.landing_page_assets",
+      "key": "LPA-JSZC-OE3-BACKUP-001",
+      "updates": {
+        "status": "active",
+        "source_usage": "runtime_truth",
+        "manual_ui_confirmation_status": "passed_by_manual_confirmation"
+      }
+    },
+    {
+      "table": "mwb.account_resources",
+      "key": "1871922175825993/oceanengine_3_byte_mini_game/JSZC/backup_landing_page/LPA-JSZC-OE3-BACKUP-001",
+      "updates": {
+        "visibility_status": "visible",
+        "readback_status": "readback_verified",
+        "readonly_check.status": "passed_by_manual_confirmation"
+      }
+    },
+    {
+      "table": "mwb.evidence_artifacts",
+      "key": "EV-OE3-LANDING-PAGE-TARGET-UI-MANUAL-CONFIRM-1871922175825993-7624750304608649243",
+      "content": "redacted manual UI confirmation evidence"
+    }
+  ],
+  "guardrails": {
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "std_project_create_called": false,
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "full_landing_url_in_manifest": false
+  },
+  "next_gate": "Create a fresh runtime job and rerun preflight/payload contract. Real std_project/create still requires a separate one-time confirmation task."
+}

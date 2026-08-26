@@ -1,0 +1,56 @@
+{
+  "task_id": "TASK-MWBV2-OE3-INSTANCE-ID-CREATE-EVIDENCE-RECONCILIATION",
+  "owner_agent": "codex",
+  "status": "completed",
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-CREATE-DIAGNOSTICS-AND-FIELD-CONTRACT-HARDENING.md",
+    "src/workflows/skills/oe3/official-create-field-contract.mjs",
+    "src/workflows/skills/oe3/payload.mjs",
+    "src/workflows/skills/oe3/create-preflight-diagnostics.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "db/017_harden_platform_action_diagnostics.sql",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "failed_job_id": "JOB-MWBV2-20260825083821-9DB6FE",
+    "official_docs": [
+      "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+      "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md",
+      "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/标准项目下获取可用优化目标.md"
+    ]
+  },
+  "permissions": {
+    "v2_postgres_schema_migration": true,
+    "platform_readonly": false,
+    "platform_write": false,
+    "token_refresh": false,
+    "create_retry": false
+  },
+  "safety": {
+    "raw_payload_storage": false,
+    "raw_response_storage": false,
+    "full_sensitive_url_storage": false,
+    "official_docs_only": true
+  },
+  "acceptance": [
+    "Related endpoint fields are never upgraded to direct create evidence.",
+    "Unverified instance candidate is omitted but remains a blocking preflight condition.",
+    "The historical failed job remains unchanged."
+  ],
+  "completion": {
+    "migration": "db/018_reconcile_oe3_instance_id_create_evidence.sql",
+    "check_command": "npm run check:oe3-instance-id-evidence",
+    "result": "blocked_waiting_long_id_json_transport_contract",
+    "failed_job": {
+      "job_id": "JOB-MWBV2-20260825083821-9DB6FE",
+      "job_status": "failed_waiting_manual_review",
+      "platform_actions": 1,
+      "created_objects": 0
+    },
+    "next_gate": "Add local-official or written platform evidence for 19-digit instance_id JSON number transport, rerun the check, then create a fresh runtime job and obtain a new execution grant."
+  }
+}
