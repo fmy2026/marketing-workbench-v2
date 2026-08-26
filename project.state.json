@@ -7,37 +7,24 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "active_monitor_provision_foundation",
+  "project_status": "blocked_after_single_qiankun_monitor_create_attempt",
   "phase": {
-    "id": "OE3-MONITOR-PROVISION-FOUNDATION",
-    "status": "active",
-    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md"
+    "id": "OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE",
+    "status": "completed_with_blockers",
+    "plan_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md"
   },
-  "active_task": {
-    "task_id": "TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION",
-    "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
-    "status": "active",
-    "owner_agent": "codex",
-    "read_order": [
-      "AGENTS.md",
-      "project.state.json",
-      "/Users/hys/Desktop/需求表述.md",
-      "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json"
-    ]
-  },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-LANDING-PAGE-UI-CONFIRMATION-PASS.md",
-  "next_gate": "为新目标账户 1871922346964041 建立乾坤技术侧监测序号 provision foundation：先完成 DB/凭据/敏感信息合同和三任务拆分；本阶段禁止监测序号创建和 OceanEngine std_project/create。完成后进入只读账户身份与 /tf/ad/index 列表 reconcile。",
+  "active_task": null,
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+  "next_gate": "第三关已完成但平台返回 blocker。已回填本地 owner_key=fengmeiyu，已写入 JSZC monitor_provision 默认值，已新增 PostgreSQL 报表 view；确认变量下已调用一次 /tf/ad/monitorSerialNumberAdd，HTTP 200 但业务 code=500、message=服务器繁忙，请稍后重试(400)，创建后 /tf/ad/index 回查 resultTotal=0。已记录 create_called=true、create_attempt_no=1、retry_allowed=false；当前 monitor_id 与 touchpoint_url 仍未解析，Workflow 节点 2 不可通过。下一步需要人工/乾坤技术侧排查该 code=500，禁止自动重试创建。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_no_platform_write",
+      "mode": "read_only_after_single_qiankun_monitor_create_attempt",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
       "target_project_name": "",
-      "target_advertiser_id": "",
+      "target_advertiser_id": "1871922346964041",
       "allowed_actions": [],
       "maximum_actions": 0,
       "retry_allowed": false,
@@ -91,10 +78,10 @@
     "agent_entrypoints": "src/agents/launchAgent.mjs",
     "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
     "repositories": "src/repositories/postgresRepository.mjs",
-    "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, and separately gated one confirmed std_project/create executor. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
-    "database_migrations_and_seed": "db/",
+    "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, and Qiankun monitor provision status/reconcile/create-once. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
+    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql",
     "schemas": "schemas/",
-    "local_scripts": "scripts/",
+    "local_scripts": "scripts/ including monitor:status, monitor:reconcile, monitor:create-once, monitor:report",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
     "runtime_state": "idle",

@@ -166,8 +166,8 @@ export const OE3_SKILL_DEFINITIONS = [
   }
 ];
 
-const SENSITIVE_KEY = /(^|[_-])(touchpoint_url|landing_url|raw_payload|raw_response|access_token|refresh_token|app_secret|secret|auth_code|cookie|access-token)([_-]|$)/i;
-const SENSITIVE_VALUE = /(tf-api\.3k\.com|callback\/click|sslocal:\/\/|Bearer\s+[A-Za-z0-9._-]{20,}|OCEANENGINE_(ACCESS|REFRESH)_TOKEN|OCEANENGINE_APP_SECRET)/i;
+const SENSITIVE_KEY = /((^|[_-])(touchpoint_url|landing_url|raw_payload|raw_response|raw_request|request_header|access_token|refresh_token|passport_token|x_passport_token|app_secret|secret|auth_code|cookie|access-token|x-passport-token)([_-]|$)|controlledTouchpointUrl|touchpointUrl(?!Present|Hash|ControlledPresent))/i;
+const SENSITIVE_VALUE = /(tf-api\.3k\.com|callback\/click|sslocal:\/\/|Bearer\s+[A-Za-z0-9._-]{20,}|X-Passport-Token:\s*\S{8,}|OCEANENGINE_(ACCESS|REFRESH)_TOKEN|OCEANENGINE_APP_SECRET)/i;
 
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -199,8 +199,27 @@ export function sanitizeForPublic(value) {
 }
 
 export function assertNoSensitiveLeak(value) {
-  const text = JSON.stringify(value);
-  if (SENSITIVE_KEY.test(text) || SENSITIVE_VALUE.test(text)) {
+  let leaked = false;
+  const visit = (item) => {
+    if (leaked) return;
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (item && typeof item === "object") {
+      Object.entries(item).forEach(([key, child]) => {
+        if (SENSITIVE_KEY.test(key)) {
+          leaked = true;
+          return;
+        }
+        visit(child);
+      });
+      return;
+    }
+    if (typeof item === "string" && SENSITIVE_VALUE.test(item)) leaked = true;
+  };
+  visit(value);
+  if (leaked) {
     throw new Error("sensitive_summary_leak_detected");
   }
 }

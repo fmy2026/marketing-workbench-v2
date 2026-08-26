@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE
 
-状态：planned
+状态：completed_with_blockers
 
 更新时间：2026-08-26 CST
 
@@ -43,4 +43,38 @@
 
 ## 下一步 Gate
 
-若没有唯一匹配监测序号，进入 `TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE`，由用户显式确认后最多创建一次并立即列表回查。
+第二关已完成只读执行并写入脱敏真值。当前不能直接进入创建关，需先完成两个前置确认：
+
+- 本地 `.local/qiankun-passport-credentials.json` 的 `owner_key` 尚未回填；账号接口返回候选值为 `冯美钰`，需用户明确确认后再写入本地凭据。
+- `mwb.game_route_defaults.raw_defaults.monitor_provision` 仍为空，无法按固定参数做精确监测序号匹配或创建 payload。
+
+## 执行结果
+
+| 项 | 结果 |
+| --- | --- |
+| `/tf/account_info/accountIndex` | passed；去掉 `sorts` 参数后成功 |
+| 账号精确匹配 | passed，`account_id=1871922346964041` |
+| 技术账户记录 ID | `8448` |
+| owner 候选 | `冯美钰` |
+| 授权状态 | `授权正常` |
+| `/tf/ad/index` 宽查询 | passed，按账号 + owner 查询，`resultTotal=0` |
+| 固定参数精确匹配 | blocked，`monitor_provision` 缺失 |
+| `monitor_id` | unresolved |
+| 触点 URL | unresolved |
+| 创建接口 | 未调用 |
+
+## 写入结果
+
+| 位置 | 结果 |
+| --- | --- |
+| `mwb.advertiser_accounts` | 已写入账号基础信息、owner_name、授权状态；`monitor_id` 为空 |
+| `mwb.monitor_provision_runs` | 已写入 `account_resolved` 状态 |
+| `mwb.evidence_artifacts` | 已写入脱敏只读证据 |
+| `mwb.account_touchpoints` | 未写入；尚无有效 `monitor_id` |
+
+## 剩余 Blocker
+
+- `owner_key_resolved_but_not_persisted`
+- `monitor_provision_defaults_missing`
+
+Workflow 第 2 节点仍不可通过；不得伪造 `monitor_id` 或 `touchpoint_url`。

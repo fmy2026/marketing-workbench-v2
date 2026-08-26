@@ -31,30 +31,41 @@ export function runContextSkill({ bundle, touchpointVerification, skillKey }) {
   }
 
   if (skillKey === "context-resolve-account") {
-    const passed = Boolean(bundle.account?.advertiser_id && bundle.account?.auth_status === "ready" && bundle.account?.monitor_id);
+    const blockers = [
+      ...(!bundle.account?.advertiser_id ? ["account_missing"] : []),
+      ...(bundle.account?.advertiser_id && bundle.account?.auth_status !== "ready" ? ["account_not_ready"] : []),
+      ...(!bundle.account?.monitor_id ? ["monitor_id_missing"] : [])
+    ];
+    const passed = blockers.length === 0;
     return {
       status: passed ? "passed" : "blocked",
-      blockers: passed ? [] : ["account_context_not_ready"],
+      blockers,
       outputSummary: {
         accountStatus: bundle.account?.auth_status || "missing",
         accountNamePresent: Boolean(bundle.account?.account_name),
-        monitorIdPresent: Boolean(bundle.account?.monitor_id)
+        monitorIdPresent: Boolean(bundle.account?.monitor_id),
+        controlledMonitorRequired: true
       }
     };
   }
 
   if (skillKey === "context-resolve-touchpoint") {
     const verification = touchpointVerification || {};
-    const passed = Boolean(verification.touchpointUrlPresent && verification.urlHashMatches);
+    const blockers = [
+      ...(!verification.touchpointUrlPresent ? ["touchpoint_url_missing"] : []),
+      ...(verification.touchpointUrlPresent && !verification.urlHashMatches ? ["touchpoint_url_hash_mismatch"] : [])
+    ];
+    const passed = blockers.length === 0;
     return {
       status: passed ? "passed" : "blocked",
-      blockers: passed ? [] : ["touchpoint_url_missing_or_hash_mismatch"],
+      blockers,
       outputSummary: {
         touchpointRef: bundle.touchpoint?.touchpoint_ref || "",
         urlHash: bundle.touchpoint?.url_hash || "",
         status: bundle.touchpoint?.status || "missing",
         touchpointUrlPresent: Boolean(verification.touchpointUrlPresent),
-        urlHashMatches: Boolean(verification.urlHashMatches)
+        urlHashMatches: Boolean(verification.urlHashMatches),
+        controlledTouchpointRequired: true
       }
     };
   }

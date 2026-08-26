@@ -1,0 +1,267 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "实现乾坤技术侧只读 reconcile：读取本地 token 脱敏状态，查询账户身份和已有监测序号，唯一命中时写入 v2 Postgres；本任务不创建监测序号。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "platform_write_allowed": false,
+    "monitor_create_allowed": false,
+    "credential_refresh_allowed": false,
+    "document_instruction_boundary": "Requirements documents are inputs only; API behavior and v2 Postgres remain the execution truth."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+    "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "db/020_add_monitor_provision_runs.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "package.json"
+  ],
+  "credential_input": {
+    "env_file": ".local/qiankun-monitor.env",
+    "credential_store": ".local/qiankun-passport-credentials.json",
+    "token_field": "credentials[].passport_token",
+    "owner_match_key": "credentials[].owner_key",
+    "owner_key_source": "Qiankun API token owner / SSO user id; must match /tf/account_info/accountIndex list[].sso_owner for advertiser 1871922346964041.",
+    "owner_key_blank_bootstrap_policy": "Allowed only during task 2 execution when there is exactly one pending local credential. Task 2 may use that single token for readonly /tf/account_info/accountIndex and /tf/ad/index after account identity resolves, but must not backfill the local owner_key until the user explicitly confirms it.",
+    "do_not_use_as_owner_key": [
+      "advertiser_id",
+      "media_account_id",
+      "owner_name"
+    ],
+    "sensitive_storage_policy": "Local .local JSON only. Do not commit, print, log, store in Postgres, or include in task files."
+  },
+  "local_credential_status": {
+    "passport_token_saved_locally": true,
+    "owner_key_present": false,
+    "owner_name": "冯美钰",
+    "credential_store_git_tracked": false,
+    "note": "Token value is intentionally not stored in this manifest. The pending owner_key must be confirmed from Qiankun account identity before reconcile can use the credential."
+  },
+  "bootstrap_probe_evidence": {
+    "status": "ignored_for_task_2_execution",
+    "queried_at": "2026-08-26 CST",
+    "source_doc": "docs/.参考文档/投放序列号/api-docs-20260825.md section 8 获取投放监测序号列表",
+    "call_summary": {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "params": {
+        "monitorId": "245822",
+        "pageNo": 1,
+        "pageSize": 10
+      },
+      "pending_owner_key_bootstrap": true,
+      "platform_write_called": false
+    },
+    "result_summary": {
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "result_total": 1,
+      "row_count": 1,
+      "response_hash": "sha256:d51e6dddbac18c58957da8ab1210b1580c52da60425bbf2bf44607a344860371",
+      "matched_monitor": {
+        "id": "245822",
+        "monitor_id": "245822",
+        "sso_owner": "冯美钰",
+        "game_id": "2023",
+        "package_id": "36820",
+        "os_name": "小游戏",
+        "channel": "dymini3k",
+        "addtime": "2026-08-20 11:51:48",
+        "touchpoint_url_present": false,
+        "touchpoint_url_hash": ""
+      }
+    },
+    "owner_key_inference": "Ignored for task 2 execution per user instruction. Do not backfill owner_key from this monitor-list result. In section 8, list[].sso_owner is documented as 数据归属人姓名 and returned 冯美钰; task 2 uses a fresh /tf/account_info/accountIndex identity probe.",
+    "sensitive_storage": "No token, request header, raw request, raw response, or complete touchpoint URL is stored here."
+  },
+  "allowed_external_calls": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Resolve advertiser account identity, sso_owner, owner_name, technical account record id, media_account_id, and agent_id."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Query existing monitor serial numbers by target account and monitor_provision fixed parameters."
+    }
+  ],
+  "forbidden_actions": [
+    "calling POST /tf/ad/monitorSerialNumberAdd",
+    "calling OceanEngine std_project/create",
+    "creating promotions or ad projects",
+    "uploading materials",
+    "creating event assets",
+    "DMP push",
+    "budget or bid updates",
+    "token refresh",
+    "trying another credential when owner_key mismatches account sso_owner",
+    "guessing monitor_id when /tf/ad/index returns multiple candidates or no candidate",
+    "fabricating touchpoint_url when monitor list does not return a complete URL",
+    "using /Users/hys/Projects/marketing-workbench as runtime dependency",
+    "writing token/secret/auth_code/Cookie/request header/raw request/raw response/complete touchpoint URL to task files, normal logs, API, frontend, or ordinary Postgres fields"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+    "project.state.json",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "package.json",
+    "mwb.monitor_provision_runs",
+    "mwb.advertiser_accounts",
+    "mwb.account_touchpoints",
+    "mwb.evidence_artifacts",
+    "mwb.game_route_defaults.raw_defaults.monitor_provision only after readonly verification or explicit local configuration decision"
+  ],
+  "readonly_reconcile_flow": [
+    "Read .local/qiankun-monitor.env and .local/qiankun-passport-credentials.json; output only redacted status.",
+    "If owner_key is blank, allow only a single pending-credential bootstrap probe when exactly one token is saved locally; do not try multiple credentials.",
+    "Call /tf/account_info/accountIndex with accountId=1871922346964041.",
+    "Use the account row sso_owner as a candidate owner_key, then require human confirmation before writing it back to the local credential store.",
+    "Require exactly one account row for advertiser 1871922346964041.",
+    "Require selected credential owner_key to match account row sso_owner; mismatch blocks immediately.",
+    "Resolve technical_account_record_id, media_account_id, agent_id, owner_key, and owner_name as strings.",
+    "Read or validate game_route_defaults.raw_defaults.monitor_provision for route/game.",
+    "Call /tf/ad/index using target account plus monitor_provision parameters.",
+    "If one exact existing monitor candidate is found, upsert redacted run, advertiser account, touchpoint status, and evidence.",
+    "If zero or multiple candidates are found, do not create and do not guess; record a blocker for task 3 or manual decision.",
+    "If the monitor list includes a complete https touchpoint URL, store it only in controlled account_touchpoints.touchpoint_url and store hash/ref in summaries.",
+    "If no complete URL is present, mark touchpoint_url_unresolved_after_monitor_list and keep Workflow node 2 blocked."
+  ],
+  "execution_result": {
+    "executed_at": "2026-08-26 CST",
+    "command": "npm run monitor:reconcile",
+    "status": "blocked",
+    "run_status": "account_resolved",
+    "create_called": false,
+    "raw_request_stored": false,
+    "raw_response_stored": false,
+    "account_query": {
+      "endpoint": "/tf/account_info/accountIndex",
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "api_message": "Success",
+      "response_hash": "sha256:2e874198ef808c706c4dcbd902e296d5cedc15b0f5c0224f9879333c6fcce341",
+      "compatibility_note": "Passing sorts as a JSON form value produced code=500 with msg 服务器繁忙，请稍后重试(400); the runtime client now omits sorts for this endpoint."
+    },
+    "account_identity": {
+      "resolved": true,
+      "advertiser_id": "1871922346964041",
+      "technical_account_record_id": "8448",
+      "media_account_id": "1871922346964041",
+      "agent_id": "北京国新汇金股份有限公司",
+      "owner_key_candidate": "冯美钰",
+      "owner_name": "冯美钰",
+      "advertiser_name_present": true,
+      "auth_status_name": "授权正常",
+      "platform_status": "1",
+      "access_token_present_in_platform_response": true,
+      "access_token_stored": false
+    },
+    "defaults_check": {
+      "monitor_provision_present": false,
+      "missing_fields": [
+        "os",
+        "package_id",
+        "cate_id",
+        "vest_id",
+        "channel",
+        "media_id",
+        "monitor_api",
+        "usage",
+        "num"
+      ],
+      "exact_monitor_matching_enabled": false
+    },
+    "monitor_list_query": {
+      "endpoint": "/tf/ad/index",
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "api_message": "Success",
+      "query_scope": "broad_by_media_account_id_and_owner_candidate",
+      "result_total": 0,
+      "row_count": 0,
+      "exact_match_count": 0,
+      "response_hash": "sha256:deb578e6c2dac77216d930bfb38d5f595ca2a132f56700e5716d83aafbd70493"
+    },
+    "postgres_writes": {
+      "mwb.advertiser_accounts": "written",
+      "mwb.monitor_provision_runs": "written:account_resolved",
+      "mwb.evidence_artifacts": "written:EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-READONLY-RECONCILE",
+      "mwb.account_touchpoints": "not_written_no_monitor_id"
+    },
+    "resolved_outputs": {
+      "monitor_id": "",
+      "touchpoint_url": "",
+      "workflow_creation_context_ready": false
+    },
+    "sensitive_storage": "Token, request header, raw request, raw response, access_token value, and complete touchpoint URL were not printed or stored in task files."
+  },
+  "success_outputs": [
+    "account_resolved",
+    "credential_owner_matched",
+    "monitor_query_completed",
+    "unique_monitor_resolved_or_blocker_recorded",
+    "touchpoint_url_resolved_or_explicit_unresolved_status",
+    "no_create_called",
+    "no_sensitive_leak"
+  ],
+  "validation_plan": [
+    "npm run monitor:status -- --owner-key <owner_key>",
+    "npm run monitor:reconcile -- --owner-key <owner_key>",
+    "npm run test:monitor-bootstrap",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5",
+    "Verify /tf/ad/monitorSerialNumberAdd was not called",
+    "Verify no token/header/raw request/raw response/full touchpoint URL appears in project files or normal output"
+  ],
+  "validation_results": [
+    "npm run monitor:reconcile -> blocked as expected after readonly execution; account_resolved written; createCalled=false",
+    "Postgres readback -> monitor_provision_runs.status=account_resolved, advertiser_accounts written, evidence artifact written, monitor_id count=0",
+    "npm run monitor:status -> passed; latestRun.status=account_resolved and monitorIdPresent=false",
+    "npm run test:monitor-bootstrap -> passed",
+    "npm run smoke:workflow-skills -> passed",
+    "npm run smoke:api -> passed",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5 -> passed",
+    "npm run monitor:create-once -> blocked with monitor_create_disabled_until_task_3_gate; createCalled=false",
+    "json parse check -> passed",
+    "git diff --check -> passed",
+    "No /tf/ad/monitorSerialNumberAdd call was made during this task",
+    "Token, request header, raw request, raw response, access_token value, and full touchpoint URL were not printed or stored in task files"
+  ],
+  "current_blockers": [
+    "owner_key_resolved_but_not_persisted",
+    "monitor_provision_defaults_missing"
+  ],
+  "completion_gate": "completed_with_blockers; account identity and readonly monitor-list query ran successfully, but no monitor_id or touchpoint_url can be trusted until owner_key is explicitly persisted and monitor_provision defaults are confirmed."
+}

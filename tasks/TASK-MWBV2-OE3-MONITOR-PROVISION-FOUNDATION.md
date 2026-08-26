@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION
 
-状态：active
+状态：completed
 
 更新时间：2026-08-26 CST
 
@@ -98,13 +98,67 @@ npm run test:monitor-bootstrap
 
 ## 第一任务验收
 
-- 需求拆分为三张任务卡。
-- 第一张任务卡有对应 `tasks-context-manifests`。
-- `project.state.json.active_task` 指向第一张任务。
-- DB migration 方案明确 `monitor_provision_runs` 字段、约束、状态枚举和敏感信息禁入规则。
-- 凭据文件合同明确 owner 匹配、过期、mismatch 阻断规则。
-- 后续 task 2 / task 3 的边界清楚，创建动作不被提前打开。
+| 验收项 | 结果 |
+| --- | --- |
+| 需求拆分为三张任务卡 | passed |
+| 第一张任务卡有对应 `tasks-context-manifests` | passed |
+| `project.state.json.active_task` 指向第一张任务 | passed，执行期间已指向本任务 |
+| DB migration 明确 `monitor_provision_runs` 字段、约束、状态枚举和敏感信息禁入规则 | passed，见 `db/020_add_monitor_provision_runs.sql` |
+| 凭据文件合同明确 owner 匹配、过期、mismatch 阻断规则 | passed，见 `src/platforms/qiankunCredentialStore.mjs` |
+| 后续 task 2 / task 3 边界清楚，创建动作不被提前打开 | passed，`monitor:create-once` 在本关硬阻断 |
+
+## 已落地实现
+
+| 文件 | 动作 |
+| --- | --- |
+| `db/020_add_monitor_provision_runs.sql` | 新增乾坤监测序号 provision 运行表、状态约束、唯一指纹约束、同 scope 未结束唯一约束和敏感信息注释 |
+| `schemas/postgres-minimal-truth.md` | 补充 `mwb.monitor_provision_runs` 表定位、migration 列表和读取约定 |
+| `src/repositories/postgresRepository.mjs` | 新增 `getMonitorProvisionDefaults`、`getLatestMonitorProvisionRun`、`upsertMonitorProvisionRun` |
+| `src/platforms/qiankunCredentialStore.mjs` | 新增 `.local/qiankun-monitor.env` 与 `.local/qiankun-passport-credentials.json` 脚手架、读取和脱敏状态输出 |
+| `src/platforms/qiankunMonitorClient.mjs` | 新增乾坤技术 API 允许端点清单和表单 POST client 骨架，输出只保留脱敏摘要 |
+| `src/workflows/skills/oe3/monitor-provision.mjs` | 新增 monitor provision foundation status、fingerprint、create confirm 常量和本关阻断逻辑 |
+| `scripts/monitor-provision-cli.mjs` | 新增 `monitor:status`、`monitor:reconcile`、`monitor:create-once` 统一入口 |
+| `scripts/monitor-bootstrap-smoke.mjs` | 新增本地 bootstrap 测试，验证凭据摘要不泄漏、fingerprint 稳定、create 在 foundation 阶段阻断 |
+| `package.json` | 新增 monitor 相关 npm scripts |
+| `src/workflows/skills/oe3/contracts.mjs` | 扩展敏感字段和值扫描，覆盖 `passport_token` 与 `X-Passport-Token` |
+
+## 数据库执行结果
+
+已执行：
+
+```bash
+psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/020_add_monitor_provision_runs.sql
+```
+
+结果：
+
+| 项 | 状态 |
+| --- | --- |
+| `mwb.monitor_provision_runs` | exists |
+| 当前 provision 行数 | `0` |
+| `.local/qiankun-monitor.env` | exists，`600`，不入 Git |
+| `.local/qiankun-passport-credentials.json` | exists，`600`，不入 Git |
+
+## 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run test:monitor-bootstrap` | passed |
+| `npm run monitor:status` | passed；仅本地脱敏状态读取，未调用技术 API |
+| `npm run monitor:reconcile` | blocked as expected：`monitor_readonly_reconcile_waiting_task_2`，未调用 API |
+| `npm run monitor:create-once` | blocked as expected：`monitor_create_disabled_in_foundation_task`，`createCalled=false` |
+| `npm run smoke:workflow-skills` | passed |
+| `npm run smoke:api` | passed |
+| `npm run test:payload-contract` | passed |
+| `npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5` | passed |
+| JSON 结构校验 | passed |
+| `git diff --check` | passed |
+| 敏感词粗扫 | 未发现真实 token、完整触点 URL、raw request/response；仅命中敏感检测器自身正则 |
+
+## 当前结论
+
+第一关 foundation 已完成。账户 `1871922346964041` 当前还没有有效 `monitor_id`；`touchpoint_url` 也尚未自动解析。Workflow 第 2 节点对该新账户尚不可通过，下一关必须先补齐/校验 `game_route_defaults.raw_defaults.monitor_provision`，再执行技术侧只读账户身份和 `/tf/ad/index` 列表 reconcile。
 
 ## 下一步 Gate
 
-完成本任务后进入 `TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE`：实现只读账户身份解析、`/tf/ad/index` 查询与唯一匹配入库；若触点 URL 未从列表响应得到，则明确阻断原因并等待文档化接口或受控人工导入。
+进入 `TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE`。启动第二关前按项目机制先补对应 context manifest，然后实现只读账户身份解析、`/tf/ad/index` 查询与唯一匹配入库；若触点 URL 未从列表响应得到，则明确阻断原因并等待文档化接口或受控人工导入。

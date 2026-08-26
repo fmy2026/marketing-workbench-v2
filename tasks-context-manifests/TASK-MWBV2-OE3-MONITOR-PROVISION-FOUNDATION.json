@@ -2,7 +2,7 @@
   "schema_version": "2026-08-23.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION",
   "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-08-26 CST",
   "updated_at": "2026-08-26 CST",
   "owner_agent": "codex",
@@ -108,6 +108,33 @@
     "id_policy": "All platform IDs are strings unless an API contract explicitly requires a safely bounded number.",
     "touchpoint_url_policy": "Full URL may only live in controlled local Postgres fields used for hash verification and payload building; ordinary API/frontend/task summaries must redact it."
   },
+  "implementation_summary": {
+    "migration": "db/020_add_monitor_provision_runs.sql",
+    "repository_methods": [
+      "getMonitorProvisionDefaults",
+      "getLatestMonitorProvisionRun",
+      "upsertMonitorProvisionRun"
+    ],
+    "platform_modules": [
+      "src/platforms/qiankunCredentialStore.mjs",
+      "src/platforms/qiankunMonitorClient.mjs"
+    ],
+    "workflow_skill": "src/workflows/skills/oe3/monitor-provision.mjs",
+    "cli": "scripts/monitor-provision-cli.mjs",
+    "smoke": "scripts/monitor-bootstrap-smoke.mjs",
+    "package_scripts": [
+      "monitor:status",
+      "monitor:reconcile",
+      "monitor:create-once",
+      "test:monitor-bootstrap"
+    ],
+    "postgres_applied": true,
+    "monitor_provision_runs_rows": 0,
+    "local_scaffold_created": true,
+    "local_scaffold_git_tracked": false,
+    "create_called": false,
+    "technical_api_called": false
+  },
   "validation_plan": [
     "npm run test:monitor-bootstrap",
     "npm run smoke:workflow-skills",
@@ -115,8 +142,21 @@
     "npm run check:runtime-consistency",
     "Verify no token/header/raw payload/raw response/full touchpoint URL appears in project files or normal output"
   ],
-  "current_open_questions": [
-    "No blocker for task preparation. Actual monitor_provision fixed parameters must be confirmed by existing v2 data and readonly technical API behavior before any create task."
+  "validation_results": [
+    "npm run test:monitor-bootstrap -> passed",
+    "npm run monitor:status -> passed with redacted local status only",
+    "npm run monitor:reconcile -> blocked before API as expected",
+    "npm run monitor:create-once -> blocked before create as expected",
+    "npm run smoke:workflow-skills -> passed",
+    "npm run smoke:api -> passed",
+    "npm run test:payload-contract -> passed",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5 -> passed",
+    "json parse check -> passed",
+    "git diff --check -> passed"
   ],
-  "completion_gate": "Foundation contracts are implemented or explicitly recorded, then project.state can move to TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE."
+  "current_open_questions": [
+    "Actual monitor_provision fixed parameters are not present in v2 defaults yet and must be confirmed by existing v2 data plus readonly technical API behavior in task 2.",
+    "The account has no resolved monitor_id or controlled touchpoint_url yet; Workflow node 2 remains blocked for advertiser 1871922346964041 until task 2/3 closes that context."
+  ],
+  "completion_gate": "completed; next gate is TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE with its own context manifest before execution."
 }

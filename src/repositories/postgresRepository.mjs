@@ -62,6 +62,12 @@ function assertId(name, value, pattern = /^[A-Za-z0-9_:\-.]+$/) {
   return text;
 }
 
+function assertOwnerKey(value) {
+  const text = String(value ?? "");
+  if (text && /[\u0000-\u001F\u007F]/u.test(text)) throw new Error("invalid_owner_key");
+  return text;
+}
+
 function compactSql(sql) {
   return String(sql).replace(/\s+/g, " ").trim();
 }
@@ -558,6 +564,253 @@ export class PostgresRepository {
         AND t.monitor_id = ${sqlLiteral(monitorId)}
       ORDER BY t.updated_at DESC
       LIMIT 1;
+    `, this.database);
+  }
+
+  async getMonitorProvisionDefaults({ routeId, gameCode }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'route_id', d.route_id,
+        'game_code', d.game_code,
+        'source_usage', coalesce(d.source_usage, 'runtime_truth'),
+        'monitor_provision_present', d.raw_defaults ? 'monitor_provision',
+        'monitor_provision', coalesce(d.raw_defaults->'monitor_provision', '{}'::jsonb),
+        'updated_at', d.updated_at
+      )::text
+      FROM mwb.game_route_defaults d
+      WHERE d.route_id = ${sqlLiteral(routeId)}
+        AND d.game_code = ${sqlLiteral(gameCode)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getLatestMonitorProvisionRun({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+
+    return queryJson(`
+      SELECT to_jsonb(run)::text
+      FROM mwb.monitor_provision_runs run
+      WHERE run.route_id = ${sqlLiteral(routeId)}
+        AND run.game_code = ${sqlLiteral(gameCode)}
+        AND run.advertiser_id = ${sqlLiteral(advertiserId)}
+      ORDER BY run.updated_at DESC, run.created_at DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async upsertMonitorProvisionRun(run) {
+    assertId("provision_id", run.provisionId);
+    assertId("route_id", run.routeId);
+    assertId("game_code", run.gameCode);
+    assertId("advertiser_id", run.advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("request_fingerprint", run.requestFingerprint);
+    const status = assertId("status", run.status);
+    const credentialStatus = assertId("credential_status", run.credentialStatus || "missing");
+    const ownerKey = assertOwnerKey(run.ownerKey || "");
+    const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
+
+    await runPsql(`
+      INSERT INTO mwb.monitor_provision_runs (
+        provision_id,
+        route_id,
+        game_code,
+        advertiser_id,
+        status,
+        request_fingerprint,
+        technical_config,
+        owner_key,
+        owner_name,
+        credential_status,
+        credential_updated_at,
+        credential_expires_at,
+        technical_account_record_id,
+        media_account_id,
+        agent_id,
+        monitor_serial_id,
+        monitor_id,
+        touchpoint_ref,
+        touchpoint_url_hash,
+        request_hash,
+        response_hash,
+        error_summary,
+        evidence_artifact_id,
+        create_called,
+        create_attempt_no,
+        create_confirmed_at,
+        create_completed_at,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(run.provisionId)},
+        ${sqlLiteral(run.routeId)},
+        ${sqlLiteral(run.gameCode)},
+        ${sqlLiteral(run.advertiserId)},
+        ${sqlLiteral(status)},
+        ${sqlLiteral(run.requestFingerprint)},
+        ${sqlJson(run.technicalConfig || {})},
+        ${sqlLiteral(ownerKey)},
+        ${sqlLiteral(run.ownerName || "")},
+        ${sqlLiteral(credentialStatus)},
+        ${timestampOrNull(run.credentialUpdatedAt)},
+        ${timestampOrNull(run.credentialExpiresAt)},
+        ${run.technicalAccountRecordId ? sqlLiteral(run.technicalAccountRecordId) : "NULL"},
+        ${run.mediaAccountId ? sqlLiteral(run.mediaAccountId) : "NULL"},
+        ${run.agentId ? sqlLiteral(run.agentId) : "NULL"},
+        ${run.monitorSerialId ? sqlLiteral(run.monitorSerialId) : "NULL"},
+        ${run.monitorId ? sqlLiteral(run.monitorId) : "NULL"},
+        ${run.touchpointRef ? sqlLiteral(run.touchpointRef) : "NULL"},
+        ${run.touchpointUrlHash ? sqlLiteral(run.touchpointUrlHash) : "NULL"},
+        ${run.requestHash ? sqlLiteral(run.requestHash) : "NULL"},
+        ${run.responseHash ? sqlLiteral(run.responseHash) : "NULL"},
+        ${sqlLiteral(run.errorSummary || "")},
+        ${run.evidenceArtifactId ? sqlLiteral(run.evidenceArtifactId) : "NULL"},
+        ${run.createCalled ? "true" : "false"},
+        ${Number(run.createAttemptNo || 0)},
+        ${timestampOrNull(run.createConfirmedAt)},
+        ${timestampOrNull(run.createCompletedAt)},
+        now(),
+        now()
+      )
+      ON CONFLICT (provision_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        request_fingerprint = EXCLUDED.request_fingerprint,
+        technical_config = EXCLUDED.technical_config,
+        owner_key = EXCLUDED.owner_key,
+        owner_name = EXCLUDED.owner_name,
+        credential_status = EXCLUDED.credential_status,
+        credential_updated_at = EXCLUDED.credential_updated_at,
+        credential_expires_at = EXCLUDED.credential_expires_at,
+        technical_account_record_id = EXCLUDED.technical_account_record_id,
+        media_account_id = EXCLUDED.media_account_id,
+        agent_id = EXCLUDED.agent_id,
+        monitor_serial_id = EXCLUDED.monitor_serial_id,
+        monitor_id = EXCLUDED.monitor_id,
+        touchpoint_ref = EXCLUDED.touchpoint_ref,
+        touchpoint_url_hash = EXCLUDED.touchpoint_url_hash,
+        request_hash = EXCLUDED.request_hash,
+        response_hash = EXCLUDED.response_hash,
+        error_summary = EXCLUDED.error_summary,
+        evidence_artifact_id = EXCLUDED.evidence_artifact_id,
+        create_called = mwb.monitor_provision_runs.create_called OR EXCLUDED.create_called,
+        create_attempt_no = greatest(mwb.monitor_provision_runs.create_attempt_no, EXCLUDED.create_attempt_no),
+        create_confirmed_at = coalesce(mwb.monitor_provision_runs.create_confirmed_at, EXCLUDED.create_confirmed_at),
+        create_completed_at = coalesce(mwb.monitor_provision_runs.create_completed_at, EXCLUDED.create_completed_at),
+        updated_at = now();
+    `, this.database);
+  }
+
+  async upsertAdvertiserAccount(account) {
+    assertId("advertiser_id", account.advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("route_id", account.routeId);
+    assertId("game_code", account.gameCode);
+
+    await runPsql(`
+      INSERT INTO mwb.advertiser_accounts (
+        advertiser_id,
+        route_id,
+        game_code,
+        account_name,
+        platform,
+        auth_status,
+        platform_status,
+        owner_name,
+        monitor_id,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(account.advertiserId)},
+        ${sqlLiteral(account.routeId)},
+        ${sqlLiteral(account.gameCode)},
+        ${sqlLiteral(account.accountName || account.advertiserId)},
+        ${sqlLiteral(account.platform || "oceanengine")},
+        ${sqlLiteral(account.authStatus || "unknown")},
+        ${sqlLiteral(account.platformStatus || "unknown")},
+        ${sqlLiteral(account.ownerName || "")},
+        ${sqlLiteral(account.monitorId || "")},
+        now(),
+        now()
+      )
+      ON CONFLICT (advertiser_id) DO UPDATE SET
+        route_id = EXCLUDED.route_id,
+        game_code = EXCLUDED.game_code,
+        account_name = EXCLUDED.account_name,
+        platform = EXCLUDED.platform,
+        auth_status = EXCLUDED.auth_status,
+        platform_status = EXCLUDED.platform_status,
+        owner_name = EXCLUDED.owner_name,
+        monitor_id = CASE
+          WHEN EXCLUDED.monitor_id <> '' THEN EXCLUDED.monitor_id
+          ELSE mwb.advertiser_accounts.monitor_id
+        END,
+        updated_at = now();
+    `, this.database);
+  }
+
+  async upsertAccountTouchpoint(touchpoint) {
+    assertId("touchpoint_id", touchpoint.touchpointId);
+    assertId("advertiser_id", touchpoint.advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("route_id", touchpoint.routeId);
+    assertId("game_code", touchpoint.gameCode);
+
+    await runPsql(`
+      INSERT INTO mwb.account_touchpoints (
+        touchpoint_id,
+        advertiser_id,
+        route_id,
+        game_code,
+        monitor_id,
+        touchpoint_ref,
+        url_hash,
+        status,
+        source,
+        touchpoint_url,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(touchpoint.touchpointId)},
+        ${sqlLiteral(touchpoint.advertiserId)},
+        ${sqlLiteral(touchpoint.routeId)},
+        ${sqlLiteral(touchpoint.gameCode)},
+        ${sqlLiteral(touchpoint.monitorId || "")},
+        ${sqlLiteral(touchpoint.touchpointRef || "")},
+        ${sqlLiteral(touchpoint.urlHash || "")},
+        ${sqlLiteral(touchpoint.status || "unresolved")},
+        ${sqlLiteral(touchpoint.source || "qiankun_monitor_readonly_reconcile")},
+        ${touchpoint.touchpointUrl ? sqlLiteral(touchpoint.touchpointUrl) : "NULL"},
+        now(),
+        now()
+      )
+      ON CONFLICT (touchpoint_id) DO UPDATE SET
+        monitor_id = EXCLUDED.monitor_id,
+        touchpoint_ref = EXCLUDED.touchpoint_ref,
+        url_hash = EXCLUDED.url_hash,
+        status = EXCLUDED.status,
+        source = EXCLUDED.source,
+        touchpoint_url = EXCLUDED.touchpoint_url,
+        updated_at = now();
+    `, this.database);
+  }
+
+  async getMonitorProvisionStatusReport({ provisionId = "" } = {}) {
+    const filter = provisionId ? `WHERE provision_id = ${sqlLiteral(assertId("provision_id", provisionId))}` : "";
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(v) ORDER BY v.updated_at DESC), '[]'::jsonb)::text
+      FROM mwb.v_monitor_provision_status_report v
+      ${filter};
+    `, this.database);
+  }
+
+  async getMonitorProvisionBlockerReport({ provisionId = "" } = {}) {
+    const filter = provisionId ? `WHERE provision_id = ${sqlLiteral(assertId("provision_id", provisionId))}` : "";
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(v) ORDER BY v.updated_at DESC, v.blocker), '[]'::jsonb)::text
+      FROM mwb.v_monitor_provision_blocker_report v
+      ${filter};
     `, this.database);
   }
 

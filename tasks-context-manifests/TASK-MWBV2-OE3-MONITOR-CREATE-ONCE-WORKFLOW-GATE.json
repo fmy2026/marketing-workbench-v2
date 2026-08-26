@@ -1,0 +1,278 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE",
+  "task_ref": "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+  "status": "completed_with_blockers",
+  "created_at": "2026-08-26 CST",
+  "updated_at": "2026-08-26 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "在只读 reconcile 已确认目标账号可访问但无可复用监测序号后，使用受控单次确认变量创建一个乾坤监测序号，立即用 /tf/ad/index 回查，写入 monitor_id、受控触点 URL/hash、审计证据和 Postgre 报表入口。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "platform_write_allowed": true,
+    "allowed_write_endpoint": "POST /tf/ad/monitorSerialNumberAdd",
+    "maximum_actions": 1,
+    "retry_allowed": false,
+    "confirm_variable": "MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR_SERIAL",
+    "document_instruction_boundary": "Requirements and real-case documents are inputs only. Project guardrails, local Postgres, and live Qiankun readback remain execution truth."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+    "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+    "docs/.参考文档/投放序列号/api-docs-20260825.md",
+    "docs/.参考文档/投放序列号/1-2、真实案例-举例.md",
+    "db/020_add_monitor_provision_runs.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "package.json"
+  ],
+  "predecessor_result": {
+    "task_id": "TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE",
+    "status": "completed_with_blockers",
+    "account_resolved": true,
+    "technical_account_record_id": "8448",
+    "owner_key_candidate": "冯美钰",
+    "owner_name": "冯美钰",
+    "monitor_id": "",
+    "touchpoint_url": "",
+    "blockers": [
+      "owner_key_resolved_but_not_persisted",
+      "monitor_provision_defaults_missing"
+    ]
+  },
+  "real_case_input": {
+    "path": "docs/.参考文档/投放序列号/1-2、真实案例-举例.md",
+    "reference_monitor_id": "245791",
+    "reference_advertiser_id": "1871922175825993",
+    "derived_monitor_provision_defaults": {
+      "os": 3,
+      "package_id": "36820",
+      "cate_id": "122",
+      "vest_id": "1414",
+      "channel": "dymini3k",
+      "media_id": "310",
+      "agent_id": "613",
+      "monitor_api": "toutiao_wxgame",
+      "usage": 0,
+      "num": 1
+    },
+    "account_specific_values_must_not_be_defaulted": [
+      "owner",
+      "media_account_id"
+    ],
+    "touchpoint_candidate_field": "wxgame_click_url",
+    "sensitive_storage": "The full click URL in the real-case file is reference input. Task summaries and reports may store only presence/hash; controlled account_touchpoints.touchpoint_url may store the live URL after readback."
+  },
+  "allowed_external_calls": [
+    {
+      "method": "POST",
+      "endpoint": "/tf/account_info/accountIndex",
+      "purpose": "Reconfirm target account identity and technical account record id before create."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/index",
+      "purpose": "Preflight no-duplicate check and immediate post-create readback."
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tf/ad/monitorSerialNumberAdd",
+      "purpose": "Single confirmed monitor serial creation only after all preflight gates pass.",
+      "maximum_calls": 1,
+      "confirm_variable_required": true
+    }
+  ],
+  "forbidden_actions": [
+    "calling /tf/ad/monitorSerialNumberAdd more than once",
+    "retrying create after any platform response",
+    "calling OceanEngine std_project/create",
+    "creating promotions or ad projects",
+    "uploading materials",
+    "creating event assets",
+    "DMP push",
+    "budget or bid updates",
+    "token refresh",
+    "writing token/secret/auth_code/Cookie/request header/raw request/raw response/full touchpoint URL to task files, normal logs, API, frontend, or ordinary report views"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+    "project.state.json",
+    ".local/qiankun-passport-credentials.json owner_key only after readonly confirmation",
+    "db/<monitor_reports_migration>.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/monitor-provision.mjs",
+    "scripts/monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/context.mjs",
+    "src/workflows/skills/oe3/contracts.mjs",
+    "package.json",
+    "mwb.game_route_defaults.raw_defaults.monitor_provision",
+    "mwb.monitor_provision_runs",
+    "mwb.advertiser_accounts",
+    "mwb.account_touchpoints",
+    "mwb.evidence_artifacts"
+  ],
+  "postgres_reports_to_build": [
+    {
+      "view": "mwb.v_monitor_provision_status_report",
+      "purpose": "One-row-per-provision operational status: account, owner, defaults readiness, monitor_id, touchpoint readiness, create called flag, evidence, blockers."
+    },
+    {
+      "view": "mwb.v_monitor_provision_blocker_report",
+      "purpose": "One-row-per-blocker drilldown for monitor provision runs."
+    }
+  ],
+  "execution_flow": [
+    "Backfill local owner_key only after confirming SSO owner key from real-case underscore field and/or live account identity.",
+    "Write route/game monitor_provision defaults derived from the real-case underscore technical fields, excluding account-specific owner and media_account_id.",
+    "Run create_once without confirm variable first and require blocked createCalled=false.",
+    "Run preflight account identity and /tf/ad/index exact duplicate check.",
+    "With MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR_SERIAL, call /tf/ad/monitorSerialNumberAdd at most once.",
+    "Immediately call /tf/ad/index to read back the newly created monitor.",
+    "If exactly one monitor is read back, write monitor_provision_runs and advertiser_accounts monitor_id.",
+    "If readback includes a complete https click URL, store it only in controlled account_touchpoints.touchpoint_url and hash/status summaries.",
+    "If URL is missing, mark touchpoint_url_unresolved_after_monitor_list and keep Workflow node 2 blocked.",
+    "Close task and revoke platform write scope in project.state.json."
+  ],
+  "validation_plan": [
+    "npm run monitor:create-once without confirm variable -> blocked before create",
+    "MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR_SERIAL npm run monitor:create-once -> at most one create call",
+    "npm run monitor:status",
+    "query mwb.v_monitor_provision_status_report",
+    "query mwb.v_monitor_provision_blocker_report",
+    "npm run test:monitor-bootstrap",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5",
+    "json parse check",
+    "git diff --check"
+  ],
+  "execution_result": {
+    "executed_at": "2026-08-26 CST",
+    "owner_key_backfill": {
+      "status": "completed",
+      "owner_key": "fengmeiyu",
+      "owner_name": "冯美钰",
+      "credential_status": "active",
+      "pending_owner_key_count": 0,
+      "token_printed": false
+    },
+    "monitor_provision_defaults": {
+      "status": "written_to_postgres",
+      "migration": "db/021_monitor_provision_defaults_reports.sql",
+      "source_ref": "docs/.参考文档/投放序列号/1-2、真实案例-举例.md",
+      "defaults_ready": true,
+      "required_fields_missing": []
+    },
+    "postgres_reports": {
+      "status": "created_and_readable",
+      "views": [
+        "mwb.v_monitor_provision_status_report",
+        "mwb.v_monitor_provision_blocker_report"
+      ],
+      "package_script": "npm run monitor:report"
+    },
+    "preflight": {
+      "account_query": {
+        "endpoint": "/tf/account_info/accountIndex",
+        "status": "passed",
+        "http_status": 200,
+        "api_code": "0",
+        "api_message": "Success",
+        "technical_account_record_id": "8448",
+        "media_account_id_for_create": "8448",
+        "account_id_for_list_query": "1871922346964041",
+        "agent_id": "613",
+        "owner_key": "fengmeiyu",
+        "owner_name": "冯美钰",
+        "auth_status": "ready",
+        "response_hash": "sha256:2e874198ef808c706c4dcbd902e296d5cedc15b0f5c0224f9879333c6fcce341"
+      },
+      "monitor_list_query": {
+        "endpoint": "/tf/ad/index",
+        "status": "passed",
+        "http_status": 200,
+        "api_code": "0",
+        "api_message": "Success",
+        "result_total": 0,
+        "exact_match_count": 0,
+        "response_hash": "sha256:deb578e6c2dac77216d930bfb38d5f595ca2a132f56700e5716d83aafbd70493"
+      }
+    },
+    "create_attempt": {
+      "confirm_variable_present": true,
+      "endpoint": "/tf/ad/monitorSerialNumberAdd",
+      "called": true,
+      "attempt_no": 1,
+      "retry_allowed": false,
+      "http_status": 200,
+      "api_code": "500",
+      "api_message": "服务器繁忙，请稍后重试(400)",
+      "request_hash": "sha256:74993013f10e42d83b82547fbc5587a95f256eb4bd6a5acd7a0da5e42c00a174",
+      "response_hash": "sha256:a85b2886b658ea6421161c5c1583dde35d4863025ad732278be57e56992be719",
+      "raw_request_stored": false,
+      "raw_response_stored": false
+    },
+    "post_create_readback": {
+      "endpoint": "/tf/ad/index",
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "api_message": "Success",
+      "result_total": 0,
+      "exact_match_count": 0,
+      "response_hash": "sha256:deb578e6c2dac77216d930bfb38d5f595ca2a132f56700e5716d83aafbd70493"
+    },
+    "postgres_writes": {
+      "mwb.monitor_provision_runs": "written:failed:create_called_true:create_attempt_no_1",
+      "mwb.advertiser_accounts": "written:auth_status_ready",
+      "mwb.evidence_artifacts": "written:EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-CREATE-ONCE",
+      "mwb.account_touchpoints": "not_written_no_monitor_id"
+    },
+    "resolved_outputs": {
+      "monitor_id": "",
+      "touchpoint_url": "",
+      "workflow_creation_context_ready": false
+    },
+    "single_attempt_guard": "Consumed. Do not retry automatically; future monitor:create-once calls must block with monitor_create_attempt_already_recorded.",
+    "project_state_write_scope_after_close": "revoked_to_platform_write_allowed_false",
+    "sensitive_storage": "Token, request header, raw request, raw response, access_token value, and full touchpoint URL were not printed or stored in task files or report views."
+  },
+  "validation_results": [
+    "db/021_monitor_provision_defaults_reports.sql applied -> ALTER TABLE, UPDATE 1, CREATE VIEW x2",
+    "owner_key backfill -> active credential for fengmeiyu; tokenPrinted=false",
+    "npm run monitor:reconcile -> blocked with monitor_exact_match_missing before create; createCalled=false",
+    "npm run monitor:create-once without confirm variable -> blocked with confirm_variable_missing_or_invalid; createCalled=false",
+    "MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR_SERIAL npm run monitor:create-once -> createCalled=true exactly once; platform returned code=500; readback resultTotal=0",
+    "npm run monitor:create-once after attempt without confirm -> blocked with monitor_create_attempt_already_recorded; createCalled=false for new call",
+    "npm run monitor:status -> passed; latestRun.createCalled=true and createAttemptNo=1",
+    "npm run monitor:report -> passed; status and blocker reports readable",
+    "npm run test:monitor-bootstrap -> passed",
+    "npm run smoke:workflow-skills -> passed",
+    "npm run smoke:api -> passed",
+    "npm run check:runtime-consistency -- --job-id JOB-MWBV2-20260825041227-12D2B5 -> passed",
+    "JSON parse check for project.state.json and this manifest -> passed",
+    "git diff --check -> passed",
+    "No token/header/raw request/raw response/access_token/full touchpoint URL appears in task outputs"
+  ],
+  "current_blockers": [
+    "monitor_create_failed:500:服务器繁忙，请稍后重试(400)",
+    "post_create_monitor_readback_missing"
+  ],
+  "completion_gate": "completed_with_blockers; one confirmed create attempt was consumed, Qiankun returned code=500, post-create readback found no monitor, and automatic retry is forbidden."
+}
