@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD",
+  "task_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make future Qiankun monitorSerialNumberAdd create requests include package_download_url as an explicit empty form field and include it in createPlan.requestHash and troubleshooting logs.",
+    "target_account": "1871922414575753",
+    "document_instruction_boundary": "This task only changes local mechanism and records. It does not authorize monitor creation or Cycle 02 reissue."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD.md",
+    "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD.json",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "scripts/02-monitor-planned-action-workflow-smoke.mjs",
+    "docs/.问题排查/qiankun-monitor-create-logs/1871922414575753_monitorSerialNumberAdd_attempt02_20260827.md"
+  ],
+  "allowed_actions": [
+    "Edit local code, smoke tests, task records, and troubleshooting notes",
+    "Run local smoke tests with mock fetch"
+  ],
+  "forbidden_actions": [
+    "POST /tf/ad/monitorSerialNumberAdd",
+    "Opening Cycle 02",
+    "monitor:reissue-plan",
+    "Token refresh",
+    "Budget or bid update",
+    "Ad project or promotion create",
+    "Material upload",
+    "Event asset create",
+    "DMP push",
+    "Writing token, Cookie, complete URL, raw request, or raw response into project files"
+  ],
+  "expected_changes": [
+    "monitor create params include package_download_url with an empty string value",
+    "monitor create requestFieldManifest includes package_download_url",
+    "monitor create request hash changes because the field is part of the canonical params object",
+    "Qiankun form encoder sends package_download_url= only for monitorSerialNumberAdd",
+    "Mock smoke verifies ordinary readonly calls do not include package_download_url="
+  ],
+  "result": {
+    "status": "passed",
+    "create_params": {
+      "package_download_url_present": true,
+      "package_download_url_value": "",
+      "included_in_request_hash": true
+    },
+    "form_encoding": {
+      "endpoint": "POST /tf/ad/monitorSerialNumberAdd",
+      "empty_field_sent": "package_download_url=",
+      "readonly_endpoints_unchanged": true
+    },
+    "historical_log_note_written": true
+  },
+  "validation": [
+    {
+      "command": "node --check src/workflows/skills/oe3/02-monitor-provision.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node --check src/platforms/qiankunMonitorClient.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-bootstrap",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-cycle",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-planned-action",
+      "status": "passed",
+      "result": "packageDownloadUrlEmptyFieldSent=true"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "next_gate": "After this mechanism fix, any real creation for 1871922414575753 must use a separate Cycle 02 reissue and one-create task."
+}

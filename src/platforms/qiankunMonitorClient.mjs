@@ -21,6 +21,10 @@ const WRITE_ENDPOINTS = new Set([
   "/tf/ad/monitorSerialNumberAdd"
 ]);
 
+const EMPTY_FORM_FIELDS_BY_ENDPOINT = {
+  "/tf/ad/monitorSerialNumberAdd": new Set(["package_download_url"])
+};
+
 function clean(value) {
   return String(value ?? "").trim();
 }
@@ -39,10 +43,16 @@ function endpointSet(endpoints = []) {
   return new Set((Array.isArray(endpoints) ? endpoints : [endpoints]).map(clean).filter(Boolean));
 }
 
-function appendFormValue(form, key, value) {
-  if (value === undefined || value === null || value === "") return;
+function emptyFormFieldsForEndpoint(endpoint) {
+  return EMPTY_FORM_FIELDS_BY_ENDPOINT[clean(endpoint)] || new Set();
+}
+
+function appendFormValue(form, key, value, { allowEmptyFields = new Set() } = {}) {
+  const cleanKey = clean(key).replace(/\[\]$/g, "");
+  if (value === undefined || value === null) return;
+  if (value === "" && !allowEmptyFields.has(clean(key)) && !allowEmptyFields.has(cleanKey)) return;
   if (Array.isArray(value)) {
-    for (const item of value) appendFormValue(form, `${key}[]`, item);
+    for (const item of value) appendFormValue(form, `${key}[]`, item, { allowEmptyFields });
     return;
   }
   if (typeof value === "object") {
@@ -52,9 +62,9 @@ function appendFormValue(form, key, value) {
   form.append(key, String(value));
 }
 
-function formBody(params = {}) {
+function formBody(params = {}, { allowEmptyFields = new Set() } = {}) {
   const form = new URLSearchParams();
-  for (const [key, value] of Object.entries(params || {})) appendFormValue(form, key, value);
+  for (const [key, value] of Object.entries(params || {})) appendFormValue(form, key, value, { allowEmptyFields });
   return form;
 }
 
@@ -416,7 +426,7 @@ export class QiankunMonitorClient {
         "Content-Type": "application/x-www-form-urlencoded",
         "X-Passport-Token": this.passportTokenForOwner(ownerKey)
       },
-      body: formBody(params)
+      body: formBody(params, { allowEmptyFields: emptyFormFieldsForEndpoint(cleanEndpoint) })
     });
     const text = await response.text();
     let payload = {};

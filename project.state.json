@@ -7,25 +7,25 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "qiankun_accountindex_account_name_preflight_completed",
+  "project_status": "qiankun_monitor_first_create_1871922434025472_completed",
   "phase": {
-    "id": "FILE-RECORD-CONSOLIDATION",
+    "id": "QIANKUN-MONITOR-FIRST-CREATE-1871922434025472",
     "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-FILE-RECORD-CONSOLIDATION.md"
+    "plan_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-FILE-RECORD-CONSOLIDATION.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md",
   "last_blocked_task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
-  "next_gate": "文件记录已收口，等待新的显式任务；当前账户 accountIndex-only preflight 已完成，platform_write_allowed=false，乾坤 monitor Cycle 01 已 terminal_failed，禁止第三次创建。",
+  "next_gate": "新账户 1871922434025472 已成功创建乾坤 monitor_id=245830，DB 与 readback 已闭环。当前无 active task，真实平台写入已暂停；如需继续处理其他账户，需另建单次任务。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "paused_after_qiankun_monitor_attempt02_terminal_failed",
+      "mode": "paused_after_qiankun_monitor_create_resolved",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
       "target_project_name": "",
-      "target_advertiser_id": "1871922414575753",
+      "target_advertiser_id": "1871922434025472",
       "allowed_actions": [],
       "maximum_actions": 0,
       "retry_allowed": false,
@@ -61,7 +61,7 @@
       "未另建单次真实创建任务的 std_project 创建",
       "监测链接组创建",
       "乾坤监测序号第三次创建",
-      "本 provision 的 monitor:ensure 真实写入分支",
+      "未另建单次真实创建任务的 monitor:ensure 真实写入分支",
       "预算/出价修改",
       "凭据刷新",
       "本任务范围外的真实平台写入",

@@ -25,6 +25,7 @@
 | --- | --- |
 | `os` | `3` |
 | `package_id` | `36820` |
+| `package_download_url` | 当次未发送；后续机制已修正为显式发送空值 |
 | `cate_id` | `122` |
 | `vest_id` | `1414` |
 | `channel` | `dymini3k` |
@@ -122,3 +123,7 @@ npm run monitor:ensure -- --advertiser-id 1871922414575753
 ## 敏感字段说明
 
 本项目文件只保存业务参数、响应摘要、hash 和必要 ID；不保存 token、Cookie、完整触点 URL、raw request 或 raw response。
+
+## 后续机制修正
+
+2026-08-27 CST 追加说明：技术侧要求后续 `monitorSerialNumberAdd` 创建请求显式携带 `package_download_url`，值为空也要发送为 form 字段。当前 Attempt 02 是历史请求，当时未发送该字段；后续脚本会将 `package_download_url=""` 纳入 `createPlan.requestHash`，并在真实创建 form body 中发送 `package_download_url=`。

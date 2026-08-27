@@ -11,7 +11,7 @@ import {
   ensureQiankunCredentialStoreScaffold,
   ensureQiankunMonitorEnvScaffold
 } from "../src/platforms/qiankunCredentialStore.mjs";
-import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
+import { assertNoSensitiveLeak, hashValue } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
 const ROUTE_ID = "oceanengine_3_byte_mini_game";
 const GAME_CODE = "JSZC";
@@ -70,8 +70,9 @@ function createMockFetch({ scenario, calls }) {
   };
   return async (url, options = {}) => {
     const endpoint = new URL(String(url)).pathname;
-    const params = formParams(options.body);
-    calls.push({ endpoint, paramsPresent: Object.keys(params).length > 0 });
+    const body = String(options.body || "");
+    const params = formParams(body);
+    calls.push({ endpoint, params, paramsPresent: Object.keys(params).length > 0, body });
 
     if (endpoint === "/tf/account_info/accountIndex") {
       const advertiserId = String(params.accountId || "");
@@ -250,6 +251,31 @@ try {
   const successNode2 = node2(successView);
   assert(successNode2.status === "passed", "success_node2_not_passed");
   assert(successNode2.outputSummary.monitor.ensure.createCalled === true, "success_monitor_create_not_called");
+  const successAccountIndexCall = successCalls.find((item) => item.endpoint === "/tf/account_info/accountIndex");
+  const successCreateCall = successCalls.find((item) => item.endpoint === "/tf/ad/monitorSerialNumberAdd");
+  assert(successAccountIndexCall, "success_account_index_call_missing");
+  assert(successCreateCall, "success_create_call_missing");
+  const oldCreateHashWithoutPackageDownloadUrl = hashValue({
+    os: 3,
+    package_id: "36820",
+    cate_id: "122",
+    vest_id: "1414",
+    channel: "dymini3k",
+    owner: OWNER_KEY,
+    media_id: "310",
+    agent_id: "613",
+    num: 1,
+    usage: 0,
+    monitor_api: "toutiao_wxgame",
+    media_account_id: `QK-${ACCOUNTS.success.slice(-3)}`,
+    server_callback_type: "2",
+    server_callback_data_types: ["active", "register", "success_order"],
+    remark: `mwbv2-${GAME_CODE}-${ACCOUNTS.success}`
+  });
+  assert(successNode2.outputSummary.monitor.plan.createPlanHash !== oldCreateHashWithoutPackageDownloadUrl, "create_plan_hash_must_include_package_download_url");
+  assert(successAccountIndexCall.body.includes("package_download_url=") === false, "readonly_account_index_must_not_send_empty_package_download_url");
+  assert(successCreateCall.body.includes("package_download_url="), "create_form_must_send_empty_package_download_url");
+  assert(successCreateCall.params.package_download_url === "", "create_params_must_preserve_empty_package_download_url");
   assert(successBundle.account.monitor_id === "246001", "success_monitor_not_written_to_account");
   assert(successBundle.touchpoint?.url_hash, "success_touchpoint_hash_missing");
   assert(successBundle.nodes.some((item) => item.node_key === "creation_context" && item.output_summary?.monitor?.readback?.monitorIdPresent === true), "success_readback_not_recorded");
@@ -338,7 +364,8 @@ try {
       node2Status: successNode2.status,
       monitorIdWritten: successBundle.account.monitor_id === "246001",
       touchpointHashPresent: Boolean(successBundle.touchpoint?.url_hash),
-      monitorCreateCalls: successCalls.filter((item) => item.endpoint === "/tf/ad/monitorSerialNumberAdd").length
+      monitorCreateCalls: successCalls.filter((item) => item.endpoint === "/tf/ad/monitorSerialNumberAdd").length,
+      packageDownloadUrlEmptyFieldSent: successCreateCall.body.includes("package_download_url=")
     },
     existingMonitor: {
       jobId: existingJobId,

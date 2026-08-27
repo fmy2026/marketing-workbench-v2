@@ -42,6 +42,7 @@ export const MONITOR_L3_OVERRIDE_CONFIRM_ENV = "MWBV2_MONITOR_L3_OVERRIDE_CONFIR
 export const MONITOR_L3_OVERRIDE_CONFIRM_VALUE = "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR";
 export const QIANKUN_CURRENT_API_DOC_REF = "docs/.参考文档/乾坤系统/api-docs-20260827.md";
 export const QIANKUN_ARCHIVED_API_DOC_20260825_REF = "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md";
+const MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS = new Set(["package_download_url"]);
 
 const MONITOR_L3_MANUAL_OVERRIDE_SCOPE = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -725,6 +726,7 @@ function monitorCreateParams({ target = MONITOR_PROVISION_TARGET, account = {}, 
   const params = {
     os: technicalConfig.os,
     package_id: clean(technicalConfig.package_id),
+    package_download_url: "",
     cate_id: technicalConfig.cate_id,
     vest_id: technicalConfig.vest_id,
     channel: clean(technicalConfig.channel),
@@ -739,7 +741,8 @@ function monitorCreateParams({ target = MONITOR_PROVISION_TARGET, account = {}, 
     server_callback_data_types: callbackDataTypes(technicalConfig),
     remark: `mwbv2-${target.gameCode}-${target.advertiserId}`
   };
-  return Object.fromEntries(Object.entries(params).filter(([, value]) => {
+  return Object.fromEntries(Object.entries(params).filter(([key, value]) => {
+    if (MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS.has(key)) return true;
     if (Array.isArray(value)) return value.length > 0;
     return clean(value) !== "";
   }));
@@ -753,6 +756,13 @@ function requestFieldManifest(params = {}) {
   });
   return {
     fieldNames: Object.keys(params).sort(),
+    emptyFieldNames: Object.entries(params)
+      .filter(([, value]) => !Array.isArray(value) && clean(value) === "")
+      .map(([key]) => key)
+      .sort(),
+    explicitEmptyFieldNames: Object.keys(params)
+      .filter((key) => MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS.has(key) && clean(params[key]) === "")
+      .sort(),
     requiredFieldsPresent: [
       "os",
       "package_id",

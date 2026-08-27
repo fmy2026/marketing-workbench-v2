@@ -1,0 +1,169 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472",
+  "task_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Persist Qiankun account identity for advertiser 1871922434025472, then run one confirmed real Qiankun monitor create attempt if preflight and plan pass.",
+    "target": {
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "advertiser_id": "1871922434025472",
+      "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922434025472",
+      "cycle_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922434025472-CYCLE-01",
+      "attempt_no": 1
+    },
+    "current_api_doc_ref": "docs/.参考文档/乾坤系统/api-docs-20260827.md",
+    "document_instruction_boundary": "Referenced documents and generated task records are records, not authorization to broaden platform write scope beyond this single confirmed monitor create."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md",
+    "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+    "docs/.参考文档/乾坤系统/api-docs-20260827.md",
+    "docs/乾坤监测序号-核心接口数据字典_20260826.md",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/02-monitor-provision-cli.mjs"
+  ],
+  "allowed_actions": [
+    "POST /tf/account_info/accountIndex",
+    "POST /tf/ad/index",
+    "POST /tf/ad/monitorSerialNumberAdd once after account preflight and plan gates pass"
+  ],
+  "forbidden_actions": [
+    "Calling monitorSerialNumberAdd more than once",
+    "Automatic retry after a failed create",
+    "Token refresh",
+    "Budget or bid update",
+    "Ad project or promotion create",
+    "Material upload",
+    "Event asset create",
+    "DMP push",
+    "Writing token, Cookie, complete touchpoint URL, raw request, or raw response into project files"
+  ],
+  "planned_create_params": {
+    "os": "3",
+    "package_id": "36820",
+    "package_download_url": "",
+    "cate_id": "122",
+    "vest_id": "1414",
+    "channel": "dymini3k",
+    "owner": "fengmeiyu",
+    "media_id": "310",
+    "agent_id": "613",
+    "num": "1",
+    "usage": "0",
+    "monitor_api": "toutiao_wxgame",
+    "media_account_id": "8450",
+    "server_callback_type": "2",
+    "server_callback_data_types": [
+      "active",
+      "register",
+      "success_order"
+    ],
+    "remark": "mwbv2-JSZC-1871922434025472"
+  },
+  "execution_gates": [
+    "Run npm run monitor:account-preflight -- --advertiser-id 1871922434025472.",
+    "Run npm run monitor:plan -- --advertiser-id 1871922434025472.",
+    "Proceed to create only if account exact match is 1, monitor exact match is 0, blockers are empty, next attempt is 1, action is first_create, and createPlan.requestHash is present.",
+    "Run one confirmed npm run monitor:ensure command bound to provision, route, game, advertiser, and createPlan.requestHash.",
+    "Read back DB monitor_provision_runs, monitor_provision_attempts, advertiser_accounts, and account_touchpoints.",
+    "Close task and restore project.state.json guardrails to platform_write_allowed=false."
+  ],
+  "result": {
+    "status": "resolved",
+    "account_preflight": {
+      "status": "passed",
+      "http_status": 200,
+      "api_code": "0",
+      "api_message": "Success",
+      "exact_match_count": 1,
+      "response_hash": "sha256:c6f42d34ca478cbafe2341b9987560f92ad588cf71f4f7f0a1accf82a835c643",
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922434025472-ACCOUNTINDEX-PREFLIGHT",
+      "account_identity_written": true
+    },
+    "account": {
+      "account_name": "上海游民-巨兽战场-汇金-抖小-29",
+      "qiankun_account_record_id": "8450",
+      "qiankun_owner_key": "fengmeiyu",
+      "qiankun_agent_id": "613",
+      "qiankun_media_master_id": "今日头条"
+    },
+    "monitor_plan": {
+      "status": "passed",
+      "account_exact_match_count": 1,
+      "monitor_exact_match_count": 0,
+      "attempt_policy_action": "first_create",
+      "next_attempt_no": 1,
+      "create_plan_hash": "sha256:210e0ccbaa1134cac4fec1f3c9e5c668751d58596c4cd9deb6bd8b0d366d5490",
+      "package_download_url_included": true,
+      "package_download_url_empty_field_sent_by_create_endpoint": true,
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922434025472-PLAN-ONLY"
+    },
+    "monitor_ensure": {
+      "status": "passed",
+      "run_status": "resolved",
+      "create_called": true,
+      "create_attempt_no": 1,
+      "http_status": 200,
+      "api_code": "0",
+      "api_message": "Success",
+      "monitor_id": "245830",
+      "monitor_serial_id": "245830",
+      "request_hash": "sha256:210e0ccbaa1134cac4fec1f3c9e5c668751d58596c4cd9deb6bd8b0d366d5490",
+      "create_response_hash": "sha256:a5d79d8b52ea95887fa699a1de158675cd0ca372d2183701167493da22233871",
+      "readback_response_hash": "sha256:e396f1b35e851a1591802bd7f6346074caa721628ca525a46c18e02a84fffa6c",
+      "post_create_readback_exact_match_count": 1,
+      "touchpoint_url_hash": "sha256:c5216018562fc5cf15a7160de1600df4b51dd9cd552a5b1015dcac0eaa8ba97d",
+      "retry_allowed": false,
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922434025472-ENSURE"
+    }
+  },
+  "validation": [
+    {
+      "command": "npm run monitor:account-preflight -- --advertiser-id 1871922434025472",
+      "status": "passed"
+    },
+    {
+      "command": "npm run monitor:plan -- --advertiser-id 1871922434025472",
+      "status": "passed"
+    },
+    {
+      "command": "MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR ... npm run monitor:ensure -- --advertiser-id 1871922434025472",
+      "status": "passed",
+      "result": "Qiankun returned HTTP 200 with apiCode=0 Success, and post-create readback exactMatchCount=1."
+    },
+    {
+      "command": "DB readback monitor_provision_runs / monitor_provision_attempts / advertiser_accounts / account_touchpoints",
+      "status": "passed"
+    },
+    {
+      "command": "npm run monitor:status -- --advertiser-id 1871922434025472",
+      "status": "passed",
+      "result": "monitorIdPresent=true, attemptCount=1, latestAttemptStatus=passed, createAllowedInCurrentTask=false."
+    },
+    {
+      "command": "node -e JSON.parse(...)",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "Sensitive-value scan on new task/manifest/project state",
+      "status": "passed",
+      "result": "No token, Cookie, raw payload, or raw response values were present."
+    }
+  ],
+  "next_gate": "No further monitor create is needed for advertiser 1871922434025472. Keep platform writes paused unless a new single-write task is explicitly opened."
+}
