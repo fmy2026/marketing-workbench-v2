@@ -4,11 +4,17 @@ function child(id, label, statusSource) {
   return Object.freeze({ id, label, statusSource: Object.freeze(statusSource) });
 }
 
-const node4Children = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => child(
+const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => child(
   `resource-${resourceType}`,
   OE3_RESOURCE_LABELS[resourceType],
   { kind: "latest_skill", skillKeys: [`resource-verify-${resourceType.replace(/_/g, "-")}`] }
 )));
+
+const node4Children = Object.freeze([
+  child("baseline-resource-bootstrap", "保底候选装配", { kind: "latest_skill", skillKeys: ["resource-bootstrap-from-blueprints"] }),
+  child("target-resource-readonly", "目标账户只读核验", { kind: "latest_skill", skillKeys: ["resource-live-readonly-reconcile"] }),
+  ...node4ResourceChildren
+]);
 
 export const WORKFLOW_NODES = Object.freeze([
   Object.freeze({
@@ -50,12 +56,13 @@ export const WORKFLOW_NODES = Object.freeze([
     nodeName: "游戏保底包解析",
     phase: "准备阶段",
     output: "game_launch_pack",
-    subflows: Object.freeze(["游戏主档", "路线默认值", "保底物料包", "备用落地页"]),
+    subflows: Object.freeze(["游戏主档", "路线默认值", "保底物料包", "备用落地页", "资源蓝图"]),
     children: Object.freeze([
       child("game-master", "游戏主档", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-game"] }),
       child("route-defaults", "路线默认值", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-defaults"] }),
       child("base-material-pack", "保底物料包", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-materials"] }),
-      child("backup-landing-page", "备用落地页", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-backup-landing-page"] })
+      child("backup-landing-page", "备用落地页", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-backup-landing-page"] }),
+      child("baseline-resource-blueprints", "资源蓝图", { kind: "latest_skill", skillKeys: ["launch-pack-resolve-resource-blueprints"] })
     ])
   }),
   Object.freeze({
@@ -133,10 +140,12 @@ export function validateWorkflowNodeRegistry({
   const resourceSkillKeys = requiredResourceTypes.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`);
   const missingResourceSkills = resourceSkillKeys.filter((skillKey) => !skillDefinitions.some((skill) => skill.skillKey === skillKey));
   const node4SkillCount = skillDefinitions.filter((skill) => skill.nodeKey === "account_resource_prepare").length;
+  const node4ResourceSkillCount = skillDefinitions.filter((skill) => skill.skillKey.startsWith("resource-verify-")).length;
   const children = WORKFLOW_NODES.flatMap((node) => node.children || []);
   const childIds = children.map((item) => item.id);
   const childIdsUnique = new Set(childIds).size === childIds.length;
   const node4ChildResourceTypes = (getWorkflowNode("account_resource_prepare")?.children || [])
+    .filter((item) => item.id.startsWith("resource-"))
     .map((item) => item.id.replace(/^resource-/, ""));
   const node4ChildrenMatchResources = requiredResourceTypes.length === node4ChildResourceTypes.length &&
     requiredResourceTypes.every((resourceType) => node4ChildResourceTypes.includes(resourceType));
@@ -149,7 +158,7 @@ export function validateWorkflowNodeRegistry({
     nodesWithoutSkills,
     requiredResourceTypeCount: requiredResourceTypes.length,
     node4SkillCount,
-    node4ResourceSkillCountMatches: node4SkillCount === requiredResourceTypes.length,
+    node4ResourceSkillCountMatches: node4ResourceSkillCount === requiredResourceTypes.length,
     node4ChildResourceTypes,
     node4ChildrenMatchResources,
     childCount: children.length,

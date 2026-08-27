@@ -79,7 +79,7 @@ async function recordDmpEvidence({ repo, bundle, status, probe, customAudienceId
   return artifactId;
 }
 
-async function persistDmpMetadata({ repo, bundle, status, customAudienceIds, evidenceRef, blocker }) {
+async function persistDmpMetadata({ repo, bundle, status, customAudienceIds, candidateAudienceIds = [], evidenceRef, blocker }) {
   if (bundle.job.source_usage === "test_run") return;
   await repo.updateAccountResourceReadonly({
     routeId: bundle.job.route_id,
@@ -88,26 +88,29 @@ async function persistDmpMetadata({ repo, bundle, status, customAudienceIds, evi
     resourceType: "dmp_audience_package",
     visibilityStatus: status === "passed" ? "visible" : undefined,
     readbackStatus: status === "passed" ? "readback_verified" : undefined,
+    inheritanceStatus: status === "passed" ? "target_readonly_verified" : "target_readonly_blocked",
     metadata: {
       status,
       key: "platform_dmp_custom_audience",
       gap: blocker || "",
       next_action: status === "passed" ? "无需动作" : "补齐或确认平台 DMP custom_audience_id[]",
-      custom_audience_ids: customAudienceIds,
+      selected_custom_audience_id_count: customAudienceIds.length,
+      candidate_custom_audience_id_count: candidateAudienceIds.length,
+      candidate_custom_audience_id_hash: candidateAudienceIds.length ? hashValue(candidateAudienceIds) : "",
       checked_at: new Date().toISOString(),
       evidence_refs: [evidenceRef].filter(Boolean)
     },
     resourceMetadata: {
-      custom_audience_ids: customAudienceIds
+      ...(status === "passed" ? { custom_audience_ids: customAudienceIds } : {})
     }
   });
 }
 
-function resultFromIds({ item, customAudienceIds, source, evidenceRef = "" }) {
+function resultFromIds({ item, customAudienceIds, candidateAudienceIds = [], source, evidenceRef = "" }) {
   const ready = customAudienceIds.length > 0;
   return {
     status: ready ? "passed" : "blocked",
-    blockers: ready ? [] : ["dmp_custom_audience_ids_missing"],
+    blockers: ready ? [] : [candidateAudienceIds.length ? "dmp_candidate_selection_required" : "dmp_custom_audience_ids_missing"],
     evidenceRefs: evidenceRef ? [evidenceRef] : [],
     customAudienceIds,
     outputSummary: {
@@ -121,6 +124,8 @@ function resultFromIds({ item, customAudienceIds, source, evidenceRef = "" }) {
       semanticPlatformResourceIdExcludedFromPayload: !/^\d+$/.test(clean(item.platform_resource_id)),
       dmpCustomAudienceIdsPresent: ready,
       dmpCustomAudienceIdCount: customAudienceIds.length,
+      dmpCandidateAudienceCount: candidateAudienceIds.length,
+      automaticSelection: false,
       customAudienceIdSource: source,
       payloadField: "audience.retargeting_tags_exclude",
       evidenceRef,
@@ -260,7 +265,12 @@ export async function runDmpReadonlyGate({
     },
     summarize: summarizeDmp
   });
-  const customAudienceIds = probe.status === "passed" ? (probe.summary?.customAudienceIds || []) : [];
+  const discoveredIds = probe.status === "passed" ? (probe.summary?.customAudienceIds || []) : [];
+  // A list response is inventory, not a selection. Only a preselected ID may enter payload state.
+  const customAudienceIds = existingIds.length
+    ? existingIds.filter((id) => discoveredIds.includes(id))
+    : [];
+  const candidateAudienceIds = existingIds.length ? [] : discoveredIds;
   const status = customAudienceIds.length ? "passed" : "blocked";
   const evidenceRef = await recordDmpEvidence({
     repo,
@@ -274,17 +284,31 @@ export async function runDmpReadonlyGate({
     bundle,
     status,
     customAudienceIds,
+    candidateAudienceIds,
     evidenceRef,
-    blocker: status === "passed" ? "" : "dmp_custom_audience_ids_missing"
+    blocker: status === "passed"
+      ? ""
+      : candidateAudienceIds.length
+        ? "dmp_candidate_selection_required"
+        : existingIds.length
+          ? "dmp_selected_audience_not_readback_verified"
+          : "dmp_custom_audience_ids_missing"
   });
   const result = resultFromIds({
     item,
     customAudienceIds,
+    candidateAudienceIds,
     source: "oceanengine_readonly_probe",
     evidenceRef
   });
   if (status !== "passed") {
-    result.blockers = [probe.status === "passed" ? "dmp_custom_audience_ids_missing" : "dmp_readonly_probe_not_passed"];
+    result.blockers = [probe.status === "passed"
+      ? candidateAudienceIds.length
+        ? "dmp_candidate_selection_required"
+        : existingIds.length
+          ? "dmp_selected_audience_not_readback_verified"
+          : "dmp_custom_audience_ids_missing"
+      : "dmp_readonly_probe_not_passed"];
     result.outputSummary.readonlyStatus = probe.status || "blocked";
     result.outputSummary.apiCode = probe.apiCode || "";
     result.outputSummary.httpStatus = probe.httpStatus ?? null;

@@ -594,6 +594,150 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
   };
 }
 
+function summarizeImageInventory(payload = {}) {
+  return {
+    imageCandidateCount: materialList(payload).length
+  };
+}
+
+// This intentionally excludes project, DMP and video probes. Those have their own
+// Skill contracts, while product images are inventory-only until an operator selects one.
+export async function runOceanEngineBaselineResourceProbes({ bundle, client } = {}) {
+  const advertiserId = compact(bundle?.job?.advertiser_id);
+  const probes = [];
+  const credential = client?.credentialState?.() || { status: "credential_required", blockers: ["client_missing"] };
+  const credentialBlockers = Array.isArray(credential.blockers) ? credential.blockers : [];
+  const run = async (definition) => {
+    const probe = await client.get(definition);
+    probes.push(probe);
+    return probe;
+  };
+
+  if (credential.status !== "ready") {
+    return {
+      status: "credential_required",
+      blockers: ["credential_required", ...credentialBlockers],
+      credential,
+      probes,
+      checks: [],
+      resourceUpdates: ["avatar", "event_asset", "product_image", "brand_info"].map((resourceType) => ({
+        resourceType,
+        inheritanceStatus: "target_readonly_blocked",
+        readonlyCheck: {
+          status: "credential_required",
+          key: "baseline_resource_readonly_credential",
+          gap: "credential_required",
+          next_action: "处理本机 OceanEngine 凭据后重跑；不自动刷新。"
+        }
+      }))
+    };
+  }
+
+  const avatarProbe = await run({
+    label: "baseline_avatar",
+    endpoint: "https://ad.oceanengine.com/open_api/2/advertiser/avatar/get/",
+    query: { advertiser_id: advertiserId },
+    summarize: summarizeAvatar
+  });
+  const eventProbe = await run({
+    label: "baseline_event_asset",
+    endpoint: "tools/event/all_assets/list",
+    query: {
+      advertiser_id: advertiserId,
+      filtering: JSON.stringify({ asset_type: EVENT_ASSET_TYPE }),
+      page: "1",
+      page_size: "100"
+    },
+    summarize: (payload) => summarizeEventAssets(payload, bundle)
+  });
+  const brandProbe = await run({
+    label: "baseline_brand_info",
+    endpoint: "/open_api/v3.0/dpa/brand/adv_auth/fuzzy/get/",
+    query: {
+      account_id: advertiserId,
+      brand_name: EXPECTED_BRAND_NAME,
+      match_type: "EXACT",
+      brand_data_source_list: JSON.stringify(["YUNTU"]),
+      page: "1",
+      page_size: "20"
+    },
+    summarize: summarizeBrand
+  });
+  const brandId = compact(brandProbe.summary?.brandNameId);
+  const industryProbe = brandProbe.status === "passed" && brandId ? await run({
+    label: "baseline_brand_industry",
+    endpoint: "/open_api/v3.0/dpa/brand/adv_auth/industry/get/",
+    query: { account_id: advertiserId, brand_name_id: brandId },
+    summarize: summarizeIndustry
+  }) : null;
+  const imageProbe = await run({
+    label: "baseline_product_image_inventory",
+    endpoint: "file/image/get",
+    query: { advertiser_id: advertiserId, page: "1", page_size: "100" },
+    summarize: summarizeImageInventory
+  });
+
+  const avatarPassed = avatarProbe.status === "passed" && avatarProbe.summary?.avatarReady === true;
+  const eventPassed = eventProbe.status === "passed" && eventProbe.summary?.expectedAssetFound === true;
+  const brandPassed = brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 1 &&
+    industryProbe?.status === "passed" && brandOfficialMatchesExpected(brandProbe.summary || {}, industryProbe.summary || {});
+  const imageInventoryReadable = imageProbe.status === "passed";
+  const blockedProbes = probes.filter((probe) => probe.status !== "passed");
+  const checks = [
+    check(avatarPassed ? "passed" : "blocked", "baseline_platform_avatar", avatarPassed ? "目标账户头像已通过只读核验。" : "目标账户头像未 ready。", { resourceType: "avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready" }),
+    check(eventPassed ? "passed" : "blocked", "baseline_platform_event", eventPassed ? "目标账户事件资产已命中小游戏。" : "目标账户未命中小游戏事件资产。", { resourceType: "event_asset", gap: eventPassed ? "" : "event_asset_readonly_not_ready" }),
+    check(brandPassed ? "passed" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : "目标账户品牌或行业未完整命中。", { resourceType: "brand_info", gap: brandPassed ? "" : "brand_industry_readback_required" }),
+    check(imageInventoryReadable ? "needs_confirmation" : "blocked", "baseline_platform_product_image_inventory", imageInventoryReadable ? "已盘点目标账户产品图库存；未自动选择产品图。" : "目标账户产品图库存读取失败。", { resourceType: "product_image", gap: imageInventoryReadable ? "product_image_selection_required" : "product_image_inventory_unavailable" })
+  ];
+
+  return {
+    status: blockedProbes.length ? "blocked" : "passed",
+    blockers: blockedProbes.map((probe) => `readonly_probe_not_passed:${probe.label}`),
+    credential,
+    probes,
+    checks,
+    resourceUpdates: [
+      {
+        resourceType: "avatar",
+        visibilityStatus: avatarPassed ? "visible" : undefined,
+        readbackStatus: avatarPassed ? "readback_verified" : undefined,
+        inheritanceStatus: avatarPassed ? "target_readonly_verified" : "target_readonly_blocked",
+        readonlyCheck: { status: avatarPassed ? "passed" : "blocked", key: "baseline_platform_avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready", probe_labels: [avatarProbe.label] }
+      },
+      {
+        resourceType: "event_asset",
+        visibilityStatus: eventPassed ? "visible" : undefined,
+        readbackStatus: eventPassed ? "readback_verified" : undefined,
+        platformResourceId: eventPassed ? eventProbe.summary?.expectedAssetId || "" : "",
+        inheritanceStatus: eventPassed ? "target_readonly_verified" : "target_readonly_blocked",
+        readonlyCheck: { status: eventPassed ? "passed" : "blocked", key: "baseline_platform_event", gap: eventPassed ? "" : "event_asset_readonly_not_ready", probe_labels: [eventProbe.label] }
+      },
+      {
+        resourceType: "brand_info",
+        visibilityStatus: brandPassed ? "visible" : undefined,
+        readbackStatus: brandPassed ? "readback_verified" : undefined,
+        inheritanceStatus: brandPassed ? "target_readonly_verified" : "target_readonly_blocked",
+        resourceMetadata: brandPassed ? {
+          brand_info_official: brandInfoOfficialFromReadback({ brandSummary: brandProbe.summary || {}, industrySummary: industryProbe?.summary || {} })
+        } : {},
+        readonlyCheck: { status: brandPassed ? "passed" : "blocked", key: "baseline_platform_brand", gap: brandPassed ? "" : "brand_industry_readback_required", probe_labels: probes.filter((probe) => probe.label.startsWith("baseline_brand")).map((probe) => probe.label) }
+      },
+      {
+        resourceType: "product_image",
+        inheritanceStatus: imageInventoryReadable ? "target_readonly_blocked" : "target_readonly_blocked",
+        resourceMetadata: {
+          product_image_inventory: {
+            candidate_count: Number(imageProbe.summary?.imageCandidateCount || 0),
+            response_hash: imageProbe.responseHash || "",
+            selection_status: imageInventoryReadable ? "needs_confirmation" : "unavailable"
+          }
+        },
+        readonlyCheck: { status: imageInventoryReadable ? "needs_confirmation" : "blocked", key: "baseline_platform_product_image_inventory", gap: imageInventoryReadable ? "product_image_selection_required" : "product_image_inventory_unavailable", probe_labels: [imageProbe.label] }
+      }
+    ]
+  };
+}
+
 export function evaluateOceanEnginePrewriteReadiness({ bundle, touchpointVerification, contractResult, platformReadonly } = {}) {
   const draftProjectName = bundle?.draft?.project_name || bundle?.draft?.projectName || "";
   const readbackObjectName = bundle?.readback?.object_name || "";

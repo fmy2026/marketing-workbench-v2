@@ -126,6 +126,7 @@ function evidenceRefs(bundle = {}) {
 function externalReadonlyCoverage({ bundle, monitorPreflight }) {
   const skills = skillStatuses(bundle);
   const evidenceTypes = new Set((bundle.evidence || []).map((item) => item.artifact_type));
+  const baselineProbeIntegrated = Boolean(skills["resource-live-readonly-reconcile"]);
   return {
     qiankun: {
       accountIndexCalled: monitorPreflight.accountApiCalled === true,
@@ -139,8 +140,11 @@ function externalReadonlyCoverage({ bundle, monitorPreflight }) {
       dmpReadonlyGate: Boolean(skills["resource-verify-dmp-audience-package"]),
       eventReadonlyGate: Boolean(skills["resource-verify-event-asset"]),
       videoReadonlyGate: Boolean(skills["resource-verify-video-asset"]),
-      fullResourceProbeAdapterIntegrated: false,
-      coverageGap: "src/platforms/oceanengineReadonlyAdapter.mjs has broader probes but is not fully wired into src/workflows/skills/oe3/00-runner.mjs"
+      baselineResourceProbeAdapterIntegrated: baselineProbeIntegrated,
+      fullResourceProbeAdapterIntegrated: baselineProbeIntegrated,
+      coverageGap: baselineProbeIntegrated
+        ? ""
+        : "Node 4 baseline resource readonly reconcile skill did not run."
     }
   };
 }
@@ -162,12 +166,14 @@ function classifyConclusion({ bundle, auditCounts }) {
     return "blocked_with_evidence";
   }
   if (blockers.length) return "blocked_with_evidence";
-  return "mechanism_coverage_incomplete";
+  return skillStatuses(bundle)["resource-live-readonly-reconcile"] === "passed"
+    ? "ready_for_single_create_task"
+    : "mechanism_coverage_incomplete";
 }
 
-export async function runReadonlyReadiness({ repo = new PostgresRepository(), args, env = process.env } = {}) {
+export async function runReadonlyReadiness({ repo = new PostgresRepository(), args, env = process.env, sourceRecordPrefix } = {}) {
   assertReadonlyReadinessInvocation({ args, env });
-  const job = await createOrResolveReadonlyReadinessJob({ repo, args });
+  const job = await createOrResolveReadonlyReadinessJob({ repo, args, ...(sourceRecordPrefix ? { sourceRecordPrefix } : {}) });
   const target = {
     routeId: job.bundle.job.route_id,
     gameCode: job.bundle.job.game_code,
@@ -230,15 +236,15 @@ export async function runReadonlyReadiness({ repo = new PostgresRepository(), ar
     },
     externalReadonlyCoverage: externalReadonlyCoverage({ bundle, monitorPreflight }),
     evidenceRefs: evidenceRefs(bundle),
-    mechanismObservations: [
-      {
-        title: "OceanEngine readonly adapter not fully wired into official runner",
-        evidence: "src/platforms/oceanengineReadonlyAdapter.mjs exposes broader probes; current runner invokes only selected gates.",
-        impact: "Node 1-5 readiness is recorded, while full resource live-probe coverage remains incomplete.",
-        nextTask: "Integrate oceanengineReadonlyAdapter into Node 4 as sanitized evidence and controlled account_resources updates.",
-        boundary: "record_only_no_repair_in_current_task"
-      }
-    ],
+    mechanismObservations: skillStatuses(bundle)["resource-live-readonly-reconcile"] === "passed"
+      ? []
+      : [{
+          title: "Node 4 baseline readonly reconcile did not run",
+          evidence: "resource-live-readonly-reconcile is absent or not passed in this job.",
+          impact: "保底资产只读覆盖不完整，不得把当前 job 视为全资源已核验。",
+          nextTask: "检查 Node 4 resource-live-readonly-reconcile 的权限、凭据或运行阻断。",
+          boundary: "record_only_no_repair_in_current_task"
+        }],
     rawRequestStored: false,
     rawResponseStored: false,
     rawPayloadStored: false

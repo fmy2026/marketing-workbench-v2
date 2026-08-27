@@ -7,16 +7,16 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "scheduled_oauth_token_refresh_active",
+  "project_status": "jszc_baseline_resource_readonly_apply_completed_blocked",
   "phase": {
     "id": "SCHEDULED-OAUTH-TOKEN-REFRESH",
     "status": "completed",
     "plan_ref": "tasks/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.md",
   "last_blocked_task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
-  "next_gate": "v2 OAuth token 每日刷新已启用；账户 1871922346964041 的全链路只读就绪核验仍为 blocked_with_evidence，下一步另建资源/凭据只读修复任务，不进入真实创建。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.md",
+  "next_gate": "优先新建 Node 3/4 保底备用页顺序收口机制任务；其后按证据分别安排视频单次绑定/共享、品牌行业只读参数诊断或备用页目标账户可见性确认，禁止直接创建广告。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {

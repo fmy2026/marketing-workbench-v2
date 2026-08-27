@@ -135,10 +135,37 @@ export const OE3_SKILL_DEFINITIONS = [
     stopConditions: ["backup_landing_page_default_missing"],
     writeScope: "launch_skill_runs_only"
   },
+  {
+    skillKey: "launch-pack-resolve-resource-blueprints",
+    nodeKey: "game_launch_pack",
+    dependsOn: ["launch-pack-resolve-game"],
+    inputContract: ["route_id", "game_code", "resource_blueprints"],
+    outputContract: ["blueprint_count", "required_blueprint_count", "resource_type[]"],
+    stopConditions: ["baseline_resource_blueprints_missing"],
+    writeScope: "launch_skill_runs_only"
+  },
+  {
+    skillKey: "resource-bootstrap-from-blueprints",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["launch-pack-resolve-resource-blueprints"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "resource_blueprints"],
+    outputContract: ["blueprint_count", "created_resource_count", "existing_resource_count", "inheritance_status[]"],
+    stopConditions: ["baseline_resource_blueprints_missing"],
+    writeScope: "launch_skill_runs_account_resources"
+  },
+  {
+    skillKey: "resource-live-readonly-reconcile",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["resource-bootstrap-from-blueprints"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "account_resources"],
+    outputContract: ["readonly_status", "probe_count", "resource_update_count", "evidence_ref"],
+    stopConditions: ["credential_required", "readonly_transport_failed"],
+    writeScope: "launch_skill_runs_account_resources_evidence_artifacts"
+  },
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
     skillKey: `resource-verify-${resourceType.replace(/_/g, "-")}`,
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-materials"],
+    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
@@ -275,6 +302,8 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey.startsWith("monitor-")) return "src/workflows/skills/oe3/02-monitor-provision.mjs";
   if (skillKey.startsWith("context-resolve-")) return "src/workflows/skills/oe3/02-context-resolvers.mjs";
   if (skillKey.startsWith("launch-pack-resolve-")) return "src/workflows/skills/oe3/03-launch-pack.mjs";
+  if (skillKey === "resource-bootstrap-from-blueprints") return "src/workflows/skills/oe3/04-resource-blueprint-bootstrap.mjs";
+  if (skillKey === "resource-live-readonly-reconcile") return "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs";
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
   if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";

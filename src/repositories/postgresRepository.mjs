@@ -203,6 +203,12 @@ export class PostgresRepository {
             lpa.updated_at DESC
           LIMIT 1
         ),
+        'resourceBlueprints', (
+          SELECT coalesce(jsonb_agg(to_jsonb(brp) ORDER BY brp.resource_type, brp.blueprint_id), '[]'::jsonb)
+          FROM mwb.game_route_resource_blueprints brp
+          WHERE brp.route_id = r.route_id
+            AND brp.game_code = g.game_code
+        ),
         'resources', (
           SELECT coalesce(jsonb_agg(to_jsonb(ar) ORDER BY ar.resource_type, ar.resource_id), '[]'::jsonb)
           FROM mwb.account_resources ar
@@ -289,6 +295,12 @@ export class PostgresRepository {
             END,
             lpa.updated_at DESC
           LIMIT 1
+        ),
+        'resourceBlueprints', (
+          SELECT coalesce(jsonb_agg(to_jsonb(brp) ORDER BY brp.resource_type, brp.blueprint_id), '[]'::jsonb)
+          FROM mwb.game_route_resource_blueprints brp
+          WHERE brp.route_id = j.route_id
+            AND brp.game_code = j.game_code
         ),
         'resources', (
           SELECT coalesce(jsonb_agg(to_jsonb(ar) ORDER BY ar.resource_type, ar.resource_id), '[]'::jsonb)
@@ -1735,7 +1747,7 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async updateAccountResourceReadonly({ routeId, gameCode, advertiserId, resourceType, visibilityStatus, readbackStatus, platformResourceId, metadata, resourceMetadata }) {
+  async updateAccountResourceReadonly({ routeId, gameCode, advertiserId, resourceType, visibilityStatus, readbackStatus, platformResourceId, inheritanceStatus, metadata, resourceMetadata }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
@@ -1746,12 +1758,137 @@ export class PostgresRepository {
       SET visibility_status = coalesce(nullif(${sqlLiteral(visibilityStatus || "")}, ''), visibility_status),
           readback_status = coalesce(nullif(${sqlLiteral(readbackStatus || "")}, ''), readback_status),
           platform_resource_id = coalesce(nullif(${sqlLiteral(platformResourceId || "")}, ''), platform_resource_id),
+          inheritance_status = coalesce(nullif(${sqlLiteral(inheritanceStatus || "")}, ''), inheritance_status),
           metadata = metadata || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}) || ${sqlJson(resourceMetadata || {})},
           updated_at = now()
       WHERE route_id = ${sqlLiteral(routeId)}
         AND game_code = ${sqlLiteral(gameCode)}
         AND advertiser_id = ${sqlLiteral(advertiserId)}
         AND resource_type = ${sqlLiteral(resourceType)};
+    `, this.database);
+  }
+
+  async bootstrapAccountResourcesFromBlueprints({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+
+    return queryJson(`
+      WITH blueprints AS (
+        SELECT
+          brp.*,
+          coalesce(lpa.site_id, '') AS landing_site_id,
+          coalesce(lpa.site_name, '') AS landing_site_name,
+          coalesce(lpa.url_hash, '') AS landing_url_hash
+        FROM mwb.game_route_resource_blueprints brp
+        LEFT JOIN mwb.landing_page_assets lpa
+          ON brp.source_kind = 'landing_page_asset'
+         AND lpa.landing_page_asset_id = brp.source_asset_id
+        WHERE brp.route_id = ${sqlLiteral(routeId)}
+          AND brp.game_code = ${sqlLiteral(gameCode)}
+      ),
+      inserted AS (
+        INSERT INTO mwb.account_resources (
+          resource_id,
+          advertiser_id,
+          route_id,
+          game_code,
+          resource_type,
+          resource_name,
+          platform_resource_id,
+          source_asset_id,
+          visibility_status,
+          readback_status,
+          required,
+          blueprint_id,
+          inheritance_status,
+          metadata,
+          created_at,
+          updated_at
+        )
+        SELECT
+          'AR-' || ${sqlLiteral(advertiserId)} || '-' || ${sqlLiteral(gameCode)} || '-BLUEPRINT-' || regexp_replace(b.blueprint_id, '[^A-Za-z0-9]+', '-', 'g'),
+          ${sqlLiteral(advertiserId)},
+          b.route_id,
+          b.game_code,
+          b.resource_type,
+          CASE
+            WHEN b.resource_type = 'backup_landing_page' AND b.landing_site_name <> '' THEN b.landing_site_name
+            ELSE b.resource_name
+          END,
+          CASE
+            WHEN b.resource_type = 'backup_landing_page' THEN coalesce(nullif(b.landing_site_id, ''), b.candidate_platform_resource_id)
+            WHEN b.resource_type = 'video_asset' THEN b.source_asset_id
+            ELSE ''
+          END,
+          b.source_asset_id,
+          CASE WHEN b.resource_type = 'backup_landing_page' THEN 'unknown' ELSE 'needs_confirmation' END,
+          'not_checked',
+          b.required,
+          b.blueprint_id,
+          'baseline_candidate',
+          jsonb_build_object(
+            'baseline_blueprint', jsonb_build_object(
+              'blueprint_id', b.blueprint_id,
+              'source_kind', b.source_kind,
+              'source_asset_id', b.source_asset_id,
+              'source_advertiser_id', b.source_advertiser_id,
+              'inheritance_mode', b.inheritance_mode
+            ),
+            'readonly_check', jsonb_build_object(
+              'status', 'baseline_candidate',
+              'key', 'resource_blueprint_bootstrap',
+              'gap', 'target_account_readonly_required',
+              'next_action', '运行目标账户真实只读核验'
+            )
+          )
+          || CASE
+            WHEN b.resource_type = 'backup_landing_page' THEN jsonb_build_object(
+              'site_id', coalesce(nullif(b.landing_site_id, ''), b.candidate_platform_resource_id),
+              'landing_page_asset_id', b.source_asset_id,
+              'url_hash', b.landing_url_hash
+            )
+            ELSE '{}'::jsonb
+          END,
+          now(),
+          now()
+        FROM blueprints b
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM mwb.account_resources existing
+          WHERE existing.advertiser_id = ${sqlLiteral(advertiserId)}
+            AND existing.route_id = b.route_id
+            AND existing.game_code = b.game_code
+            AND existing.blueprint_id = b.blueprint_id
+        )
+        ON CONFLICT (resource_id) DO UPDATE SET
+          blueprint_id = EXCLUDED.blueprint_id,
+          metadata = mwb.account_resources.metadata || jsonb_build_object(
+            'baseline_blueprint', EXCLUDED.metadata->'baseline_blueprint'
+          ),
+          updated_at = now()
+        RETURNING blueprint_id
+      )
+      SELECT jsonb_build_object(
+        'blueprintCount', (SELECT count(*) FROM blueprints),
+        'createdResourceCount', (SELECT count(*) FROM inserted),
+        'existingResourceCount', (
+          SELECT count(*)
+          FROM mwb.account_resources ar
+          WHERE ar.advertiser_id = ${sqlLiteral(advertiserId)}
+            AND ar.route_id = ${sqlLiteral(routeId)}
+            AND ar.game_code = ${sqlLiteral(gameCode)}
+            AND ar.blueprint_id IS NOT NULL
+        ),
+        'inheritanceStatuses', (
+          SELECT coalesce(jsonb_agg(DISTINCT inheritance_status ORDER BY inheritance_status), '[]'::jsonb)
+          FROM mwb.account_resources ar
+          WHERE ar.advertiser_id = ${sqlLiteral(advertiserId)}
+            AND ar.route_id = ${sqlLiteral(routeId)}
+            AND ar.game_code = ${sqlLiteral(gameCode)}
+            AND ar.blueprint_id IS NOT NULL
+        )
+      )::text;
     `, this.database);
   }
 

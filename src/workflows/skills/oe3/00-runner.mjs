@@ -37,6 +37,8 @@ import {
   withDmpCustomAudienceIds
 } from "./04-resource-verifiers.mjs";
 import { runMicroAppInstanceReadinessSkill } from "./04-micro-app-instance-readiness.mjs";
+import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconcile.mjs";
+import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
@@ -50,7 +52,8 @@ const LAUNCH_PACK_SKILLS = new Set([
   "launch-pack-resolve-game",
   "launch-pack-resolve-defaults",
   "launch-pack-resolve-materials",
-  "launch-pack-resolve-backup-landing-page"
+  "launch-pack-resolve-backup-landing-page",
+  "launch-pack-resolve-resource-blueprints"
 ]);
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
@@ -94,6 +97,9 @@ function skillsForMode(mode) {
       "launch-pack-resolve-defaults",
       "launch-pack-resolve-materials",
       "launch-pack-resolve-backup-landing-page",
+      "launch-pack-resolve-resource-blueprints",
+      "resource-bootstrap-from-blueprints",
+      "resource-live-readonly-reconcile",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
@@ -107,6 +113,9 @@ function skillsForMode(mode) {
     "launch-pack-resolve-defaults",
     "launch-pack-resolve-materials",
     "launch-pack-resolve-backup-landing-page",
+    "launch-pack-resolve-resource-blueprints",
+    "resource-bootstrap-from-blueprints",
+    "resource-live-readonly-reconcile",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
     "payload-build",
     "payload-contract",
@@ -283,6 +292,20 @@ async function executeSkill({ repo, context, skillKey }) {
       bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
       skillKey
     });
+  } else if (skillKey === "resource-bootstrap-from-blueprints") {
+    result = await runResourceBlueprintBootstrapSkill({ repo, bundle: context.bundle });
+    // The initial plan may have seen no target account resource rows. Rebuild it
+    // after candidate materialization so later gates use the current local truth.
+    if (result.status === "passed") {
+      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
+    }
+  } else if (skillKey === "resource-live-readonly-reconcile") {
+    result = await runPlatformReadonlyReconcileSkill({
+      repo,
+      bundle: context.bundle,
+      allowReadonlyDependency: context.allowReadonlyDependency === true,
+      mockReady: context.mockReady === true
+    });
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"
@@ -385,7 +408,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const readbackNode = readbackNodeStatusFromSkill({ readback, mode });
   const contextBlocked = ["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]
     .some((key) => skillOutput(key).status === "blocked");
-  const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials", "launch-pack-resolve-backup-landing-page"]
+  const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials", "launch-pack-resolve-backup-landing-page", "launch-pack-resolve-resource-blueprints"]
     .some((key) => skillOutput(key).status === "blocked");
   const draft = skillOutput("payload-build").outputSummary || {};
 
@@ -420,13 +443,14 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     nodeStatus({
       nodeKey: "game_launch_pack",
       status: packBlocked ? "blocked" : "passed",
-      summary: packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
+      summary: packBlocked ? "游戏主档、路线默认值、保底物料包、备用落地页或资源蓝图缺失。" : "游戏主档、路线默认值、保底物料包、备用落地页和资源蓝图已由 Skill 装配。",
       diagnosticLevel: packBlocked ? "error" : "info",
       outputSummary: {
         game: skillOutput("launch-pack-resolve-game").outputSummary || {},
         defaults: skillOutput("launch-pack-resolve-defaults").outputSummary || {},
         materials: skillOutput("launch-pack-resolve-materials").outputSummary || {},
-        backupLandingPage: skillOutput("launch-pack-resolve-backup-landing-page").outputSummary || {}
+        backupLandingPage: skillOutput("launch-pack-resolve-backup-landing-page").outputSummary || {},
+        resourceBlueprints: skillOutput("launch-pack-resolve-resource-blueprints").outputSummary || {}
       }
     }),
     nodeStatus({
@@ -440,6 +464,8 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
           .map((item) => item.outputSummary?.resourceType)
           .filter(Boolean),
         checks: resourceOutputs.map((item) => item.outputSummary).filter(Boolean),
+        bootstrap: skillOutput("resource-bootstrap-from-blueprints").outputSummary || {},
+        baselineReadonly: skillOutput("resource-live-readonly-reconcile").outputSummary || {},
         platformReadonlyStatus: cachedReadonly.platformReadonlyStatus,
         credentialStatus: cachedReadonly.credentialStatus,
         credentialBlockers: cachedReadonly.credentialBlockers,

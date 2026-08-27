@@ -1,0 +1,91 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "Materialize JSZC baseline resource candidates and collect target-account runtime truth through real readonly APIs only.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "expected_monitor_id": "245828",
+    "source_usage": "runtime_truth",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.json",
+    "db/030_add_game_route_resource_blueprints.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-blueprint-bootstrap.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "scripts/03-baseline-resource-bootstrap-readonly-cli.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.json",
+    "project.state.json",
+    "Postgres marketing_workbench_v2.mwb.launch_jobs",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs",
+    "Postgres marketing_workbench_v2.mwb.account_resources",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.launch_execution_plans",
+    "Postgres marketing_workbench_v2.mwb.launch_drafts",
+    "Postgres marketing_workbench_v2.mwb.readback_records",
+    "Postgres marketing_workbench_v2.mwb.monitor_provision_runs",
+    "Postgres marketing_workbench_v2.mwb.advertiser_accounts",
+    "Postgres marketing_workbench_v2.mwb.account_touchpoints"
+  ],
+  "allowed_external_readonly": [
+    "qiankun:POST /tf/account_info/accountIndex",
+    "qiankun:POST /tf/ad/index",
+    "oceanengine:GET advertiser/avatar/get",
+    "oceanengine:GET tools/event/all_assets/list",
+    "oceanengine:GET dpa/brand/adv_auth/fuzzy/get",
+    "oceanengine:GET dpa/brand/adv_auth/industry/get",
+    "oceanengine:GET file/image/get",
+    "oceanengine:GET file/video/get",
+    "oceanengine:GET dmp/custom_audience/select",
+    "oceanengine:GET event/goal readonly endpoints",
+    "oceanengine:GET std_project/list"
+  ],
+  "forbidden_actions": [
+    "monitorSerialNumberAdd",
+    "std_project/create",
+    "all OceanEngine POST/PUT platform writes",
+    "material upload, bind, push, share, or selection",
+    "DMP write or automatic audience selection",
+    "event asset create",
+    "brand authorization change",
+    "budget or bid update",
+    "token refresh",
+    "writing token, secret, Cookie, raw request, raw response, full touchpoint URL, or full landing URL"
+  ],
+  "acceptance": {
+    "fresh_runtime_truth_job": true,
+    "monitor_serial_number_add_calls": 0,
+    "platform_actions": 0,
+    "launch_confirmations": 0,
+    "created_objects": 0,
+    "node_count": 7,
+    "node6_status": "locked",
+    "no_automatic_dmp_or_product_image_selection": true,
+    "result": "blocked_with_evidence",
+    "runtime_job_id": "JOB-MWBV2-20260827091313-EF85A9",
+    "monitor_id_verified": "245828",
+    "node4_probe_count": 5,
+    "zero_platform_write_audit": true,
+    "mechanism_observations": [
+      "Node 3 backup landing readiness runs before Node 4 candidate bootstrap and may retain a stale resource_missing blocker.",
+      "Readonly CLI should distinguish a blocked Skill that executed from a Skill that did not run."
+    ]
+  }
+}

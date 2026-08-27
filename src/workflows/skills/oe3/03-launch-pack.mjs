@@ -51,5 +51,20 @@ export function runLaunchPackSkill({ bundle, skillKey }) {
     return runBackupLandingPageReadinessSkill({ bundle });
   }
 
+  if (skillKey === "launch-pack-resolve-resource-blueprints") {
+    const blueprints = Array.isArray(bundle.resourceBlueprints) ? bundle.resourceBlueprints : [];
+    const requiredCount = blueprints.filter((item) => item.required === true).length;
+    return {
+      status: blueprints.length ? "passed" : "blocked",
+      blockers: blueprints.length ? [] : ["baseline_resource_blueprints_missing"],
+      outputSummary: {
+        blueprintCount: blueprints.length,
+        requiredBlueprintCount: requiredCount,
+        resourceTypes: [...new Set(blueprints.map((item) => item.resource_type).filter(Boolean))],
+        nextAction: blueprints.length ? "继续物化目标账户保底资源候选。" : "补齐游戏/路线保底资源蓝图。"
+      }
+    };
+  }
+
   throw new Error(`launch_pack_skill_not_implemented:${skillKey}`);
 }
