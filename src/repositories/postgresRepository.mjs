@@ -228,6 +228,181 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getGameAsset(assetId) {
+    assertId("asset_id", assetId);
+    return queryJson(`
+      SELECT to_jsonb(ga)::text
+      FROM mwb.game_assets ga
+      WHERE ga.asset_id = ${sqlLiteral(assetId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getDmpPackageSet({ routeId, gameCode, packageSetId = "" }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    if (packageSetId) assertId("package_set_id", packageSetId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'packageSet', to_jsonb(s),
+        'members', coalesce((
+          SELECT jsonb_agg(to_jsonb(m) ORDER BY m.custom_audience_id)
+          FROM mwb.dmp_package_members m
+          WHERE m.package_set_id = s.package_set_id
+        ), '[]'::jsonb)
+      )::text
+      FROM mwb.dmp_package_sets s
+      WHERE s.route_id = ${sqlLiteral(routeId)}
+        AND s.game_code = ${sqlLiteral(gameCode)}
+        ${packageSetId ? `AND s.package_set_id = ${sqlLiteral(packageSetId)}` : ""}
+      ORDER BY
+        CASE s.status
+          WHEN 'target_readonly_verified' THEN 1
+          WHEN 'source_readonly_verified' THEN 2
+          WHEN 'push_plan_pending' THEN 3
+          WHEN 'reference_candidate' THEN 4
+          ELSE 5
+        END,
+        s.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async updateDmpPackageMemberReadonly({
+    packageSetId,
+    customAudienceId,
+    sourceReadonlyStatus = "",
+    targetReadonlyStatus = "",
+    sourceEvidenceRef = "",
+    targetEvidenceRef = "",
+    referenceStatus = "",
+    metadata = {}
+  }) {
+    assertId("package_set_id", packageSetId);
+    assertId("custom_audience_id", customAudienceId, /^[0-9]+$/);
+    await runPsql(`
+      UPDATE mwb.dmp_package_members
+      SET source_readonly_status = coalesce(nullif(${sqlLiteral(sourceReadonlyStatus)}, ''), source_readonly_status),
+          target_readonly_status = coalesce(nullif(${sqlLiteral(targetReadonlyStatus)}, ''), target_readonly_status),
+          source_evidence_ref = coalesce(nullif(${sqlLiteral(sourceEvidenceRef)}, ''), source_evidence_ref),
+          target_evidence_ref = coalesce(nullif(${sqlLiteral(targetEvidenceRef)}, ''), target_evidence_ref),
+          reference_status = coalesce(nullif(${sqlLiteral(referenceStatus)}, ''), reference_status),
+          metadata = metadata || ${sqlJson(metadata || {})},
+          updated_at = now()
+      WHERE package_set_id = ${sqlLiteral(packageSetId)}
+        AND custom_audience_id = ${sqlLiteral(customAudienceId)};
+    `, this.database);
+  }
+
+  async updateDmpPackageSetStatus({ packageSetId, status, metadata = {} }) {
+    assertId("package_set_id", packageSetId);
+    assertId("status", status);
+    await runPsql(`
+      UPDATE mwb.dmp_package_sets
+      SET status = ${sqlLiteral(status)},
+          metadata = metadata || ${sqlJson(metadata || {})},
+          updated_at = now()
+      WHERE package_set_id = ${sqlLiteral(packageSetId)};
+    `, this.database);
+  }
+
+  async upsertDmpPackagePushPlans({
+    jobId,
+    packageSetId,
+    sourceAdvertiserId,
+    targetAdvertiserId,
+    customAudienceIds = [],
+    endpoint,
+    requestFieldManifest = {},
+    evidenceRef = "",
+    metadata = {}
+  }) {
+    assertId("job_id", jobId);
+    assertId("package_set_id", packageSetId);
+    assertId("source_advertiser_id", sourceAdvertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("target_advertiser_id", targetAdvertiserId, /^[0-9A-Za-z_\-.]+$/);
+    const ids = [...new Set(customAudienceIds.map((value) => String(value || "").trim()).filter(Boolean))];
+    ids.forEach((id) => assertId("custom_audience_id", id, /^[0-9]+$/));
+    if (!ids.length) return { plannedCount: 0, pushPlanIds: [] };
+    const rows = ids.map((id) => {
+      const payloadShape = {
+        advertiser_id: sourceAdvertiserId,
+        custom_audience_id: id,
+        target_advertiser_ids: [targetAdvertiserId],
+        delivery_status: "ON"
+      };
+      const requestHash = `sha256:${sha256Hex(JSON.stringify(payloadShape))}`;
+      return `(
+        ${sqlLiteral(`DMPP-${jobId}-${id}`)},
+        ${sqlLiteral(jobId)},
+        ${sqlLiteral(packageSetId)},
+        ${sqlLiteral(id)},
+        ${sqlLiteral(sourceAdvertiserId)},
+        ${sqlLiteral(targetAdvertiserId)},
+        'ensure_resource:dmp_audience_package',
+        ${sqlLiteral(endpoint)},
+        'planned',
+        ${sqlLiteral(requestHash)},
+        ${sqlJson(requestFieldManifest || {})},
+        ${sqlLiteral(evidenceRef || "")},
+        ${sqlJson({
+          ...(metadata || {}),
+          request_hash_input_stored: false,
+          delivery_status_policy: "planned_on"
+        })},
+        now(),
+        now()
+      )`;
+    }).join(",");
+    return queryJson(`
+      WITH upserted AS (
+        INSERT INTO mwb.dmp_package_push_plans (
+          push_plan_id,
+          job_id,
+          package_set_id,
+          custom_audience_id,
+          source_advertiser_id,
+          target_advertiser_id,
+          action_type,
+          endpoint,
+          plan_status,
+          request_hash,
+          request_field_manifest,
+          evidence_ref,
+          metadata,
+          created_at,
+          updated_at
+        ) VALUES ${rows}
+        ON CONFLICT (job_id, package_set_id, custom_audience_id) DO UPDATE SET
+          source_advertiser_id = EXCLUDED.source_advertiser_id,
+          target_advertiser_id = EXCLUDED.target_advertiser_id,
+          action_type = EXCLUDED.action_type,
+          endpoint = EXCLUDED.endpoint,
+          plan_status = EXCLUDED.plan_status,
+          request_hash = EXCLUDED.request_hash,
+          request_field_manifest = EXCLUDED.request_field_manifest,
+          evidence_ref = EXCLUDED.evidence_ref,
+          metadata = mwb.dmp_package_push_plans.metadata || EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING push_plan_id
+      )
+      SELECT jsonb_build_object(
+        'plannedCount', count(*),
+        'pushPlanIds', coalesce(jsonb_agg(push_plan_id ORDER BY push_plan_id), '[]'::jsonb)
+      )::text
+      FROM upserted;
+    `, this.database);
+  }
+
+  async getDmpPackagePushPlans(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.custom_audience_id), '[]'::jsonb)::text
+      FROM mwb.dmp_package_push_plans p
+      WHERE p.job_id = ${sqlLiteral(jobId)};
+    `, this.database);
+  }
+
   async getLaunchJobBundle(jobId) {
     assertId("job_id", jobId);
     return queryJson(`
@@ -1760,6 +1935,22 @@ export class PostgresRepository {
           platform_resource_id = coalesce(nullif(${sqlLiteral(platformResourceId || "")}, ''), platform_resource_id),
           inheritance_status = coalesce(nullif(${sqlLiteral(inheritanceStatus || "")}, ''), inheritance_status),
           metadata = metadata || jsonb_build_object('readonly_check', ${sqlJson(metadata || {})}) || ${sqlJson(resourceMetadata || {})},
+          updated_at = now()
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND resource_type = ${sqlLiteral(resourceType)};
+    `, this.database);
+  }
+
+  async mergeAccountResourceMetadata({ routeId, gameCode, advertiserId, resourceType, resourceMetadata }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("resource_type", resourceType);
+    await runPsql(`
+      UPDATE mwb.account_resources
+      SET metadata = metadata || ${sqlJson(resourceMetadata || {})},
           updated_at = now()
       WHERE route_id = ${sqlLiteral(routeId)}
         AND game_code = ${sqlLiteral(gameCode)}

@@ -162,10 +162,70 @@ export const OE3_SKILL_DEFINITIONS = [
     stopConditions: ["credential_required", "readonly_transport_failed"],
     writeScope: "launch_skill_runs_account_resources_evidence_artifacts"
   },
+  {
+    skillKey: "avatar-source-prepare",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["resource-bootstrap-from-blueprints"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "avatar.source_asset_id"],
+    outputContract: ["source_asset_id", "source_hash", "format", "width", "height", "source_file_present"],
+    stopConditions: ["avatar_source_asset_missing", "avatar_source_file_missing", "avatar_source_hash_mismatch", "avatar_source_dimensions_invalid"],
+    writeScope: "launch_skill_runs_account_resources",
+    moduleRef: "src/workflows/skills/oe3/04-avatar-source-prepare.mjs"
+  },
+  {
+    skillKey: "avatar-submit-plan",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["avatar-source-prepare", "resource-live-readonly-reconcile"],
+    inputContract: ["advertiser_id", "avatar_source_preparation", "official_avatar_submit_contract"],
+    outputContract: ["official_contract_verified", "request_field_manifest", "request_hash", "platform_write_called"],
+    stopConditions: ["avatar_source_not_ready", "official_avatar_submit_contract_missing", "avatar_platform_image_id_required"],
+    writeScope: "launch_skill_runs_account_resources",
+    moduleRef: "src/workflows/skills/oe3/04-avatar-submit-plan.mjs"
+  },
+  {
+    skillKey: "dmp-baseline-resolve",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["resource-bootstrap-from-blueprints"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "dmp_package_set_id"],
+    outputContract: ["package_set_id", "semantic_key", "payload_field", "source_advertiser_id", "member_count"],
+    stopConditions: ["dmp_baseline_package_set_missing", "dmp_baseline_members_missing"],
+    writeScope: "launch_skill_runs_only",
+    moduleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs"
+  },
+  {
+    skillKey: "dmp-source-readonly-verify",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["dmp-baseline-resolve"],
+    inputContract: ["package_set_id", "source_advertiser_id", "custom_audience_id[]"],
+    outputContract: ["source_readonly_status", "source_verified_count", "evidence_ref", "custom_audience_id[]"],
+    stopConditions: ["readonly_permission_required", "credential_required", "dmp_source_readonly_verify_blocked"],
+    writeScope: "launch_skill_runs_dmp_package_members_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs"
+  },
+  {
+    skillKey: "dmp-target-readonly-verify",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["dmp-baseline-resolve"],
+    inputContract: ["package_set_id", "advertiser_id", "custom_audience_id[]"],
+    outputContract: ["target_readonly_status", "target_verified_count", "missing_count", "evidence_ref", "custom_audience_id[]"],
+    stopConditions: ["readonly_permission_required", "credential_required", "dmp_target_readonly_verify_blocked"],
+    writeScope: "launch_skill_runs_dmp_package_members_account_resources_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs"
+  },
+  {
+    skillKey: "dmp-push-plan",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["dmp-source-readonly-verify", "dmp-target-readonly-verify"],
+    inputContract: ["source_verified_custom_audience_id[]", "target_verified_custom_audience_id[]", "target_advertiser_id"],
+    outputContract: ["push_plan_count", "push_plan_id[]", "request_hash[]", "request_field_manifest"],
+    stopConditions: ["dmp_source_readonly_not_complete", "dmp_target_push_plan_pending"],
+    writeScope: "launch_skill_runs_dmp_package_push_plans_account_resources_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs"
+  },
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
     skillKey: `resource-verify-${resourceType.replace(/_/g, "-")}`,
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
+    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : [])],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
@@ -306,6 +366,9 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey.startsWith("launch-pack-resolve-")) return "src/workflows/skills/oe3/03-launch-pack.mjs";
   if (skillKey === "resource-bootstrap-from-blueprints") return "src/workflows/skills/oe3/04-resource-blueprint-bootstrap.mjs";
   if (skillKey === "resource-live-readonly-reconcile") return "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs";
+  if (skillKey === "avatar-source-prepare") return "src/workflows/skills/oe3/04-avatar-source-prepare.mjs";
+  if (skillKey === "avatar-submit-plan") return "src/workflows/skills/oe3/04-avatar-submit-plan.mjs";
+  if (skillKey.startsWith("dmp-")) return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
   if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";

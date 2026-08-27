@@ -1,0 +1,65 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-DMP-BASELINE-SOURCE-TARGET-READINESS-1871922346964041",
+  "owner_agent": "codex",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "resource_type": "dmp_audience_package",
+    "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+    "source_advertiser_id": "1871922153496588"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-DMP-BASELINE-SOURCE-TARGET-READINESS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DMP-BASELINE-SOURCE-TARGET-READINESS-1871922346964041.json",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineDmpExecutor.mjs"
+  ],
+  "allowed_actions": [
+    "postgres_schema_update",
+    "postgres_runtime_truth_readonly_evidence",
+    "oceanengine_readonly:dmp/custom_audience/read",
+    "oceanengine_readonly:dmp/custom_audience/select",
+    "local_tests"
+  ],
+  "forbidden_actions": [
+    "dmp/custom_audience/push_v2",
+    "std_project/create",
+    "monitorSerialNumberAdd",
+    "token_refresh",
+    "budget_or_bid_update",
+    "raw_request_or_response_logging"
+  ],
+  "acceptance": {
+    "platform_write_calls": 0,
+    "launch_confirmations": 0,
+    "created_objects": 0,
+    "dmp_pipeline_skill_keys": [
+      "dmp-baseline-resolve",
+      "dmp-source-readonly-verify",
+      "dmp-target-readonly-verify",
+      "dmp-push-plan",
+      "resource-verify-dmp-audience-package"
+    ],
+    "sensitive_fields_stored": false
+  },
+  "evidence": {
+    "runtime_job_id": "JOB-MWBV2-20260827122811-BF9632",
+    "source_readonly_evidence_ref": "EV-JOB-MWBV2-20260827122811-BF9632-DMP-SOURCE-READONLY-VERIFY",
+    "target_readonly_evidence_ref": "EV-JOB-MWBV2-20260827122811-BF9632-DMP-TARGET-READONLY-VERIFY",
+    "push_plan_evidence_ref": "EV-JOB-MWBV2-20260827122811-BF9632-DMP-PUSH-PLAN",
+    "push_plan_count": 10,
+    "next_gate": "DMP 默认集合逐包单次推送与回查任务"
+  }
+}

@@ -96,7 +96,11 @@ function child(id, label, statusSource) {
 const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => child(
   `resource-${resourceType}`,
   OE3_RESOURCE_LABELS[resourceType],
-  { kind: "latest_skill", skillKeys: [`resource-verify-${resourceType.replace(/_/g, "-")}`] }
+  resourceType === "avatar"
+    ? { kind: "latest_skill", skillKeys: ["avatar-source-prepare", "avatar-submit-plan", "resource-verify-avatar"] }
+    : resourceType === "dmp_audience_package"
+      ? { kind: "latest_skill", skillKeys: ["dmp-baseline-resolve", "dmp-source-readonly-verify", "dmp-target-readonly-verify", "dmp-push-plan", "resource-verify-dmp-audience-package"] }
+    : { kind: "latest_skill", skillKeys: [`resource-verify-${resourceType.replace(/_/g, "-")}`] }
 )));
 
 const node4Children = Object.freeze([

@@ -7,30 +7,33 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "oe3_avatar_readonly_diagnosis_completed_blocked_on_avatar_unset",
+  "project_status": "oe3_dmp_baseline_source_verified_target_push_plan_pending",
   "phase": {
     "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
     "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
-  "next_gate": "新建账户 1871922346964041 头像准备机制与单次提交方案任务：先确认官方头像上传/提交接口合同、素材来源和一次性确认变量；头像变为 IN_AUDIT 或 AUDIT_PASS 后重跑 fresh runtime truth，禁止直接进入 Node 6。",
+  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-UPLOAD-SUBMIT-READBACK-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-BASELINE-SOURCE-TARGET-READINESS-1871922346964041.md",
+  "next_gate": "新建账户 1871922346964041 的 DMP 默认集合逐包单次推送与回查任务；本次来源户 10/10 通过、目标户 10/10 缺失，已有 10 条 planned push 计划，广告创建继续锁定。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "paused_after_full_chain_readonly_readiness",
+      "mode": "read_only_after_single_avatar_upload_submit_attempt",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
       "target_project_name": "",
-      "target_advertiser_id": "1871922346964041",
+      "target_advertiser_id": "",
+      "target_plan_id": "",
+      "target_plan_hash": "",
       "allowed_actions": [],
       "maximum_actions": 0,
+      "maximum_platform_calls": 0,
       "retry_allowed": false,
-      "granted_at": "",
-      "granted_by": ""
+      "granted_at": "2026-08-27 CST",
+      "granted_by": "user_confirmed_avatar_recovery_reupload_submit_readback"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

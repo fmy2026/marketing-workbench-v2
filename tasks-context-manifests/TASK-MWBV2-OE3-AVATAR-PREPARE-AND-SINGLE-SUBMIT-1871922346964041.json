@@ -1,0 +1,90 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-AVATAR-PREPARE-AND-SINGLE-SUBMIT-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-PREPARE-AND-SINGLE-SUBMIT-1871922346964041.md",
+  "status": "completed_blocked_missing_official_avatar_submit_contract",
+  "owner_agent": "codex",
+  "goal": "Create a distinct 300x300 JSZC avatar source and Node 4 avatar prepare/submit-plan mechanism for advertiser 1871922346964041 without any platform write.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "resource_type": "avatar"
+  },
+  "asset_contract": {
+    "source_asset_id": "PI-JSZC-PRODUCT-IMAGE-001",
+    "derived_asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001",
+    "source_path": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product-image.png",
+    "derived_path": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/account-avatar-300x300.png",
+    "format": "png",
+    "width": 300,
+    "height": 300
+  },
+  "permissions": {
+    "local_derived_asset_allowed": true,
+    "postgres_local_truth_allowed": true,
+    "platform_readonly_allowed": false,
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "forbidden": [
+    "avatar platform upload",
+    "avatar platform submit",
+    "std_project/create",
+    "material upload",
+    "token refresh",
+    "budget or bid update",
+    "token, Cookie, raw request, raw response, full image URL persistence"
+  ],
+  "completion_policy": {
+    "close_when": [
+      "avatar source and dry-run mechanism are implemented and verified",
+      "official avatar submit contract is either verified or recorded as missing"
+    ],
+    "expected_blocker_without_official_contract": "official_avatar_submit_contract_missing"
+  },
+  "result": {
+    "derived_avatar": {
+      "asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001",
+      "format": "png",
+      "width": 300,
+      "height": 300,
+      "hash": "sha256:270ccf2dc35ab4175c6f37305bd4b4dbbc5720606d104c0e665beae1d12ed087",
+      "derived_from_asset_id": "PI-JSZC-PRODUCT-IMAGE-001"
+    },
+    "node4_pipeline": [
+      "avatar-source-prepare",
+      "avatar-submit-plan",
+      "resource-verify-avatar"
+    ],
+    "dry_run": {
+      "command": "npm run resource:avatar-submit-once -- --advertiser-id 1871922346964041",
+      "status": "blocked",
+      "blockers": ["official_avatar_submit_contract_missing"],
+      "platform_write_called": false,
+      "token_refresh_called": false
+    },
+    "verification": [
+      "smoke:workflow-skills",
+      "test:avatar-submit",
+      "test:resource-action-registry",
+      "test:baseline-resource-inheritance",
+      "test:readonly-readiness-cli",
+      "test:payload-contract",
+      "check:runtime-consistency",
+      "git diff --check"
+    ]
+  },
+  "next_gate": "Verify the official account-avatar submit contract. If it requires a platform image upload, create a separate one-time avatar-image upload task before any one-time avatar submit task."
+}

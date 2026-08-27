@@ -1,0 +1,86 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-AVATAR-UPLOAD-SUBMIT-READBACK-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-UPLOAD-SUBMIT-READBACK-1871922346964041.md",
+  "status": "completed_blocked_after_single_upload_before_submit",
+  "owner_agent": "codex",
+  "goal": "Upload, submit, and read back one JSZC account avatar for advertiser 1871922346964041 under a one-time controlled write scope.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-AVATAR-PREPARE-AND-SINGLE-SUBMIT-1871922346964041.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineAvatarExecutor.mjs",
+    "src/workflows/avatarExecutionScope.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "resource_type": "avatar",
+    "source_asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001"
+  },
+  "contract": {
+    "evidence_standard": "historical_script_reference_plus_realtime_readback",
+    "reference_only": true,
+    "upload": { "method": "POST", "endpoint": "advertiser/avatar/upload", "fields": ["advertiser_id", "image_file"] },
+    "submit": { "method": "POST", "endpoint": "advertiser/avatar/submit", "fields": ["advertiser_id", "image_id", "source_info"] },
+    "readback": { "method": "GET", "endpoint": "advertiser/avatar/get", "fields": ["advertiser_id"] },
+    "source_info": "巨兽战场"
+  },
+  "permissions": {
+    "postgres_local_truth_allowed": true,
+    "platform_readonly_allowed": true,
+    "platform_write_allowed_before_guard": false,
+    "allowed_action": "ensure_resource:avatar",
+    "maximum_high_level_actions": 1,
+    "maximum_platform_write_calls": 2,
+    "maximum_readback_calls": 3,
+    "credential_refresh_allowed": false
+  },
+  "forbidden": [
+    "monitor create",
+    "std_project/create",
+    "budget or bid update",
+    "token refresh",
+    "automatic retry",
+    "token, Cookie, raw request, raw response, image URL persistence"
+  ],
+  "completion_policy": {
+    "pass_statuses": ["IN_AUDIT", "AUDIT_PASS"],
+    "stop_statuses": ["AUDIT_REJECT", "unknown_after_three_readbacks", "upload_failed_once", "submit_failed_once"],
+    "revoke_write_scope_after_attempt": true
+  },
+  "result": {
+    "fresh_runtime_job_id": "JOB-MWBV2-20260827115216-653F58",
+    "monitor_id": "245828",
+    "preflight_avatar_status": "UNSET",
+    "platform_actions": {
+      "upload": 1,
+      "submit": 0,
+      "advertising_create": 0,
+      "token_refresh": 0
+    },
+    "upload": {
+      "status": "succeeded",
+      "http_status": 200,
+      "api_code": "0",
+      "response_hash_present": true
+    },
+    "blocker": {
+      "code": "account_resources_readback_status_constraint_before_submit",
+      "summary": "The executor used an unregistered intermediate readback status after upload; PostgreSQL rejected the local state write before submit was called.",
+      "submit_called": false,
+      "automatic_retry_allowed": false
+    },
+    "mechanism_fix": {
+      "pending_status": "pending",
+      "terminal_nonready_status": "failed",
+      "regression_test": "test:avatar-executor"
+    },
+    "write_scope_revoked": true
+  },
+  "next_gate": "Create a separately authorized recovery task for one new avatar upload, submit, and readback after a fresh UNSET preflight."
+}

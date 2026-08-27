@@ -105,7 +105,10 @@ assert(capabilities.length === OE3_REQUIRED_RESOURCE_TYPES.length, "resource_cap
 assert(capabilities.every((item) => item.verify_skill_key && item.verify_module_ref), "resource_capability_verify_refs_missing");
 assert(getResourceActionCapability("video_asset").prepare_supported === true, "video_prepare_should_be_supported");
 assert(getResourceActionCapability("video_asset").prepare_module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_prepare_module_ref_wrong");
-assert(getResourceActionCapability("dmp_audience_package").prepare_supported === false, "dmp_prepare_should_be_unsupported");
+assert(getResourceActionCapability("dmp_audience_package").prepare_supported === true, "dmp_prepare_should_be_supported");
+assert(getResourceActionCapability("dmp_audience_package").prepare_module_ref === "src/platforms/oceanengineDmpExecutor.mjs", "dmp_prepare_module_ref_wrong");
+assert(getResourceActionCapability("avatar").prepare_supported === true, "avatar_prepare_should_be_supported");
+assert(getResourceActionCapability("avatar").prepare_module_ref === "src/platforms/oceanengineAvatarExecutor.mjs", "avatar_prepare_module_ref_wrong");
 
 const readyNormalized = normalizeResourceSkillResult({
   resourceType: "avatar",
@@ -177,6 +180,18 @@ const videoAction = videoMissingPlan.plannedActions.find((action) => action.acti
 assert(videoAction.module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_action_module_ref_wrong");
 assert(Boolean(videoAction.idempotency_key), "video_action_idempotency_key_missing");
 assert(actionTypes(videoMissingPlan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_waiting_action_missing");
+
+const avatarMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "avatar")
+));
+assert(actionTypes(avatarMissingPlan).includes("ensure_resource:avatar"), "avatar_missing_prepare_action_missing");
+assert(avatarMissingPlan.plannedActions.find((item) => item.action_type === "ensure_resource:avatar").module_ref === "src/platforms/oceanengineAvatarExecutor.mjs", "avatar_action_module_ref_wrong");
+
+const dmpMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "dmp_audience_package")
+));
+assert(actionTypes(dmpMissingPlan).includes("ensure_resource:dmp_audience_package"), "dmp_missing_prepare_action_missing");
+assert(dmpMissingPlan.plannedActions.find((item) => item.action_type === "ensure_resource:dmp_audience_package").module_ref === "src/platforms/oceanengineDmpExecutor.mjs", "dmp_action_module_ref_wrong");
 
 const productMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
   allReadyResources.filter((item) => item.resource_type !== "product_image")

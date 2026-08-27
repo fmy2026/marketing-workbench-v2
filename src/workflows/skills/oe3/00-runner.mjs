@@ -10,7 +10,13 @@ import { cachedReadonlyFromBundle, runContextSkill } from "./02-context-resolver
 import { evaluateStdProjectCreatePreflight } from "./05-create-preflight-diagnostics.mjs";
 import { runCreateOnceSkill } from "./06-create-once.mjs";
 import { runDuplicateReadonlyCheck } from "./05-duplicate-readonly.mjs";
-import { runDmpReadonlyGate } from "./04-dmp-readonly.mjs";
+import {
+  runDmpBaselineResolveSkill,
+  runDmpPushPlanSkill,
+  runDmpReadonlyGate,
+  runDmpSourceReadonlyVerifySkill,
+  runDmpTargetReadonlyVerifySkill
+} from "./04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./03-launch-pack.mjs";
 import { runMonitorWorkflowSkill } from "./02-monitor-provision.mjs";
 import { runObjectiveContractReadonlyGate } from "./05-objective-contract-readiness.mjs";
@@ -40,6 +46,8 @@ import {
 import { runMicroAppInstanceReadinessSkill } from "./04-micro-app-instance-readiness.mjs";
 import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconcile.mjs";
 import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
+import { runAvatarSourcePrepareSkill } from "./04-avatar-source-prepare.mjs";
+import { runAvatarSubmitPlanSkill } from "./04-avatar-submit-plan.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
@@ -55,6 +63,12 @@ const LAUNCH_PACK_SKILLS = new Set([
   "launch-pack-resolve-materials",
   "launch-pack-resolve-backup-landing-page",
   "launch-pack-resolve-resource-blueprints"
+]);
+const DMP_SKILLS = new Set([
+  "dmp-baseline-resolve",
+  "dmp-source-readonly-verify",
+  "dmp-target-readonly-verify",
+  "dmp-push-plan"
 ]);
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
@@ -100,7 +114,13 @@ function skillsForMode(mode) {
       "launch-pack-resolve-backup-landing-page",
       "launch-pack-resolve-resource-blueprints",
       "resource-bootstrap-from-blueprints",
+      "avatar-source-prepare",
       "resource-live-readonly-reconcile",
+      "avatar-submit-plan",
+      "dmp-baseline-resolve",
+      "dmp-source-readonly-verify",
+      "dmp-target-readonly-verify",
+      "dmp-push-plan",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
@@ -116,7 +136,13 @@ function skillsForMode(mode) {
     "launch-pack-resolve-backup-landing-page",
     "launch-pack-resolve-resource-blueprints",
     "resource-bootstrap-from-blueprints",
+    "avatar-source-prepare",
     "resource-live-readonly-reconcile",
+    "avatar-submit-plan",
+    "dmp-baseline-resolve",
+    "dmp-source-readonly-verify",
+    "dmp-target-readonly-verify",
+    "dmp-push-plan",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
     "payload-build",
     "payload-contract",
@@ -370,6 +396,9 @@ async function executeSkill({ repo, context, skillKey }) {
       await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
+  } else if (skillKey === "avatar-source-prepare") {
+    result = await runAvatarSourcePrepareSkill({ repo, bundle: context.bundle });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "resource-live-readonly-reconcile") {
     result = await runPlatformReadonlyReconcileSkill({
       repo,
@@ -380,6 +409,35 @@ async function executeSkill({ repo, context, skillKey }) {
     // Node 4 verifiers must consume the local truth written by readonly probes,
     // not the pre-bootstrap bundle held at workflow start.
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+  } else if (skillKey === "avatar-submit-plan") {
+    result = await runAvatarSubmitPlanSkill({ repo, bundle: context.bundle });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+  } else if (DMP_SKILLS.has(skillKey)) {
+    if (skillKey === "dmp-baseline-resolve") {
+      result = await runDmpBaselineResolveSkill({ repo, bundle: context.bundle });
+    } else if (skillKey === "dmp-source-readonly-verify") {
+      result = await runDmpSourceReadonlyVerifySkill({
+        repo,
+        bundle: context.bundle,
+        mockReady: context.mockReady,
+        allowReadonlyDependency: context.allowReadonlyDependency === true
+      });
+    } else if (skillKey === "dmp-target-readonly-verify") {
+      result = await runDmpTargetReadonlyVerifySkill({
+        repo,
+        bundle: context.bundle,
+        mockReady: context.mockReady,
+        allowReadonlyDependency: context.allowReadonlyDependency === true
+      });
+    } else if (skillKey === "dmp-push-plan") {
+      result = await runDmpPushPlanSkill({
+        repo,
+        bundle: context.bundle,
+        previousOutputs: context.skillOutputs
+      });
+      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
+    }
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"
@@ -387,7 +445,8 @@ async function executeSkill({ repo, context, skillKey }) {
         repo,
         bundle: context.bundle,
         mockReady: context.mockReady,
-        allowReadonlyDependency: context.allowReadonlyDependency === true
+        allowReadonlyDependency: context.allowReadonlyDependency === true,
+        previousOutputs: context.skillOutputs
       })
       : resourceType === "event_asset"
         ? await runObjectiveContractReadonlyGate({

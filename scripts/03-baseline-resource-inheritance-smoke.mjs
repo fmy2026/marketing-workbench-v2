@@ -188,10 +188,10 @@ const dmpResult = await runDmpReadonlyGate({
   allowReadonlyDependency: true
 });
 assert(dmpResult.status === "blocked", "dmp_inventory_was_auto_selected");
-assert(dmpResult.blockers.includes("dmp_candidate_selection_required"), "dmp_candidate_selection_blocker_missing");
+assert(dmpResult.blockers.includes("dmp_pipeline_outputs_missing"), "dmp_pipeline_required_blocker_missing");
 assert(dmpResult.customAudienceIds.length === 0, "dmp_candidate_leaked_into_payload_selection");
-assert(dmpResult.outputSummary.dmpCandidateAudienceCount === 2, "dmp_candidate_count_missing");
-assert(!Object.hasOwn(dmpWrites[0]?.resourceMetadata || {}, "custom_audience_ids"), "dmp_candidate_persisted_as_selection");
+assert(dmpResult.outputSummary.dmpCandidateAudienceCount === 0, "dmp_final_verifier_should_not_scan_inventory");
+assert(dmpWrites.length === 0, "dmp_final_verifier_should_not_persist_candidate_selection");
 
 let resumeRejected = false;
 try {

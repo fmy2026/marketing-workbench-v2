@@ -1,0 +1,54 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-AVATAR-RECOVERY-REUPLOAD-SUBMIT-READBACK-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-RECOVERY-REUPLOAD-SUBMIT-READBACK-1871922346964041.md",
+  "status": "completed_passed",
+  "owner_agent": "codex",
+  "goal": "Perform one separately authorized recovery avatar upload, submit, and readback cycle for advertiser 1871922346964041 after the prior upload stopped before submit.",
+  "required": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-AVATAR-UPLOAD-SUBMIT-READBACK-1871922346964041.md",
+    "src/platforms/oceanengineAvatarExecutor.mjs",
+    "src/workflows/avatarExecutionScope.mjs"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "monitor_id": "245828",
+    "resource_type": "avatar",
+    "source_asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001"
+  },
+  "permissions": {
+    "platform_readonly_allowed": true,
+    "platform_write_allowed_before_fresh_preflight": false,
+    "allowed_action": "ensure_resource:avatar",
+    "maximum_high_level_actions": 1,
+    "maximum_platform_write_calls": 2,
+    "maximum_readback_calls": 3,
+    "retry_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "forbidden": [
+    "monitor create",
+    "std_project/create",
+    "budget or bid update",
+    "token refresh",
+    "automatic retry",
+    "token, Cookie, raw request, raw response, image URL persistence"
+  ],
+  "pass_statuses": ["IN_AUDIT", "AUDIT_PASS"],
+  "stop_statuses": ["AUDIT_REJECT", "upload_failed_once", "submit_failed_once", "avatar_readback_not_converged"],
+  "result": {
+    "recovery_job_id": "JOB-MWBV2-20260827115946-B1ECE8",
+    "post_success_readonly_job_id": "JOB-MWBV2-20260827120044-5DFADD",
+    "avatar_status": "IN_AUDIT",
+    "avatar_gate": "passed",
+    "platform_actions": { "upload": 1, "submit": 1, "other": 0 },
+    "token_refresh_called": false,
+    "write_scope_revoked": true,
+    "next_unique_blocker": "dmp_custom_audience_ids_missing"
+  },
+  "next_gate": "Create a dedicated DMP custom audience readiness task for advertiser 1871922346964041."
+}

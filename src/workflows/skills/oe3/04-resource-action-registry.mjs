@@ -12,15 +12,15 @@ const DEFAULT_VERIFY_MODULE = "src/workflows/skills/oe3/04-resource-verifiers.mj
 const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
   avatar: {
     verifyModuleRef: DEFAULT_VERIFY_MODULE,
-    prepareSupported: false,
-    prepareModuleRef: "",
-    evidenceRequirement: "account_resources readonly/resource metadata"
+    prepareSupported: true,
+    prepareModuleRef: "src/platforms/oceanengineAvatarExecutor.mjs",
+    evidenceRequirement: "300x300 avatar source, one-time upload/submit action, and advertiser/avatar/get readback evidence"
   },
   dmp_audience_package: {
     verifyModuleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs",
-    prepareSupported: false,
-    prepareModuleRef: "",
-    evidenceRequirement: "DMP custom_audience_id[] readonly evidence"
+    prepareSupported: true,
+    prepareModuleRef: "src/platforms/oceanengineDmpExecutor.mjs",
+    evidenceRequirement: "DMP package-set source/target readonly evidence and per-package push plan"
   },
   event_asset: {
     verifyModuleRef: "src/workflows/skills/oe3/05-objective-contract-readiness.mjs",
@@ -111,7 +111,8 @@ function hardBlockedBy(blockers = []) {
       "readonly_permission_required",
       "credential_required",
       "platform_probe_failed",
-      "material_source_account_missing"
+      "material_source_account_missing",
+      "dmp_source_readonly_not_complete"
     ].includes(blocker) ||
     String(blocker).startsWith("platform_probe_failed:")
   );
