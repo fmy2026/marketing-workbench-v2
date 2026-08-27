@@ -30,9 +30,13 @@ OE3 问题优先查看本机官方资料：
 
 | 类型 | 路径 |
 | --- | --- |
-| 官方文档主库 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0` |
-| 外部给定官方资料 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
+| 官方文档 3.0 主库，优先 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0` |
+| 外部给定官方资料 3.0，优先 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
+| 官方文档 2.0 主库，补充 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
+| 官方文档 2.0 copy，补充 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
 | 乾坤当前接口参考 | `docs/.参考文档/乾坤系统/api-docs-20260827.md` |
+
+巨量营销接口资料仍优先查 3.0 知识库；只有 3.0 主库和 3.0 外部给定资料信息不足、缺页或不能定位接口合同时，才补查 2.0 知识库。若 2.0 与 3.0 冲突，必须暂停并记录冲突，不得直接把旧版字段当作 3.0 真值。
 
 ## 运行链路与归属
 

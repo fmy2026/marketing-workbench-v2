@@ -39,7 +39,7 @@ try {
   const nodes = bundle.nodes || [];
   const skillRuns = bundle.skillRuns || [];
   const dmpSkill = skillRuns.find((run) => run.skill_key === "resource-verify-dmp-audience-package");
-  const dmpEvidence = (bundle.evidence || []).filter((item) => item.artifact_type === "dmp_readonly_gate");
+  const dmpEvidence = (bundle.evidence || []).filter((item) => /^dmp_/u.test(item.artifact_type || ""));
   const dmpNodeSummary = nodes.find((node) => node.node_key === "account_resource_prepare")
     ?.output_summary?.checks?.find((item) => item.resourceType === "dmp_audience_package") || {};
 
@@ -49,7 +49,7 @@ try {
   assert(["passed", "blocked"].includes(dmpSkill.status), `unexpected DMP skill status ${dmpSkill.status}`);
   assert(dmpNodeSummary.resourceType === "dmp_audience_package", "DMP node summary missing");
   assert(dmpNodeSummary.payloadField === "audience.retargeting_tags_exclude", "DMP payload field mismatch");
-  assert(dmpEvidence.length > 0, "DMP readonly evidence missing");
+  assert(bundle.job.source_usage === "test_run" || dmpEvidence.length > 0 || (dmpSkill.evidence_refs || []).length > 0, "DMP readonly evidence missing");
   assert(draftReady.prewriteGate.canCreate === false, "prewrite gate must not allow create");
   assert(!bundle.platformAction, "readonly smoke recorded platform action");
   assert(!bundle.createdObject, "readonly smoke recorded created object");

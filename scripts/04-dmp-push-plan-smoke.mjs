@@ -96,7 +96,9 @@ assert(single.method === "POST", "dmp_push_method_wrong");
 assert(single.endpoint.includes("/dmp/custom_audience/push_v2/"), "dmp_push_endpoint_wrong");
 assert(single.requestHash.startsWith("sha256:"), "dmp_push_request_hash_missing");
 assert(single.requestFieldManifest.fieldNames.includes("target_advertiser_ids"), "dmp_push_target_field_missing");
-assert(single.requestFieldManifest.fieldNames.includes("delivery_status"), "dmp_push_delivery_status_field_missing");
+assert(!single.requestFieldManifest.fieldNames.includes("delivery_status"), "dmp_push_delivery_status_should_not_be_sent");
+assert(single.requestFieldManifest.customAudienceIdTransportType === "number", "dmp_push_audience_transport_should_be_number");
+assert(single.requestFieldManifest.targetAdvertiserIdsTransportType === "number_array", "dmp_push_target_transport_should_be_number_array");
 
 const baseline = await runDmpBaselineResolveSkill({ repo, bundle });
 assert(baseline.status === "passed", "dmp_baseline_resolve_failed");

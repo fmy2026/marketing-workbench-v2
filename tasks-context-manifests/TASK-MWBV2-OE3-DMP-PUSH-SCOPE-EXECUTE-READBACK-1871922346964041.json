@@ -1,0 +1,85 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041",
+  "owner_agent": "codex",
+  "status": "blocked",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "source_advertiser_id": "1871922153496588",
+    "resource_type": "dmp_audience_package",
+    "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+    "job_id": "JOB-MWBV2-20260827125751-2CDDFD",
+    "plan_id": "PLAN-JOB-MWBV2-20260827125751-2CDDFD-V1",
+    "plan_hash": "sha256:21fb89028f5f980177eeb9946c2ae9921e82c781f79e0f8d5bf5e1cf5b5c6c9e"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.json",
+    "tasks/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.md",
+    "src/workflows/dmpExecutionScope.mjs",
+    "src/platforms/oceanengineDmpExecutor.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_actions": [
+    "oceanengine_write:dmp/custom_audience/push_v2",
+    "oceanengine_readonly:dmp/custom_audience/read",
+    "oceanengine_readonly:dmp/custom_audience/select",
+    "postgres_runtime_truth_evidence",
+    "local_tests"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "monitorSerialNumberAdd",
+    "token_refresh",
+    "budget_or_bid_update",
+    "material_upload_or_bind",
+    "raw_request_or_response_logging"
+  ],
+  "write_scope": {
+    "action": "ensure_resource:dmp_audience_package",
+    "maximum_actions": 1,
+    "maximum_platform_calls": 10,
+    "confirm_variable": "MWBV2_OE_DMP_PUSH_CONFIRM=PUSH_ONE_DMP_BASELINE_SET",
+    "retry_allowed": false,
+    "official_contract_required": true,
+    "request_fields": [
+      "advertiser_id",
+      "custom_audience_id",
+      "target_advertiser_ids"
+    ],
+    "delivery_status_policy": "readback_only_not_sent"
+  },
+  "acceptance": {
+    "target_state_expected": "passed_10",
+    "push_plans_expected": "verified_10",
+    "maximum_dmp_platform_actions": 10,
+    "sensitive_fields_stored": false
+  },
+  "evidence": {
+    "preflight_status": "passed",
+    "preflight_dmp_plan_status": "planned_10",
+    "preflight_target_state": "missing_10",
+    "preflight_dmp_platform_actions": 0,
+    "result_status": "blocked_first_dmp_push_readback_not_verified",
+    "failed_custom_audience_id": "465498363",
+    "push_action_id": "ACTION-JOB-MWBV2-20260827125751-2CDDFD-DMP-PUSH-465498363",
+    "evidence_ref": "EV-JOB-MWBV2-20260827125751-2CDDFD-DMP-PUSH-465498363-READBACK",
+    "post_execute_plan_status": {
+      "executed": 1,
+      "planned": 9
+    },
+    "post_execute_target_state": {
+      "blocked": 1,
+      "missing": 9
+    },
+    "post_execute_dmp_platform_actions": 1,
+    "platform_write_scope_revoked": true
+  },
+  "next_gate": "DMP 首包 465498363 已推送后只读回查诊断；只允许目标户 DMP read/select，不再次调用 push_v2。"
+}

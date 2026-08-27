@@ -285,7 +285,8 @@ async function runDmpReadonlyVerify({
   const packageSet = await repo.getDmpPackageSet({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
-    packageSetId
+    packageSetId,
+    ...(stage === "target-readonly-verify" ? { targetAdvertiserId: advertiserId } : {})
   });
   const ids = memberIds(packageSet || {});
   if (!ids.length) {
@@ -324,6 +325,7 @@ async function runDmpReadonlyVerify({
     await repo.updateDmpPackageMemberReadonly({
       packageSetId,
       customAudienceId: item.customAudienceId,
+      ...(stage === "target-readonly-verify" ? { targetAdvertiserId: advertiserId } : {}),
       [statusColumn]: item.status === "passed" ? "passed" : item.status,
       [evidenceColumn]: evidenceRef,
       referenceStatus: item.status === "passed" && stage === "source-readonly-verify" ? "source_verified" : "",
@@ -461,7 +463,8 @@ export async function runDmpPushPlanSkill({ repo, bundle, previousOutputs } = {}
   const packageSet = await repo.getDmpPackageSet({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
-    packageSetId
+    packageSetId,
+    targetAdvertiserId: bundle.job.advertiser_id
   });
   const ids = memberIds(packageSet || {});
   const sourceOutput = previousOutput(previousOutputs, "dmp-source-readonly-verify");

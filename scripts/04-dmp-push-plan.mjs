@@ -58,7 +58,7 @@ export async function runDmpPushPlanReport({ repo = new PostgresRepository(), ar
     ...summarizeDmpPushPlans(plans || []),
     pushPlanIds: (plans || []).map((plan) => plan.push_plan_id),
     planStatuses: (plans || []).map((plan) => plan.plan_status),
-    noPlatformWriteCalled: true,
+    planReportNoPlatformWriteCalled: true,
     rawRequestStored: false,
     rawResponseStored: false
   });
@@ -75,7 +75,7 @@ async function main() {
     const output = sanitizeForPublic({
       status: "failed",
       error: error.message || "dmp_push_plan_report_failed",
-      noPlatformWriteCalled: true,
+      planReportNoPlatformWriteCalled: true,
       rawRequestStored: false,
       rawResponseStored: false
     });

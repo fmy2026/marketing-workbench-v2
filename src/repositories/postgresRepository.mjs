@@ -16,6 +16,14 @@ function sha256Hex(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
 
+function safeNumericJsonNumber(name, value) {
+  const text = String(value ?? "").trim();
+  if (!/^[0-9]+$/.test(text)) throw new Error(`invalid_${name}`);
+  const number = Number(text);
+  if (!Number.isSafeInteger(number)) throw new Error(`${name}_outside_safe_integer_range`);
+  return number;
+}
+
 function safeTouchpointJson(alias = "t") {
   return `jsonb_build_object(
     'touchpoint_id', ${alias}.touchpoint_id,
@@ -238,16 +246,32 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async getDmpPackageSet({ routeId, gameCode, packageSetId = "" }) {
+  async getDmpPackageSet({ routeId, gameCode, packageSetId = "", targetAdvertiserId = "" }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     if (packageSetId) assertId("package_set_id", packageSetId);
+    if (targetAdvertiserId) assertId("target_advertiser_id", targetAdvertiserId, /^[0-9]+$/);
+    const targetJoin = targetAdvertiserId
+      ? `LEFT JOIN mwb.dmp_package_member_account_states target_state
+           ON target_state.package_set_id = m.package_set_id
+          AND target_state.custom_audience_id = m.custom_audience_id
+          AND target_state.advertiser_id = ${sqlLiteral(targetAdvertiserId)}`
+      : "";
+    const memberJson = targetAdvertiserId
+      ? `to_jsonb(m) || jsonb_build_object(
+          'target_advertiser_id', ${sqlLiteral(targetAdvertiserId)},
+          'target_readonly_status', coalesce(target_state.readonly_status, 'not_checked'),
+          'target_evidence_ref', coalesce(target_state.evidence_ref, ''),
+          'target_state_metadata', coalesce(target_state.metadata, '{}'::jsonb)
+        )`
+      : "to_jsonb(m)";
     return queryJson(`
       SELECT jsonb_build_object(
         'packageSet', to_jsonb(s),
         'members', coalesce((
-          SELECT jsonb_agg(to_jsonb(m) ORDER BY m.custom_audience_id)
+          SELECT jsonb_agg(${memberJson} ORDER BY m.custom_audience_id)
           FROM mwb.dmp_package_members m
+          ${targetJoin}
           WHERE m.package_set_id = s.package_set_id
         ), '[]'::jsonb)
       )::text
@@ -271,6 +295,7 @@ export class PostgresRepository {
   async updateDmpPackageMemberReadonly({
     packageSetId,
     customAudienceId,
+    targetAdvertiserId = "",
     sourceReadonlyStatus = "",
     targetReadonlyStatus = "",
     sourceEvidenceRef = "",
@@ -280,17 +305,80 @@ export class PostgresRepository {
   }) {
     assertId("package_set_id", packageSetId);
     assertId("custom_audience_id", customAudienceId, /^[0-9]+$/);
+    if (targetAdvertiserId) assertId("target_advertiser_id", targetAdvertiserId, /^[0-9]+$/);
     await runPsql(`
       UPDATE mwb.dmp_package_members
       SET source_readonly_status = coalesce(nullif(${sqlLiteral(sourceReadonlyStatus)}, ''), source_readonly_status),
-          target_readonly_status = coalesce(nullif(${sqlLiteral(targetReadonlyStatus)}, ''), target_readonly_status),
+          target_readonly_status = CASE
+            WHEN ${sqlLiteral(targetAdvertiserId)} = '' THEN coalesce(nullif(${sqlLiteral(targetReadonlyStatus)}, ''), target_readonly_status)
+            ELSE target_readonly_status
+          END,
           source_evidence_ref = coalesce(nullif(${sqlLiteral(sourceEvidenceRef)}, ''), source_evidence_ref),
-          target_evidence_ref = coalesce(nullif(${sqlLiteral(targetEvidenceRef)}, ''), target_evidence_ref),
+          target_evidence_ref = CASE
+            WHEN ${sqlLiteral(targetAdvertiserId)} = '' THEN coalesce(nullif(${sqlLiteral(targetEvidenceRef)}, ''), target_evidence_ref)
+            ELSE target_evidence_ref
+          END,
           reference_status = coalesce(nullif(${sqlLiteral(referenceStatus)}, ''), reference_status),
           metadata = metadata || ${sqlJson(metadata || {})},
           updated_at = now()
       WHERE package_set_id = ${sqlLiteral(packageSetId)}
         AND custom_audience_id = ${sqlLiteral(customAudienceId)};
+    `, this.database);
+    if (targetAdvertiserId && targetReadonlyStatus) {
+      await this.updateDmpPackageMemberAccountReadonly({
+        packageSetId,
+        customAudienceId,
+        advertiserId: targetAdvertiserId,
+        readonlyStatus: targetReadonlyStatus,
+        evidenceRef: targetEvidenceRef,
+        metadata
+      });
+    }
+  }
+
+  async updateDmpPackageMemberAccountReadonly({
+    packageSetId,
+    customAudienceId,
+    advertiserId,
+    readonlyStatus,
+    evidenceRef = "",
+    metadata = {},
+    sourceUsage = "runtime_truth"
+  }) {
+    assertId("package_set_id", packageSetId);
+    assertId("custom_audience_id", customAudienceId, /^[0-9]+$/);
+    assertId("advertiser_id", advertiserId, /^[0-9]+$/);
+    assertId("readonly_status", readonlyStatus);
+    await runPsql(`
+      INSERT INTO mwb.dmp_package_member_account_states (
+        account_state_id,
+        package_set_id,
+        custom_audience_id,
+        advertiser_id,
+        readonly_status,
+        evidence_ref,
+        metadata,
+        source_usage,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(`DMPAS-${packageSetId}-${advertiserId}-${customAudienceId}`)},
+        ${sqlLiteral(packageSetId)},
+        ${sqlLiteral(customAudienceId)},
+        ${sqlLiteral(advertiserId)},
+        ${sqlLiteral(readonlyStatus)},
+        ${sqlLiteral(evidenceRef || "")},
+        ${sqlJson(metadata || {})},
+        ${sqlLiteral(sourceUsage || "runtime_truth")},
+        now(),
+        now()
+      )
+      ON CONFLICT (package_set_id, custom_audience_id, advertiser_id) DO UPDATE SET
+        readonly_status = EXCLUDED.readonly_status,
+        evidence_ref = coalesce(nullif(EXCLUDED.evidence_ref, ''), mwb.dmp_package_member_account_states.evidence_ref),
+        metadata = mwb.dmp_package_member_account_states.metadata || EXCLUDED.metadata,
+        source_usage = EXCLUDED.source_usage,
+        updated_at = now();
     `, this.database);
   }
 
@@ -326,10 +414,9 @@ export class PostgresRepository {
     if (!ids.length) return { plannedCount: 0, pushPlanIds: [] };
     const rows = ids.map((id) => {
       const payloadShape = {
-        advertiser_id: sourceAdvertiserId,
-        custom_audience_id: id,
-        target_advertiser_ids: [targetAdvertiserId],
-        delivery_status: "ON"
+        advertiser_id: safeNumericJsonNumber("source_advertiser_id", sourceAdvertiserId),
+        custom_audience_id: safeNumericJsonNumber("custom_audience_id", id),
+        target_advertiser_ids: [safeNumericJsonNumber("target_advertiser_id", targetAdvertiserId)]
       };
       const requestHash = `sha256:${sha256Hex(JSON.stringify(payloadShape))}`;
       return `(
@@ -348,7 +435,7 @@ export class PostgresRepository {
         ${sqlJson({
           ...(metadata || {}),
           request_hash_input_stored: false,
-          delivery_status_policy: "planned_on"
+          delivery_status_policy: "readback_only_not_sent"
         })},
         now(),
         now()
@@ -400,6 +487,28 @@ export class PostgresRepository {
       SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.custom_audience_id), '[]'::jsonb)::text
       FROM mwb.dmp_package_push_plans p
       WHERE p.job_id = ${sqlLiteral(jobId)};
+    `, this.database);
+  }
+
+  async updateDmpPackagePushPlanStatus({
+    pushPlanId,
+    planStatus,
+    evidenceRef = "",
+    responseHash = "",
+    metadata = {}
+  }) {
+    assertId("push_plan_id", pushPlanId);
+    assertId("plan_status", planStatus);
+    await runPsql(`
+      UPDATE mwb.dmp_package_push_plans
+      SET plan_status = ${sqlLiteral(planStatus)},
+          evidence_ref = coalesce(nullif(${sqlLiteral(evidenceRef || "")}, ''), evidence_ref),
+          metadata = metadata || ${sqlJson({
+            ...(metadata || {}),
+            ...(responseHash ? { response_hash: responseHash } : {})
+          })},
+          updated_at = now()
+      WHERE push_plan_id = ${sqlLiteral(pushPlanId)};
     `, this.database);
   }
 

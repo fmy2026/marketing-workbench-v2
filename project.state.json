@@ -7,20 +7,20 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "oe3_dmp_baseline_source_verified_target_push_plan_pending",
+  "project_status": "oe3_dmp_first_push_succeeded_but_readback_not_verified",
   "phase": {
     "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
     "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-UPLOAD-SUBMIT-READBACK-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-BASELINE-SOURCE-TARGET-READINESS-1871922346964041.md",
-  "next_gate": "新建账户 1871922346964041 的 DMP 默认集合逐包单次推送与回查任务；本次来源户 10/10 通过、目标户 10/10 缺失，已有 10 条 planned push 计划，广告创建继续锁定。",
+  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.md",
+  "next_gate": "新建 DMP 首包 465498363 已推送后只读回查诊断任务；只允许目标户 dmp/custom_audience/read 与 select，不再次调用 push_v2。确认平台延迟、字段解析、查询条件或目标户可用性原因后，再决定是否继续剩余 9 包。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_after_single_avatar_upload_submit_attempt",
+      "mode": "read_only_after_single_dmp_push_attempt",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
@@ -32,8 +32,22 @@
       "maximum_actions": 0,
       "maximum_platform_calls": 0,
       "retry_allowed": false,
+      "official_contract": {
+        "source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/09-DMP人群管理.md:2428",
+        "summary_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/11-DMP人群管理.md:158",
+        "official_link": "https://open.oceanengine.com/labels/7/docs/1696710572311552",
+        "endpoint": "https://ad.oceanengine.com/open_api/2/dmp/custom_audience/push_v2/",
+        "method": "POST",
+        "content_hash": "sha256:41b9c87f6d6da19783da95114b53c9243acff98f4cb13bd50ce84fdd14ec57ad",
+        "request_fields": [
+          "advertiser_id",
+          "custom_audience_id",
+          "target_advertiser_ids"
+        ],
+        "delivery_status_policy": "readback_only_not_sent"
+      },
       "granted_at": "2026-08-27 CST",
-      "granted_by": "user_confirmed_avatar_recovery_reupload_submit_readback"
+      "granted_by": "user_confirmed_single_dmp_push_scope_execute"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

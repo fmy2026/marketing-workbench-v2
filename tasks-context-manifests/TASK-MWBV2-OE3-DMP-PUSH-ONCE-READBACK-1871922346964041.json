@@ -1,0 +1,84 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041",
+  "owner_agent": "codex",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "resource_type": "dmp_audience_package",
+    "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+    "source_advertiser_id": "1871922153496588",
+    "expected_package_count": 10
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.json",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "src/workflows/dmpExecutionScope.mjs",
+    "src/platforms/oceanengineDmpExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "db/033_add_dmp_member_account_states.sql"
+  ],
+  "allowed_actions": [
+    "postgres_schema_update",
+    "postgres_runtime_truth_readonly_evidence",
+    "oceanengine_readonly:dmp/custom_audience/read",
+    "oceanengine_readonly:dmp/custom_audience/select",
+    "local_tests",
+    "dmp/custom_audience/push_v2_only_after_official_contract_and_scope"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "monitorSerialNumberAdd",
+    "token_refresh",
+    "budget_or_bid_update",
+    "raw_request_or_response_logging",
+    "dmp_push_without_official_contract"
+  ],
+  "write_scope": {
+    "action": "ensure_resource:dmp_audience_package",
+    "maximum_actions": 1,
+    "maximum_platform_calls": 10,
+    "confirm_variable": "MWBV2_OE_DMP_PUSH_CONFIRM=PUSH_ONE_DMP_BASELINE_SET",
+    "retry_allowed": false,
+    "official_contract_required": true
+  },
+  "acceptance": {
+    "dmp_target_account_state_scoped": true,
+    "request_hash_transport_shape": "json_numeric_ids",
+    "platform_write_calls_without_official_contract": 0,
+    "sensitive_fields_stored": false
+  },
+  "evidence": {
+    "previous_readiness_job_id": "JOB-MWBV2-20260827122811-BF9632",
+    "previous_push_plan_count": 10,
+    "fresh_readiness_job_id": "JOB-MWBV2-20260827125751-2CDDFD",
+    "fresh_push_plan_count": 10,
+    "fresh_target_state_status": "missing_10",
+    "fresh_dmp_platform_actions": 0,
+    "official_push_v2_contract_status": "located_in_2_0_fallback",
+    "official_push_v2_contract": {
+      "source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/09-DMP人群管理.md:2428",
+      "summary_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/11-DMP人群管理.md:158",
+      "official_link": "https://open.oceanengine.com/labels/7/docs/1696710572311552",
+      "endpoint": "https://ad.oceanengine.com/open_api/2/dmp/custom_audience/push_v2/",
+      "method": "POST",
+      "content_hash": "sha256:41b9c87f6d6da19783da95114b53c9243acff98f4cb13bd50ce84fdd14ec57ad",
+      "request_fields": [
+        "advertiser_id",
+        "custom_audience_id",
+        "target_advertiser_ids"
+      ],
+      "delivery_status_policy": "readback_only_not_sent"
+    },
+    "blocker": ""
+  },
+  "next_gate": "用户确认后，基于 JOB-MWBV2-20260827125751-2CDDFD 临时开启精确 DMP scope，并执行一次 resource:dmp-ensure-once。"
+}
