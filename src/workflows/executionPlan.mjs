@@ -4,6 +4,7 @@ import {
   hashValue,
   sanitizeForPublic
 } from "./skills/oe3/00-contracts.mjs";
+import { getResourceActionCapability } from "./skills/oe3/04-resource-action-registry.mjs";
 
 export const EXECUTION_PLAN_VERSION = 1;
 export const ACTION_ENSURE_MONITOR = "ensure_monitor";
@@ -89,6 +90,7 @@ function compilePlannedActions(bundle = {}) {
   const actions = [];
   const blockers = [];
   const dependencyForCreate = [];
+  const readiness = createReadiness(bundle);
 
   if (!monitorPresent(bundle)) {
     actions.push({
@@ -106,27 +108,30 @@ function compilePlannedActions(bundle = {}) {
 
   const byType = resourcesByType(bundle);
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
+    const capability = getResourceActionCapability(resourceType);
     const records = byType.get(resourceType) || [];
     if (records.length && records.some(resourceReady)) continue;
-    const actionType = `ensure_resource:${resourceType}`;
+    if (!capability.prepare_supported) {
+      blockers.push(`resource_prepare_unsupported:${resourceType}`);
+      continue;
+    }
+    const actionType = capability.prepare_action_type;
     actions.push({
       action_type: actionType,
       target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
       idempotency_key: actionKey(job.job_id, actionType, resourceType.toUpperCase().replace(/[^A-Z0-9]+/g, "_")),
       status: "planned",
-      module_ref: resourceType === "dmp_audience_package"
-        ? "src/workflows/skills/oe3/04-dmp-readonly.mjs"
-        : resourceType === "video_asset"
-          ? "src/workflows/skills/oe3/04-video-material-readiness.mjs"
-          : "src/workflows/skills/oe3/04-resource-verifiers.mjs",
-      depends_on: ["launch_pack_resolve"],
+      module_ref: capability.prepare_module_ref,
+      depends_on: [capability.verify_skill_key],
       writes_to: ["account_resources", "launch_skill_runs", "evidence_artifacts"],
       reason: records.length ? "resource_not_ready" : "resource_missing"
     });
     dependencyForCreate.push(actionType);
   }
 
-  if (draftReady(bundle)) {
+  for (const blocker of readiness.blockers || []) blockers.push(blocker);
+
+  if (draftReady(bundle) && blockers.length === 0) {
     actions.push({
       action_type: ACTION_STD_PROJECT_CREATE,
       target_ref: `draft:${draft.draft_id}`,
@@ -140,9 +145,6 @@ function compilePlannedActions(bundle = {}) {
   } else {
     blockers.push("draft_not_ready_for_std_project_create");
   }
-
-  const readiness = createReadiness(bundle);
-  for (const blocker of readiness.blockers || []) blockers.push(blocker);
 
   return {
     plannedActions: actions.map((action) => sanitizeForPublic(action)),

@@ -54,7 +54,7 @@ frontend/API
 | `01-07-` | 对应 7 节点所属 Skill 或专项脚本 |
 | 无编号基础设施 | `src/platforms/`、`src/repositories/`、`src/server/`，按职责命名 |
 
-新 OE3 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由 `00-workflow-node-registry.mjs` 校验归属。新 CLI / smoke 先判断属于 `00` 还是 `01-07`，不得新增无归属长期脚本。`package.json` 命令名是长期入口；底层脚本可以编号迁移，但不得随意改变命令名。Node 2 monitor bootstrap 可以在 `planned_actions` mock 模式接入主链；真实乾坤 monitor 写入与广告项目创建仍是权限不同的链路，必须另行单次授权。
+新 OE3 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由 `00-workflow-node-registry.mjs` 校验归属。新 CLI / smoke 先判断属于 `00` 还是 `01-07`，不得新增无归属长期脚本。`package.json` 命令名是长期入口；底层脚本可以编号迁移，但不得随意改变命令名。Node 2 monitor bootstrap 和 Node 3/4 resource readiness 可以在 `planned_actions` mock 模式接入主链；真实乾坤 monitor 写入、资源真实准备和广告项目创建仍是权限不同的链路，必须另行单次授权。
 
 ## 目录职责
 | 目录 | 职责 |
@@ -74,7 +74,7 @@ frontend/API
 | `.archive/` | 已完成专项任务脚本、废弃实现和历史参考；禁止 runtime import、package script 或 API 调用 |
 
 ## 记录规则
-Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。
+Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。Node 4 资源自动准备能力唯一登记在 `src/workflows/skills/oe3/04-resource-action-registry.mjs`；`executionPlan.mjs` 只允许为 `prepare_supported=true` 的资源生成 `ensure_resource:*`，其余未就绪资源写 `resource_prepare_unsupported:<resource_type>` blocker。
 `source_usage` 规则：`runtime_truth` 是真实用户轮次；`test_run` 是临时测试，必须由 smoke/CLI 清理且不影响真实项目名占用；`seed_source` 是初始化基准，不得当运行真值。项目名占用只写 `mwb.project_name_reservations`，不能由最后 job 或 source record 魔法值推断。
 
 ## 红线

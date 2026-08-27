@@ -1,0 +1,203 @@
+import {
+  ACTION_STD_PROJECT_CREATE,
+  buildExecutionPlanFromBundle
+} from "../src/workflows/executionPlan.mjs";
+import {
+  OE3_REQUIRED_RESOURCE_TYPES,
+  allResourceActionCapabilities,
+  assertNoSensitiveLeak,
+  getResourceActionCapability,
+  normalizeResourceSkillResult
+} from "../src/workflows/skills/oe3/00-index.mjs";
+import { runBackupLandingPageReadinessSkill } from "../src/workflows/skills/oe3/03-landing-page-readiness.mjs";
+import { runMicroAppInstanceReadinessSkill } from "../src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function readyResource(resourceType) {
+  return {
+    resource_id: `AR-SMOKE-${resourceType.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`,
+    resource_type: resourceType,
+    resource_name: `smoke ${resourceType}`,
+    platform_resource_id: "100000000001",
+    source_asset_id: resourceType === "backup_landing_page" ? "LPA-SMOKE" : "",
+    visibility_status: "visible",
+    readback_status: "readback_verified",
+    required: true,
+    metadata: {
+      url_hash: resourceType === "backup_landing_page" ? "hash-smoke" : "",
+      readonly_check: {
+        status: "passed",
+        video_id_present: resourceType === "video_asset",
+        cover_mode: resourceType === "video_asset" ? "platform_default_cover_allowed" : "",
+        custom_audience_ids: resourceType === "dmp_audience_package" ? ["100000000001"] : undefined
+      }
+    }
+  };
+}
+
+function bundleWithResources(resources) {
+  return {
+    job: {
+      job_id: "JOB-SMOKE-RESOURCE-ACTION-REGISTRY",
+      route_id: "oceanengine_3_byte_mini_game",
+      game_code: "JSZC",
+      advertiser_id: "8990000000000001",
+      object_type: "std_project",
+      source_usage: "test_run"
+    },
+    account: {
+      monitor_id: "245000"
+    },
+    touchpoint: {
+      monitor_id: "245000"
+    },
+    draft: {
+      draft_id: "DRAFT-SMOKE",
+      payload_hash: "sha256:smoke"
+    },
+    nodes: [
+      {
+        node_key: "std_project_draft_builder",
+        output_summary: {
+          createReadiness: {
+            canCreateCurrentJob: true,
+            status: "ready_for_user_create_confirmation",
+            payloadHashStable: true
+          }
+        }
+      }
+    ],
+    backupLandingPage: {
+      landing_page_asset_id: "LPA-SMOKE",
+      site_id: "100000000001",
+      site_name: "smoke landing page",
+      url_hash: "hash-smoke",
+      status: "active",
+      landing_url_present: true,
+      landing_url_https: true
+    },
+    defaults: {
+      raw_defaults: {
+        official_create_field_contract: {
+          instance_id_create_evidence: {
+            field_name_verified: true,
+            field_type_verified: true,
+            applicability_verified: true,
+            long_id_transport_verified: true,
+            long_id_transport_strategy: "decimal_digit_string"
+          }
+        }
+      }
+    },
+    resources
+  };
+}
+
+function actionTypes(plan) {
+  return (plan.plannedActions || []).map((action) => action.action_type);
+}
+
+const capabilities = allResourceActionCapabilities();
+assert(capabilities.length === OE3_REQUIRED_RESOURCE_TYPES.length, "resource_capability_count_mismatch");
+assert(capabilities.every((item) => item.verify_skill_key && item.verify_module_ref), "resource_capability_verify_refs_missing");
+assert(getResourceActionCapability("video_asset").prepare_supported === true, "video_prepare_should_be_supported");
+assert(getResourceActionCapability("video_asset").prepare_module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_prepare_module_ref_wrong");
+assert(getResourceActionCapability("dmp_audience_package").prepare_supported === false, "dmp_prepare_should_be_unsupported");
+
+const readyNormalized = normalizeResourceSkillResult({
+  resourceType: "avatar",
+  result: {
+    status: "passed",
+    blockers: [],
+    outputSummary: {
+      ready: true,
+      nextAction: "无需动作"
+    }
+  }
+});
+assert(readyNormalized.outputSummary.prepare_capability.status === "ready", "resource_ready_status_wrong");
+
+const supportedNormalized = normalizeResourceSkillResult({
+  resourceType: "video_asset",
+  result: {
+    status: "blocked",
+    blockers: ["source_ready_target_missing"],
+    outputSummary: {
+      ready: false
+    }
+  }
+});
+assert(supportedNormalized.outputSummary.prepare_capability.status === "prepare_supported", "resource_prepare_supported_status_wrong");
+assert(supportedNormalized.outputSummary.prepare_capability.prepare_action_type === "ensure_resource:video_asset", "resource_prepare_supported_action_wrong");
+
+const unsupportedNormalized = normalizeResourceSkillResult({
+  resourceType: "product_image",
+  result: {
+    status: "blocked",
+    blockers: ["product_image_missing"],
+    outputSummary: {
+      ready: false
+    }
+  }
+});
+assert(unsupportedNormalized.outputSummary.prepare_capability.status === "prepare_unsupported", "resource_prepare_unsupported_status_wrong");
+
+const allReadyResources = OE3_REQUIRED_RESOURCE_TYPES.map(readyResource);
+const videoMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "video_asset")
+));
+assert(actionTypes(videoMissingPlan).includes("ensure_resource:video_asset"), "video_missing_prepare_action_missing");
+const videoAction = videoMissingPlan.plannedActions.find((action) => action.action_type === "ensure_resource:video_asset");
+assert(videoAction.module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_action_module_ref_wrong");
+assert(Boolean(videoAction.idempotency_key), "video_action_idempotency_key_missing");
+assert(actionTypes(videoMissingPlan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_waiting_action_missing");
+
+const productMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "product_image")
+));
+assert(!actionTypes(productMissingPlan).includes("ensure_resource:product_image"), "unsupported_product_image_action_planned");
+assert(productMissingPlan.blockerCodes.includes("resource_prepare_unsupported:product_image"), "unsupported_product_image_blocker_missing");
+
+const backupBlocked = normalizeResourceSkillResult({
+  resourceType: "backup_landing_page",
+  result: runBackupLandingPageReadinessSkill({
+    bundle: {
+      ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "backup_landing_page")),
+      backupLandingPage: {}
+    }
+  })
+});
+assert(backupBlocked.blockers.includes("backup_landing_page_default_missing"), "backup_landing_page_blocker_missing");
+assert(backupBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/03-landing-page-readiness.mjs", "backup_landing_page_module_ref_wrong");
+
+const microBlocked = normalizeResourceSkillResult({
+  resourceType: "micro_app_instance",
+  result: runMicroAppInstanceReadinessSkill({
+    bundle: {
+      ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "micro_app_instance")),
+      defaults: {}
+    }
+  })
+});
+assert(microBlocked.blockers.includes("micro_app_instance_missing"), "micro_app_instance_blocker_missing");
+assert(microBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs", "micro_app_instance_module_ref_wrong");
+
+const result = {
+  status: "passed",
+  capabilityCount: capabilities.length,
+  supportedPrepareActions: capabilities.filter((item) => item.prepare_supported).map((item) => item.prepare_action_type),
+  resourceReady: readyNormalized.outputSummary.prepare_capability.status,
+  resourcePrepareSupported: supportedNormalized.outputSummary.prepare_capability.status,
+  resourcePrepareUnsupported: unsupportedNormalized.outputSummary.prepare_capability.status,
+  videoPlanAction: videoAction.action_type,
+  productUnsupportedBlocker: "resource_prepare_unsupported:product_image",
+  backupLandingPageBlockers: backupBlocked.blockers,
+  microAppInstanceBlockers: microBlocked.blockers,
+  noRealPlatformWrite: true,
+  noTokenRefresh: true
+};
+assertNoSensitiveLeak(result);
+process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

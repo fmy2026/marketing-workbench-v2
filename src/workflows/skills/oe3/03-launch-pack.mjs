@@ -1,4 +1,5 @@
 import { materialItems } from "./04-resource-verifiers.mjs";
+import { runBackupLandingPageReadinessSkill } from "./03-landing-page-readiness.mjs";
 
 export { materialItems };
 
@@ -47,22 +48,7 @@ export function runLaunchPackSkill({ bundle, skillKey }) {
   }
 
   if (skillKey === "launch-pack-resolve-backup-landing-page") {
-    const landingPage = bundle.backupLandingPage || {};
-    const passed = Boolean(landingPage.landing_page_asset_id);
-    return {
-      status: passed ? "passed" : "blocked",
-      blockers: passed ? [] : ["backup_landing_page_default_missing"],
-      outputSummary: {
-        landingPageAssetId: landingPage.landing_page_asset_id || "",
-        siteId: landingPage.site_id || "",
-        siteName: landingPage.site_name || "",
-        urlHash: landingPage.url_hash || "",
-        status: landingPage.status || "missing",
-        sourceUsage: landingPage.source_usage || "",
-        landingUrlPresent: landingPage.landing_url_present === true,
-        landingUrlHttps: landingPage.landing_url_https === true
-      }
-    };
+    return runBackupLandingPageReadinessSkill({ bundle });
   }
 
   throw new Error(`launch_pack_skill_not_implemented:${skillKey}`);

@@ -88,6 +88,8 @@
 | 监测序号初始化报表 | `mwb.v_monitor_provision_status_report` 和 `mwb.v_monitor_provision_blocker_report` |
 | 统一执行计划 | `mwb.launch_execution_plans` 按 `job_id + plan_version` 读取；`plan_hash` 由 job、draft、planned_actions 和 blocker_codes 的脱敏稳定输入生成 |
 | Node 2 monitor planned action | `planned_actions` mock 模式调度 `monitor-query/monitor-plan/monitor-ensure/monitor-readback`；真实乾坤写入仍需另行单次授权 |
+| Node 3/4 resource readiness | `planned_actions` mock 模式可调度 Node 3 备用落地页 readiness 与 Node 4 八项资源 verify；`prepare_capability` 写入 `launch_skill_runs.output_summary` |
+| 资源动作能力注册表 | `src/workflows/skills/oe3/04-resource-action-registry.mjs` 是唯一来源；未登记 `prepare_supported=true` 的资源不生成 `ensure_resource:*`，只写 `resource_prepare_unsupported:<resource_type>` |
 | plan 外动作拦截 | 单次真实写入 guardrail 可绑定 `target_plan_id`、`target_plan_hash` 和 `allowed_plan_actions`；未出现在 plan 中的动作不得进入 grant |
 | Skill 卡点定位 | `mwb.launch_skill_runs.execution_cycle/blocker_codes/error_code/module_ref` |
 | 旧资料引用 | 只允许 `source_usage = 'reference_only'`，不得作为运行时真值 |

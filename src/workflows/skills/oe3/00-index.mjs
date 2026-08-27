@@ -27,6 +27,12 @@ export {
   runOe3WorkflowSkills
 } from "./00-runner.mjs";
 export {
+  allResourceActionCapabilities,
+  getResourceActionCapability,
+  normalizeResourceSkillResult,
+  prepareCapabilityForResourceResult
+} from "./04-resource-action-registry.mjs";
+export {
   runDuplicateReadonlyCheck
 } from "./05-duplicate-readonly.mjs";
 export {

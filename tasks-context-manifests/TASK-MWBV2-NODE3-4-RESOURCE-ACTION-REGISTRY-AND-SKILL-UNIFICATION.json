@@ -1,0 +1,153 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION",
+  "task_ref": "tasks/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Unify Node 3 launch-pack readiness and Node 4 resource readiness under the main OE3 Workflow Skill chain, then restrict execution-plan resource actions to currently implemented handlers.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "Referenced documents are requirements input, not authorization for real Qiankun/OceanEngine writes or credential refresh.",
+    "no_real_resource_prepare": true,
+    "no_real_monitor_create": true,
+    "no_std_project_create": true,
+    "no_token_refresh": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.json",
+    "tasks/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.json",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/03-launch-pack.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "scripts/03-backup-landing-page-readonly-resolve.mjs",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs",
+    "scripts/04-micro-app-instance-evidence-check.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json",
+    "schemas/postgres-minimal-truth.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The existing Workflow Skill records and execution-plan tables are sufficient for module/blocker/evidence traceability, while current resource action planning needs to be constrained by implemented prepare handlers."
+  },
+  "implementation_plan": [
+    "Create a resource action registry for the eight OE3 required resource types.",
+    "Move reusable backup landing page and micro app instance readiness logic into OE3 Skill modules.",
+    "Make scripts/03-* and scripts/04-* thin wrappers over the same Skill handlers.",
+    "Normalize Node 4 resource outputs with prepare_capability, blocker_codes, module_ref, evidence_refs, and next_action.",
+    "Update executionPlan.mjs to emit ensure_resource actions only when prepare_supported is true and otherwise emit resource_prepare_unsupported blockers.",
+    "Add a mock smoke for Node 3/4 resource action registry behavior and run existing validations."
+  ],
+  "non_goals": [
+    "No real resource upload, push, bind, DMP push, event create, or ad create.",
+    "No real monitor create or retry.",
+    "No std_project/create.",
+    "No token refresh.",
+    "No frontend behavior change.",
+    "No raw secret, cookie, payload, response, request, or full URL in project files."
+  ],
+  "expected_outputs": [
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
+    "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/executionPlan.mjs",
+    "scripts/03-backup-landing-page-readonly-resolve.mjs",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs",
+    "scripts/04-micro-app-instance-evidence-check.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "package.json",
+    "AGENTS.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "schemas/postgres-minimal-truth.md",
+    "project.state.json"
+  ],
+  "outputs": [
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs: Node 4 resource verify/prepare capability registry",
+    "src/workflows/skills/oe3/03-landing-page-readiness.mjs: shared Node 3 backup landing page readiness handler",
+    "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs: shared Node 4 micro app instance readiness handler",
+    "src/workflows/skills/oe3/00-runner.mjs: planned_actions mode now runs Node 3/4 readiness and normalizes resource outputs",
+    "src/workflows/executionPlan.mjs: resource actions are emitted only when prepare_supported=true",
+    "scripts/03-backup-landing-page-readonly-resolve.mjs: thin CLI/check wrapper",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs: thin CLI/check wrapper",
+    "scripts/04-micro-app-instance-evidence-check.mjs: thin CLI/check wrapper",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "package.json:test:resource-action-registry",
+    "AGENTS.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "validation": [
+    {
+      "command": "node --check src/workflows/skills/oe3/04-resource-action-registry.mjs src/workflows/skills/oe3/03-landing-page-readiness.mjs src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs src/workflows/skills/oe3/04-resource-verifiers.mjs src/workflows/skills/oe3/03-launch-pack.mjs src/workflows/skills/oe3/00-runner.mjs src/workflows/executionPlan.mjs scripts/03-backup-landing-page-readonly-resolve.mjs scripts/03-landing-page-source-target-readonly-inventory.mjs scripts/04-micro-app-instance-evidence-check.mjs scripts/04-resource-action-registry-smoke.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:resource-action-registry",
+      "status": "passed",
+      "notes": "Covers resource_ready, resource_prepare_supported, resource_prepare_unsupported, backup_landing_page_blocked, micro_app_instance_blocked, and video-only ensure_resource planning."
+    },
+    {
+      "command": "npm run test:execution-plan",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:payload-contract",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-planned-action",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:oe3-backup-landing-page",
+      "status": "passed",
+      "notes": "Local Postgres readonly check only; no real platform write."
+    },
+    {
+      "command": "npm run check:oe3-landing-page-inventory",
+      "status": "passed",
+      "notes": "Local Postgres readonly check only; no real platform write."
+    },
+    {
+      "command": "npm run check:oe3-instance-id-evidence",
+      "status": "passed",
+      "notes": "Local Postgres readonly check only; no real platform write."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "next_gate": "Implement execution-grant orchestration for supported planned actions, starting with ensure_resource:video_asset; real writes still require separate single-action authorization."
+}

@@ -27,12 +27,16 @@ import {
 } from "./00-result-mapping.mjs";
 import { WORKFLOW_NODES, getWorkflowNode } from "./00-workflow-node-registry.mjs";
 import {
+  normalizeResourceSkillResult
+} from "./04-resource-action-registry.mjs";
+import {
   brandIndustryPassed,
   eventChainPassed,
   mockReadyBundle,
   runResourceVerifier,
   withDmpCustomAudienceIds
 } from "./04-resource-verifiers.mjs";
+import { runMicroAppInstanceReadinessSkill } from "./04-micro-app-instance-readiness.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
@@ -85,7 +89,12 @@ function skillsForMode(mode) {
       ...monitorPlannedActions,
       "context-resolve-account",
       "context-resolve-touchpoint",
-      "context-resolve-platform-app"
+      "context-resolve-platform-app",
+      "launch-pack-resolve-game",
+      "launch-pack-resolve-defaults",
+      "launch-pack-resolve-materials",
+      "launch-pack-resolve-backup-landing-page",
+      ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
   const base = [
@@ -270,7 +279,10 @@ async function executeSkill({ repo, context, skillKey }) {
       skillKey
     });
   } else if (LAUNCH_PACK_SKILLS.has(skillKey)) {
-    result = runLaunchPackSkill({ bundle: context.bundle, skillKey });
+    result = runLaunchPackSkill({
+      bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
+      skillKey
+    });
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"
@@ -294,11 +306,17 @@ async function executeSkill({ repo, context, skillKey }) {
           mockReady: context.mockReady,
           allowReadonlyDependency: context.allowReadonlyDependency === true
         })
+      : resourceType === "micro_app_instance"
+        ? runMicroAppInstanceReadinessSkill({
+          bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
+          mockReady: context.mockReady
+        })
       : runResourceVerifier({
         bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
         resourceType,
         mockReady: context.mockReady
       });
+    result = normalizeResourceSkillResult({ resourceType, result });
     if (resourceType === "dmp_audience_package" && Array.isArray(result.customAudienceIds)) {
       context.dmpCustomAudienceIds = result.customAudienceIds;
     }
@@ -351,7 +369,6 @@ async function executeSkill({ repo, context, skillKey }) {
 }
 
 function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
-  const plannedActionsMode = mode === "planned_actions";
   const cachedReadonly = cachedReadonlyFromBundle(bundle);
   const skillOutput = (key) => skillOutputs.get(key) || {};
   const resourceOutputs = OE3_REQUIRED_RESOURCE_TYPES.map((type) => skillOutput(resourceSkillKey(type)));
@@ -402,9 +419,9 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "game_launch_pack",
-      status: plannedActionsMode ? "waiting" : packBlocked ? "blocked" : "passed",
-      summary: plannedActionsMode ? "等待 Node 2 planned action 完成后执行。" : packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
-      diagnosticLevel: plannedActionsMode ? "pending" : packBlocked ? "error" : "info",
+      status: packBlocked ? "blocked" : "passed",
+      summary: packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
+      diagnosticLevel: packBlocked ? "error" : "info",
       outputSummary: {
         game: skillOutput("launch-pack-resolve-game").outputSummary || {},
         defaults: skillOutput("launch-pack-resolve-defaults").outputSummary || {},
@@ -414,9 +431,9 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
-      status: plannedActionsMode ? "waiting" : resourceBlockers.length ? "blocked" : "passed",
-      summary: plannedActionsMode ? "等待 Node 3 后执行账户资源准备。" : resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
-      diagnosticLevel: plannedActionsMode ? "pending" : resourceBlockers.length ? "error" : "info",
+      status: resourceBlockers.length ? "blocked" : "passed",
+      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
+      diagnosticLevel: resourceBlockers.length ? "error" : "info",
       outputSummary: {
         blockedResourceTypes: resourceOutputs
           .filter((item) => item.status === "blocked")
@@ -431,11 +448,11 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "std_project_draft_builder",
-      status: plannedActionsMode ? "waiting" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "needs_confirmation" : "repairable",
-      summary: plannedActionsMode ? "等待 Node 2-4 准备完成后生成草稿。" : draft.projectName
+      status: mode === "planned_actions" ? "waiting" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "needs_confirmation" : "repairable",
+      summary: mode === "planned_actions" ? "等待 Node 2-4 准备完成后生成草稿。" : draft.projectName
         ? `创建草稿已生成：${draft.projectName}；${readiness.uniqueBlocker || "等待创建确认"}。`
         : "等待创建草稿。",
-      diagnosticLevel: plannedActionsMode ? "pending" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
+      diagnosticLevel: mode === "planned_actions" ? "pending" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
       outputSummary: {
         projectName: draft.projectName || bundle.draft?.project_name || "",
         payloadHash: draft.payloadHash || bundle.draft?.payload_hash || "",

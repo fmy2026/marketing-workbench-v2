@@ -19,6 +19,7 @@
     "test:runtime-reservations": "node scripts/05-runtime-reservations-smoke.mjs",
     "test:monitor-bootstrap": "node scripts/02-monitor-bootstrap-smoke.mjs",
     "test:monitor-planned-action": "node scripts/02-monitor-planned-action-workflow-smoke.mjs",
+    "test:resource-action-registry": "node scripts/04-resource-action-registry-smoke.mjs",
     "launch:execute-once": "node scripts/06-launch-execute-once.mjs",
     "monitor:status": "node scripts/02-monitor-provision-cli.mjs --mode status",
     "monitor:reconcile": "node scripts/02-monitor-provision-cli.mjs --mode reconcile",

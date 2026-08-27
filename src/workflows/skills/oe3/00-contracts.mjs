@@ -141,11 +141,11 @@ export const OE3_SKILL_DEFINITIONS = [
     dependsOn: ["launch-pack-resolve-materials"],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
-      ? ["visibility_status", "readback_status", "readonly_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
+      ? ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
       : resourceType === "video_asset"
-        ? ["selected_required_video_count", "verified_video_count", "cover_ready_count", "source_asset_id[]", "cover_mode"]
-        : ["visibility_status", "readback_status", "readonly_status"],
-    stopConditions: [`${resourceType}_not_ready`],
+        ? ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "selected_required_video_count", "verified_video_count", "cover_ready_count", "source_asset_id[]", "cover_mode"]
+        : ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status"],
+    stopConditions: [`${resourceType}_not_ready`, `resource_prepare_unsupported:${resourceType}`],
     writeScope: resourceType === "dmp_audience_package"
       ? "launch_skill_runs_account_resources_evidence_artifacts"
       : "launch_skill_runs_only"
@@ -278,6 +278,8 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
   if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";
+  if (skillKey === "resource-verify-micro-app-instance") return "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+  if (skillKey === "resource-verify-backup-landing-page") return "src/workflows/skills/oe3/03-landing-page-readiness.mjs";
   if (skillKey.startsWith("resource-verify-")) return "src/workflows/skills/oe3/04-resource-verifiers.mjs";
   if (skillKey === "payload-build") return "src/workflows/skills/oe3/05-payload-contract.mjs";
   if (skillKey === "payload-contract") return "src/workflows/skills/oe3/05-payload-contract.mjs";
