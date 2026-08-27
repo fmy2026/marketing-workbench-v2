@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-WORKFLOW-CHILD-TRACE-NODE34-ORDERING",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "Make every OE3 workflow child traceable without recreating the seven-node architecture, and separate Node 3 game-level backup landing defaults from Node 4 target-account readiness.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-WORKFLOW-CHILD-TRACE-NODE34-ORDERING.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-WORKFLOW-CHILD-TRACE-NODE34-ORDERING.json",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/03-launch-pack.mjs",
+    "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-WORKFLOW-CHILD-TRACE-NODE34-ORDERING.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-WORKFLOW-CHILD-TRACE-NODE34-ORDERING.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-index.mjs",
+    "src/workflows/skills/oe3/03-launch-pack.mjs",
+    "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "all real platform writes",
+    "monitorSerialNumberAdd",
+    "std_project/create",
+    "material upload, bind, push, share, or selection",
+    "DMP write",
+    "event asset create",
+    "brand authorization change",
+    "budget or bid update",
+    "token refresh",
+    "writing token, secret, Cookie, raw request, raw response, full touchpoint URL, or full landing URL"
+  ],
+  "acceptance": {
+    "workflow_node_count": 7,
+    "child_trace_complete": true,
+    "node3_has_no_target_account_landing_blocker": true,
+    "node4_bundle_reloaded_after_persistence": true,
+    "schedule_dependency_validation": "passed",
+    "blocked_readonly_skill_counted_as_executed": true,
+    "database_migration_required": false,
+    "platform_actions": 0,
+    "launch_confirmations": 0,
+    "created_objects": 0,
+    "validation": [
+      "npm run test:baseline-resource-inheritance",
+      "npm run smoke:workflow-skills",
+      "npm run test:readonly-readiness-cli",
+      "npm run test:resource-action-registry",
+      "npm run test:payload-contract",
+      "npm run test:execution-plan",
+      "npm run smoke:api",
+      "npm run check:runtime-consistency",
+      "git diff --check"
+    ]
+  }
+}

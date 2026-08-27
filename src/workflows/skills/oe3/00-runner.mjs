@@ -1,4 +1,5 @@
 import {
+  OE3_SKILL_DEFINITIONS,
   OE3_REQUIRED_RESOURCE_TYPES,
   assertNoSensitiveLeak,
   recordSkillRun,
@@ -124,6 +125,75 @@ function skillsForMode(mode) {
   ];
   if (mode === "execute_once") return [...base, "create-once", "readback-std-project"];
   return base;
+}
+
+const SCHEDULE_EXTERNAL_DEPENDENCIES = Object.freeze({
+  readback_only: new Set(["create-once"])
+});
+
+export function workflowSkillScheduleForMode(mode) {
+  if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
+  return [...skillsForMode(mode)];
+}
+
+export function validateOe3WorkflowSchedules({
+  modes = [...OE3_WORKFLOW_MODES],
+  skillDefinitions = OE3_SKILL_DEFINITIONS
+} = {}) {
+  const definitions = new Map(skillDefinitions.map((definition) => [definition.skillKey, definition]));
+  const invalidModes = [];
+  const invalidSkills = [];
+  const duplicateSkills = [];
+  const dependencyOrderViolations = [];
+  const missingDependencies = [];
+  const unregisteredNodeKeys = [];
+
+  for (const mode of modes) {
+    if (!OE3_WORKFLOW_MODES.has(mode)) {
+      invalidModes.push(mode);
+      continue;
+    }
+    const schedule = workflowSkillScheduleForMode(mode);
+    const positions = new Map();
+    schedule.forEach((skillKey, index) => {
+      if (positions.has(skillKey)) duplicateSkills.push({ mode, skillKey });
+      positions.set(skillKey, index);
+    });
+    for (const skillKey of schedule) {
+      const definition = definitions.get(skillKey);
+      if (!definition) {
+        invalidSkills.push({ mode, skillKey });
+        continue;
+      }
+      if (!getWorkflowNode(definition.nodeKey)) {
+        unregisteredNodeKeys.push({ mode, skillKey, nodeKey: definition.nodeKey });
+      }
+      for (const dependencyKey of definition.dependsOn || []) {
+        const dependencyPosition = positions.get(dependencyKey);
+        const skillPosition = positions.get(skillKey);
+        if (dependencyPosition === undefined) {
+          if (!SCHEDULE_EXTERNAL_DEPENDENCIES[mode]?.has(dependencyKey)) {
+            missingDependencies.push({ mode, skillKey, dependencyKey });
+          }
+        } else if (dependencyPosition >= skillPosition) {
+          dependencyOrderViolations.push({ mode, skillKey, dependencyKey });
+        }
+      }
+    }
+  }
+
+  const passed = !invalidModes.length && !invalidSkills.length && !duplicateSkills.length &&
+    !dependencyOrderViolations.length && !missingDependencies.length && !unregisteredNodeKeys.length;
+  return {
+    status: passed ? "passed" : "failed",
+    modes: [...modes],
+    invalidModes,
+    invalidSkills,
+    duplicateSkills,
+    dependencyOrderViolations,
+    missingDependencies,
+    unregisteredNodeKeys
+  };
 }
 
 function resourceTypeFromSkill(skillKey) {
@@ -298,6 +368,7 @@ async function executeSkill({ repo, context, skillKey }) {
     // after candidate materialization so later gates use the current local truth.
     if (result.status === "passed") {
       await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
+      context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "resource-live-readonly-reconcile") {
     result = await runPlatformReadonlyReconcileSkill({
@@ -306,6 +377,9 @@ async function executeSkill({ repo, context, skillKey }) {
       allowReadonlyDependency: context.allowReadonlyDependency === true,
       mockReady: context.mockReady === true
     });
+    // Node 4 verifiers must consume the local truth written by readonly probes,
+    // not the pre-bootstrap bundle held at workflow start.
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"

@@ -1,7 +1,96 @@
-import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "./00-contracts.mjs";
+import {
+  OE3_REQUIRED_RESOURCE_TYPES,
+  OE3_RESOURCE_LABELS,
+  moduleRefForSkill,
+  skillDefinition
+} from "./00-contracts.mjs";
+
+function unique(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function skillTrace(skillKeys = []) {
+  const skills = skillKeys.map((skillKey) => {
+    const definition = skillDefinition(skillKey);
+    return Object.freeze({
+      skillKey,
+      nodeKey: definition.nodeKey,
+      inputContract: Object.freeze([...definition.inputContract]),
+      outputContract: Object.freeze([...definition.outputContract]),
+      stopConditions: Object.freeze([...definition.stopConditions]),
+      moduleRef: definition.moduleRef || moduleRefForSkill(skillKey)
+    });
+  });
+  return Object.freeze({
+    type: skills.length === 1 ? "skill" : "pipeline",
+    resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
+    selection: skills.length === 1 ? "single_skill" : "latest_available_in_priority_order",
+    inputContract: Object.freeze(unique(skills.flatMap((item) => item.inputContract))),
+    outputContract: Object.freeze(unique(skills.flatMap((item) => item.outputContract))),
+    stopConditions: Object.freeze(unique(skills.flatMap((item) => item.stopConditions))),
+    skills: Object.freeze(skills)
+  });
+}
+
+function derivedTrace(kind) {
+  const descriptions = {
+    node_status: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
+      inputContract: ["launch_node_runs.status"],
+      outputContract: ["child_status"],
+      stopConditions: []
+    },
+    execution_grant: {
+      resolverRef: "src/workflows/executionGrantScope.mjs#getExecutionGrantAvailability",
+      inputContract: ["project.state.json.guardrails", "launch_confirmations", "platform_actions"],
+      outputContract: ["can_execute_once", "already_attempted", "child_status"],
+      stopConditions: ["platform_write_disabled", "single_create_attempt_already_recorded"]
+    },
+    created_object: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
+      inputContract: ["platform_actions.action_status", "created_objects.object_status"],
+      outputContract: ["child_status"],
+      stopConditions: ["create_failed"]
+    },
+    readback_consistency: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#readbackStatus",
+      inputContract: ["readback_records.readback_status"],
+      outputContract: ["child_status"],
+      stopConditions: ["readback_not_found_or_mismatch"]
+    },
+    readback_evidence: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
+      inputContract: ["readback_records.readback_status", "readback_records.evidence_ref"],
+      outputContract: ["child_status"],
+      stopConditions: ["readback_not_found_or_mismatch", "readback_evidence_missing"]
+    }
+  };
+  const description = descriptions[kind] || {
+    resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
+    inputContract: ["node_status"],
+    outputContract: ["child_status"],
+    stopConditions: []
+  };
+  return Object.freeze({
+    type: "derived",
+    resolverRef: description.resolverRef,
+    selection: "resolver",
+    inputContract: Object.freeze(description.inputContract),
+    outputContract: Object.freeze(description.outputContract),
+    stopConditions: Object.freeze(description.stopConditions),
+    skills: Object.freeze([])
+  });
+}
+
+function traceForStatusSource(statusSource = {}) {
+  return statusSource.kind === "latest_skill"
+    ? skillTrace(statusSource.skillKeys || [])
+    : derivedTrace(statusSource.kind);
+}
 
 function child(id, label, statusSource) {
-  return Object.freeze({ id, label, statusSource: Object.freeze(statusSource) });
+  const source = Object.freeze({ ...statusSource, skillKeys: Object.freeze([...(statusSource.skillKeys || [])]) });
+  return Object.freeze({ id, label, statusSource: source, trace: traceForStatusSource(source) });
 }
 
 const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => child(
@@ -141,7 +230,8 @@ export function validateWorkflowNodeRegistry({
   const missingResourceSkills = resourceSkillKeys.filter((skillKey) => !skillDefinitions.some((skill) => skill.skillKey === skillKey));
   const node4SkillCount = skillDefinitions.filter((skill) => skill.nodeKey === "account_resource_prepare").length;
   const node4ResourceSkillCount = skillDefinitions.filter((skill) => skill.skillKey.startsWith("resource-verify-")).length;
-  const children = WORKFLOW_NODES.flatMap((node) => node.children || []);
+  const childEntries = WORKFLOW_NODES.flatMap((node) => (node.children || []).map((item) => ({ nodeKey: node.nodeKey, child: item })));
+  const children = childEntries.map((item) => item.child);
   const childIds = children.map((item) => item.id);
   const childIdsUnique = new Set(childIds).size === childIds.length;
   const node4ChildResourceTypes = (getWorkflowNode("account_resource_prepare")?.children || [])
@@ -149,9 +239,31 @@ export function validateWorkflowNodeRegistry({
     .map((item) => item.id.replace(/^resource-/, ""));
   const node4ChildrenMatchResources = requiredResourceTypes.length === node4ChildResourceTypes.length &&
     requiredResourceTypes.every((resourceType) => node4ChildResourceTypes.includes(resourceType));
+  const knownSkillDefinitions = new Map(skillDefinitions.map((skill) => [skill.skillKey, skill]));
+  const invalidChildTraces = childEntries.flatMap(({ nodeKey, child: descriptor }) => {
+    const trace = descriptor.trace || {};
+    const issues = [];
+    if (!["skill", "pipeline", "derived"].includes(trace.type)) issues.push("trace_type_invalid");
+    if (!trace.resolverRef) issues.push("resolver_ref_missing");
+    if (!Array.isArray(trace.inputContract) || !Array.isArray(trace.outputContract) || !Array.isArray(trace.stopConditions)) {
+      issues.push("contract_shape_invalid");
+    }
+    if (trace.type === "derived" && (trace.skills || []).length) issues.push("derived_skill_ref_unexpected");
+    if (["skill", "pipeline"].includes(trace.type) && !(trace.skills || []).length) issues.push("skill_trace_empty");
+    for (const skill of trace.skills || []) {
+      const definition = knownSkillDefinitions.get(skill.skillKey);
+      if (!definition) {
+        issues.push(`skill_not_registered:${skill.skillKey}`);
+      } else if (definition.nodeKey !== nodeKey) {
+        issues.push(`skill_node_mismatch:${skill.skillKey}`);
+      }
+    }
+    return issues.length ? [{ nodeKey, childId: descriptor.id, issues }] : [];
+  });
+  const childTraceable = invalidChildTraces.length === 0;
 
   return {
-    status: unregisteredSkillNodeKeys.length || nodesWithoutSkills.length || missingResourceSkills.length || !childIdsUnique || !node4ChildrenMatchResources ? "failed" : "passed",
+    status: unregisteredSkillNodeKeys.length || nodesWithoutSkills.length || missingResourceSkills.length || !childIdsUnique || !node4ChildrenMatchResources || !childTraceable ? "failed" : "passed",
     nodeCount: WORKFLOW_NODES.length,
     nodeKeys: [...nodeKeys],
     unregisteredSkillNodeKeys,
@@ -163,6 +275,8 @@ export function validateWorkflowNodeRegistry({
     node4ChildrenMatchResources,
     childCount: children.length,
     childIdsUnique,
+    childTraceable,
+    invalidChildTraces,
     missingResourceSkills,
     monitorProvisionClassification: getWorkflowNode("creation_context")?.bootstrapCapabilities?.[0] || ""
   };

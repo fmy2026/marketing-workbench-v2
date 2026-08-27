@@ -437,6 +437,44 @@ function readbackStatus(bundle = {}) {
   return publicWorkflowStatus(readback.readback_status, "waiting");
 }
 
+function skillRunTraceView(run) {
+  if (!run) return null;
+  return {
+    status: publicWorkflowStatus(run.status, "waiting"),
+    inputHash: run.input_hash || "",
+    outputSummary: publicView(run.output_summary || {}),
+    blockers: publicView(run.blockers || []),
+    evidenceRefs: publicView(run.evidence_refs || [])
+  };
+}
+
+function publicTraceContract(values = []) {
+  return values.map((value) => String(value)
+    .replaceAll("touchpoint_url", "touchpoint")
+    .replaceAll("landing_url", "landing_page"));
+}
+
+function childTraceView(descriptor, bundle) {
+  const trace = descriptor.trace || {};
+  return {
+    type: trace.type || "derived",
+    resolverRef: trace.resolverRef || "",
+    selection: trace.selection || "resolver",
+    inputContract: publicTraceContract(trace.inputContract || []),
+    outputContract: publicTraceContract(trace.outputContract || []),
+    stopConditions: publicTraceContract(trace.stopConditions || []),
+    skills: (trace.skills || []).map((skill) => ({
+      skillKey: skill.skillKey,
+      nodeKey: skill.nodeKey,
+      moduleRef: skill.moduleRef,
+      inputContract: publicTraceContract(skill.inputContract || []),
+      outputContract: publicTraceContract(skill.outputContract || []),
+      stopConditions: publicTraceContract(skill.stopConditions || []),
+      latestRun: skillRunTraceView(latestSkillRun(bundle.skillRuns || [], [skill.skillKey]))
+    }))
+  };
+}
+
 function childStatus({ descriptor, node, bundle, executionAvailability }) {
   const source = descriptor.statusSource || {};
   const nodeFallback = publicWorkflowStatus(node.status, "waiting");
@@ -470,7 +508,8 @@ function childView(node, bundle, executionAvailability) {
       id: descriptor.id,
       label: descriptor.label,
       status,
-      statusLabel: statusLabel(status)
+      statusLabel: statusLabel(status),
+      trace: childTraceView(descriptor, bundle)
     };
   });
 }

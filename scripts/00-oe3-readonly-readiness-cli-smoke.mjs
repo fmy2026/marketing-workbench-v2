@@ -2,7 +2,8 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import {
   assertReadonlyReadinessInvocation,
   createOrResolveReadonlyReadinessJob,
-  parseReadonlyReadinessArgs
+  parseReadonlyReadinessArgs,
+  summarizeReadonlyReconcileExecution
 } from "./00-oe3-readonly-readiness-cli.mjs";
 
 function assert(condition, message) {
@@ -72,6 +73,17 @@ try {
   }
   assert(rejectedConfirmEnv, "confirm_env_not_rejected");
 
+  const blockedReconcile = summarizeReadonlyReconcileExecution({
+    skillRuns: [{
+      skill_key: "resource-live-readonly-reconcile",
+      status: "blocked",
+      evidence_refs: ["EV-SMOKE-NODE4"]
+    }]
+  });
+  assert(blockedReconcile.executed === true, "blocked_reconcile_not_counted_as_executed");
+  assert(blockedReconcile.result === "executed_blocked", "blocked_reconcile_result_not_preserved");
+  assert(blockedReconcile.evidencePresent === true, "blocked_reconcile_evidence_not_detected");
+
   console.log(JSON.stringify({
     status: "passed",
     jobId: created.jobId,
@@ -79,6 +91,7 @@ try {
     resumedSameJob: true,
     rejectedWriteFlag,
     rejectedConfirmEnv,
+    blockedReconcileCountedAsExecuted: blockedReconcile.executed,
     zeroPlatformWriteAudit: {
       launchConfirmations: Number(audit.launchConfirmations || 0),
       platformActions: Number(audit.platformActions || 0),

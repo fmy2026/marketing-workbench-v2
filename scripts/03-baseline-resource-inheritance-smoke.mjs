@@ -2,6 +2,10 @@ import { runOceanEngineBaselineResourceProbes } from "../src/platforms/oceanengi
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { runDmpReadonlyGate } from "../src/workflows/skills/oe3/04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "../src/workflows/skills/oe3/03-launch-pack.mjs";
+import {
+  runBackupLandingPageDefaultSkill,
+  runBackupLandingPageReadinessSkill
+} from "../src/workflows/skills/oe3/03-landing-page-readiness.mjs";
 import { runBaselineResourceReadonlyBootstrap } from "./03-baseline-resource-bootstrap-readonly-cli.mjs";
 
 const TARGET = Object.freeze({
@@ -57,6 +61,41 @@ assert(!Object.hasOwn(targetBundle.defaults?.raw_defaults?.material_source_accou
 
 const pack = runLaunchPackSkill({ bundle: targetBundle, skillKey: "launch-pack-resolve-resource-blueprints" });
 assert(pack.status === "passed", "blueprint_launch_pack_skill_not_passed");
+
+const landingDefaultFixture = {
+  backupLandingPage: {
+    landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-001",
+    site_id: "7624750304608649243",
+    site_name: "JSZC backup",
+    url_hash: "sha256:smoke-backup-landing",
+    status: "active",
+    landing_url_present: true,
+    landing_url_https: true
+  },
+  resources: []
+};
+const node3LandingDefault = runBackupLandingPageDefaultSkill({ bundle: landingDefaultFixture });
+const node4LandingWithoutCandidate = runBackupLandingPageReadinessSkill({ bundle: landingDefaultFixture });
+const node4LandingCandidate = runBackupLandingPageReadinessSkill({
+  bundle: {
+    ...landingDefaultFixture,
+    resources: [{
+      resource_type: "backup_landing_page",
+      source_asset_id: "LPA-JSZC-OE3-BACKUP-001",
+      visibility_status: "unknown",
+      readback_status: "not_checked",
+      metadata: {
+        url_hash: "sha256:smoke-backup-landing",
+        readonly_check: { status: "baseline_candidate" }
+      }
+    }]
+  }
+});
+assert(node3LandingDefault.status === "passed", "node3_static_landing_default_not_passed");
+assert(!node3LandingDefault.blockers.includes("backup_landing_page_resource_missing"), "node3_landing_default_depends_on_account_resource");
+assert(node4LandingWithoutCandidate.blockers.includes("backup_landing_page_resource_missing"), "node4_missing_candidate_not_detected");
+assert(!node4LandingCandidate.blockers.includes("backup_landing_page_resource_missing"), "node4_candidate_not_consumed");
+assert(node4LandingCandidate.blockers.includes("backup_landing_page_target_not_visible"), "node4_target_visibility_not_enforced");
 
 const probes = await runOceanEngineBaselineResourceProbes({ bundle: targetBundle, client: fakeReadonlyClient() });
 const productUpdate = probes.resourceUpdates.find((item) => item.resourceType === "product_image") || {};
@@ -125,6 +164,8 @@ process.stdout.write(`${JSON.stringify({
   resourceTypeCount: new Set(blueprints.map((item) => item.resource_type)).size,
   productImagePolicy: productUpdate.readonlyCheck?.status,
   dmpPolicy: dmpResult.blockers[0],
+  node3LandingScope: node3LandingDefault.outputSummary.scope,
+  node4LandingScope: node4LandingCandidate.outputSummary.scope,
   freshRuntimeJobRequired: resumeRejected,
   noOceanEngineNetwork: true,
   noPlatformWrite: true

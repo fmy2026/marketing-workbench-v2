@@ -1,10 +1,11 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob } from "../src/workflows/launchWorkflow.mjs";
+import { buildLaunchJobView, createJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   OE3_REQUIRED_RESOURCE_TYPES,
   OE3_SKILL_DEFINITIONS,
   assertNoSensitiveLeak,
   runOe3WorkflowSkills,
+  validateOe3WorkflowSchedules,
   validateWorkflowNodeRegistry
 } from "../src/workflows/skills/oe3/00-index.mjs";
 
@@ -43,6 +44,10 @@ try {
   assert(registryValidation.nodeCount === 7, "workflow_node_registry_count_not_7");
   assert(registryValidation.node4ResourceSkillCountMatches === true, "node4_resource_skill_count_mismatch");
   assert(registryValidation.monitorProvisionClassification.includes("creation-context bootstrap"), "monitor_provision_classification_missing");
+  assert(registryValidation.childTraceable === true, "workflow_child_trace_incomplete");
+
+  const scheduleValidation = validateOe3WorkflowSchedules();
+  assert(scheduleValidation.status === "passed", "workflow_skill_schedule_invalid");
 
   const dryRunJobId = await makeTestJob(repo, `smoke:workflow-skills:dry-run:${new Date().toISOString()}`, cleanupJobIds);
   const dryRun = await runOe3WorkflowSkills({ repo, jobId: dryRunJobId, mode: "dry_run" });
@@ -59,6 +64,14 @@ try {
   assert(dryRun.summary.nodeStatuses.std_project_create_executor === "locked", "dry_run_create_node_not_locked");
   assert(!dryRunBundle.platformAction, "dry_run_platform_action_recorded");
   assert(!dryRunBundle.createdObject, "dry_run_created_object_recorded");
+  const dryRunView = buildLaunchJobView(dryRunBundle);
+  const workflowChildren = dryRunView.phases.flatMap((phase) => phase.nodes.flatMap((node) => node.children));
+  assert(workflowChildren.length === registryValidation.childCount, "workflow_child_view_count_mismatch");
+  assert(workflowChildren.every((child) => child.trace?.type && child.trace?.resolverRef), "workflow_child_trace_view_missing");
+  assert(workflowChildren.filter((child) => child.trace.type !== "derived").every((child) => child.trace.skills.length > 0), "workflow_skill_trace_view_missing_skills");
+  const backupLandingChild = workflowChildren.find((child) => child.id === "backup-landing-page");
+  assert(backupLandingChild?.trace?.type === "skill", "backup_landing_child_not_atomic_skill");
+  assert(backupLandingChild?.trace?.skills?.[0]?.latestRun?.inputHash?.startsWith("sha256:"), "backup_landing_child_latest_run_missing");
 
   const executeJobId = await makeTestJob(repo, `smoke:workflow-skills:execute-mock:${new Date().toISOString()}`, cleanupJobIds);
   const execute = await runOe3WorkflowSkills({
@@ -86,6 +99,7 @@ try {
     dryRun: dryRun.summary,
     executeMock: execute.summary,
     registryValidation,
+    scheduleValidation,
     cleanupPlanned: cleanupJobIds.length,
     noRealPlatformWrite: true,
     noTokenRefresh: true

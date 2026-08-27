@@ -123,10 +123,25 @@ function evidenceRefs(bundle = {}) {
   }));
 }
 
+export function summarizeReadonlyReconcileExecution(bundle = {}) {
+  const run = (bundle.skillRuns || [])
+    .filter((item) => item.skill_key === "resource-live-readonly-reconcile")
+    .at(-1);
+  const evidencePresent = Boolean(run?.evidence_refs?.length) ||
+    (bundle.evidence || []).some((item) => item.artifact_type === "baseline_resource_readonly_reconcile");
+  return {
+    executed: Boolean(run),
+    status: run?.status || "not_run",
+    evidencePresent,
+    result: !run ? "not_run" : run.status === "blocked" ? "executed_blocked" : "executed"
+  };
+}
+
 function externalReadonlyCoverage({ bundle, monitorPreflight }) {
   const skills = skillStatuses(bundle);
   const evidenceTypes = new Set((bundle.evidence || []).map((item) => item.artifact_type));
-  const baselineProbeIntegrated = Boolean(skills["resource-live-readonly-reconcile"]);
+  const reconcile = summarizeReadonlyReconcileExecution(bundle);
+  const baselineProbeIntegrated = reconcile.executed;
   return {
     qiankun: {
       accountIndexCalled: monitorPreflight.accountApiCalled === true,
@@ -142,6 +157,7 @@ function externalReadonlyCoverage({ bundle, monitorPreflight }) {
       videoReadonlyGate: Boolean(skills["resource-verify-video-asset"]),
       baselineResourceProbeAdapterIntegrated: baselineProbeIntegrated,
       fullResourceProbeAdapterIntegrated: baselineProbeIntegrated,
+      baselineResourceProbeExecution: reconcile,
       coverageGap: baselineProbeIntegrated
         ? ""
         : "Node 4 baseline resource readonly reconcile skill did not run."
@@ -166,9 +182,9 @@ function classifyConclusion({ bundle, auditCounts }) {
     return "blocked_with_evidence";
   }
   if (blockers.length) return "blocked_with_evidence";
-  return skillStatuses(bundle)["resource-live-readonly-reconcile"] === "passed"
-    ? "ready_for_single_create_task"
-    : "mechanism_coverage_incomplete";
+  const reconcile = summarizeReadonlyReconcileExecution(bundle);
+  if (!reconcile.executed) return "mechanism_coverage_incomplete";
+  return reconcile.status === "passed" ? "ready_for_single_create_task" : "blocked_with_evidence";
 }
 
 export async function runReadonlyReadiness({ repo = new PostgresRepository(), args, env = process.env, sourceRecordPrefix } = {}) {
@@ -236,15 +252,26 @@ export async function runReadonlyReadiness({ repo = new PostgresRepository(), ar
     },
     externalReadonlyCoverage: externalReadonlyCoverage({ bundle, monitorPreflight }),
     evidenceRefs: evidenceRefs(bundle),
-    mechanismObservations: skillStatuses(bundle)["resource-live-readonly-reconcile"] === "passed"
-      ? []
-      : [{
-          title: "Node 4 baseline readonly reconcile did not run",
-          evidence: "resource-live-readonly-reconcile is absent or not passed in this job.",
-          impact: "保底资产只读覆盖不完整，不得把当前 job 视为全资源已核验。",
-          nextTask: "检查 Node 4 resource-live-readonly-reconcile 的权限、凭据或运行阻断。",
+    mechanismObservations: (() => {
+      const reconcile = summarizeReadonlyReconcileExecution(bundle);
+      if (reconcile.status === "passed") return [];
+      if (reconcile.executed) {
+        return [{
+          title: "Node 4 baseline readonly reconcile 已执行但受阻",
+          evidence: "resource-live-readonly-reconcile 已记录运行结果；阻断原因以该 Skill 的 blockers 与 evidence 为准。",
+          impact: "平台只读覆盖已实际执行，但目标账户资源仍未形成通过结论。",
+          nextTask: "按该 Skill 的唯一阻断项处理权限、凭据或平台返回，再新建 fresh runtime job 复核。",
           boundary: "record_only_no_repair_in_current_task"
-        }],
+        }];
+      }
+      return [{
+        title: "Node 4 baseline readonly reconcile 未执行",
+        evidence: "resource-live-readonly-reconcile 在本 job 中无运行记录。",
+        impact: "保底资产只读覆盖不完整，不得把当前 job 视为全资源已核验。",
+        nextTask: "检查 Node 4 resource-live-readonly-reconcile 的权限、凭据或运行入口。",
+        boundary: "record_only_no_repair_in_current_task"
+      }];
+    })(),
     rawRequestStored: false,
     rawResponseStored: false,
     rawPayloadStored: false

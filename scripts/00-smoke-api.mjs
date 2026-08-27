@@ -1,6 +1,7 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "../src/workflows/skills/oe3/00-contracts.mjs";
+import { WORKFLOW_NODES } from "../src/workflows/skills/oe3/00-workflow-node-registry.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -37,21 +38,25 @@ function nodeById(view, nodeId) {
 function assertWorkflowShape(view) {
   const nodes = workflowNodes(view);
   const children = workflowChildren(view);
+  const registryChildren = WORKFLOW_NODES.flatMap((node) => node.children || []);
   assert(nodes.length === 7, `expected 7 workflow nodes, got ${nodes.length}`);
-  assert(children.length === 29, `expected 29 workflow children, got ${children.length}`);
-  assert(new Set(children.map((child) => child.id)).size === 29, "workflow child ids are not unique");
+  assert(children.length === registryChildren.length, `expected ${registryChildren.length} workflow children, got ${children.length}`);
+  assert(new Set(children.map((child) => child.id)).size === registryChildren.length, "workflow child ids are not unique");
   for (const child of children) {
     assert(
-      Object.keys(child).sort().join(",") === "id,label,status,statusLabel",
+      Object.keys(child).sort().join(",") === "id,label,status,statusLabel,trace",
       `workflow child public shape changed: ${child.id}`
     );
+    assert(child.trace?.type && child.trace?.resolverRef, `workflow child trace missing: ${child.id}`);
   }
   const node4 = nodeById(view, "account_resource_prepare");
-  const expectedNode4 = OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
-    id: `resource-${resourceType}`,
-    label: OE3_RESOURCE_LABELS[resourceType]
-  }));
+  const expectedNode4 = (WORKFLOW_NODES.find((node) => node.nodeKey === "account_resource_prepare")?.children || [])
+    .map(({ id, label }) => ({ id, label }));
   assert(JSON.stringify(node4.children.map(({ id, label }) => ({ id, label }))) === JSON.stringify(expectedNode4), "node4 resource children mismatch");
+  const node4ResourceLabels = node4.children
+    .filter((child) => child.id.startsWith("resource-"))
+    .map((child) => child.label);
+  assert(JSON.stringify(node4ResourceLabels) === JSON.stringify(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => OE3_RESOURCE_LABELS[resourceType])), "node4 resource child labels mismatch");
   assert(nodes.every((node) => Array.isArray(node.subflows) && node.subflows.every((item) => typeof item === "string")), "legacy subflows compatibility changed");
 }
 

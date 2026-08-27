@@ -1,5 +1,5 @@
 import { materialItems } from "./04-resource-verifiers.mjs";
-import { runBackupLandingPageReadinessSkill } from "./03-landing-page-readiness.mjs";
+import { runBackupLandingPageDefaultSkill } from "./03-landing-page-readiness.mjs";
 
 export { materialItems };
 
@@ -48,7 +48,7 @@ export function runLaunchPackSkill({ bundle, skillKey }) {
   }
 
   if (skillKey === "launch-pack-resolve-backup-landing-page") {
-    return runBackupLandingPageReadinessSkill({ bundle });
+    return runBackupLandingPageDefaultSkill({ bundle });
   }
 
   if (skillKey === "launch-pack-resolve-resource-blueprints") {
