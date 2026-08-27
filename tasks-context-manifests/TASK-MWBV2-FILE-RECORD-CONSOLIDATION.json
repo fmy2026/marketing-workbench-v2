@@ -1,0 +1,62 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-FILE-RECORD-CONSOLIDATION",
+  "task_ref": "tasks/TASK-MWBV2-FILE-RECORD-CONSOLIDATION.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Consolidate stable v2 file-mechanism guidance into AGENTS.md and archive duplicate workbench logic documents.",
+    "scope": [
+      "AGENTS.md",
+      "project.state.json",
+      "docs/工作台逻辑底层/",
+      ".archive/工作台逻辑底层/"
+    ],
+    "non_goals": [
+      "Runtime code changes",
+      "Database changes",
+      "Platform actions or permission changes"
+    ]
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-FILE-RECORD-CONSOLIDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-FILE-RECORD-CONSOLIDATION.json"
+  ],
+  "allowed_actions": [
+    "Edit long-term project guidance",
+    "Update dynamic project task state",
+    "Move the two specified documentation files to archive",
+    "Run non-platform validation commands"
+  ],
+  "forbidden_actions": [
+    "Runtime code changes",
+    "Database changes",
+    "Platform writes, retries, token refresh, or credential changes",
+    "Guardrail changes",
+    "Deletion of archived documentation"
+  ],
+  "validation": [
+    {
+      "command": "Parse project.state.json and task manifest JSON",
+      "status": "passed"
+    },
+    {
+      "command": "Compare guardrails SHA-256 before and after",
+      "status": "passed",
+      "result": "unchanged"
+    },
+    {
+      "command": "Check AGENTS.md and archive paths",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "next_gate": "Wait for a new explicit task; this consolidation did not change runtime or platform permissions."
+}

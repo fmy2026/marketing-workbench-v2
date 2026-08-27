@@ -36,8 +36,8 @@
     "src/repositories/postgresRepository.mjs",
     "package.json",
     "schemas/postgres-minimal-truth.md",
-    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
-    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md"
+    ".archive/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    ".archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md"
   ],
   "rationality_assessment": {
     "status": "reasonable",
@@ -74,8 +74,8 @@
     "scripts/04-resource-action-registry-smoke.mjs",
     "package.json",
     "AGENTS.md",
-    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
-    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    ".archive/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    ".archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
     "schemas/postgres-minimal-truth.md",
     "project.state.json"
   ],
@@ -91,8 +91,8 @@
     "scripts/04-resource-action-registry-smoke.mjs",
     "package.json:test:resource-action-registry",
     "AGENTS.md",
-    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
-    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    ".archive/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    ".archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
     "schemas/postgres-minimal-truth.md"
   ],
   "validation": [

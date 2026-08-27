@@ -14,7 +14,7 @@
 
 需求来源：`/Users/hys/Desktop/需求表述.md` 中的“第一个任务”。
 
-参考目标态文档：`docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md`。
+参考目标态文档（已归档）：`.archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md`。
 
 文档是需求输入，不是平台写入授权。本任务不放宽 `project.state.json.guardrails`，不执行真实平台写入，不刷新 token，不保存 raw request/response 或完整 URL。
 

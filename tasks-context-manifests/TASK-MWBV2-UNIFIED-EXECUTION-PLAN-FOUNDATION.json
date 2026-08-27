@@ -9,7 +9,7 @@
   "brief": {
     "goal": "Create the unified execution plan foundation for one-click launch without real platform writes.",
     "source_request_doc": "/Users/hys/Desktop/需求表述.md",
-    "target_design_doc": "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "target_design_doc": ".archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
     "document_instruction_boundary": "Referenced documents are treated as requirements input, not authorization for platform writes.",
     "no_platform_write": true
   },
@@ -17,7 +17,7 @@
     "AGENTS.md",
     "project.state.json",
     "/Users/hys/Desktop/需求表述.md",
-    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    ".archive/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
     "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md",
     "tasks-context-manifests/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.json",
     "db/009_create_platform_write_records.sql",
