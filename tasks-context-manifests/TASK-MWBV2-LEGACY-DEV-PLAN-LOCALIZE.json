@@ -1,0 +1,64 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE",
+  "task_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Localize outdated early development plans and remove them from current mechanism entry points and GitHub current version.",
+    "user_instruction": "把 docs/开发方案 改为 .开发方案，避免上传 GitHub，并确保接下来的机制不会再看它。",
+    "scope": "Documentation path move, ignore rule, startup protocol clarification, and task closure records only."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md",
+    "tasks-context-manifests/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.json"
+  ],
+  "localized_paths": [
+    {
+      "from": "docs/开发方案/plan1-新项目最高效启动框架_20260823.md",
+      "to": "docs/.开发方案/plan1-新项目最高效启动框架_20260823.md",
+      "sha256": "78eb2ad22e53178861b23e5e88e7a3fbd4818a04e45cc4b3431fdffa78ffacce",
+      "git_tracking": "removed_from_current_version"
+    },
+    {
+      "from": "docs/开发方案/方案-前端页面效果_html_20260823.html",
+      "to": "docs/.开发方案/方案-前端页面效果_html_20260823.html",
+      "sha256": "35cad14a172cef6ee338cb457dfb253e51f84d01814b3e371a4fdb0461aa6877",
+      "git_tracking": "removed_from_current_version"
+    },
+    {
+      "from": "docs/开发方案/方案-投放创建Agent开发方案_20260823.md",
+      "to": "docs/.开发方案/方案-投放创建Agent开发方案_20260823.md",
+      "sha256": "75335f3212340ff40c7b540ef8c503e1b854a39109397105d153b2dda237685b",
+      "git_tracking": "removed_from_current_version"
+    }
+  ],
+  "updated_references": [
+    "AGENTS.md startup protocol",
+    ".gitignore",
+    "project.state.json closure fields"
+  ],
+  "allowed_legacy_references": [
+    "tasks/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.md",
+    "tasks-context-manifests/TASK-MWBV2-DOCS-DIRECTORY-REORG-CONSISTENCY.json"
+  ],
+  "non_goals": [
+    "No runtime code changes.",
+    "No database changes.",
+    "No platform calls.",
+    "No git history rewrite.",
+    "No deletion of local historical files."
+  ],
+  "validation": [
+    "Confirm docs/.开发方案/ is ignored.",
+    "Confirm docs/开发方案/ no longer exists.",
+    "Confirm tracked current version no longer contains docs/开发方案 files.",
+    "Confirm JSON files parse.",
+    "Run git diff --check."
+  ],
+  "completion_gate": "Legacy development plans are local-only historical material; business next gate remains Node 4 baseline_brand_industry readonly diagnosis."
+}

@@ -9,7 +9,7 @@
 3. 若 `active_task` 为对象，按其 `read_order` 读取任务卡和 context manifest。
 4. 若 `active_task = null`，只报告 `project_status` 和 `next_gate`，等待用户指定新任务。
 
-`docs/开发方案/` 仅在任务需要设计背景时按需参考；`.archive/` 仅供历史复盘，二者均不是启动必读或运行真值。
+`docs/.开发方案/` 仅为本机旧开发方案留存，禁止作为启动必读、任务 manifest `read_order`、运行真值或需求依据；`.archive/` 仅供历史复盘，二者均不是启动必读或运行真值。
 
 ## 工作台
 

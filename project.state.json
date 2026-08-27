@@ -7,16 +7,16 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "jszc_baseline_resource_readonly_apply_completed_blocked",
+  "project_status": "oe3_full_chain_readonly_readiness_rerun_completed_blocked",
   "phase": {
-    "id": "SCHEDULED-OAUTH-TOKEN-REFRESH",
+    "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.md"
+    "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-BASELINE-RESOURCE-READONLY-APPLY-1871922346964041.md",
-  "next_gate": "优先新建 Node 3/4 保底备用页顺序收口机制任务；其后按证据分别安排视频单次绑定/共享、品牌行业只读参数诊断或备用页目标账户可见性确认，禁止直接创建广告。",
+  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-RERUN-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md",
+  "next_gate": "优先新建 Node 4 品牌行业只读参数诊断任务，定位 baseline_brand_industry 的受阻原因；诊断后新建 fresh runtime truth job 复核，禁止直接创建广告。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
