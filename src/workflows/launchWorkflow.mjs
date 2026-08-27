@@ -5,6 +5,7 @@ import {
   evaluateOe3PayloadContract,
   runOe3WorkflowSkills
 } from "./skills/oe3/00-index.mjs";
+import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
 export {
   WORKFLOW_NODES,
   getWorkflowNode,
@@ -136,6 +137,7 @@ function statusLabel(status) {
     blocked: "阻断",
     locked: "锁定",
     waiting: "等待",
+    running: "执行中",
     failed: "失败",
     created: "已创建",
     diagnosed: "诊断完成",
@@ -399,7 +401,98 @@ function draftFields(bundle, runtimeChecks = {}) {
   ];
 }
 
-export function buildLaunchJobView(bundle, runtimeChecks = {}) {
+const PUBLIC_WORKFLOW_STATUSES = new Set([
+  "waiting",
+  "locked",
+  "running",
+  "passed",
+  "needs_confirmation",
+  "repairable",
+  "blocked",
+  "failed"
+]);
+
+function publicWorkflowStatus(status, fallback = "waiting") {
+  if (PUBLIC_WORKFLOW_STATUSES.has(status)) return status;
+  if (["created", "mock_created", "diagnosed", "readback_verified", "resolved"].includes(status)) return "passed";
+  if (["draft_ready", "ready_for_user_create_confirmation"].includes(status)) return "needs_confirmation";
+  if (["created_pending_readback", "running"].includes(status)) return "running";
+  if (["not_found_or_mismatch", "failed_or_unconfirmed", "failed_waiting_manual_review"].includes(status)) return "failed";
+  if (String(status || "").startsWith("blocked")) return "blocked";
+  if (String(status || "").startsWith("failed")) return "failed";
+  return PUBLIC_WORKFLOW_STATUSES.has(fallback) ? fallback : "waiting";
+}
+
+function latestSkillRun(skillRuns = [], skillKeys = []) {
+  for (const skillKey of skillKeys) {
+    const matchingRuns = skillRuns.filter((run) => run.skill_key === skillKey);
+    if (matchingRuns.length) return matchingRuns.at(-1);
+  }
+  return null;
+}
+
+function readbackStatus(bundle = {}) {
+  const readback = bundle.readback || {};
+  if (!readback.readback_status || String(readback.object_id || "").startsWith("PLACEHOLDER-")) return "waiting";
+  return publicWorkflowStatus(readback.readback_status, "waiting");
+}
+
+function childStatus({ descriptor, node, bundle, executionAvailability }) {
+  const source = descriptor.statusSource || {};
+  const nodeFallback = publicWorkflowStatus(node.status, "waiting");
+  if (source.kind === "node_status") return nodeFallback;
+  if (source.kind === "latest_skill") {
+    const run = latestSkillRun(bundle.skillRuns || [], source.skillKeys || []);
+    return run ? publicWorkflowStatus(run.status, nodeFallback) : nodeFallback;
+  }
+  if (source.kind === "execution_grant") {
+    if (executionAvailability.canExecuteOnce) return "passed";
+    if (executionAvailability.alreadyAttempted) return "locked";
+    return nodeFallback === "waiting" ? "waiting" : "locked";
+  }
+  if (source.kind === "created_object") {
+    const status = bundle.platformAction?.action_status || bundle.createdObject?.object_status || "waiting";
+    return publicWorkflowStatus(status, "waiting");
+  }
+  if (source.kind === "readback_consistency") return readbackStatus(bundle);
+  if (source.kind === "readback_evidence") {
+    const status = readbackStatus(bundle);
+    if (status === "passed" && !bundle.readback?.evidence_ref) return "running";
+    return status;
+  }
+  return nodeFallback;
+}
+
+function childView(node, bundle, executionAvailability) {
+  return (node.children || []).map((descriptor) => {
+    const status = childStatus({ descriptor, node, bundle, executionAvailability });
+    return {
+      id: descriptor.id,
+      label: descriptor.label,
+      status,
+      statusLabel: statusLabel(status)
+    };
+  });
+}
+
+function primaryActionView(bundle = {}, createReadiness = {}, executionAvailability = {}) {
+  const alreadyAttempted = executionAvailability.alreadyAttempted || createReadiness.hasSingleCreateAttempt;
+  if (alreadyAttempted) {
+    return { kind: "disabled", label: "禁止重试", enabled: false };
+  }
+  if (executionAvailability.canExecuteOnce && createReadiness.canCreateCurrentJob) {
+    return { kind: "execute_once", label: "确认创建", enabled: true };
+  }
+  const terminal = Boolean(bundle.platformAction || bundle.createdObject) ||
+    ["created_pending_readback", "failed_waiting_manual_review"].includes(bundle.job?.job_status);
+  return {
+    kind: terminal ? "disabled" : "run",
+    label: terminal ? "禁止重试" : "开始执行",
+    enabled: !terminal
+  };
+}
+
+export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}) {
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
     const row = dbNodes.get(node.nodeKey) || {};
@@ -422,6 +515,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       status: node.status,
       statusLabel: statusLabel(node.status),
       subflows: node.subflows,
+      children: childView(node, bundle, executionAvailability),
       detail: node.detail,
       output: node.output,
       readonlyChecks: node.outputSummary?.checks || [],
@@ -432,6 +526,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
   const execution = executionView(bundle);
   const createReadiness = createReadinessView(bundle, runtimeChecks);
   const actions = actionView(bundle, createReadiness);
+  const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
     status: bundle.job.job_status,
@@ -502,6 +597,12 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
       gaps: []
     },
     createReadiness,
+    executionAvailability: {
+      status: executionAvailability.status || "unavailable",
+      canExecuteOnce: executionAvailability.canExecuteOnce === true,
+      alreadyAttempted: executionAvailability.alreadyAttempted === true
+    },
+    primaryAction,
     platformReadonly: {
       status: runtimeChecks.prewriteGate?.platformReadonlyApi?.status || "not_run",
       credentialStatus: runtimeChecks.prewriteGate?.platformReadonlyApi?.credentialStatus || "unknown",
@@ -550,10 +651,18 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}) {
   });
 }
 
-export async function getJobView(repo, jobId) {
+async function buildPublicJobView(repo, bundle, { projectStatePath } = {}) {
+  const [runtimeChecks, executionAvailability] = await Promise.all([
+    buildRuntimeChecks(repo, bundle),
+    getExecutionGrantAvailability({ repo, bundle, projectStatePath })
+  ]);
+  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability);
+}
+
+export async function getJobView(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) return null;
-  return buildLaunchJobView(bundle, await buildRuntimeChecks(repo, bundle));
+  return buildPublicJobView(repo, bundle, options);
 }
 
 export async function createJob(repo, body = {}) {
@@ -608,7 +717,7 @@ export async function createJob(repo, body = {}) {
     }))
   ]);
   const bundle = await repo.getLaunchJobBundle(jobId);
-  return buildLaunchJobView(bundle, await buildRuntimeChecks(repo, bundle));
+  return buildPublicJobView(repo, bundle);
 }
 
 export async function runJob(repo, jobId, options = {}) {
@@ -636,5 +745,5 @@ export async function runJob(repo, jobId, options = {}) {
     mockMonitorEnsure: options.mockMonitorEnsure === true,
     qiankunOwnerKey: options.qiankunOwnerKey || ""
   });
-  return buildLaunchJobView(result.bundle, await buildRuntimeChecks(repo, result.bundle));
+  return buildPublicJobView(repo, result.bundle, options);
 }

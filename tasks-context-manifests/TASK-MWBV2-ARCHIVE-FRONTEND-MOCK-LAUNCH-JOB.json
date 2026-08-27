@@ -1,0 +1,42 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB",
+  "task_ref": "tasks/TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Archive the obsolete frontend mock launch job fixture without changing runtime behavior or historical business records.",
+    "document_instruction_boundary": "Historical task references are audit records and do not make the archived file a runtime dependency."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB.md",
+    "tasks-context-manifests/TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB.json",
+    "frontend/index.html",
+    "frontend/app.js"
+  ],
+  "allowed_actions": [
+    "Move the exact obsolete mock fixture into .archive/frontend",
+    "Update this task record and dynamic task state"
+  ],
+  "forbidden_actions": [
+    "Changing runtime behavior",
+    "Changing database or platform state",
+    "Changing guardrails"
+  ],
+  "result": {
+    "archived_path": ".archive/frontend/mock-launch-job.js",
+    "runtime_references_remaining": 0,
+    "content_preserved": true,
+    "runtime_behavior_changed": false,
+    "guardrails_changed": false
+  },
+  "validation": [
+    { "command": "SHA-256 comparison against HEAD:frontend/mock-launch-job.js", "status": "passed" },
+    { "command": "rg runtime reference check", "status": "passed", "result": "frontend/package.json/src/scripts contain no reference" },
+    { "command": "JSON parse and git diff --check", "status": "passed" }
+  ]
+}

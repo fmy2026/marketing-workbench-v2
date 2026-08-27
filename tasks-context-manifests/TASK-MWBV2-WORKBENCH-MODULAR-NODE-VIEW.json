@@ -1,0 +1,60 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-MODULAR-NODE-VIEW",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-MODULAR-NODE-VIEW.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Render the persisted 3-phase, 7-node OE3 workflow as modular cards with child statuses and safe server-supplied primary actions.",
+    "document_instruction_boundary": "Task records describe this implementation only and do not authorize platform writes."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-MODULAR-NODE-VIEW.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-MODULAR-NODE-VIEW.json",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/server/index.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css"
+  ],
+  "allowed_actions": [
+    "Local source, test, task-record, and project-state changes",
+    "Read-only checks and dry-run workflow execution"
+  ],
+  "forbidden_actions": [
+    "Platform writes",
+    "Database schema changes",
+    "Changing project.state.json guardrails",
+    "Storing secrets, complete touchpoint URLs, raw payloads, or raw responses"
+  ],
+  "execution_gates": [
+    "Keep child definitions in the single node registry.",
+    "Expose only minimal child status fields to the frontend.",
+    "Require server-side grant availability before execute-once is offered.",
+    "Run repository checks before task closure."
+  ],
+  "result": {
+    "workflow_node_count": 7,
+    "workflow_child_count": 29,
+    "node4_resource_child_count": 8,
+    "default_primary_action": "dry_run",
+    "grant_primary_action": "execute_once only after server-side scope validation",
+    "real_platform_write": false,
+    "database_schema_changed": false
+  },
+  "validation": [
+    { "command": "npm run smoke:workflow-skills", "status": "passed" },
+    { "command": "npm run smoke:api", "status": "passed" },
+    { "command": "npm run test:execution-grant", "status": "passed" },
+    { "command": "npm run check:runtime-consistency", "status": "passed" },
+    { "command": "git diff --check and node --check", "status": "passed" },
+    { "command": "local browser desktop / 860px / 560px", "status": "passed", "result": "7 cards, 29 children, no horizontal overflow" },
+    { "command": "guardrails sha256 before/after", "status": "passed", "result": "1d7292c7d8a71b0c220f47df44e7cf4126ca1d15a450adf3a71db0b0b8bb7b05" }
+  ]
+}

@@ -2,7 +2,7 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { STD_PROJECT_CREATE_CONFIRM_VALUE } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import {
@@ -264,6 +264,9 @@ try {
 
   const successView = await createReadyTestJob("execution-grant-smoke:create-ok-readback-hit");
   const successState = await writeProjectStateForScope(successView);
+  const grantedView = await getJobView(repo, successView.jobId, { projectStatePath: successState });
+  assert(grantedView.primaryAction?.kind === "execute_once", "valid grant should expose execute-once action");
+  assert(grantedView.primaryAction?.enabled === true, "valid grant execute-once action should be enabled");
   const successFetch = fakeFetchFactory({ projectId: "999900002" });
   const result = await executeConfirmedLaunch({
     repo,

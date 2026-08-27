@@ -7,25 +7,25 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "qiankun_monitor_first_create_1871922434025472_completed",
+  "project_status": "frontend_mock_launch_job_archived",
   "phase": {
-    "id": "QIANKUN-MONITOR-FIRST-CREATE-1871922434025472",
+    "id": "ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB",
     "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md"
+    "plan_ref": "tasks/TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-ARCHIVE-FRONTEND-MOCK-LAUNCH-JOB.md",
   "last_blocked_task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
-  "next_gate": "新账户 1871922434025472 已成功创建乾坤 monitor_id=245830，DB 与 readback 已闭环。当前无 active task，真实平台写入已暂停；如需继续处理其他账户，需另建单次任务。",
+  "next_gate": "工作台 7 节点模块化视图已完成；如需真实创建，必须另建单次任务并打开精确 execution grant，当前平台写入保持暂停。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "paused_after_qiankun_monitor_create_resolved",
+      "mode": "paused_after_readonly_touchpoint_url_sync",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
       "target_project_name": "",
-      "target_advertiser_id": "1871922434025472",
+      "target_advertiser_id": "1871922346964041",
       "allowed_actions": [],
       "maximum_actions": 0,
       "retry_allowed": false,

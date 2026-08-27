@@ -1,17 +1,87 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
 
 async function createDraft(sourceRecordRef) {
-  const view = await createJob(repo, {
+  const initial = await createJob(repo, {
     user_intent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993",
     source_usage: "test_run",
     source_record_ref: sourceRecordRef
   });
-  cleanupJobIds.push(view.jobId);
-  return runJob(repo, view.jobId, { mode: "dry_run" });
+  cleanupJobIds.push(initial.jobId);
+  assertInitialWorkflow(initial);
+  const dryRun = await runJob(repo, initial.jobId, { mode: "dry_run" });
+  assertDryRunWorkflow(dryRun);
+  return dryRun;
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function workflowNodes(view) {
+  return (view.phases || []).flatMap((phase) => phase.nodes || []);
+}
+
+function workflowChildren(view) {
+  return workflowNodes(view).flatMap((node) => node.children || []);
+}
+
+function nodeById(view, nodeId) {
+  return workflowNodes(view).find((node) => node.id === nodeId) || {};
+}
+
+function assertWorkflowShape(view) {
+  const nodes = workflowNodes(view);
+  const children = workflowChildren(view);
+  assert(nodes.length === 7, `expected 7 workflow nodes, got ${nodes.length}`);
+  assert(children.length === 29, `expected 29 workflow children, got ${children.length}`);
+  assert(new Set(children.map((child) => child.id)).size === 29, "workflow child ids are not unique");
+  for (const child of children) {
+    assert(
+      Object.keys(child).sort().join(",") === "id,label,status,statusLabel",
+      `workflow child public shape changed: ${child.id}`
+    );
+  }
+  const node4 = nodeById(view, "account_resource_prepare");
+  const expectedNode4 = OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
+    id: `resource-${resourceType}`,
+    label: OE3_RESOURCE_LABELS[resourceType]
+  }));
+  assert(JSON.stringify(node4.children.map(({ id, label }) => ({ id, label }))) === JSON.stringify(expectedNode4), "node4 resource children mismatch");
+  assert(nodes.every((node) => Array.isArray(node.subflows) && node.subflows.every((item) => typeof item === "string")), "legacy subflows compatibility changed");
+}
+
+function assertInitialWorkflow(view) {
+  assertWorkflowShape(view);
+  const intake = nodeById(view, "launch_intake");
+  assert(intake.status === "passed", "initial intake node must be passed");
+  assert(intake.children.every((child) => child.status === "passed"), "initial intake children must be passed");
+  const downstream = workflowNodes(view).filter((node) => node.id !== "launch_intake");
+  assert(downstream.every((node) => node.children.every((child) => child.status === "waiting")), "initial downstream children must be waiting");
+  assert(view.primaryAction?.kind === "run" && view.primaryAction?.enabled === true, "initial action must be safe dry-run");
+}
+
+function expectedMonitorStatus(view) {
+  const priority = ["monitor-readback", "monitor-ensure", "monitor-plan", "monitor-query"];
+  const statuses = new Map((view.skills?.latest || []).map((skill) => [skill.skillKey, skill.status]));
+  return priority.map((key) => statuses.get(key)).find(Boolean) || "waiting";
+}
+
+function assertDryRunWorkflow(view) {
+  assertWorkflowShape(view);
+  const monitor = nodeById(view, "creation_context").children.find((child) => child.id === "monitor");
+  assert(monitor?.status === expectedMonitorStatus(view), "monitor child did not use readback/ensure/plan/query priority");
+  const node4 = nodeById(view, "account_resource_prepare");
+  for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
+    const child = node4.children.find((item) => item.id === `resource-${resourceType}`);
+    const skill = (view.skills?.latest || []).filter((item) => item.skillKey === `resource-verify-${resourceType.replace(/_/g, "-")}`).at(-1);
+    assert(child?.status === (skill?.status || node4.status), `node4 child status mismatch: ${resourceType}`);
+  }
+  assert(view.primaryAction?.kind !== "execute_once", "dry-run must not expose execute-once without a server grant");
 }
 
 function projectSeq(projectName) {

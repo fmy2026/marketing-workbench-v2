@@ -365,7 +365,7 @@ p {
 
 .workflow-grid {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   padding-top: 12px;
 }
 
@@ -374,15 +374,23 @@ p {
 }
 
 .phase-title {
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
 }
 
-.node-list {
+.node-card-grid {
   display: grid;
-  gap: 7px;
+  gap: 10px;
+}
+
+.node-card-grid.node-count-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.node-card-grid.node-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .empty-workflow {
@@ -391,13 +399,19 @@ p {
   font-size: 14px;
 }
 
-.node-row {
-  min-height: 52px;
-  gap: 10px;
-  padding: 9px 10px;
+.node-card {
+  min-width: 0;
+  min-height: 132px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+}
+
+.node-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .node-marker {
@@ -414,80 +428,111 @@ p {
   font-weight: 800;
 }
 
-.node-body {
+.node-card-name {
   min-width: 0;
   flex: 1;
-}
-
-.node-body h4 {
   font-size: 14px;
   line-height: 1.3;
 }
 
-.node-body p {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #94a3b8;
 }
 
-.node-state {
-  flex: 0 0 auto;
-  min-width: 54px;
+.child-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.child-item {
+  min-width: 0;
+  min-height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+}
+
+.child-label {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
-  text-align: right;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-passed {
+.node-card.status-passed {
   border-color: #b9e6d5;
-  background: var(--green-soft);
 }
 
-.status-passed .node-marker,
-.status-passed .node-state {
+.node-card.status-passed .node-marker {
   color: var(--green);
   border-color: #94d8bf;
 }
 
-.status-needs_confirmation,
-.status-repairable {
-  border-color: #f1d09a;
-  background: var(--amber-soft);
+.status-passed .status-dot {
+  background: var(--green);
 }
 
-.status-needs_confirmation .node-marker,
-.status-needs_confirmation .node-state,
-.status-repairable .node-marker,
-.status-repairable .node-state {
+.node-card.status-running {
+  border-color: #b7cdf9;
+}
+
+.node-card.status-running .node-marker {
+  color: var(--blue);
+  border-color: #9ebaf3;
+}
+
+.status-running .status-dot {
+  background: var(--blue);
+}
+
+.node-card.status-needs_confirmation,
+.node-card.status-repairable {
+  border-color: #f1d09a;
+}
+
+.node-card.status-needs_confirmation .node-marker,
+.node-card.status-repairable .node-marker {
   color: var(--amber);
   border-color: #e4b66f;
 }
 
-.status-blocked,
-.status-failed {
-  border-color: #f3b3ad;
-  background: var(--red-soft);
+.status-needs_confirmation .status-dot,
+.status-repairable .status-dot {
+  background: var(--amber);
 }
 
-.status-blocked .node-marker,
-.status-blocked .node-state,
-.status-failed .node-marker,
-.status-failed .node-state {
+.node-card.status-blocked,
+.node-card.status-failed {
+  border-color: #f3b3ad;
+}
+
+.node-card.status-blocked .node-marker,
+.node-card.status-failed .node-marker {
   color: var(--red);
   border-color: #ee9b94;
 }
 
-.status-locked,
-.status-waiting {
-  background: #ffffff;
+.status-blocked .status-dot,
+.status-failed .status-dot {
+  background: var(--red);
 }
 
-.status-locked .node-marker,
-.status-waiting .node-marker {
+.node-card.status-locked .node-marker,
+.node-card.status-waiting .node-marker {
   background: var(--disabled);
 }
 
@@ -570,6 +615,11 @@ p {
   .workflow-panel {
     overflow: visible;
   }
+
+  .node-card-grid.node-count-3,
+  .node-card-grid.node-count-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -606,12 +656,8 @@ p {
     max-width: 96px;
   }
 
-  .node-row {
-    align-items: flex-start;
-  }
-
-  .node-state {
-    min-width: auto;
+  .child-list {
+    grid-template-columns: 1fr;
   }
 
   .command-bar {

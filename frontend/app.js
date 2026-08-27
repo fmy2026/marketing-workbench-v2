@@ -2,9 +2,9 @@
   let job = null;
   let busy = false;
   let viewOnly = false;
+  let polling = false;
 
-  const DONE_STATUSES = new Set(["passed", "needs_confirmation"]);
-  const REASON_STATUSES = new Set(["blocked", "repairable", "failed", "needs_confirmation"]);
+  const DONE_STATUSES = new Set(["passed"]);
   const PUBLIC_STATUS = new Set(["waiting", "running", "passed", "needs_confirmation", "blocked", "repairable", "failed", "locked"]);
 
   function el(tag, className, text) {
@@ -41,14 +41,6 @@
 
   function progressCount(nodes) {
     return nodes.filter((node) => DONE_STATUSES.has(node.status)).length;
-  }
-
-  function currentReason() {
-    const readiness = job?.createReadiness || {};
-    const firstIssue = allNodes().find((node) => REASON_STATUSES.has(node.status));
-    return readiness.uniqueBlocker && readiness.uniqueBlocker !== "无"
-      ? readiness.uniqueBlocker
-      : firstIssue?.detail || firstIssue?.summary || job?.headline?.nextAction || "等待执行";
   }
 
   function setBusy(nextBusy) {
@@ -91,12 +83,6 @@
     });
   }
 
-  function nodeReason(node) {
-    if (!REASON_STATUSES.has(node.status)) return "";
-    if (node.status === "needs_confirmation") return "创建前已就绪";
-    return node.detail || node.summary || "";
-  }
-
   function renderWorkflow() {
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
@@ -105,18 +91,32 @@
       const section = el("section", "phase-section");
       section.append(el("h3", "phase-title", phase.title || phase.phase || ""));
 
-      const list = el("div", "node-list");
+      const list = el("div", `node-card-grid node-count-${(phase.nodes || []).length}`);
       (phase.nodes || []).forEach((node) => {
         const status = PUBLIC_STATUS.has(node.status) ? node.status : "waiting";
-        const row = el("article", `node-row status-${status}`);
-        row.append(el("span", "node-marker", String(node.number || "")));
-        const body = el("div", "node-body");
-        body.append(el("h4", "", node.name || ""));
-        const reason = nodeReason(node);
-        if (reason) body.append(el("p", "", reason));
-        row.append(body);
-        row.append(el("span", "node-state", node.statusLabel || status));
-        list.append(row);
+        const card = el("article", `node-card status-${status}`);
+        const header = el("div", "node-card-header");
+        header.append(el("span", "node-marker", String(node.number || "")));
+        header.append(el("h4", "node-card-name", node.name || ""));
+        const nodeDot = el("span", "status-dot");
+        nodeDot.setAttribute("aria-label", node.statusLabel || status);
+        nodeDot.title = node.statusLabel || status;
+        header.append(nodeDot);
+        card.append(header);
+
+        const children = el("div", "child-list");
+        (node.children || []).forEach((child) => {
+          const childStatus = PUBLIC_STATUS.has(child.status) ? child.status : "waiting";
+          const item = el("div", `child-item status-${childStatus}`);
+          const childDot = el("span", "status-dot");
+          childDot.setAttribute("aria-label", child.statusLabel || childStatus);
+          childDot.title = child.statusLabel || childStatus;
+          item.append(childDot);
+          item.append(el("span", "child-label", child.label || ""));
+          children.append(item);
+        });
+        card.append(children);
+        list.append(card);
       });
 
       section.append(list);
@@ -127,7 +127,6 @@
       grid.append(el("p", "empty-workflow", "等待新的投放需求"));
     }
 
-    document.getElementById("workflowHint").textContent = currentReason();
     document.getElementById("runState").textContent = job?.headline?.statusLabel || "空闲";
   }
 
@@ -136,14 +135,9 @@
     document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length || 7}`;
     const button = document.getElementById("primaryAction");
     const label = document.getElementById("primaryActionText");
-    const readiness = job?.createReadiness || {};
-    const createAttempted = readiness.hasSingleCreateAttempt ||
-      Number(readiness.platformActions || 0) > 0 ||
-      job?.headline?.status === "failed_waiting_manual_review" ||
-      job?.headline?.status === "created_pending_readback" ||
-      job?.headline?.status === "created";
-    button.disabled = busy || !job?.jobId || createAttempted || viewOnly;
-    label.textContent = busy ? "执行中" : (viewOnly ? "查看记录" : (createAttempted ? "禁止重试" : "开始执行"));
+    const primaryAction = job?.primaryAction || { kind: "disabled", label: "开始执行", enabled: false };
+    button.disabled = busy || !job?.jobId || viewOnly || primaryAction.enabled !== true;
+    label.textContent = busy ? "执行中" : (viewOnly ? "查看记录" : primaryAction.label);
     document.getElementById("chatInput").disabled = viewOnly;
     document.querySelector(".send-button").disabled = viewOnly;
     refreshIcons();
@@ -162,34 +156,39 @@
   }
 
   async function refreshJob() {
-    if (!job?.jobId) return;
-    job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}`);
-    renderAll();
-  }
-
-  function terminalJob(view) {
-    return ["created", "failed_waiting_manual_review"].includes(view?.headline?.status);
-  }
-
-  function returnToIdle() {
-    job = null;
-    viewOnly = false;
-    renderAll();
+    if (!job?.jobId || polling) return;
+    polling = true;
+    try {
+      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}`);
+      renderAll();
+    } finally {
+      polling = false;
+    }
   }
 
   async function runWorkflow() {
     if (!job?.jobId || busy || viewOnly) return;
+    const primaryAction = job.primaryAction || {};
+    if (primaryAction.enabled !== true) return;
     setBusy(true);
+    const jobId = job.jobId;
+    const refreshTimer = window.setInterval(() => {
+      refreshJob().catch(() => {});
+    }, 1200);
     try {
-      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/execute-once`, {
+      const endpoint = primaryAction.kind === "execute_once" ? "execute-once" : "run";
+      const body = primaryAction.kind === "execute_once"
+        ? { execution_intent: "EXECUTE_ONE_LAUNCH" }
+        : { mode: "dry_run" };
+      job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/${endpoint}`, {
         method: "POST",
-        body: JSON.stringify({ execution_intent: "EXECUTE_ONE_LAUNCH" })
+        body: JSON.stringify(body)
       });
-      if (terminalJob(job)) returnToIdle();
-      else renderAll();
+      renderAll();
     } catch (error) {
       showError(error);
     } finally {
+      window.clearInterval(refreshTimer);
       setBusy(false);
     }
   }
