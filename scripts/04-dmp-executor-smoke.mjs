@@ -61,11 +61,15 @@ assert(typeof transportShape.advertiser_id === "number", "dmp_transport_source_s
 assert(typeof transportShape.custom_audience_id === "number", "dmp_transport_audience_should_be_number");
 assert(typeof transportShape.target_advertiser_ids[0] === "number", "dmp_transport_target_should_be_number");
 
-function makeRepo({ statefulPlans = plans.map((item) => ({ ...item })) } = {}) {
+function makeRepo({
+  statefulPlans = plans.map((item) => ({ ...item })),
+  initialTargetStatuses = Object.fromEntries(ids.map((id) => [id, "missing"]))
+} = {}) {
   const actions = [];
   const resourceUpdates = [];
   const accountStates = [];
   const evidence = [];
+  const targetStatuses = { ...initialTargetStatuses };
   return {
     actions,
     resourceUpdates,
@@ -93,6 +97,15 @@ function makeRepo({ statefulPlans = plans.map((item) => ({ ...item })) } = {}) {
     async getDmpPackagePushPlans() {
       return statefulPlans;
     },
+    async getDmpPackageSet() {
+      return {
+        members: ids.map((id) => ({
+          custom_audience_id: id,
+          source_readonly_status: "passed",
+          target_readonly_status: targetStatuses[id] || "not_checked"
+        }))
+      };
+    },
     async countPlatformActions() {
       return 0;
     },
@@ -105,12 +118,44 @@ function makeRepo({ statefulPlans = plans.map((item) => ({ ...item })) } = {}) {
     },
     async updateDmpPackageMemberAccountReadonly(value) {
       accountStates.push(value);
+      targetStatuses[value.customAudienceId] = value.readonlyStatus;
     },
     async updateAccountResourceReadonly(value) {
       resourceUpdates.push(value);
     },
     async upsertEvidence(value) {
       evidence.push(value);
+    }
+  };
+}
+
+function dmpReadonlyClient({ available = true } = {}) {
+  return {
+    async get({ endpoint, query }) {
+      const selectedIds = endpoint === "dmp/custom_audience/read"
+        ? (Array.isArray(query.custom_audience_ids) ? query.custom_audience_ids : JSON.parse(query.custom_audience_ids || "[]")).map(String)
+        : Number(query.offset || 0) === 0 ? ids : [];
+      const audienceItems = selectedIds.map((id) => ({
+        customAudienceId: id,
+        deliveryStatus: available ? "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE" : "CUSTOM_AUDIENCE_DELIVERY_STATUS_UNAVAILABLE",
+        status: "0",
+        isDeleted: "0",
+        pullOff: "0",
+        pushStatus: "2"
+      }));
+      return {
+        status: "passed",
+        httpStatus: 200,
+        apiCode: "0",
+        requestIdPresent: true,
+        responseHash: `sha256:${endpoint.replaceAll("/", "-")}-${query.select_type || "read"}-${query.offset || "0"}`,
+        summary: {
+          audienceItems,
+          customAudienceIds: audienceItems.map((item) => item.customAudienceId),
+          customAudienceIdCount: audienceItems.length,
+          totalNum: ids.length
+        }
+      };
     }
   };
 }
@@ -151,7 +196,7 @@ try {
     oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
     projectStatePath: statePath,
     fetchImpl: async () => { throw new Error("write_should_not_run"); },
-    readonlyClient: { get: async () => ({ status: "passed", summary: { customAudienceIds: [] } }) }
+    readonlyClient: dmpReadonlyClient()
   });
   assert(blocked.status === "blocked_before_dmp_write", "dmp_missing_contract_should_block_before_write");
   assert(blocked.blockers.includes("blocked_missing_official_dmp_push_contract"), "dmp_missing_contract_blocker_missing");
@@ -187,26 +232,78 @@ try {
     oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
     projectStatePath: statePath,
     fetchImpl: async () => response({ code: 0, request_id: "req" }),
-    readonlyClient: {
-      get: async ({ query }) => {
-        const parsed = JSON.parse(query.custom_audience_ids);
-        return {
-          status: "passed",
-          httpStatus: 200,
-          apiCode: "0",
-          requestIdPresent: true,
-          responseHash: `sha256:readback-${parsed[0]}`,
-          summary: { customAudienceIds: [String(parsed[0])] }
-        };
-      }
-    }
+    readonlyClient: dmpReadonlyClient()
   });
   assert(success.status === "dmp_ready", "dmp_executor_success_not_ready");
   assert(successRepo.actions.filter((item) => item.actionStatus === "started").length === 10, "dmp_executor_should_start_ten_pushes");
   assert(successRepo.actions.filter((item) => item.actionStatus === "succeeded").length === 10, "dmp_executor_should_finish_ten_pushes");
   assert(successRepo.accountStates.length === 10, "dmp_executor_should_write_ten_account_states");
   assert(successRepo.resourceUpdates.some((item) => item.readbackStatus === "readback_verified"), "dmp_executor_should_mark_resource_verified");
+  assert(successRepo.resourceUpdates.at(-1).resourceMetadata.custom_audience_ids.length === 10, "dmp_executor_should_store_all_ten_verified_ids");
 
+  const remainingNinePlans = plans
+    .filter((plan) => plan.custom_audience_id !== "465498363")
+    .map((plan) => ({ ...plan }));
+  await writeFile(statePath, JSON.stringify({
+    guardrails: {
+      platform_write_allowed: true,
+      platform_write_scope: {
+        target_job_id: jobId,
+        target_advertiser_id: targetAdvertiserId,
+        target_plan_id: `PLAN-${jobId}-V1`,
+        target_plan_hash: "sha256:plan",
+        allowed_actions: ["ensure_resource:dmp_audience_package"],
+        maximum_actions: 1,
+        maximum_platform_calls: 9,
+        retry_allowed: false,
+        official_contract: {
+          source_ref: "official-doc:test-only",
+          content_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          endpoint: "/open_api/2/dmp/custom_audience/push_v2/",
+          method: "POST"
+        }
+      }
+    }
+  }));
+  const remainingRepo = makeRepo({
+    statefulPlans: remainingNinePlans,
+    initialTargetStatuses: { ...Object.fromEntries(ids.map((id) => [id, "missing"])), "465498363": "passed" }
+  });
+  const remaining = await ensureDmpBaselineForTargetOnce({
+    repo: remainingRepo,
+    jobId,
+    confirmVariableValue: DMP_ENSURE_CONFIRM_VALUE,
+    credentialSummary: credential,
+    oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+    projectStatePath: statePath,
+    fetchImpl: async () => response({ code: 0, request_id: "req" }),
+    readonlyClient: dmpReadonlyClient()
+  });
+  assert(remaining.status === "dmp_ready", "dmp_executor_remaining_nine_should_be_ready");
+  assert(remainingRepo.actions.filter((item) => item.actionStatus === "started").length === 9, "dmp_executor_remaining_nine_should_start_nine_pushes");
+  assert(remainingRepo.resourceUpdates.at(-1).resourceMetadata.custom_audience_ids.length === 10, "dmp_executor_remaining_nine_should_store_all_ten_verified_ids");
+
+  await writeFile(statePath, JSON.stringify({
+    guardrails: {
+      platform_write_allowed: true,
+      platform_write_scope: {
+        target_job_id: jobId,
+        target_advertiser_id: targetAdvertiserId,
+        target_plan_id: `PLAN-${jobId}-V1`,
+        target_plan_hash: "sha256:plan",
+        allowed_actions: ["ensure_resource:dmp_audience_package"],
+        maximum_actions: 1,
+        maximum_platform_calls: 10,
+        retry_allowed: false,
+        official_contract: {
+          source_ref: "official-doc:test-only",
+          content_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          endpoint: "/open_api/2/dmp/custom_audience/push_v2/",
+          method: "POST"
+        }
+      }
+    }
+  }));
   const failRepo = makeRepo();
   const failed = await ensureDmpBaselineForTargetOnce({
     repo: failRepo,
@@ -216,7 +313,7 @@ try {
     oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
     projectStatePath: statePath,
     fetchImpl: async () => response({ code: 40000 }, 400),
-    readonlyClient: { get: async () => ({ status: "passed", summary: { customAudienceIds: [] } }) }
+    readonlyClient: dmpReadonlyClient()
   });
   assert(failed.status === "dmp_push_failed_once", "dmp_executor_push_failure_should_stop");
   assert(failRepo.actions.filter((item) => item.actionStatus === "started").length === 1, "dmp_executor_failure_should_not_continue");

@@ -515,13 +515,15 @@ async function executeSkill({ repo, context, skillKey }) {
     throw new Error(`skill_not_implemented:${skillKey}`);
   }
 
-  const resultForRecord = { ...result };
+  const memoryResult = sanitizeForPublic(result);
+  assertNoSensitiveLeak(memoryResult);
+  const resultForRecord = { ...memoryResult };
   delete resultForRecord.customAudienceIds;
   const safeResult = sanitizeForPublic(resultForRecord);
   assertNoSensitiveLeak(safeResult);
-  context.skillOutputs.set(skillKey, safeResult);
+  context.skillOutputs.set(skillKey, memoryResult);
   await recordSkillRun({ repo, bundle: context.bundle, definition, input, result: safeResult, startedAt });
-  return safeResult;
+  return memoryResult;
 }
 
 function aggregateNodeRuns({ bundle, mode, skillOutputs }) {

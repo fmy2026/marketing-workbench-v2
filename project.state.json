@@ -7,7 +7,7 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "oe3_dmp_first_push_succeeded_but_readback_not_verified",
+  "project_status": "oe3_dmp_ready_video_material_pending",
   "phase": {
     "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
@@ -15,8 +15,8 @@
   },
   "active_task": null,
   "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.md",
-  "next_gate": "新建 DMP 首包 465498363 已推送后只读回查诊断任务；只允许目标户 dmp/custom_audience/read 与 select，不再次调用 push_v2。确认平台延迟、字段解析、查询条件或目标户可用性原因后，再决定是否继续剩余 9 包。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-REMAINING9-PUSH-READBACK-1871922346964041.md",
+  "next_gate": "新建账户 1871922346964041 视频素材 Node 4 只读/保底推送任务；DMP 已 10/10 passed，下一唯一优先 blocker 为 video_material_not_ready:JSZC-HUNT-4IG2-3，并需同步核验 JSZC-HUNT-4GE6-14。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {

@@ -1,0 +1,77 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-DMP-REISSUE-BATCH10-PUSH-READBACK-1871922346964041",
+  "owner_agent": "codex",
+  "status": "closed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "source_advertiser_id": "1871922153496588",
+    "resource_type": "dmp_audience_package",
+    "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+    "historical_job_id": "JOB-MWBV2-20260827125751-2CDDFD",
+    "historical_first_push_plan_status": "executed_not_user_confirmed"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-DMP-REISSUE-BATCH10-PUSH-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-DMP-REISSUE-BATCH10-PUSH-READBACK-1871922346964041.json",
+    "src/platforms/oceanengineDmpExecutor.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "src/workflows/dmpExecutionScope.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_actions": [
+    "oceanengine_readonly:dmp/custom_audience/read",
+    "oceanengine_readonly:dmp/custom_audience/select",
+    "oceanengine_write:dmp/custom_audience/push_v2",
+    "postgres_runtime_truth_evidence",
+    "local_tests"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "monitorSerialNumberAdd",
+    "token_refresh",
+    "budget_or_bid_update",
+    "material_upload_or_bind",
+    "raw_request_or_response_logging"
+  ],
+  "write_scope": {
+    "action": "ensure_resource:dmp_audience_package",
+    "maximum_actions": 1,
+    "maximum_platform_calls": 10,
+    "confirm_variable": "MWBV2_OE_DMP_PUSH_CONFIRM=PUSH_ONE_DMP_BASELINE_SET",
+    "retry_allowed": false,
+    "official_contract_required": true,
+    "request_fields": [
+      "advertiser_id",
+      "custom_audience_id",
+      "target_advertiser_ids"
+    ],
+    "post_push_readback": {
+      "mode": "batch_poll",
+      "delays_ms": [0, 3000, 6000],
+      "target_state_required": "available_10"
+    }
+  },
+  "acceptance": {
+    "preflight_expected": "source_available_10_target_missing_10",
+    "push_plans_expected": "verified_10",
+    "maximum_dmp_platform_actions": 10,
+    "sensitive_fields_stored": false
+  },
+  "evidence": {
+    "fresh_job_id": "JOB-MWBV2-20260827132706-2C7792",
+    "source_preflight": { "passed": 10 },
+    "target_preflight": { "passed": 1, "missing": 9 },
+    "target_verified_custom_audience_id": "465498363",
+    "fresh_push_plan": { "planned": 9 },
+    "platform_actions": 0,
+    "write_scope_enabled": false
+  },
+  "next_gate": "新建剩余 9 包 DMP 单批推送与整组回查任务；必须使用新的 fresh job 和 fresh scope。"
+}

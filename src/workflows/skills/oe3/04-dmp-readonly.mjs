@@ -1,5 +1,6 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
 import { buildDmpPushRequestPlan } from "../../../platforms/oceanengineDmpExecutor.mjs";
+import { probeDmpAudienceSet } from "../../../platforms/oceanengineDmpReadonly.mjs";
 import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 import { clean, dmpCustomAudienceIds, resource } from "./04-resource-verifiers.mjs";
@@ -25,54 +26,6 @@ function packageSetIdFromBundle(bundle = {}) {
     clean(blueprint.metadata?.package_set_id) ||
     clean(blueprint.source_asset_id) ||
     DEFAULT_DMP_PACKAGE_SET_ID;
-}
-
-function extractCustomAudienceIds(value) {
-  const found = [];
-  function walk(item) {
-    if (Array.isArray(item)) {
-      item.forEach(walk);
-      return;
-    }
-    if (!item || typeof item !== "object") return;
-    for (const [key, child] of Object.entries(item)) {
-      if (["custom_audience_id", "custom_audience_ids", "audience_package_id", "retargeting_tags_exclude"].includes(key)) {
-        const values = Array.isArray(child) ? child : [child];
-        values.map(numberId).filter(Boolean).forEach((id) => found.push(id));
-      }
-      walk(child);
-    }
-  }
-  walk(value);
-  return unique(found);
-}
-
-function extractFieldValues(value, fieldName) {
-  const found = [];
-  function walk(item) {
-    if (Array.isArray(item)) {
-      item.forEach(walk);
-      return;
-    }
-    if (!item || typeof item !== "object") return;
-    for (const [key, child] of Object.entries(item)) {
-      if (key === fieldName && child !== null && child !== undefined && child !== "") found.push(clean(child));
-      walk(child);
-    }
-  }
-  walk(value);
-  return unique(found);
-}
-
-function summarizeDmp(payload = {}) {
-  const customAudienceIds = extractCustomAudienceIds(payload?.data || payload);
-  const deliveryStatuses = extractFieldValues(payload?.data || payload, "delivery_status");
-  return {
-    customAudienceIdCount: customAudienceIds.length,
-    customAudienceIds,
-    deliveryStatuses,
-    dataPresent: Boolean(payload?.data)
-  };
 }
 
 function credentialSummary(credential = {}) {
@@ -190,48 +143,15 @@ function testScopeResult({ bundle, stage }) {
   };
 }
 
-async function probeAudience({ client, advertiserId, customAudienceId }) {
-  const safeId = numberId(customAudienceId);
-  const read = await client.get({
-    label: "dmp_custom_audience_read",
-    endpoint: "dmp/custom_audience/read",
-    query: {
-      advertiser_id: advertiserId,
-      custom_audience_ids: JSON.stringify([Number(safeId)])
-    },
-    requestFieldManifest: {
-      fieldNames: ["advertiser_id", "custom_audience_ids"],
-      customAudienceIdsTransportType: "json_integer_array_string"
-    },
-    summarize: summarizeDmp
-  });
-  const select = await client.get({
-    label: "dmp_custom_audience_select",
-    endpoint: "dmp/custom_audience/select",
-    query: {
-      advertiser_id: advertiserId,
-      custom_audience_ids: JSON.stringify([Number(safeId)]),
-      page: "1",
-      page_size: "100"
-    },
-    requestFieldManifest: {
-      fieldNames: ["advertiser_id", "custom_audience_ids", "page", "page_size"],
-      customAudienceIdsTransportType: "json_integer_array_string"
-    },
-    summarize: summarizeDmp
-  });
-  const readIds = read.summary?.customAudienceIds || [];
-  const selectIds = select.summary?.customAudienceIds || [];
-  const idReadback = readIds.includes(safeId) || selectIds.includes(safeId);
-  const passed = read.status === "passed" && select.status === "passed" && idReadback;
-  return sanitizeForPublic({
-    customAudienceId: safeId,
-    status: passed ? "passed" : read.status === "transport_failed" || select.status === "transport_failed" ? "transport_failed" : "missing",
-    read: probeDigest(read),
-    select: probeDigest(select),
-    idReadback,
-    deliveryStatuses: unique([...(read.summary?.deliveryStatuses || []), ...(select.summary?.deliveryStatuses || [])])
-  });
+async function probeAudienceSet({ client, advertiserId, customAudienceIds }) {
+  const result = await probeDmpAudienceSet({ client, advertiserId, customAudienceIds, label: "dmp_baseline" });
+  return result.members.map((item) => ({
+    ...item,
+    read: result.read,
+    select: result.selectAvailable,
+    selectVisible: result.selectVisible,
+    deliveryStatuses: item.deliveryStatus ? [item.deliveryStatus] : []
+  }));
 }
 
 export async function runDmpBaselineResolveSkill({ repo, bundle } = {}) {
@@ -304,13 +224,10 @@ async function runDmpReadonlyVerify({
     };
   }
 
-  const results = [];
-  for (const id of ids) {
-    const result = await probeAudience({ client, advertiserId, customAudienceId: id });
-    results.push(result);
-  }
+  const results = await probeAudienceSet({ client, advertiserId, customAudienceIds: ids });
   const passedIds = results.filter((item) => item.status === "passed").map((item) => item.customAudienceId);
   const missingIds = ids.filter((id) => !passedIds.includes(id));
+  const visibleNotAvailableIds = results.filter((item) => item.status === "visible_not_available").map((item) => item.customAudienceId);
   const status = missingIds.length ? "blocked" : "passed";
   const evidenceRef = await recordDmpEvidence({
     repo,
@@ -322,11 +239,14 @@ async function runDmpReadonlyVerify({
     members: results
   });
   for (const item of results) {
+    const storedReadonlyStatus = stage === "source-readonly-verify" && item.status === "visible_not_available"
+      ? "blocked"
+      : item.status;
     await repo.updateDmpPackageMemberReadonly({
       packageSetId,
       customAudienceId: item.customAudienceId,
       ...(stage === "target-readonly-verify" ? { targetAdvertiserId: advertiserId } : {}),
-      [statusColumn]: item.status === "passed" ? "passed" : item.status,
+      [statusColumn]: item.status === "passed" ? "passed" : storedReadonlyStatus,
       [evidenceColumn]: evidenceRef,
       referenceStatus: item.status === "passed" && stage === "source-readonly-verify" ? "source_verified" : "",
       metadata: {
@@ -336,7 +256,10 @@ async function runDmpReadonlyVerify({
           select_api_code: item.select?.apiCode || "",
           request_id_present: Boolean(item.read?.requestIdPresent || item.select?.requestIdPresent),
           response_hashes: [item.read?.responseHash || "", item.select?.responseHash || ""].filter(Boolean),
-          delivery_statuses: item.deliveryStatuses || [],
+          delivery_status: item.deliveryStatus || "",
+          read_hit: item.readHit === true,
+          visible_hit: item.visibleHit === true,
+          available_hit: item.availableHit === true,
           checked_at: new Date().toISOString()
         }
       }
@@ -389,6 +312,8 @@ async function runDmpReadonlyVerify({
       passedCount: passedIds.length,
       missingCount: missingIds.length,
       missingIdHash: missingIds.length ? hashValue(missingIds) : "",
+      visibleNotAvailableCount: visibleNotAvailableIds.length,
+      visibleNotAvailableIdHash: visibleNotAvailableIds.length ? hashValue(visibleNotAvailableIds) : "",
       ready: status === "passed",
       evidenceRef,
       rawRequestStored: false,

@@ -6,6 +6,7 @@ import {
   validateDmpWriteScope
 } from "../workflows/dmpExecutionScope.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
+import { pollDmpAudienceSet } from "./oceanengineDmpReadonly.mjs";
 import {
   credentialReady,
   getOceanEngineCredentialSummary,
@@ -57,92 +58,7 @@ function responseSummary(payload = {}) {
   };
 }
 
-function extractCustomAudienceIds(value) {
-  const found = [];
-  function walk(item) {
-    if (Array.isArray(item)) {
-      item.forEach(walk);
-      return;
-    }
-    if (!item || typeof item !== "object") return;
-    for (const [key, child] of Object.entries(item)) {
-      if (["custom_audience_id", "custom_audience_ids", "audience_package_id", "retargeting_tags_exclude"].includes(key)) {
-        const values = Array.isArray(child) ? child : [child];
-        values.map(clean).filter((id) => /^\d+$/.test(id)).forEach((id) => found.push(id));
-      }
-      walk(child);
-    }
-  }
-  walk(value);
-  return [...new Set(found)];
-}
-
-function summarizeDmp(payload = {}) {
-  const ids = extractCustomAudienceIds(payload?.data || payload);
-  return {
-    customAudienceIdCount: ids.length,
-    customAudienceIds: ids,
-    dataPresent: Boolean(payload?.data)
-  };
-}
-
-async function probeAudience({ client, advertiserId, customAudienceId }) {
-  const audience = assertSafeIntegerId("custom_audience_id", customAudienceId);
-  const read = await client.get({
-    label: "dmp_custom_audience_read_after_push",
-    endpoint: "dmp/custom_audience/read",
-    query: {
-      advertiser_id: advertiserId,
-      custom_audience_ids: JSON.stringify([audience.number])
-    },
-    requestFieldManifest: {
-      fieldNames: ["advertiser_id", "custom_audience_ids"],
-      customAudienceIdsTransportType: "json_integer_array_string"
-    },
-    summarize: summarizeDmp
-  });
-  const select = await client.get({
-    label: "dmp_custom_audience_select_after_push",
-    endpoint: "dmp/custom_audience/select",
-    query: {
-      advertiser_id: advertiserId,
-      custom_audience_ids: JSON.stringify([audience.number]),
-      page: "1",
-      page_size: "100"
-    },
-    requestFieldManifest: {
-      fieldNames: ["advertiser_id", "custom_audience_ids", "page", "page_size"],
-      customAudienceIdsTransportType: "json_integer_array_string"
-    },
-    summarize: summarizeDmp
-  });
-  const ids = new Set([...(read.summary?.customAudienceIds || []), ...(select.summary?.customAudienceIds || [])]);
-  const passed = read.status === "passed" && select.status === "passed" && ids.has(audience.text);
-  return sanitizeForPublic({
-    status: passed ? "passed" : "missing",
-    read: {
-      status: read.status,
-      httpStatus: read.httpStatus ?? null,
-      apiCode: read.apiCode || "",
-      requestIdPresent: Boolean(read.requestIdPresent),
-      responseHash: read.responseHash || ""
-    },
-    select: {
-      status: select.status,
-      httpStatus: select.httpStatus ?? null,
-      apiCode: select.apiCode || "",
-      requestIdPresent: Boolean(select.requestIdPresent),
-      responseHash: select.responseHash || ""
-    }
-  });
-}
-
-export function dmpPushTransportPayload({
-  sourceAdvertiserId,
-  targetAdvertiserId,
-  customAudienceId,
-  deliveryStatus = ""
-} = {}) {
+export function dmpPushTransportPayload({ sourceAdvertiserId, targetAdvertiserId, customAudienceId } = {}) {
   const source = assertSafeIntegerId("source_advertiser_id", sourceAdvertiserId);
   const target = assertSafeIntegerId("target_advertiser_id", targetAdvertiserId);
   const audienceId = assertSafeIntegerId("custom_audience_id", customAudienceId);
@@ -151,24 +67,17 @@ export function dmpPushTransportPayload({
     custom_audience_id: audienceId.number,
     target_advertiser_ids: [target.number]
   };
-  if (clean(deliveryStatus)) payload.delivery_status = clean(deliveryStatus);
   return payload;
 }
 
-export function buildDmpPushRequestPlan({
-  sourceAdvertiserId,
-  targetAdvertiserId,
-  customAudienceId,
-  deliveryStatus = ""
-} = {}) {
+export function buildDmpPushRequestPlan({ sourceAdvertiserId, targetAdvertiserId, customAudienceId } = {}) {
   const source = assertSafeIntegerId("source_advertiser_id", sourceAdvertiserId);
   const target = assertSafeIntegerId("target_advertiser_id", targetAdvertiserId);
   const audienceId = assertSafeIntegerId("custom_audience_id", customAudienceId);
   const requestShape = dmpPushTransportPayload({
     sourceAdvertiserId: source.text,
     targetAdvertiserId: target.text,
-    customAudienceId: audienceId.text,
-    deliveryStatus
+    customAudienceId: audienceId.text
   });
   const requestHash = hashValue(requestShape);
   return sanitizeForPublic({
@@ -320,14 +229,13 @@ export async function ensureDmpBaselineForTargetOnce({
 
   const env = oceanEngineEnv || readOceanEngineEnv().env;
   const client = readonlyClient || createOceanEngineReadonlyClient({ fetchImpl });
-  const verifiedIds = [];
+  const pushed = [];
   for (const plan of plans) {
     if (plan.plan_status !== "planned") continue;
     const requestBody = dmpPushTransportPayload({
       sourceAdvertiserId: plan.source_advertiser_id,
       targetAdvertiserId: plan.target_advertiser_id,
-      customAudienceId: plan.custom_audience_id,
-      deliveryStatus: ""
+      customAudienceId: plan.custom_audience_id
     });
     const requestHash = hashValue(requestBody);
     if (requestHash !== plan.request_hash) {
@@ -393,50 +301,99 @@ export async function ensureDmpBaselineForTargetOnce({
       return sanitizeForPublic({ status: "dmp_push_failed_once", jobId, failed_custom_audience_id: plan.custom_audience_id, platform_write_called: true, evidence_ref: evidenceRef });
     }
 
-    const readback = await probeAudience({ client, advertiserId: plan.target_advertiser_id, customAudienceId: plan.custom_audience_id });
-    const verified = readback.status === "passed";
     const evidenceRef = await saveDmpPushEvidence({
       repo,
       jobId,
       customAudienceId: plan.custom_audience_id,
-      stage: "readback",
-      status: verified ? "verified" : "readback_blocked",
+      stage: "response",
+      status: "accepted_pending_batch_readback",
       pushActionId: actionId,
-      readback,
       responseHash
     });
+    await repo.updateDmpPackagePushPlanStatus({
+      pushPlanId: plan.push_plan_id,
+      planStatus: "executed",
+      evidenceRef,
+      responseHash,
+      metadata: { batch_readback_status: "pending", response_body_stored: false }
+    });
+    pushed.push({ plan, actionId, responseHash });
+  }
+
+  const targetAdvertiserId = plans[0]?.target_advertiser_id || bundle.job.advertiser_id;
+  const readbackPoll = await pollDmpAudienceSet({
+    client,
+    advertiserId: targetAdvertiserId,
+    customAudienceIds: pushed.map((item) => item.plan.custom_audience_id),
+    label: "dmp_push_batch_readback"
+  });
+  const membersById = new Map((readbackPoll.result?.members || []).map((item) => [item.customAudienceId, item]));
+  const verifiedIds = [];
+  for (const item of pushed) {
+    const member = membersById.get(item.plan.custom_audience_id) || {};
+    const verified = member.status === "passed";
+    const readonlyStatus = verified ? "passed" : member.status === "visible_not_available"
+      ? "visible_not_available"
+      : readbackPoll.result?.status === "transport_failed" ? "transport_failed"
+        : "readback_pending";
+    const evidenceRef = await saveDmpPushEvidence({
+      repo,
+      jobId,
+      customAudienceId: item.plan.custom_audience_id,
+      stage: "batch-readback",
+      status: verified ? "verified" : readonlyStatus,
+      pushActionId: item.actionId,
+      readback: {
+        read: readbackPoll.result?.read,
+        select: readbackPoll.result?.selectAvailable
+      },
+      responseHash: item.responseHash
+    });
     await repo.updateDmpPackageMemberAccountReadonly({
-      packageSetId: plan.package_set_id,
-      customAudienceId: plan.custom_audience_id,
-      advertiserId: plan.target_advertiser_id,
-      readonlyStatus: verified ? "passed" : "blocked",
+      packageSetId: item.plan.package_set_id,
+      customAudienceId: item.plan.custom_audience_id,
+      advertiserId: item.plan.target_advertiser_id,
+      readonlyStatus,
       evidenceRef,
       metadata: {
-        dmp_push_readback_summary: {
-          status: verified ? "passed" : "blocked",
-          action_id: actionId,
-          response_hash_present: Boolean(responseHash),
-          read_hash_present: Boolean(readback.read?.responseHash),
-          select_hash_present: Boolean(readback.select?.responseHash),
+        dmp_push_batch_readback: {
+          status: readonlyStatus,
+          action_id: item.actionId,
+          read_hit: member.readHit === true,
+          visible_hit: member.visibleHit === true,
+          available_hit: member.availableHit === true,
+          delivery_status: member.deliveryStatus || "",
+          poll_attempts: readbackPoll.attempts,
+          response_hash_present: Boolean(item.responseHash),
           checked_at: new Date().toISOString()
         }
       }
     });
     await repo.updateDmpPackagePushPlanStatus({
-      pushPlanId: plan.push_plan_id,
+      pushPlanId: item.plan.push_plan_id,
       planStatus: verified ? "verified" : "executed",
       evidenceRef,
-      responseHash,
-      metadata: { readback_status: readback.status, response_body_stored: false }
+      responseHash: item.responseHash,
+      metadata: { batch_readback_status: readonlyStatus, response_body_stored: false }
     });
-    if (!verified) {
-      return sanitizeForPublic({ status: "dmp_push_readback_not_verified", jobId, failed_custom_audience_id: plan.custom_audience_id, platform_write_called: true, evidence_ref: evidenceRef });
-    }
-    verifiedIds.push(plan.custom_audience_id);
+    if (verified) verifiedIds.push(item.plan.custom_audience_id);
   }
 
   const finalPlans = await repo.getDmpPackagePushPlans(jobId);
-  const allVerified = finalPlans.length > 0 && finalPlans.every((plan) => plan.plan_status === "verified");
+  const allVerified = finalPlans.length === pushed.length && pushed.length > 0 && finalPlans.every((plan) => plan.plan_status === "verified");
+  let allTargetPassedIds = verifiedIds;
+  if (allVerified) {
+    const refreshedPackageSet = await repo.getDmpPackageSet({
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      targetAdvertiserId: bundle.job.advertiser_id,
+      packageSetId: finalPlans[0]?.package_set_id || ""
+    });
+    allTargetPassedIds = (refreshedPackageSet?.members || [])
+      .filter((member) => member.target_readonly_status === "passed")
+      .map((member) => clean(member.custom_audience_id))
+      .filter(Boolean);
+  }
   if (allVerified) {
     await repo.updateAccountResourceReadonly({
       routeId: bundle.job.route_id,
@@ -449,22 +406,25 @@ export async function ensureDmpBaselineForTargetOnce({
       metadata: {
         status: "passed",
         key: "dmp_push_readback_verified",
-        verified_count: verifiedIds.length,
+        verified_count: allTargetPassedIds.length,
+        pushed_verified_count: verifiedIds.length,
         checked_at: new Date().toISOString(),
         responseBodyStored: false
       },
       resourceMetadata: {
-        custom_audience_ids: verifiedIds,
+        custom_audience_ids: allTargetPassedIds,
         dmp_package_set_id: finalPlans[0]?.package_set_id || ""
       }
     });
   }
   const result = sanitizeForPublic({
-    status: allVerified ? "dmp_ready" : "dmp_not_fully_verified",
+    status: allVerified ? "dmp_ready" : "dmp_batch_readback_pending",
     jobId,
-    verified_count: verifiedIds.length,
+    verified_count: allTargetPassedIds.length,
+    pushed_verified_count: verifiedIds.length,
     plan_count: finalPlans.length,
-    platform_write_called: verifiedIds.length > 0,
+    platform_write_called: pushed.length > 0,
+    batchReadbackAttempts: readbackPoll.attempts,
     requestBodyStored: false,
     responseBodyStored: false
   });

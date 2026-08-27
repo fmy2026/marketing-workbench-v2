@@ -30,6 +30,10 @@ function clean(value) {
   return String(value ?? "").trim();
 }
 
+function uniqueClean(values = []) {
+  return [...new Set(values.map((value) => clean(value)).filter(Boolean))];
+}
+
 function numberShape({ sourceAdvertiserId, targetAdvertiserId, customAudienceId, deliveryStatus = "" }) {
   function safe(name, value) {
     const text = clean(value);
@@ -68,6 +72,12 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
   const plannedActions = plan?.planned_actions || plan?.plannedActions || [];
   const dmpAction = plannedActions.find((item) => item.action_type === DMP_ENSURE_ACTION);
   const pushPlans = await repo.getDmpPackagePushPlans(bundle.job.job_id);
+  const packageSet = await repo.getDmpPackageSet({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    targetAdvertiserId: bundle.job.advertiser_id
+  });
+  const members = packageSet?.members || [];
   const existingPushActions = await repo.countPlatformActions({
     jobId: bundle.job.job_id,
     actionType: "oceanengine_dmp_custom_audience_push_v2"
@@ -75,7 +85,22 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
   const packageSetIds = [...new Set((pushPlans || []).map((item) => item.package_set_id).filter(Boolean))];
   const sourceAdvertiserIds = [...new Set((pushPlans || []).map((item) => item.source_advertiser_id).filter(Boolean))];
   const targetAdvertiserIds = [...new Set((pushPlans || []).map((item) => item.target_advertiser_id).filter(Boolean))];
-  const plannedOnly = pushPlans.length === 10 && pushPlans.every((item) => item.plan_status === "planned");
+  const memberIds = uniqueClean(members.map((item) => item.custom_audience_id));
+  const plannedIds = uniqueClean(pushPlans.map((item) => item.custom_audience_id));
+  const plannedIdSet = new Set(plannedIds);
+  const plannedOnly = pushPlans.length > 0 &&
+    pushPlans.length === plannedIds.length &&
+    pushPlans.length <= members.length &&
+    pushPlans.every((item) => item.plan_status === "planned");
+  const allPlansInPackageSet = plannedIds.every((id) => memberIds.includes(id));
+  const sourceAvailable = members.length === 10 && members.every((item) => item.source_readonly_status === "passed");
+  const plannedTargetsMissing = members.length === 10 && members
+    .filter((item) => plannedIdSet.has(clean(item.custom_audience_id)))
+    .every((item) => item.target_readonly_status === "missing");
+  const unplannedTargetsPassed = members.length === 10 && members
+    .filter((item) => !plannedIdSet.has(clean(item.custom_audience_id)))
+    .every((item) => item.target_readonly_status === "passed");
+  const targetStateMatchesPlan = plannedTargetsMissing && unplannedTargetsPassed;
   const hashesMatch = pushPlans.every((item) => {
     const requestShape = numberShape({
       sourceAdvertiserId: item.source_advertiser_id,
@@ -93,12 +118,15 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
     ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
     ...(onlyDmpAction(scope.allowed_actions) ? [] : ["platform_write_scope_allowed_actions_invalid"]),
     ...(Number(scope.maximum_actions) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
-    ...(Number(scope.maximum_platform_calls) === 10 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
+    ...(Number(scope.maximum_platform_calls) === pushPlans.length && pushPlans.length > 0 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...(contractVerified(scope) ? [] : ["blocked_missing_official_dmp_push_contract"]),
     ...(dmpAction ? [] : ["ensure_resource_dmp_audience_package_not_in_execution_plan"]),
     ...(dmpAction?.status === "planned" ? [] : ["ensure_resource_dmp_audience_package_not_planned"]),
-    ...(plannedOnly ? [] : ["dmp_push_plan_rows_not_exactly_ten_planned"]),
+    ...(sourceAvailable ? [] : ["dmp_source_preflight_not_available_full_set"]),
+    ...(targetStateMatchesPlan ? [] : ["dmp_target_preflight_not_aligned_to_push_plan"]),
+    ...(plannedOnly ? [] : ["dmp_push_plan_rows_not_planned_or_empty"]),
+    ...(allPlansInPackageSet ? [] : ["dmp_push_plan_ids_not_in_package_set"]),
     ...(hashesMatch ? [] : ["dmp_push_plan_request_hash_mismatch"]),
     ...(packageSetIds.length === 1 ? [] : ["dmp_push_plan_package_set_mismatch"]),
     ...(sourceAdvertiserIds.length === 1 ? [] : ["dmp_push_plan_source_advertiser_mismatch"]),
@@ -113,7 +141,11 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
       targetJobMatches: scope.target_job_id === bundle.job.job_id,
       targetAdvertiserMatches: scope.target_advertiser_id === bundle.job.advertiser_id,
       dmpActionPlanned: Boolean(dmpAction),
+      sourceAvailableCount: members.filter((item) => item.source_readonly_status === "passed").length,
+      targetMissingCount: members.filter((item) => item.target_readonly_status === "missing").length,
+      targetPassedCount: members.filter((item) => item.target_readonly_status === "passed").length,
       pushPlanCount: pushPlans.length,
+      pushPlanIdHash: hashValue(plannedIds),
       existingPushActions,
       officialContractVerified: contractVerified(scope),
       maximumPlatformCalls: Number(scope.maximum_platform_calls || 0)

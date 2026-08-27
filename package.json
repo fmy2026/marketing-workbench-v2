@@ -33,6 +33,7 @@
     "test:avatar-executor": "node scripts/04-avatar-executor-smoke.mjs",
     "test:dmp-push-plan": "node scripts/04-dmp-push-plan-smoke.mjs",
     "test:dmp-executor": "node scripts/04-dmp-executor-smoke.mjs",
+    "test:dmp-readback": "node scripts/04-dmp-readback-smoke.mjs",
     "launch:execute-once": "node scripts/06-launch-execute-once.mjs",
     "monitor:status": "node scripts/02-monitor-provision-cli.mjs --mode status",
     "monitor:account-preflight": "node scripts/02-monitor-provision-cli.mjs --mode account_preflight",
