@@ -15,6 +15,7 @@
     "test:payload-contract": "node scripts/05-payload-contract-smoke.mjs",
     "test:create-result-mapping": "node scripts/00-create-result-mapping-smoke.mjs",
     "test:execution-grant": "node scripts/00-execution-grant-smoke.mjs",
+    "test:execution-plan": "node scripts/00-execution-plan-smoke.mjs",
     "test:runtime-reservations": "node scripts/05-runtime-reservations-smoke.mjs",
     "test:monitor-bootstrap": "node scripts/02-monitor-bootstrap-smoke.mjs",
     "launch:execute-once": "node scripts/06-launch-execute-once.mjs",

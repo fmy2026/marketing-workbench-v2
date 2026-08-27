@@ -175,9 +175,15 @@ function summarizeListPayload(payload = {}, projectName = "") {
 }
 
 function targetFromBundle(bundle = {}) {
+  const executionPlan = bundle.executionPlan || {};
+  const planActions = executionPlan.planned_actions || executionPlan.plannedActions || [];
+  const createAction = planActions.find((action) => action.action_type === "std_project_create") || {};
   return {
     jobId: bundle.job?.job_id || "",
     draftId: bundle.draft?.draft_id || "",
+    planId: executionPlan.plan_id || executionPlan.planId || "",
+    planHash: executionPlan.plan_hash || executionPlan.planHash || "",
+    planStdProjectCreateIdempotencyKey: createAction.idempotency_key || "",
     objectType: bundle.job?.object_type || "std_project",
     routeId: bundle.job?.route_id || "",
     gameCode: bundle.job?.game_code || "",
@@ -327,10 +333,13 @@ export async function createStdProjectForTargetOnce({
       payloadHash: runtimeTarget.payloadHash,
       confirmationStatus: "confirmed_for_single_create",
       confirmVariable: `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
+      planId: runtimeTarget.planId,
       metadata: {
         grant_source: grantSource || "unknown",
         execution_grant_id: executionGrantId || "",
         job_id: runtimeTarget.jobId,
+        plan_id: runtimeTarget.planId,
+        plan_hash: runtimeTarget.planHash,
         payload_hash: runtimeTarget.payloadHash,
         maximum_actions: 1,
         retry_allowed: false,
@@ -342,11 +351,13 @@ export async function createStdProjectForTargetOnce({
       actionId,
       jobId: runtimeTarget.jobId,
       confirmationId,
+      planId: runtimeTarget.planId,
       actionType: "oceanengine_std_project_create",
       endpoint: CREATE_ENDPOINT,
       method: "POST",
       attemptNo: 1,
       requestHash,
+      idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
       metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
     }
   });
@@ -385,6 +396,7 @@ export async function createStdProjectForTargetOnce({
     actionId,
     jobId: runtimeTarget.jobId,
     confirmationId,
+    planId: runtimeTarget.planId,
     actionType: "oceanengine_std_project_create",
     endpoint: CREATE_ENDPOINT,
     method: "POST",
@@ -400,6 +412,7 @@ export async function createStdProjectForTargetOnce({
     requestId: safeErrorSummary.request_id,
     errorCategory: passed ? "" : safeErrorSummary.error_category,
     offendingFieldPath: passed ? "" : safeErrorSummary.offending_field_path,
+    idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
     responseSummary: {
       ...safeErrorSummary,
       object_id_present: Boolean(stdProjectId),

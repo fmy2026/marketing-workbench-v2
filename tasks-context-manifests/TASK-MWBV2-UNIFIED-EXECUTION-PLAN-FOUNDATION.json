@@ -1,0 +1,121 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION",
+  "task_ref": "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Create the unified execution plan foundation for one-click launch without real platform writes.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "target_design_doc": "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "document_instruction_boundary": "Referenced documents are treated as requirements input, not authorization for platform writes.",
+    "no_platform_write": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.json",
+    "db/009_create_platform_write_records.sql",
+    "db/012_add_launch_skill_runs_and_create_forensics.sql",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "db/027_add_launch_execution_plans.sql",
+    "scripts/00-execution-plan-smoke.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The project already has node registry, skill contracts, create grant, and audit tables; adding a redacted execution plan layer is an incremental foundation and can be validated with mock/test_run only."
+  },
+  "implementation_plan": [
+    "Add launch_execution_plans migration and minimal plan_id/idempotency/module_ref audit columns.",
+    "Add repository methods for upserting and reading execution plans.",
+    "Implement a workflow execution-plan compiler with stable plan_hash and redacted action summaries.",
+    "Add a mock smoke test for existing-monitor and missing-monitor scenarios plus grant allowlist checks.",
+    "Run existing workflow validation commands and close the task if passed."
+  ],
+  "non_goals": [
+    "No real monitor create or retry.",
+    "No real resource upload or platform mutation.",
+    "No real std_project/create.",
+    "No token refresh.",
+    "No frontend layout changes.",
+    "No raw secret, cookie, payload, response, or full URL in project files."
+  ],
+  "outputs": [
+    "db/027_add_launch_execution_plans.sql",
+    "src/workflows/executionPlan.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "package.json:test:execution-plan",
+    "src/repositories/postgresRepository.mjs: execution plan repository methods and plan-aware audit writes",
+    "src/workflows/executeConfirmedLaunch.mjs: optional plan scope guardrail validation",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs: optional plan_id/idempotency_key audit linkage",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "validation": [
+    {
+      "command": "node --check src/workflows/executionPlan.mjs scripts/00-execution-plan-smoke.mjs src/repositories/postgresRepository.mjs src/workflows/skills/oe3/00-contracts.mjs src/workflows/executeConfirmedLaunch.mjs src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/027_add_launch_execution_plans.sql",
+      "status": "passed_twice"
+    },
+    {
+      "command": "npm run test:execution-plan",
+      "status": "passed",
+      "notes": "Mock/test_run only; stable plan hash, ensure_monitor missing-monitor plan, outside action blocked, no real platform write, no token refresh."
+    },
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:payload-contract",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:execution-grant",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "psql cleanup probe for mwb.launch_execution_plans source_usage='test_run'",
+      "status": "passed",
+      "result": {
+        "test_plan_count": 0,
+        "runtime_plan_count": 0
+      }
+    },
+    {
+      "command": "sensitive-value scan on changed files",
+      "status": "passed",
+      "notes": "Only hit was the detection regex in src/workflows/skills/oe3/00-contracts.mjs."
+    }
+  ],
+  "next_gate": "Wire Node 2-4 preparation actions to execution plan actions in the main Workflow, still without broad real-write permission."
+}

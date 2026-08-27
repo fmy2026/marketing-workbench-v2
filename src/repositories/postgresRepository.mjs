@@ -309,6 +309,13 @@ export class PostgresRepository {
           ORDER BY d.created_at DESC
           LIMIT 1
         ),
+        'executionPlan', (
+          SELECT to_jsonb(ep)
+          FROM mwb.launch_execution_plans ep
+          WHERE ep.job_id = j.job_id
+          ORDER BY ep.plan_version DESC, ep.updated_at DESC
+          LIMIT 1
+        ),
         'readback', (
           SELECT to_jsonb(rb)
           FROM mwb.readback_records rb
@@ -1430,6 +1437,10 @@ export class PostgresRepository {
         output_summary,
         blockers,
         evidence_refs,
+        execution_cycle,
+        blocker_codes,
+        error_code,
+        module_ref,
         source_usage,
         started_at,
         finished_at
@@ -1444,6 +1455,10 @@ export class PostgresRepository {
         ${sqlJson(run.outputSummary || {})},
         ${sqlJson(run.blockers || [])},
         ${sqlJson(run.evidenceRefs || [])},
+        ${Number(run.executionCycle || 1)},
+        ${sqlJson(run.blockerCodes || run.blockers || [])},
+        ${sqlLiteral(run.errorCode || "")},
+        ${sqlLiteral(run.moduleRef || "")},
         ${sqlLiteral(run.sourceUsage || "runtime_truth")},
         ${run.startedAt ? `${sqlLiteral(run.startedAt)}::timestamptz` : "now()"},
         ${run.finishedAt ? `${sqlLiteral(run.finishedAt)}::timestamptz` : "now()"}
@@ -1455,9 +1470,80 @@ export class PostgresRepository {
         output_summary = EXCLUDED.output_summary,
         blockers = EXCLUDED.blockers,
         evidence_refs = EXCLUDED.evidence_refs,
+        execution_cycle = EXCLUDED.execution_cycle,
+        blocker_codes = EXCLUDED.blocker_codes,
+        error_code = EXCLUDED.error_code,
+        module_ref = EXCLUDED.module_ref,
         source_usage = EXCLUDED.source_usage,
         started_at = coalesce(mwb.launch_skill_runs.started_at, EXCLUDED.started_at),
         finished_at = EXCLUDED.finished_at;
+    `, this.database);
+  }
+
+  async upsertLaunchExecutionPlan(plan) {
+    assertId("plan_id", plan.planId);
+    assertId("job_id", plan.jobId);
+    await runPsql(`
+      INSERT INTO mwb.launch_execution_plans (
+        plan_id,
+        job_id,
+        plan_version,
+        plan_status,
+        plan_hash,
+        planned_actions,
+        blocker_codes,
+        draft_id,
+        payload_hash,
+        source_usage,
+        metadata,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(plan.planId)},
+        ${sqlLiteral(plan.jobId)},
+        ${Number(plan.planVersion || 1)},
+        ${sqlLiteral(plan.planStatus)},
+        ${sqlLiteral(plan.planHash)},
+        ${sqlJson(plan.plannedActions || [])},
+        ${sqlJson(plan.blockerCodes || [])},
+        ${plan.draftId ? sqlLiteral(plan.draftId) : "NULL"},
+        ${sqlLiteral(plan.payloadHash || "")},
+        ${sqlLiteral(plan.sourceUsage || "runtime_truth")},
+        ${sqlJson(plan.metadata || {})},
+        now(),
+        now()
+      )
+      ON CONFLICT (job_id, plan_version) DO UPDATE SET
+        plan_status = EXCLUDED.plan_status,
+        plan_hash = EXCLUDED.plan_hash,
+        planned_actions = EXCLUDED.planned_actions,
+        blocker_codes = EXCLUDED.blocker_codes,
+        draft_id = EXCLUDED.draft_id,
+        payload_hash = EXCLUDED.payload_hash,
+        source_usage = EXCLUDED.source_usage,
+        metadata = EXCLUDED.metadata,
+        updated_at = now();
+    `, this.database);
+  }
+
+  async getLaunchExecutionPlan(planId) {
+    assertId("plan_id", planId);
+    return queryJson(`
+      SELECT to_jsonb(ep)::text
+      FROM mwb.launch_execution_plans ep
+      WHERE ep.plan_id = ${sqlLiteral(planId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getLatestLaunchExecutionPlan(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT to_jsonb(ep)::text
+      FROM mwb.launch_execution_plans ep
+      WHERE ep.job_id = ${sqlLiteral(jobId)}
+      ORDER BY ep.plan_version DESC, ep.updated_at DESC
+      LIMIT 1;
     `, this.database);
   }
 
@@ -1785,6 +1871,7 @@ export class PostgresRepository {
         confirmation_status,
         confirm_variable,
         confirmed_by,
+        plan_id,
         metadata,
         confirmed_at
       ) VALUES (
@@ -1797,6 +1884,7 @@ export class PostgresRepository {
         ${sqlLiteral(confirmation.confirmationStatus)},
         ${sqlLiteral(confirmation.confirmVariable)},
         ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+        ${confirmation.planId ? sqlLiteral(confirmation.planId) : "NULL"},
         ${sqlJson(confirmation.metadata || {})},
         now()
       )
@@ -1814,16 +1902,17 @@ export class PostgresRepository {
     const result = await queryJson(`
       WITH claimed AS (
         INSERT INTO mwb.platform_actions (
-          action_id, job_id, confirmation_id, action_type, endpoint, method,
+          action_id, job_id, confirmation_id, plan_id, action_type, endpoint, method,
           action_status, attempt_no, request_hash, response_hash, http_status,
           api_code, request_id_present, object_id_present, error_summary,
-          request_id, error_category, offending_field_path,
+          request_id, error_category, offending_field_path, idempotency_key,
           request_field_manifest, response_summary, metadata, started_at, finished_at
         ) VALUES (
           ${sqlLiteral(action.actionId)}, ${sqlLiteral(action.jobId)}, ${sqlLiteral(action.confirmationId)},
+          ${action.planId ? sqlLiteral(action.planId) : "NULL"},
           ${sqlLiteral(action.actionType)}, ${sqlLiteral(action.endpoint)}, ${sqlLiteral(action.method || "POST")},
           'started', ${Number(action.attemptNo || 1)}, ${sqlLiteral(action.requestHash || "")}, '', NULL,
-          '', false, false, '', '', '', '', ${sqlJson({})}, ${sqlJson({})},
+          '', false, false, '', '', '', '', ${sqlLiteral(action.idempotencyKey || "")}, ${sqlJson({})}, ${sqlJson({})},
           ${sqlJson(action.metadata || {})}, now(), NULL
         )
         ON CONFLICT DO NOTHING
@@ -1833,14 +1922,16 @@ export class PostgresRepository {
         INSERT INTO mwb.launch_confirmations (
           confirmation_id, job_id, draft_id, object_type, object_name,
           payload_hash, confirmation_status, confirm_variable, confirmed_by,
-          metadata, confirmed_at
+          plan_id, metadata, confirmed_at
         )
         SELECT
           ${sqlLiteral(confirmation.confirmationId)}, ${sqlLiteral(confirmation.jobId)},
           ${sqlLiteral(confirmation.draftId)}, ${sqlLiteral(confirmation.objectType)},
           ${sqlLiteral(confirmation.objectName)}, ${sqlLiteral(confirmation.payloadHash)},
           ${sqlLiteral(confirmation.confirmationStatus)}, ${sqlLiteral(confirmation.confirmVariable)},
-          ${sqlLiteral(confirmation.confirmedBy || "local_operator")}, ${sqlJson(confirmation.metadata || {})}, now()
+          ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+          ${confirmation.planId ? sqlLiteral(confirmation.planId) : "NULL"},
+          ${sqlJson(confirmation.metadata || {})}, now()
         FROM claimed
         ON CONFLICT (confirmation_id) DO UPDATE SET
           confirmation_status = EXCLUDED.confirmation_status,
@@ -1864,6 +1955,7 @@ export class PostgresRepository {
         action_id,
         job_id,
         confirmation_id,
+        plan_id,
         action_type,
         endpoint,
         method,
@@ -1879,6 +1971,7 @@ export class PostgresRepository {
         request_id,
         error_category,
         offending_field_path,
+        idempotency_key,
         request_field_manifest,
         response_summary,
         metadata,
@@ -1888,6 +1981,7 @@ export class PostgresRepository {
         ${sqlLiteral(action.actionId)},
         ${sqlLiteral(action.jobId)},
         ${action.confirmationId ? sqlLiteral(action.confirmationId) : "NULL"},
+        ${action.planId ? sqlLiteral(action.planId) : "NULL"},
         ${sqlLiteral(action.actionType)},
         ${sqlLiteral(action.endpoint)},
         ${sqlLiteral(action.method || "POST")},
@@ -1903,6 +1997,7 @@ export class PostgresRepository {
         ${sqlLiteral(action.requestId || "")},
         ${sqlLiteral(action.errorCategory || "")},
         ${sqlLiteral(action.offendingFieldPath || "")},
+        ${sqlLiteral(action.idempotencyKey || "")},
         ${sqlJson(action.requestFieldManifest || {})},
         ${sqlJson(action.responseSummary || {})},
         ${sqlJson(action.metadata || {})},
@@ -1911,6 +2006,7 @@ export class PostgresRepository {
       )
       ON CONFLICT (action_id) DO UPDATE SET
         action_status = EXCLUDED.action_status,
+        plan_id = EXCLUDED.plan_id,
         request_hash = EXCLUDED.request_hash,
         response_hash = EXCLUDED.response_hash,
         http_status = EXCLUDED.http_status,
@@ -1921,6 +2017,7 @@ export class PostgresRepository {
         request_id = EXCLUDED.request_id,
         error_category = EXCLUDED.error_category,
         offending_field_path = EXCLUDED.offending_field_path,
+        idempotency_key = EXCLUDED.idempotency_key,
         request_field_manifest = EXCLUDED.request_field_manifest,
         response_summary = EXCLUDED.response_summary,
         metadata = EXCLUDED.metadata,
@@ -2022,6 +2119,7 @@ export class PostgresRepository {
         DELETE FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_confirmations WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.launch_execution_plans WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.readback_records WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_drafts WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_skill_runs WHERE job_id = ${sqlLiteral(jobId)};

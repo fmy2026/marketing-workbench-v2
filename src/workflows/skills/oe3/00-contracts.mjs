@@ -230,6 +230,23 @@ export function skillDefinition(skillKey) {
   return definition;
 }
 
+export function moduleRefForSkill(skillKey) {
+  if (skillKey === "intake-normalize") return "src/workflows/skills/oe3/01-intake-normalize.mjs";
+  if (skillKey.startsWith("context-resolve-")) return "src/workflows/skills/oe3/02-context-resolvers.mjs";
+  if (skillKey.startsWith("launch-pack-resolve-")) return "src/workflows/skills/oe3/03-launch-pack.mjs";
+  if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
+  if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
+  if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";
+  if (skillKey.startsWith("resource-verify-")) return "src/workflows/skills/oe3/04-resource-verifiers.mjs";
+  if (skillKey === "payload-build") return "src/workflows/skills/oe3/05-payload-contract.mjs";
+  if (skillKey === "payload-contract") return "src/workflows/skills/oe3/05-payload-contract.mjs";
+  if (skillKey === "duplicate-check") return "src/workflows/skills/oe3/05-duplicate-readonly.mjs";
+  if (skillKey === "create-readiness") return "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
+  if (skillKey === "create-once") return "src/workflows/skills/oe3/06-create-once.mjs";
+  if (skillKey === "readback-std-project") return "src/workflows/skills/oe3/07-readback.mjs";
+  return "src/workflows/skills/oe3/00-runner.mjs";
+}
+
 export function skillRunId({ jobId, skillKey, attemptNo = 1 }) {
   return `SKILL-${jobId}-${skillKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}-${String(attemptNo).padStart(2, "0")}`;
 }
@@ -253,6 +270,9 @@ export async function recordSkillRun({ repo, bundle, definition, input, result, 
     inputHash: hashValue(sanitizeForPublic(input || {})),
     outputSummary,
     blockers,
+    blockerCodes: blockers,
+    errorCode: result.errorCode || blockers[0] || "",
+    moduleRef: definition.moduleRef || moduleRefForSkill(definition.skillKey),
     evidenceRefs,
     sourceUsage: bundle.job.source_usage || "runtime_truth",
     startedAt,

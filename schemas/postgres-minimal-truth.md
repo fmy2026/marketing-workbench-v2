@@ -4,7 +4,7 @@
 
 目标 schema：`mwb`
 
-定位：第一版投放创建 Agent 的最小结构化真值层。它只保存路线、游戏、账户、触点引用、投放默认值、素材、物料包、Workflow job、节点、草稿、回查和脱敏证据摘要。
+定位：第一版投放创建 Agent 的最小结构化真值层。它只保存路线、游戏、账户、触点引用、投放默认值、素材、物料包、Workflow job、节点、统一执行计划、草稿、回查和脱敏证据摘要。
 
 ## 字段规则
 
@@ -39,10 +39,12 @@
 | `mwb.material_pack_items` | 保底物料包明细 |
 | `mwb.launch_jobs` | 一次投放创建任务 |
 | `mwb.launch_node_runs` | 7 个 Workflow 节点状态、脱敏 `output_summary` 和证据引用 |
+| `mwb.launch_skill_runs` | 细粒度 Skill 运行记录；保存节点归属、attempt、execution_cycle、blocker_codes、error_code、module_ref、脱敏摘要和证据引用 |
 | `mwb.launch_drafts` | 创建草稿摘要和稳定 hash |
 | `mwb.project_name_reservations` | 数据库级项目名占用；`runtime_truth` 持久占用，`test_run` 独立并随测试清理 |
-| `mwb.launch_confirmations` | 单次真实写入前的确认记录：确认哪个 draft/hash、确认变量和状态 |
-| `mwb.platform_actions` | 平台动作审计记录：endpoint、次数、状态、request/response hash、内部 request ID，以及受控 `error_category`/白名单 `offending_field_path`；不保存 raw payload、raw response 或平台 message |
+| `mwb.launch_execution_plans` | 统一执行计划；保存 job/draft/payload hash、plan_hash、planned_actions、blocker_codes 和必要 ID，不保存 raw request/response |
+| `mwb.launch_confirmations` | 单次真实写入前的确认记录：确认哪个 plan/draft/hash、确认变量和状态 |
+| `mwb.platform_actions` | 平台动作审计记录：plan_id、幂等键、endpoint、次数、状态、request/response hash、内部 request ID，以及受控 `error_category`/白名单 `offending_field_path`；不保存 raw payload、raw response 或平台 message |
 | `mwb.created_objects` | 真实创建对象记录：对象 ID、对象名、readback 状态和证据引用 |
 | `mwb.readback_records` | 回查摘要 |
 | `mwb.evidence_artifacts` | 脱敏证据摘要和 hash |
@@ -70,6 +72,7 @@
 | `db/020_add_monitor_provision_runs.sql` | 新增 `monitor_provision_runs`，记录乾坤监测序号 provision 的脱敏状态、固定参数指纹、唯一运行约束和触点 URL hash |
 | `db/021_monitor_provision_defaults_reports.sql` | 补齐 JSZC 监测序号固定参数、单次创建审计字段和两个脱敏 PostgreSQL 报表 view |
 | `db/022_monitor_provision_attempts_and_ensure.sql` | 新增 `monitor_provision_attempts`、放宽同一 provision 总尝试数为 2、回填第一次服务器繁忙失败，并更新报表 view |
+| `db/027_add_launch_execution_plans.sql` | 新增统一执行计划表、plan_id 关联、platform action 幂等键，以及 Skill 定位字段 |
 
 ## 读取约定
 
@@ -82,4 +85,7 @@
 | 备用网页落地页库存 | `mwb.landing_page_assets`，目标账户可见性继续看 `mwb.account_resources.resource_type='backup_landing_page'` |
 | 监测序号初始化状态 | `mwb.monitor_provision_runs` 一行生命周期真值 + `mwb.monitor_provision_attempts` 每次真实调用审计；固定参数从 `mwb.game_route_defaults.raw_defaults.monitor_provision` 读取 |
 | 监测序号初始化报表 | `mwb.v_monitor_provision_status_report` 和 `mwb.v_monitor_provision_blocker_report` |
+| 统一执行计划 | `mwb.launch_execution_plans` 按 `job_id + plan_version` 读取；`plan_hash` 由 job、draft、planned_actions 和 blocker_codes 的脱敏稳定输入生成 |
+| plan 外动作拦截 | 单次真实写入 guardrail 可绑定 `target_plan_id`、`target_plan_hash` 和 `allowed_plan_actions`；未出现在 plan 中的动作不得进入 grant |
+| Skill 卡点定位 | `mwb.launch_skill_runs.execution_cycle/blocker_codes/error_code/module_ref` |
 | 旧资料引用 | 只允许 `source_usage = 'reference_only'`，不得作为运行时真值 |

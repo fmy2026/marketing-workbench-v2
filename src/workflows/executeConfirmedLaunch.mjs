@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getJobView, runJob } from "./launchWorkflow.mjs";
+import { validateExecutionPlanActionScope } from "./executionPlan.mjs";
 import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
@@ -51,10 +52,28 @@ function actionScopeAllowsOnlyCreate(actions = []) {
   return Array.isArray(actions) && actions.length === 1 && actions[0] === CREATE_ACTION;
 }
 
+function optionalPlanScopeBlockers(scope = {}, plan = null) {
+  if (!scope.target_plan_id && !scope.target_plan_hash && !Array.isArray(scope.allowed_plan_actions)) return [];
+  const blockers = [];
+  if (!plan) blockers.push("platform_write_scope_plan_missing");
+  if (scope.target_plan_id && scope.target_plan_id !== plan?.plan_id) blockers.push("platform_write_scope_plan_id_mismatch");
+  if (scope.target_plan_hash && scope.target_plan_hash !== plan?.plan_hash) blockers.push("platform_write_scope_plan_hash_mismatch");
+  if (Array.isArray(scope.allowed_plan_actions)) {
+    const actionScope = validateExecutionPlanActionScope({
+      plan,
+      allowedActions: scope.allowed_plan_actions
+    });
+    blockers.push(...actionScope.blockers);
+  }
+  return blockers;
+}
+
 async function validateWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
   const state = await readProjectState(projectStatePath);
   const scope = state.guardrails?.platform_write_scope || {};
   const attemptState = await repo.getCreateAttemptState(bundle.job.job_id);
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const planScopeBlockers = optionalPlanScopeBlockers(scope, plan);
   const blockers = [
     ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
@@ -66,7 +85,8 @@ async function validateWriteScope({ repo, bundle, projectStatePath = defaultProj
     ...((attemptState.createActionCount || 0) > 0 ? ["platform_action_already_recorded"] : []),
     ...((attemptState.confirmationCount || 0) > 0 ? ["confirmation_already_recorded"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
-    ...((attemptState.realReadbackCount || 0) > 0 ? ["real_readback_already_recorded"] : [])
+    ...((attemptState.realReadbackCount || 0) > 0 ? ["real_readback_already_recorded"] : []),
+    ...planScopeBlockers
   ];
   return {
     status: blockers.length ? "blocked" : "passed",
@@ -78,6 +98,9 @@ async function validateWriteScope({ repo, bundle, projectStatePath = defaultProj
       targetDraftMatches: scope.target_draft_id === bundle.draft?.draft_id,
       targetPayloadHashMatches: scope.target_payload_hash === bundle.draft?.payload_hash,
       allowedActionsValid: actionScopeAllowsOnlyCreate(scope.allowed_actions),
+      targetPlanMatches: !scope.target_plan_id || scope.target_plan_id === plan?.plan_id,
+      targetPlanHashMatches: !scope.target_plan_hash || scope.target_plan_hash === plan?.plan_hash,
+      allowedPlanActionsValid: !Array.isArray(scope.allowed_plan_actions) || planScopeBlockers.length === 0,
       maximumActions: Number(scope.maximum_actions || 0),
       retryAllowed: scope.retry_allowed === true
     }

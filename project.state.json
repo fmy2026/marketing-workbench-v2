@@ -1,21 +1,21 @@
 {
   "schema_version": "2026-08-23.project-state-v1",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-26 CST",
+  "updated_at": "2026-08-27 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "workflow_truth_documentation_and_agents_finalization_completed_monitor_retry_paused",
+  "project_status": "unified_execution_plan_foundation_completed_monitor_retry_paused",
   "phase": {
-    "id": "WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION",
+    "id": "UNIFIED-EXECUTION-PLAN-FOUNDATION",
     "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md"
+    "plan_ref": "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-WORKFLOW-TRUTH-DOCUMENTATION-AND-AGENTS-FINALIZATION.md",
-  "next_gate": "项目结构与文档收口完成：唯一节点注册表、00-07 文件归属、AGENTS.md 长期启动协议、Markdown 工作流真值说明和旧 HTML 归档均已同步；smoke:workflow-skills、smoke:api、check:runtime-consistency、test:payload-contract、git diff --check 均通过。下一 gate：等待用户选择新的业务目标；monitor 重试仍保持暂停，必须另行聊天明确授权。",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md",
+  "next_gate": "第一个任务已完成：统一 execution plan 基础、Postgres 计划表、repository 读写、plan action scope 校验和 mock smoke 已落地；test_run execution plan 已清理。下一 gate：将 Node 2-4 准备动作按 planned_actions 接入主 Workflow；monitor 真实重试、资源真实准备、std_project/create 和 token refresh 仍需另行单次授权。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
@@ -82,9 +82,10 @@
     "workflow_orchestration": "src/workflows/launchWorkflow.mjs + src/workflows/stdProjectNameBuilder.mjs + src/workflows/skills/oe3; 3-phase 7-node metadata is defined only in src/workflows/skills/oe3/00-workflow-node-registry.mjs; OE3 skill modules use 00-07 node ownership file prefixes; std_project naming uses launch_jobs.created_at CST date and local Postgres sequence occupancy; OE3 business Skill modules live under src/workflows/skills/oe3 and are the only formal runtime chain for frontend/API dry_run",
     "repositories": "src/repositories/postgresRepository.mjs",
     "platform_adapters": "src/platforms/oceanengineCredentialStore.mjs + src/platforms/oceanengineReadonlyClient.mjs + src/platforms/oceanengineReadonlyAdapter.mjs + src/platforms/oceanengineVideoMaterialExecutor.mjs + src/platforms/oceanengineStdProjectCreateExecutor.mjs + src/platforms/qiankunCredentialStore.mjs + src/platforms/qiankunMonitorClient.mjs; credential lifecycle, readonly client, readonly adapter, video material prepare action planner, separately gated one confirmed std_project/create executor, Qiankun monitor provision status/reconcile/create-once, Qiankun cate_to_vest readonly option relation sync, Qiankun vest_to_package readonly option relation sync, Qiankun package base-info readonly sync, and Qiankun monitor technical-combination readonly sync. OE3 payload contract and placeholders have moved to src/workflows/skills/oe3 or archive.",
-    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql; qiankun option relation facts introduced by db/023_add_qiankun_option_relations.sql; Qiankun account technical identity fields and reference-only monitor technical candidates introduced by db/024_add_qiankun_account_identity.sql; Qiankun level-2 media master identity fields introduced by db/025_add_qiankun_media_master_identity.sql",
+    "database_migrations_and_seed": "db/; monitor provision table introduced by db/020_add_monitor_provision_runs.sql; defaults, create audit fields, and report views introduced by db/021_monitor_provision_defaults_reports.sql; busy-retry attempts table and monitor:ensure introduced by db/022_monitor_provision_attempts_and_ensure.sql; qiankun option relation facts introduced by db/023_add_qiankun_option_relations.sql; Qiankun account technical identity fields and reference-only monitor technical candidates introduced by db/024_add_qiankun_account_identity.sql; Qiankun level-2 media master identity fields introduced by db/025_add_qiankun_media_master_identity.sql; unified launch execution plan foundation introduced by db/027_add_launch_execution_plans.sql",
     "schemas": "schemas/",
-    "local_scripts": "scripts/ uses numbered implementation files while package.json command names stay stable: 00-* for cross-workflow CLI/smoke/token checks, 02-* for monitor provision, 03-* for backup landing page, 04-* for micro app instance evidence, 05-* for payload/reservation checks, 06-* for single execute-once.",
+    "local_scripts": "scripts/ uses numbered implementation files while package.json command names stay stable: 00-* for cross-workflow CLI/smoke/token checks and execution plan smoke, 02-* for monitor provision, 03-* for backup landing page, 04-* for micro app instance evidence, 05-* for payload/reservation checks, 06-* for single execute-once.",
+    "execution_plan_foundation": "mwb.launch_execution_plans stores redacted planned_actions, blocker_codes, draft/payload references, stable plan_hash, and metadata; src/workflows/executionPlan.mjs compiles plan actions and validates allowed_plan_actions; launch_confirmations/platform_actions/monitor_provision_runs/monitor_provision_attempts can link plan_id; platform_actions has idempotency_key; launch_skill_runs has execution_cycle/blocker_codes/error_code/module_ref for source diagnosis.",
     "private_local_config": ".local/",
     "postgres_core_truth": "Postgres database marketing_workbench_v2, schema mwb; refined with game_platform_apps, account_resources, and source_usage",
     "runtime_state": "idle",
