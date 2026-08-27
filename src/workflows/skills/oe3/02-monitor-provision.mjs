@@ -1,6 +1,7 @@
 import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
+import { ACTION_ENSURE_MONITOR } from "../../executionPlan.mjs";
 import {
   runQiankunCateVestReadonlySync,
   runQiankunLevel3MediaResourceReadonlySync,
@@ -110,6 +111,10 @@ function accountAuthStatus(account = {}) {
 function ownedCredentialItem(credential = {}, ownerKey = "") {
   return (credential.credentials || [])
     .find((item) => clean(item.ownerKey) === clean(ownerKey)) || {};
+}
+
+function monitorClient({ fetchImpl = globalThis.fetch } = {}) {
+  return createQiankunMonitorClient({ fetchImpl });
 }
 
 export function monitorEnsureConfirmed({ env = process.env, provisionId = "" } = {}) {
@@ -386,14 +391,14 @@ function compactMonitorRows(monitorResult = {}) {
   }));
 }
 
-async function upsertReadonlyEvidence({ repo, provisionId, summary }) {
+async function upsertReadonlyEvidence({ repo, provisionId, summary, jobId = "" }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
   assertNoSensitiveLeak(safeSummary);
-  const artifactId = `EV-${provisionId}-READONLY-RECONCILE`;
+  const artifactId = jobId ? `EV-${jobId}-${provisionId}-READONLY-RECONCILE` : `EV-${provisionId}-READONLY-RECONCILE`;
   await repo.upsertEvidence({
     artifactId,
-    jobId: null,
+    jobId: jobId || null,
     artifactType: "qiankun_monitor_readonly_reconcile",
     title: "乾坤监测序号只读核对证据",
     summary: JSON.stringify(safeSummary),
@@ -405,14 +410,14 @@ async function upsertReadonlyEvidence({ repo, provisionId, summary }) {
   return artifactId;
 }
 
-async function upsertEnsureEvidence({ repo, provisionId, summary }) {
+async function upsertEnsureEvidence({ repo, provisionId, summary, jobId = "" }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
   assertNoSensitiveLeak(safeSummary);
-  const artifactId = `EV-${provisionId}-ENSURE`;
+  const artifactId = jobId ? `EV-${jobId}-${provisionId}-ENSURE` : `EV-${provisionId}-ENSURE`;
   await repo.upsertEvidence({
     artifactId,
-    jobId: null,
+    jobId: jobId || null,
     artifactType: "qiankun_monitor_ensure",
     title: "乾坤监测序号 ensure 证据",
     summary: JSON.stringify(safeSummary),
@@ -424,14 +429,14 @@ async function upsertEnsureEvidence({ repo, provisionId, summary }) {
   return artifactId;
 }
 
-async function upsertPlanOnlyEvidence({ repo, provisionId, summary }) {
+async function upsertPlanOnlyEvidence({ repo, provisionId, summary, jobId = "" }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
   assertNoSensitiveLeak(safeSummary);
-  const artifactId = `EV-${provisionId}-PLAN-ONLY`;
+  const artifactId = jobId ? `EV-${jobId}-${provisionId}-PLAN-ONLY` : `EV-${provisionId}-PLAN-ONLY`;
   await repo.upsertEvidence({
     artifactId,
-    jobId: null,
+    jobId: jobId || null,
     artifactType: "qiankun_monitor_plan_only",
     title: "乾坤监测序号 plan-only 证据",
     summary: JSON.stringify(safeSummary),
@@ -581,6 +586,8 @@ async function syncManualL3ConfirmedRelations({
 
 async function persistReadonlyReconcile({
   repo,
+  jobId = "",
+  planId = "",
   target,
   provisionId,
   requestFingerprint,
@@ -625,6 +632,8 @@ async function persistReadonlyReconcile({
   }
   await repo.upsertMonitorProvisionRun({
     provisionId,
+    jobId,
+    planId,
     routeId: target.routeId,
     gameCode: target.gameCode,
     advertiserId: target.advertiserId,
@@ -850,10 +859,265 @@ function monitorFromRow(item = {}, { requestHash = "", responseHash = "", source
   };
 }
 
+function targetFromBundle(bundle = {}) {
+  return {
+    routeId: bundle.job?.route_id || "",
+    gameCode: bundle.job?.game_code || "",
+    advertiserId: bundle.job?.advertiser_id || ""
+  };
+}
+
+function planActions(bundle = {}) {
+  return bundle.executionPlan?.planned_actions || bundle.executionPlan?.plannedActions || [];
+}
+
+function ensureMonitorAction(bundle = {}) {
+  return planActions(bundle).find((action) => action.action_type === ACTION_ENSURE_MONITOR) || null;
+}
+
+function monitorIdFromBundle(bundle = {}) {
+  return clean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id);
+}
+
+function planIdFromBundle(bundle = {}) {
+  return clean(bundle.executionPlan?.plan_id || bundle.executionPlan?.planId);
+}
+
+function planHashFromBundle(bundle = {}) {
+  return clean(bundle.executionPlan?.plan_hash || bundle.executionPlan?.planHash);
+}
+
+function monitorSkillResult({ skillKey, status = "passed", blockers = [], outputSummary = {}, evidenceRefs = [] }) {
+  const result = {
+    status,
+    blockers,
+    outputSummary: {
+      skillKey,
+      ...outputSummary
+    },
+    evidenceRefs
+  };
+  const safe = sanitizeForPublic(result);
+  assertNoSensitiveLeak(safe);
+  return safe;
+}
+
+function monitorCreateConfirmationEnv({ baseEnv = process.env, target, provisionId, planHash, createPlanHash, attemptAction }) {
+  const env = { ...(baseEnv || {}) };
+  env[MONITOR_PROVISION_ID_ENV] = provisionId;
+  env[MONITOR_ROUTE_ID_ENV] = target.routeId;
+  env[MONITOR_GAME_CODE_ENV] = target.gameCode;
+  env[MONITOR_ADVERTISER_ID_ENV] = target.advertiserId;
+  env[MONITOR_CREATE_PLAN_HASH_ENV] = createPlanHash || planHash || "mock-plan-hash";
+  if (attemptAction === "server_busy_retry") {
+    env[MONITOR_RETRY_CONFIRM_ENV] = MONITOR_RETRY_CONFIRM_VALUE;
+  } else {
+    env[MONITOR_CREATE_CONFIRM_ENV] = MONITOR_CREATE_CONFIRM_VALUE;
+  }
+  return env;
+}
+
+export async function runMonitorWorkflowSkill({
+  repo,
+  bundle,
+  skillKey,
+  mode = "dry_run",
+  ownerKey = "",
+  allowedPlanActions = [],
+  mockMonitorEnsure = false,
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  previousOutputs = new Map()
+} = {}) {
+  const target = targetFromBundle(bundle);
+  const jobId = bundle.job?.job_id || "";
+  const provisionId = monitorProvisionId(target);
+  const action = ensureMonitorAction(bundle);
+  const monitorId = monitorIdFromBundle(bundle);
+  const planId = planIdFromBundle(bundle);
+  const planHash = planHashFromBundle(bundle);
+  const planActionPresent = Boolean(action);
+  const actionAllowed = Array.isArray(allowedPlanActions) && allowedPlanActions.includes(ACTION_ENSURE_MONITOR);
+  const idempotencyKey = clean(action?.idempotency_key);
+
+  if (skillKey === "monitor-query") {
+    const latestRun = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
+    return monitorSkillResult({
+      skillKey,
+      outputSummary: {
+        target,
+        provisionId,
+        monitorIdPresent: Boolean(monitorId),
+        planActionPresent,
+        latestRunStatus: latestRun?.status || "",
+        createCalled: false,
+        rawRequestStored: false,
+        rawResponseStored: false
+      }
+    });
+  }
+
+  if (skillKey === "monitor-plan") {
+    if (monitorId || !planActionPresent) {
+      return monitorSkillResult({
+        skillKey,
+        outputSummary: {
+          target,
+          provisionId,
+          monitorIdPresent: Boolean(monitorId),
+          ensureMonitorPlanned: false,
+          planId,
+          planHash,
+          reason: monitorId ? "monitor_id_already_present" : "ensure_monitor_not_in_execution_plan",
+          createCalled: false
+        }
+      });
+    }
+    const planOnly = await runMonitorProvisionPlanOnly({
+      repo,
+      ownerKey,
+      target,
+      jobId,
+      planId,
+      fetchImpl
+    });
+    return monitorSkillResult({
+      skillKey,
+      status: planOnly.status,
+      blockers: planOnly.blockers || [],
+      outputSummary: {
+        target,
+        provisionId,
+        ensureMonitorPlanned: true,
+        planId,
+        planHash,
+        idempotencyKeyPresent: Boolean(idempotencyKey),
+        attemptPolicy: planOnly.attemptPolicy || {},
+        createPlanHash: planOnly.createPlan?.requestHash || planOnly.confirmationSnapshot?.createPlanHash || "",
+        createCalled: false,
+        accountApiCalled: planOnly.accountApiCalled === true,
+        monitorListApiCalled: planOnly.monitorListApiCalled === true,
+        evidenceArtifactId: planOnly.evidenceArtifactId || ""
+      },
+      evidenceRefs: planOnly.evidenceArtifactId ? [planOnly.evidenceArtifactId] : []
+    });
+  }
+
+  if (skillKey === "monitor-ensure") {
+    if (monitorId || !planActionPresent) {
+      return monitorSkillResult({
+        skillKey,
+        outputSummary: {
+          target,
+          provisionId,
+          monitorIdPresent: Boolean(monitorId),
+          ensureMonitorPlanned: false,
+          planId,
+          planHash,
+          createCalled: false,
+          reason: monitorId ? "monitor_id_already_present" : "ensure_monitor_not_in_execution_plan"
+        }
+      });
+    }
+    const blockers = [];
+    if (mode !== "planned_actions") blockers.push("monitor_ensure_requires_planned_actions_mode");
+    if (!actionAllowed) blockers.push(`planned_action_not_allowed:${ACTION_ENSURE_MONITOR}`);
+    if (mockMonitorEnsure !== true) blockers.push("mock_monitor_ensure_required_for_current_task");
+    if (blockers.length) {
+      return monitorSkillResult({
+        skillKey,
+        status: "blocked",
+        blockers,
+        outputSummary: {
+          target,
+          provisionId,
+          planId,
+          planHash,
+          ensureMonitorPlanned: true,
+          actionAllowed,
+          createCalled: false
+        }
+      });
+    }
+    const planOutput = previousOutputs.get("monitor-plan") || {};
+    const attemptAction = planOutput.outputSummary?.attemptPolicy?.action || "first_create";
+    const createPlanHash = planOutput.outputSummary?.createPlanHash || "";
+    const ensureResult = await runMonitorProvisionEnsure({
+      repo,
+      ownerKey,
+      target,
+      env: monitorCreateConfirmationEnv({
+        baseEnv: env,
+        target,
+        provisionId,
+        planHash,
+        createPlanHash,
+        attemptAction
+      }),
+      jobId,
+      planId,
+      idempotencyKey,
+      fetchImpl
+    });
+    return monitorSkillResult({
+      skillKey,
+      status: ensureResult.status,
+      blockers: ensureResult.blockers || [],
+      outputSummary: {
+        target,
+        provisionId,
+        planId,
+        planHash,
+        ensureMonitorPlanned: true,
+        actionAllowed,
+        createCalled: ensureResult.createCalled === true,
+        runStatus: ensureResult.runStatus || "",
+        attemptState: ensureResult.attemptState || {},
+        monitorIdPresent: Boolean(ensureResult.resolvedMonitor?.monitorId),
+        evidenceArtifactId: ensureResult.evidenceArtifactId || ""
+      },
+      evidenceRefs: ensureResult.evidenceArtifactId ? [ensureResult.evidenceArtifactId] : []
+    });
+  }
+
+  if (skillKey === "monitor-readback") {
+    const latestRun = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
+    const currentMonitorId = clean(latestRun?.monitor_id || monitorId);
+    const ensureOutput = previousOutputs.get("monitor-ensure") || {};
+    const blockers = [];
+    if (planActionPresent && !currentMonitorId) blockers.push("monitor_readback_missing");
+    if ((ensureOutput.blockers || []).length) blockers.push(...ensureOutput.blockers);
+    return monitorSkillResult({
+      skillKey,
+      status: blockers.length ? "blocked" : "passed",
+      blockers: [...new Set(blockers)],
+      outputSummary: {
+        target,
+        provisionId,
+        planId,
+        planHash,
+        monitorIdPresent: Boolean(currentMonitorId),
+        monitorId: currentMonitorId,
+        touchpointRefPresent: Boolean(latestRun?.touchpoint_ref || bundle.touchpoint?.touchpoint_ref),
+        touchpointUrlHashPresent: Boolean(latestRun?.touchpoint_url_hash || bundle.touchpoint?.url_hash),
+        runStatus: latestRun?.status || "",
+        createCalled: latestRun?.create_called === true || ensureOutput.outputSummary?.createCalled === true,
+        evidenceArtifactId: latestRun?.evidence_artifact_id || ensureOutput.outputSummary?.evidenceArtifactId || ""
+      },
+      evidenceRefs: latestRun?.evidence_artifact_id ? [latestRun.evidence_artifact_id] : ensureOutput.evidenceRefs || []
+    });
+  }
+
+  throw new Error(`unsupported_monitor_workflow_skill:${skillKey}`);
+}
+
 export async function runMonitorProvisionReadonlyReconcile({
   repo,
   ownerKey = "",
-  target = MONITOR_PROVISION_TARGET
+  target = MONITOR_PROVISION_TARGET,
+  jobId = "",
+  planId = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
   const provisionId = monitorProvisionId(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
@@ -861,6 +1125,7 @@ export async function runMonitorProvisionReadonlyReconcile({
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
   const allowPendingOwnerKeyBootstrap = !clean(effectiveOwnerKey) && initialCredential.pendingOwnerKeyCount === 1;
   const client = createQiankunMonitorClient({
+    fetchImpl,
     allowPendingOwnerKeyBootstrap,
     pendingOwnerKeyBootstrapEndpoints: [
       "/tf/account_info/accountIndex",
@@ -1017,13 +1282,16 @@ export async function runMonitorProvisionReadonlyReconcile({
   const evidenceArtifactId = await upsertReadonlyEvidence({
     repo,
     provisionId,
-    summary: safeSummary
+    summary: safeSummary,
+    jobId
   });
   const runStatus = monitor
     ? monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved"
     : account ? "account_resolved" : "failed";
   const writes = await persistReadonlyReconcile({
     repo,
+    jobId,
+    planId,
     target,
     provisionId,
     requestFingerprint,
@@ -1050,7 +1318,10 @@ export async function runMonitorProvisionReadonlyReconcile({
 export async function runMonitorProvisionPlanOnly({
   repo,
   ownerKey = "",
-  target = MONITOR_PROVISION_TARGET
+  target = MONITOR_PROVISION_TARGET,
+  jobId = "",
+  planId = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
   const provisionId = monitorProvisionId(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
@@ -1094,7 +1365,7 @@ export async function runMonitorProvisionPlanOnly({
   if (!callbackContract.ready) blockers.push("callback_contract_missing");
   blockers.push(...attemptPolicy.blockers);
 
-  const client = createQiankunMonitorClient();
+  const client = monitorClient({ fetchImpl });
   let accountResult = null;
   let account = null;
   let identityPreflight = {
@@ -1310,7 +1581,8 @@ export async function runMonitorProvisionPlanOnly({
   const evidenceArtifactId = await upsertPlanOnlyEvidence({
     repo,
     provisionId,
-    summary: safeSummary
+    summary: safeSummary,
+    jobId
   });
   if (repo && account) {
     await repo.updateQiankunAccountIdentity({
@@ -1332,6 +1604,8 @@ export async function runMonitorProvisionPlanOnly({
     : account ? "planned" : "failed";
   const writes = await persistReadonlyReconcile({
     repo,
+    jobId,
+    planId,
     target,
     provisionId,
     requestFingerprint,
@@ -1516,9 +1790,13 @@ export async function runMonitorProvisionEnsure({
   ownerKey = "",
   target = MONITOR_PROVISION_TARGET,
   env = process.env,
-  planOnly = false
+  planOnly = false,
+  jobId = "",
+  planId = "",
+  idempotencyKey = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
-  if (planOnly) return runMonitorProvisionPlanOnly({ repo, ownerKey, target });
+  if (planOnly) return runMonitorProvisionPlanOnly({ repo, ownerKey, target, jobId, planId, fetchImpl });
   const provisionId = monitorProvisionId(target);
   let actionConfirmation = monitorActionConfirmationState({ env, target, provisionId, action: "" });
   let confirmationPresent = false;
@@ -1718,7 +1996,7 @@ export async function runMonitorProvisionEnsure({
     return safe;
   }
 
-  const client = createQiankunMonitorClient();
+  const client = monitorClient({ fetchImpl });
   let accountResult = null;
   let account = null;
   let identityPreflight = {
@@ -1879,6 +2157,9 @@ export async function runMonitorProvisionEnsure({
       provisionId,
       attemptNo: attemptPolicy.nextAttemptNo,
       triggerReason: attemptPolicy.triggerReason,
+      jobId,
+      planId,
+      idempotencyKey: idempotencyKey ? `${idempotencyKey}:attempt-${attemptPolicy.nextAttemptNo}` : "",
       scheduledAt: createConfirmedAt,
       startedAt: createConfirmedAt
     });
@@ -2074,7 +2355,8 @@ export async function runMonitorProvisionEnsure({
   const evidenceArtifactId = await upsertEnsureEvidence({
     repo,
     provisionId,
-    summary: safeSummary
+    summary: safeSummary,
+    jobId
   });
   const relationWriteResults = monitor && manualL3Override.active
     ? await syncManualL3ConfirmedRelations({
@@ -2122,6 +2404,8 @@ export async function runMonitorProvisionEnsure({
     : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "terminal_failed" : account ? "account_resolved" : "failed";
   const writes = await persistReadonlyReconcile({
     repo,
+    jobId,
+    planId,
     target,
     provisionId,
     requestFingerprint,
@@ -2275,17 +2559,21 @@ export async function runMonitorProvisionCommand({
   target = MONITOR_PROVISION_TARGET,
   env = process.env,
   planOnly = false,
-  monitorIds = []
+  monitorIds = [],
+  jobId = "",
+  planId = "",
+  idempotencyKey = "",
+  fetchImpl = globalThis.fetch
 } = {}) {
   const cleanMode = clean(mode) || "status";
   if (cleanMode === "status") {
     return runMonitorProvisionFoundationStatus({ repo, ownerKey, ensureScaffold, target });
   }
   if (cleanMode === "reconcile") {
-    return runMonitorProvisionReadonlyReconcile({ repo, ownerKey, target });
+    return runMonitorProvisionReadonlyReconcile({ repo, ownerKey, target, jobId, planId, fetchImpl });
   }
   if (cleanMode === "ensure") {
-    return runMonitorProvisionEnsure({ repo, ownerKey, target, env, planOnly });
+    return runMonitorProvisionEnsure({ repo, ownerKey, target, env, planOnly, jobId, planId, idempotencyKey, fetchImpl });
   }
   if (cleanMode === "report") {
     const provisionId = monitorProvisionId(target);

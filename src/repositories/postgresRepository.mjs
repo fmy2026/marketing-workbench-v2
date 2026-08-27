@@ -515,6 +515,16 @@ export class PostgresRepository {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    if (!monitorId) {
+      return {
+        status: "monitor_id_missing",
+        touchpointRef: "",
+        storedUrlHash: "",
+        computedUrlHash: "",
+        touchpointUrlPresent: false,
+        urlHashMatches: false
+      };
+    }
     assertId("monitor_id", monitorId, /^[0-9A-Za-z_\-.]+$/);
 
     const row = await queryJson(`
@@ -541,13 +551,15 @@ export class PostgresRepository {
 
     const touchpointUrl = row.touchpoint_url || "";
     const computedUrlHash = touchpointUrl ? sha256Hex(touchpointUrl) : "";
+    const storedUrlHash = row.url_hash || "";
+    const normalizedStoredHash = storedUrlHash.startsWith("sha256:") ? storedUrlHash.slice("sha256:".length) : storedUrlHash;
     return {
       status: row.status || "unknown",
       touchpointRef: row.touchpoint_ref || "",
-      storedUrlHash: row.url_hash || "",
+      storedUrlHash,
       computedUrlHash,
       touchpointUrlPresent: Boolean(touchpointUrl),
-      urlHashMatches: Boolean(touchpointUrl && row.url_hash && computedUrlHash === row.url_hash)
+      urlHashMatches: Boolean(touchpointUrl && normalizedStoredHash && computedUrlHash === normalizedStoredHash)
     };
   }
 
@@ -650,10 +662,21 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async claimMonitorProvisionAttempt({ provisionId, attemptNo, triggerReason, scheduledAt = "", startedAt = "" }) {
+  async claimMonitorProvisionAttempt({
+    provisionId,
+    attemptNo,
+    triggerReason,
+    scheduledAt = "",
+    startedAt = "",
+    jobId = "",
+    planId = "",
+    idempotencyKey = ""
+  }) {
     assertId("provision_id", provisionId);
     const numericAttemptNo = Number(attemptNo);
     if (![1, 2].includes(numericAttemptNo)) throw new Error("invalid_attempt_no");
+    if (jobId) assertId("job_id", jobId);
+    if (planId) assertId("plan_id", planId);
     const id = `${provisionId}-ATTEMPT-${String(numericAttemptNo).padStart(2, "0")}`;
     const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
     return queryJson(`
@@ -669,9 +692,12 @@ export class PostgresRepository {
         INSERT INTO mwb.monitor_provision_attempts (
           attempt_id,
           provision_id,
+          job_id,
+          plan_id,
           attempt_no,
           trigger_reason,
           attempt_status,
+          idempotency_key,
           scheduled_at,
           started_at,
           created_at
@@ -679,9 +705,12 @@ export class PostgresRepository {
         SELECT
           ${sqlLiteral(id)},
           ${sqlLiteral(provisionId)},
+          ${jobId ? sqlLiteral(jobId) : "NULL"},
+          ${planId ? sqlLiteral(planId) : "NULL"},
           ${numericAttemptNo},
           ${sqlLiteral(triggerReason || "monitor_ensure")},
           'started',
+          ${sqlLiteral(idempotencyKey || "")},
           ${timestampOrNull(scheduledAt)},
           coalesce(${timestampOrNull(startedAt)}, now()),
           now()
@@ -727,11 +756,15 @@ export class PostgresRepository {
     const status = assertId("status", run.status);
     const credentialStatus = assertId("credential_status", run.credentialStatus || "missing");
     const ownerKey = assertOwnerKey(run.ownerKey || "");
+    if (run.jobId) assertId("job_id", run.jobId);
+    if (run.planId) assertId("plan_id", run.planId);
     const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
 
     await runPsql(`
       INSERT INTO mwb.monitor_provision_runs (
         provision_id,
+        job_id,
+        plan_id,
         route_id,
         game_code,
         advertiser_id,
@@ -762,6 +795,8 @@ export class PostgresRepository {
         updated_at
       ) VALUES (
         ${sqlLiteral(run.provisionId)},
+        ${run.jobId ? sqlLiteral(run.jobId) : "NULL"},
+        ${run.planId ? sqlLiteral(run.planId) : "NULL"},
         ${sqlLiteral(run.routeId)},
         ${sqlLiteral(run.gameCode)},
         ${sqlLiteral(run.advertiserId)},
@@ -792,6 +827,8 @@ export class PostgresRepository {
         now()
       )
       ON CONFLICT (provision_id) DO UPDATE SET
+        job_id = coalesce(EXCLUDED.job_id, mwb.monitor_provision_runs.job_id),
+        plan_id = coalesce(EXCLUDED.plan_id, mwb.monitor_provision_runs.plan_id),
         status = EXCLUDED.status,
         request_fingerprint = EXCLUDED.request_fingerprint,
         technical_config = EXCLUDED.technical_config,
@@ -2119,6 +2156,8 @@ export class PostgresRepository {
         DELETE FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_confirmations WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.monitor_provision_attempts WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.monitor_provision_runs WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_execution_plans WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.readback_records WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_drafts WHERE job_id = ${sqlLiteral(jobId)};
@@ -2193,6 +2232,134 @@ export class PostgresRepository {
       SELECT to_jsonb(count(*))::text
       FROM mwb.launch_node_runs
       WHERE job_id = ${sqlLiteral(jobId)};
+    `, this.database);
+  }
+
+  async deleteSyntheticMonitorTestContext({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    if (!String(advertiserId).startsWith("899")) {
+      throw new Error("refuse_delete_non_synthetic_monitor_test_context");
+    }
+    await runPsql(`
+      DELETE FROM mwb.created_objects
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.platform_actions
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_confirmations
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.monitor_provision_attempts
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.monitor_provision_runs
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_execution_plans
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.readback_records
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_drafts
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_skill_runs
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_node_runs
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.evidence_artifacts
+      WHERE job_id IN (
+        SELECT job_id FROM mwb.launch_jobs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+          AND source_usage = 'test_run'
+      );
+      DELETE FROM mwb.launch_jobs
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND source_usage = 'test_run';
+      DELETE FROM mwb.monitor_provision_attempts
+      WHERE provision_id IN (
+        SELECT provision_id
+        FROM mwb.monitor_provision_runs
+        WHERE route_id = ${sqlLiteral(routeId)}
+          AND game_code = ${sqlLiteral(gameCode)}
+          AND advertiser_id = ${sqlLiteral(advertiserId)}
+      );
+      DELETE FROM mwb.monitor_provision_runs
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)};
+      DELETE FROM mwb.account_touchpoints
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)};
+      DELETE FROM mwb.account_resources
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)};
+      DELETE FROM mwb.advertiser_accounts
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)};
     `, this.database);
   }
 }

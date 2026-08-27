@@ -27,7 +27,7 @@
 | `mwb.advertiser_accounts` | 广告账户、授权状态、平台状态、监测序号 |
 | `mwb.account_touchpoints` | 触点 ref、URL hash、状态；`touchpoint_url` 仅作本地受控存储和 hash 校验，不作为普通 API/前端展示字段 |
 | `mwb.monitor_provision_runs` | 乾坤技术侧监测序号初始化运行记录；只保存账户、owner、固定参数摘要、monitor_id、hash、状态和脱敏错误，不保存 token、header、raw request/response 或完整触点 URL |
-| `mwb.monitor_provision_attempts` | 乾坤监测序号真实创建调用审计；每个 provision 最多 2 行，只存 hash、状态、受控错误摘要和证据引用 |
+| `mwb.monitor_provision_attempts` | 乾坤监测序号真实创建调用审计；每个 provision 最多 2 行，只存 job/plan 关联、幂等键、hash、状态、受控错误摘要和证据引用 |
 | `mwb.v_monitor_provision_status_report` | 乾坤监测序号初始化状态报表 view；暴露 owner、monitor_id、触点 hash/状态、attempt 计数和最近错误，不暴露完整 URL 或敏感凭据 |
 | `mwb.v_monitor_provision_blocker_report` | 乾坤监测序号初始化 blocker 明细 view；一行一个 blocker，关联最近 attempt，便于排查下一 gate |
 | `mwb.game_route_defaults` | 游戏 x 路线默认优化、预算、定向、排期和 DMP 摘要 |
@@ -73,6 +73,7 @@
 | `db/021_monitor_provision_defaults_reports.sql` | 补齐 JSZC 监测序号固定参数、单次创建审计字段和两个脱敏 PostgreSQL 报表 view |
 | `db/022_monitor_provision_attempts_and_ensure.sql` | 新增 `monitor_provision_attempts`、放宽同一 provision 总尝试数为 2、回填第一次服务器繁忙失败，并更新报表 view |
 | `db/027_add_launch_execution_plans.sql` | 新增统一执行计划表、plan_id 关联、platform action 幂等键，以及 Skill 定位字段 |
+| `db/028_add_monitor_attempt_idempotency.sql` | 新增 monitor provision attempt 的 planned-action 幂等键 |
 
 ## 读取约定
 
@@ -86,6 +87,7 @@
 | 监测序号初始化状态 | `mwb.monitor_provision_runs` 一行生命周期真值 + `mwb.monitor_provision_attempts` 每次真实调用审计；固定参数从 `mwb.game_route_defaults.raw_defaults.monitor_provision` 读取 |
 | 监测序号初始化报表 | `mwb.v_monitor_provision_status_report` 和 `mwb.v_monitor_provision_blocker_report` |
 | 统一执行计划 | `mwb.launch_execution_plans` 按 `job_id + plan_version` 读取；`plan_hash` 由 job、draft、planned_actions 和 blocker_codes 的脱敏稳定输入生成 |
+| Node 2 monitor planned action | `planned_actions` mock 模式调度 `monitor-query/monitor-plan/monitor-ensure/monitor-readback`；真实乾坤写入仍需另行单次授权 |
 | plan 外动作拦截 | 单次真实写入 guardrail 可绑定 `target_plan_id`、`target_plan_hash` 和 `allowed_plan_actions`；未出现在 plan 中的动作不得进入 grant |
 | Skill 卡点定位 | `mwb.launch_skill_runs.execution_cycle/blocker_codes/error_code/module_ref` |
 | 旧资料引用 | 只允许 `source_usage = 'reference_only'`，不得作为运行时真值 |

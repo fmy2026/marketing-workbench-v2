@@ -33,9 +33,49 @@ export const OE3_SKILL_DEFINITIONS = [
     writeScope: "launch_skill_runs_only"
   },
   {
-    skillKey: "context-resolve-account",
+    skillKey: "monitor-query",
     nodeKey: "creation_context",
     dependsOn: ["intake-normalize"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "monitor_id"],
+    outputContract: ["monitor_id_present", "provision_id", "plan_action_present"],
+    stopConditions: ["monitor_query_blocked"],
+    writeScope: "launch_skill_runs_monitor_provision_runs_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/02-monitor-provision.mjs"
+  },
+  {
+    skillKey: "monitor-plan",
+    nodeKey: "creation_context",
+    dependsOn: ["monitor-query"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "launch_execution_plan"],
+    outputContract: ["ensure_monitor_planned", "plan_hash", "attempt_policy"],
+    stopConditions: ["monitor_plan_blocked"],
+    writeScope: "launch_skill_runs_monitor_provision_runs_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/02-monitor-provision.mjs"
+  },
+  {
+    skillKey: "monitor-ensure",
+    nodeKey: "creation_context",
+    dependsOn: ["monitor-plan"],
+    inputContract: ["plan_id", "plan_hash", "allowed_plan_actions", "ensure_monitor"],
+    outputContract: ["create_called", "attempt_no", "monitor_id_present"],
+    stopConditions: ["planned_action_not_allowed:ensure_monitor", "monitor_create_attempt_limit_reached", "monitor_create_failed"],
+    writeScope: "launch_skill_runs_monitor_provision_runs_monitor_provision_attempts_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/02-monitor-provision.mjs"
+  },
+  {
+    skillKey: "monitor-readback",
+    nodeKey: "creation_context",
+    dependsOn: ["monitor-ensure"],
+    inputContract: ["provision_id", "monitor_id", "touchpoint_hash"],
+    outputContract: ["monitor_readback_status", "monitor_id", "touchpoint_ref", "touchpoint_url_hash"],
+    stopConditions: ["monitor_readback_missing", "touchpoint_url_unresolved_after_monitor_list"],
+    writeScope: "launch_skill_runs_advertiser_accounts_account_touchpoints_monitor_provision_runs",
+    moduleRef: "src/workflows/skills/oe3/02-monitor-provision.mjs"
+  },
+  {
+    skillKey: "context-resolve-account",
+    nodeKey: "creation_context",
+    dependsOn: ["monitor-query"],
     inputContract: ["route_id", "game_code", "advertiser_id"],
     outputContract: ["account_status", "monitor_id"],
     stopConditions: ["account_missing", "account_not_ready"],
@@ -232,6 +272,7 @@ export function skillDefinition(skillKey) {
 
 export function moduleRefForSkill(skillKey) {
   if (skillKey === "intake-normalize") return "src/workflows/skills/oe3/01-intake-normalize.mjs";
+  if (skillKey.startsWith("monitor-")) return "src/workflows/skills/oe3/02-monitor-provision.mjs";
   if (skillKey.startsWith("context-resolve-")) return "src/workflows/skills/oe3/02-context-resolvers.mjs";
   if (skillKey.startsWith("launch-pack-resolve-")) return "src/workflows/skills/oe3/03-launch-pack.mjs";
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";

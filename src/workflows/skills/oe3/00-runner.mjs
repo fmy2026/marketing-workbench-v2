@@ -11,6 +11,7 @@ import { runCreateOnceSkill } from "./06-create-once.mjs";
 import { runDuplicateReadonlyCheck } from "./05-duplicate-readonly.mjs";
 import { runDmpReadonlyGate } from "./04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./03-launch-pack.mjs";
+import { runMonitorWorkflowSkill } from "./02-monitor-provision.mjs";
 import { runObjectiveContractReadonlyGate } from "./05-objective-contract-readiness.mjs";
 import {
   applyDraftToBundle,
@@ -34,10 +35,12 @@ import {
 } from "./04-resource-verifiers.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
+import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
 
-export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only"]);
+export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only", "planned_actions"]);
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
+const MONITOR_SKILLS = new Set(["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]);
 const CONTEXT_SKILLS = new Set(["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]);
 const LAUNCH_PACK_SKILLS = new Set([
   "launch-pack-resolve-game",
@@ -74,8 +77,20 @@ function resourceSkillKey(type) {
 
 function skillsForMode(mode) {
   if (mode === "readback_only") return ["readback-std-project"];
+  const monitorDryRun = ["monitor-query", "monitor-plan"];
+  const monitorPlannedActions = ["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"];
+  if (mode === "planned_actions") {
+    return [
+      "intake-normalize",
+      ...monitorPlannedActions,
+      "context-resolve-account",
+      "context-resolve-touchpoint",
+      "context-resolve-platform-app"
+    ];
+  }
   const base = [
     "intake-normalize",
+    ...monitorDryRun,
     "context-resolve-account",
     "context-resolve-touchpoint",
     "context-resolve-platform-app",
@@ -95,6 +110,15 @@ function skillsForMode(mode) {
 
 function resourceTypeFromSkill(skillKey) {
   return skillKey.replace("resource-verify-", "").replace(/-/g, "_");
+}
+
+async function getTouchpointVerification(repo, bundle) {
+  return repo.getTouchpointVerification({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id,
+    monitorId: bundle.account?.monitor_id || bundle.touchpoint?.monitor_id || ""
+  });
 }
 
 async function executePayloadBuild({ repo, context }) {
@@ -226,6 +250,19 @@ async function executeSkill({ repo, context, skillKey }) {
 
   if (skillKey === "intake-normalize") {
     result = runIntakeNormalizeSkill({ bundle: context.bundle });
+  } else if (MONITOR_SKILLS.has(skillKey)) {
+    result = await runMonitorWorkflowSkill({
+      repo,
+      bundle: context.bundle,
+      skillKey,
+      mode: context.mode,
+      ownerKey: context.qiankunOwnerKey || "",
+      allowedPlanActions: context.allowedPlanActions || [],
+      mockMonitorEnsure: context.mockMonitorEnsure === true,
+      fetchImpl: context.fetchImpl || globalThis.fetch,
+      env: context.env || process.env,
+      previousOutputs: context.skillOutputs
+    });
   } else if (CONTEXT_SKILLS.has(skillKey)) {
     result = runContextSkill({
       bundle: context.bundle,
@@ -314,6 +351,7 @@ async function executeSkill({ repo, context, skillKey }) {
 }
 
 function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
+  const plannedActionsMode = mode === "planned_actions";
   const cachedReadonly = cachedReadonlyFromBundle(bundle);
   const skillOutput = (key) => skillOutputs.get(key) || {};
   const resourceOutputs = OE3_REQUIRED_RESOURCE_TYPES.map((type) => skillOutput(resourceSkillKey(type)));
@@ -322,6 +360,10 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
   const create = skillOutput("create-once");
   const readback = skillOutput("readback-std-project");
+  const monitorOutputs = ["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]
+    .map((key) => skillOutput(key))
+    .filter((item) => item.outputSummary);
+  const monitorBlockers = monitorOutputs.flatMap((item) => item.blockers || []);
   const createNode = createNodeStatusFromSkill({ create, mode });
   const readbackNode = readbackNodeStatusFromSkill({ readback, mode });
   const contextBlocked = ["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]
@@ -339,10 +381,17 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "creation_context",
-      status: contextBlocked ? "blocked" : "passed",
-      summary: contextBlocked ? "账户、触点或平台 app 上下文未就绪。" : "账户、触点和平台 app 已由 Skill 装配。",
-      diagnosticLevel: contextBlocked ? "error" : "info",
+      status: contextBlocked || monitorBlockers.length ? "blocked" : "passed",
+      summary: contextBlocked || monitorBlockers.length ? "账户、触点、monitor 或平台 app 上下文未就绪。" : "账户、触点、monitor 和平台 app 已由 Skill 装配。",
+      diagnosticLevel: contextBlocked || monitorBlockers.length ? "error" : "info",
       outputSummary: {
+        monitor: {
+          query: skillOutput("monitor-query").outputSummary || {},
+          plan: skillOutput("monitor-plan").outputSummary || {},
+          ensure: skillOutput("monitor-ensure").outputSummary || {},
+          readback: skillOutput("monitor-readback").outputSummary || {},
+          blockers: monitorBlockers
+        },
         account: skillOutput("context-resolve-account").outputSummary || {},
         touchpoint: skillOutput("context-resolve-touchpoint").outputSummary || {},
         platformApp: skillOutput("context-resolve-platform-app").outputSummary || {},
@@ -353,9 +402,9 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "game_launch_pack",
-      status: packBlocked ? "blocked" : "passed",
-      summary: packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
-      diagnosticLevel: packBlocked ? "error" : "info",
+      status: plannedActionsMode ? "waiting" : packBlocked ? "blocked" : "passed",
+      summary: plannedActionsMode ? "等待 Node 2 planned action 完成后执行。" : packBlocked ? "游戏主档、路线默认值、保底物料包或备用落地页缺失。" : "游戏主档、路线默认值、保底物料包和备用落地页已由 Skill 装配。",
+      diagnosticLevel: plannedActionsMode ? "pending" : packBlocked ? "error" : "info",
       outputSummary: {
         game: skillOutput("launch-pack-resolve-game").outputSummary || {},
         defaults: skillOutput("launch-pack-resolve-defaults").outputSummary || {},
@@ -365,9 +414,9 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
-      status: resourceBlockers.length ? "blocked" : "passed",
-      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
-      diagnosticLevel: resourceBlockers.length ? "error" : "info",
+      status: plannedActionsMode ? "waiting" : resourceBlockers.length ? "blocked" : "passed",
+      summary: plannedActionsMode ? "等待 Node 3 后执行账户资源准备。" : resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
+      diagnosticLevel: plannedActionsMode ? "pending" : resourceBlockers.length ? "error" : "info",
       outputSummary: {
         blockedResourceTypes: resourceOutputs
           .filter((item) => item.status === "blocked")
@@ -382,11 +431,11 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "std_project_draft_builder",
-      status: payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "needs_confirmation" : "repairable",
-      summary: draft.projectName
+      status: plannedActionsMode ? "waiting" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "needs_confirmation" : "repairable",
+      summary: plannedActionsMode ? "等待 Node 2-4 准备完成后生成草稿。" : draft.projectName
         ? `创建草稿已生成：${draft.projectName}；${readiness.uniqueBlocker || "等待创建确认"}。`
         : "等待创建草稿。",
-      diagnosticLevel: payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
+      diagnosticLevel: plannedActionsMode ? "pending" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
       outputSummary: {
         projectName: draft.projectName || bundle.draft?.project_name || "",
         payloadHash: draft.payloadHash || bundle.draft?.payload_hash || "",
@@ -432,17 +481,20 @@ export async function runOe3WorkflowSkills({
   confirmVariableValue = "",
   grantSource = "",
   executionGrantId = "",
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  allowedPlanActions = [],
+  mockMonitorEnsure = false,
+  qiankunOwnerKey = ""
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
-  const touchpointVerification = await repo.getTouchpointVerification({
-    routeId: bundle.job.route_id,
-    gameCode: bundle.job.game_code,
-    advertiserId: bundle.job.advertiser_id,
-    monitorId: bundle.account?.monitor_id || bundle.touchpoint?.monitor_id || ""
-  });
+  if (mode !== "readback_only") {
+    await compileAndSaveExecutionPlan({ repo, jobId });
+    bundle = await repo.getLaunchJobBundle(jobId);
+  }
+  const touchpointVerification = await getTouchpointVerification(repo, bundle);
   const context = {
     bundle,
     mode,
@@ -455,6 +507,10 @@ export async function runOe3WorkflowSkills({
     grantSource,
     executionGrantId,
     fetchImpl,
+    env,
+    allowedPlanActions,
+    mockMonitorEnsure,
+    qiankunOwnerKey,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
@@ -463,6 +519,7 @@ export async function runOe3WorkflowSkills({
     await executeSkill({ repo, context, skillKey });
     bundle = await repo.getLaunchJobBundle(jobId);
     context.bundle = bundle;
+    context.touchpointVerification = await getTouchpointVerification(repo, bundle);
   }
   const nodes = aggregateNodeRuns({
     bundle: context.bundle,

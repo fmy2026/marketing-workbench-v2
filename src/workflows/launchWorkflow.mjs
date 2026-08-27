@@ -630,7 +630,11 @@ export async function runJob(repo, jobId, options = {}) {
     confirmVariableValue: options.confirmVariableValue || "",
     grantSource: options.grantSource || "",
     executionGrantId: options.executionGrantId || "",
-    fetchImpl: options.fetchImpl || globalThis.fetch
+    fetchImpl: options.fetchImpl || globalThis.fetch,
+    env: options.env || process.env,
+    allowedPlanActions: options.allowedPlanActions || [],
+    mockMonitorEnsure: options.mockMonitorEnsure === true,
+    qiankunOwnerKey: options.qiankunOwnerKey || ""
   });
   return buildLaunchJobView(result.bundle, await buildRuntimeChecks(repo, result.bundle));
 }

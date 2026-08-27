@@ -140,6 +140,9 @@ export function workflowJobUpdateFromSkillResults({ mode = "dry_run", create = {
   if (mode === "dry_run" || mode === "execute_once") {
     return { status: "draft_ready", currentNode: "5" };
   }
+  if (mode === "planned_actions") {
+    return { status: "context_ready", currentNode: "2" };
+  }
   return null;
 }
 

@@ -1,0 +1,125 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION",
+  "task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Wire Node 2 monitor planned action into the main Workflow with mock execution only.",
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "Referenced documents are requirements input, not authorization for real Qiankun or OceanEngine writes.",
+    "no_real_monitor_create": true,
+    "no_token_refresh": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIFIED-EXECUTION-PLAN-FOUNDATION.json",
+    "tasks/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.json",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-result-mapping.mjs",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "scripts/02-monitor-provision-cli.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "scripts/02-monitor-bootstrap-smoke.mjs",
+    "package.json"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "The execution plan foundation and monitor provision handler already exist; integrating the planned action into Node 2 can be done behind mock-only workflow controls without broadening real-write permissions."
+  },
+  "implementation_plan": [
+    "Add Node 2 monitor Skill contracts and module refs.",
+    "Make the monitor provision handler injectable for mock Workflow tests while keeping the CLI as a thin wrapper.",
+    "Add planned-action execution controls in 00-runner.mjs and keep dry_run read/plan only.",
+    "Persist plan/job/idempotency linkage for monitor provision run and attempt audit rows.",
+    "Add a monitor planned-action Workflow smoke and run existing validations."
+  ],
+  "non_goals": [
+    "No real monitor create or retry.",
+    "No real resource preparation.",
+    "No std_project/create.",
+    "No token refresh.",
+    "No frontend behavior change.",
+    "No raw secret, cookie, payload, response, request, or full URL in project files."
+  ],
+  "outputs": [
+    "src/workflows/skills/oe3/00-contracts.mjs: monitor-query/monitor-plan/monitor-ensure/monitor-readback contracts",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs: runMonitorWorkflowSkill and injectable mock client path",
+    "src/workflows/skills/oe3/00-runner.mjs: planned_actions mode",
+    "src/workflows/skills/oe3/00-result-mapping.mjs: planned_actions job status mapping",
+    "src/workflows/launchWorkflow.mjs: planned-action option pass-through",
+    "src/repositories/postgresRepository.mjs: plan-aware monitor run/attempt audit and synthetic test cleanup",
+    "db/028_add_monitor_attempt_idempotency.sql",
+    "scripts/02-monitor-planned-action-workflow-smoke.mjs",
+    "package.json:test:monitor-planned-action",
+    "AGENTS.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "validation": [
+    {
+      "command": "node --check src/workflows/skills/oe3/02-monitor-provision.mjs src/workflows/skills/oe3/00-runner.mjs src/workflows/skills/oe3/00-result-mapping.mjs src/workflows/launchWorkflow.mjs src/repositories/postgresRepository.mjs scripts/02-monitor-planned-action-workflow-smoke.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/028_add_monitor_attempt_idempotency.sql",
+      "status": "passed_twice"
+    },
+    {
+      "command": "npm run test:monitor-planned-action",
+      "status": "passed",
+      "notes": "Covers missing-monitor success, existing-monitor no-create, unauthorized planned action blocked, server busy max two attempts, CLI/Workflow same handler, monitor Skill module refs."
+    },
+    {
+      "command": "npm run test:execution-plan",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-bootstrap",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:api",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "synthetic 899... cleanup probe",
+      "status": "passed",
+      "result": {
+        "synthetic_accounts": 0,
+        "synthetic_jobs": 0,
+        "synthetic_monitor_runs": 0,
+        "synthetic_attempts": 0
+      }
+    },
+    {
+      "command": "sensitive-value scan on changed files",
+      "status": "passed",
+      "notes": "Only hit was the detection regex in src/workflows/skills/oe3/00-contracts.mjs."
+    }
+  ],
+  "next_gate": "Wire Node 3-4 preparation actions to execution plan actions in the main Workflow; real writes still require separate single-action authorization."
+}

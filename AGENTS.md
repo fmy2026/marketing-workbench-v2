@@ -54,7 +54,7 @@ frontend/API
 | `01-07-` | 对应 7 节点所属 Skill 或专项脚本 |
 | 无编号基础设施 | `src/platforms/`、`src/repositories/`、`src/server/`，按职责命名 |
 
-新 OE3 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由 `00-workflow-node-registry.mjs` 校验归属。新 CLI / smoke 先判断属于 `00` 还是 `01-07`，不得新增无归属长期脚本。`package.json` 命令名是长期入口；底层脚本可以编号迁移，但不得随意改变命令名。Node 2 monitor bootstrap 与广告项目创建是权限不同的链路，不能并入广告 job 的自动真实写入。
+新 OE3 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由 `00-workflow-node-registry.mjs` 校验归属。新 CLI / smoke 先判断属于 `00` 还是 `01-07`，不得新增无归属长期脚本。`package.json` 命令名是长期入口；底层脚本可以编号迁移，但不得随意改变命令名。Node 2 monitor bootstrap 可以在 `planned_actions` mock 模式接入主链；真实乾坤 monitor 写入与广告项目创建仍是权限不同的链路，必须另行单次授权。
 
 ## 目录职责
 | 目录 | 职责 |
