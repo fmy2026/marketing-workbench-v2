@@ -15,6 +15,7 @@ function flag(name) {
 
 const mode = arg("mode", "status");
 const ownerKey = arg("owner-key", "");
+const reissueReason = arg("reissue-reason", "");
 const retryOnce = flag("retry-once");
 const planOnly = flag("plan-only");
 const monitorIds = arg("monitor-ids", "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -39,7 +40,8 @@ const result = await runMonitorProvisionCommand({
   ensureScaffold,
   target,
   planOnly,
-  monitorIds
+  monitorIds,
+  reissueReason
 });
 
 console.log(JSON.stringify(result, null, 2));

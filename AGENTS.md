@@ -30,6 +30,7 @@ JSON、schema、数据库记录和真实回查证据优先于 Markdown 说明。
 | --- | --- |
 | 官方文档主库 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0` |
 | 外部给定官方资料 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
+| 乾坤系统当前接口参考 | `docs/.参考文档/乾坤系统/api-docs-20260827.md` |
 
 这些文档只作为 OE3 官方知识参考；项目运行真值仍按 `project.state.json`、Postgres `marketing_workbench_v2.mwb`、active task / manifest 和 `schemas/` 的优先级执行。
 
@@ -74,7 +75,7 @@ frontend/API
 | `.archive/` | 已完成专项任务脚本、废弃实现和历史参考；禁止 runtime import、package script 或 API 调用 |
 
 ## 记录规则
-Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。Node 4 资源自动准备能力唯一登记在 `src/workflows/skills/oe3/04-resource-action-registry.mjs`；`executionPlan.mjs` 只允许为 `prepare_supported=true` 的资源生成 `ensure_resource:*`，其余未就绪资源写 `resource_prepare_unsupported:<resource_type>` blocker。
+Workflow 固定为 3 阶段 7 节点。节点结果写入 `launch_node_runs`；细粒度 Skill 结果写入 `launch_skill_runs`；草稿、证据、回查和平台动作只写脱敏摘要、hash、状态和必要 ID。Node 2 monitor lifecycle 以 `monitor_provision_runs.cycle_id` 为周期真值；同一 provision 可显式 reissue 多个 cycle，每个 cycle 最多 2 次 attempt，停止 cycle 不自动重试。Node 4 资源自动准备能力唯一登记在 `src/workflows/skills/oe3/04-resource-action-registry.mjs`；`executionPlan.mjs` 只允许为 `prepare_supported=true` 的资源生成 `ensure_resource:*`，其余未就绪资源写 `resource_prepare_unsupported:<resource_type>` blocker。
 `source_usage` 规则：`runtime_truth` 是真实用户轮次；`test_run` 是临时测试，必须由 smoke/CLI 清理且不影响真实项目名占用；`seed_source` 是初始化基准，不得当运行真值。项目名占用只写 `mwb.project_name_reservations`，不能由最后 job 或 source record 魔法值推断。
 
 ## 红线

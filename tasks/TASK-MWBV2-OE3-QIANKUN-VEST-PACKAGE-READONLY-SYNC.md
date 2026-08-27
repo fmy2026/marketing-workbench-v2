@@ -17,7 +17,7 @@
 官方接口合同参考：
 
 ```text
-docs/.参考文档/乾坤系统/api-docs-20260825.md
+docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md
 POST /tf/ad/changeVestId
 os: 2=iOS, 3=微信小游戏, 4=鸿蒙
 data[].value -> package id

@@ -1,0 +1,172 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT",
+  "task_ref": "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
+  "status": "blocked_external_credential",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add cycle semantics, explicit reissue planning, and live readonly preflight for Qiankun monitor provision on target advertiser 1871922414575753. Local implementation is complete. The 2026-08-27 CST rerun after the reported local token update is still blocked by Qiankun ApiToken 403.",
+    "target": {
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "advertiser_id": "1871922414575753"
+    },
+    "source_request_doc": "/Users/hys/Desktop/需求表述.md",
+    "document_instruction_boundary": "Referenced documents are requirements input, not authorization for real monitor create, ad create, resource writes, or credential refresh.",
+    "no_real_monitor_create": true,
+    "no_std_project_create": true,
+    "no_token_refresh": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "/Users/hys/Desktop/需求表述.md",
+    "tasks/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.json",
+    "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+    "db/020_add_monitor_provision_runs.sql",
+    "db/021_monitor_provision_defaults_reports.sql",
+    "db/022_monitor_provision_attempts_and_ensure.sql",
+    "db/028_add_monitor_attempt_idempotency.sql",
+    "db/029_monitor_provision_cycles.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/workflows/skills/oe3/02-qiankun-option-relation-sync.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/executionPlan.mjs",
+    "scripts/02-monitor-provision-cli.mjs",
+    "scripts/02-monitor-cycle-smoke.mjs",
+    "scripts/02-monitor-bootstrap-smoke.mjs",
+    "scripts/02-monitor-planned-action-workflow-smoke.mjs",
+    "package.json",
+    "schemas/postgres-minimal-truth.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md"
+  ],
+  "rationality_assessment": {
+    "status": "reasonable",
+    "questions": [],
+    "reason": "Existing monitor provision tables and the unified monitor handler support a minimal cycle extension. The task explicitly excludes real create calls, while live readonly preflight is allowed by current guardrails."
+  },
+  "implementation_plan": [
+    "Inspect the live monitor_provision_runs and monitor_provision_attempts schema before writing migration.",
+    "Add a minimal migration for cycle_id, cycle_no, cycle_status, reissue_reason, preflight_hash, and cycle-scoped attempt uniqueness.",
+    "Create 02-monitor-cycle.mjs for cycle id generation, attempt policy, error classification, and reissue validation.",
+    "Extend the unified monitor handler and CLI with monitor:plan and monitor:reissue-plan behavior.",
+    "Run live Qiankun readonly preflight for target advertiser 1871922414575753 and persist redacted cycle/evidence/plan truth. Current result after rerun: accountIndex returned 403 invalid ApiToken.",
+    "Run monitor/bootstrap/workflow validations and keep the task blocked until Qiankun credential is repaired."
+  ],
+  "non_goals": [
+    "No /tf/ad/monitorSerialNumberAdd call.",
+    "No real monitor create or retry.",
+    "No real resource preparation.",
+    "No std_project/create.",
+    "No token refresh.",
+    "No frontend behavior change.",
+    "No raw secret, cookie, payload, response, request, or full URL in project files."
+  ],
+  "expected_outputs": [
+    "db/029_monitor_provision_cycles.sql",
+    "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "scripts/02-monitor-provision-cli.mjs",
+    "scripts/02-monitor-cycle-smoke.mjs",
+    "package.json",
+    "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+    "AGENTS.md",
+    "docs/工作台逻辑底层/工作流-7节点-数据真值说明_20260826.md",
+    "docs/工作台逻辑底层/20260827-plan-工作流7节点-数据真值说明.md",
+    "schemas/postgres-minimal-truth.md",
+    "project.state.json"
+  ],
+  "live_preflight": {
+    "command": "npm run monitor:plan -- --advertiser-id 1871922414575753",
+    "status": "blocked",
+    "blocker": "account_query_failed:403:拒绝访问：当前ApiToken无效，请通过乾坤系统重新获取",
+    "create_called": false,
+    "account_identity_written": false,
+    "credential_file_mtime_cst": "2026-08-26 16:51:20",
+    "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753",
+    "cycle_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-CYCLE-01",
+    "cycle_status": "active",
+    "attempt_policy": {
+      "action": "server_busy_retry",
+      "next_attempt_no": 2,
+      "maximum_total_attempts": 2
+    },
+    "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-PLAN-ONLY"
+  },
+  "validation": [
+    {
+      "command": "node --check src/workflows/skills/oe3/02-monitor-cycle.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node --check src/workflows/skills/oe3/02-monitor-provision.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node --check src/repositories/postgresRepository.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "node --check scripts/02-monitor-cycle-smoke.mjs",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-cycle",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-bootstrap",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:monitor-planned-action",
+      "status": "passed"
+    },
+    {
+      "command": "npm run monitor:plan -- --advertiser-id 1871922414575753",
+      "status": "blocked",
+      "blocker": "account_query_failed:403:拒绝访问：当前ApiToken无效，请通过乾坤系统重新获取",
+      "account_identity_written": false,
+      "create_called": false
+    },
+    {
+      "command": "npm run test:execution-plan",
+      "status": "passed"
+    },
+    {
+      "command": "npm run smoke:workflow-skills",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check:runtime-consistency",
+      "status": "passed"
+    },
+    {
+      "command": "npm run monitor:reissue-plan -- --advertiser-id 1871922414575753 --reissue-reason service_recovered",
+      "status": "blocked_as_expected",
+      "blocker": "previous_cycle_not_stopped:active"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "missing_script"
+    },
+    {
+      "command": "npm run validate",
+      "status": "missing_script"
+    }
+  ],
+  "next_gate": "Repair Qiankun ApiToken outside this task, then rerun npm run monitor:plan -- --advertiser-id 1871922414575753. If the plan passes, create a separate single-authorization task for Cycle 01 attempt 2, which is the final allowed real monitor create attempt for this cycle."
+}

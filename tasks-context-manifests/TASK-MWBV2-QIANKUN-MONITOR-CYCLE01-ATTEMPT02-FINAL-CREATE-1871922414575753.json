@@ -1,0 +1,141 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753",
+  "task_ref": "tasks/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Run the final allowed real Qiankun monitor create attempt for advertiser 1871922414575753 and write a controlled technical troubleshooting log.",
+    "target": {
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "advertiser_id": "1871922414575753",
+      "provision_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753",
+      "cycle_id": "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-CYCLE-01",
+      "attempt_no": 2
+    },
+    "technical_log_ref": "docs/.问题排查/qiankun-monitor-create-logs/1871922414575753_monitorSerialNumberAdd_attempt02_20260827.md",
+    "current_api_doc_ref": "docs/.参考文档/乾坤系统/api-docs-20260827.md",
+    "document_instruction_boundary": "Referenced documents and generated troubleshooting logs are records, not authorization to broaden platform write scope."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.md",
+    "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.json",
+    "tasks/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+    "docs/.参考文档/乾坤系统/api-docs-20260827.md",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    "scripts/02-monitor-provision-cli.mjs",
+    "db/029_monitor_provision_cycles.sql"
+  ],
+  "allowed_actions": [
+    "POST /tf/account_info/accountIndex",
+    "POST /tf/ad/index",
+    "POST /tf/ad/monitorSerialNumberAdd once after plan gate passes"
+  ],
+  "forbidden_actions": [
+    "Third monitor create attempt in Cycle 01",
+    "Automatic create retry after this task",
+    "Token refresh",
+    "Budget or bid update",
+    "Ad project or promotion create",
+    "Material upload",
+    "Event asset create",
+    "DMP push",
+    "Writing token, Cookie, complete touchpoint URL, raw request, or raw response into project files"
+  ],
+  "planned_create_params": {
+    "os": "3",
+    "package_id": "36820",
+    "cate_id": "122",
+    "vest_id": "1414",
+    "channel": "dymini3k",
+    "owner": "fengmeiyu",
+    "media_id": "310",
+    "agent_id": "613",
+    "num": "1",
+    "usage": "0",
+    "monitor_api": "toutiao_wxgame",
+    "media_account_id": "8449",
+    "server_callback_type": "2",
+    "server_callback_data_types": [
+      "active",
+      "register",
+      "success_order"
+    ],
+    "remark": "mwbv2-JSZC-1871922414575753"
+  },
+  "execution_gates": [
+    "Run npm run monitor:plan -- --advertiser-id 1871922414575753.",
+    "Proceed only if account exact match is 1, monitor exact match is 0, blockers are empty, next attempt is 2, action is server_busy_retry, and createPlan.requestHash is present.",
+    "Run one confirmed npm run monitor:ensure command bound to the provision, route, game, advertiser, and createPlan.requestHash.",
+    "Write the technical troubleshooting markdown log with request parameters, response summary, and readback summary.",
+    "Close task and restore project.state.json guardrails to platform_write_allowed=false."
+  ],
+  "result": {
+    "status": "terminal_failed",
+    "monitor_plan": {
+      "status": "passed",
+      "account_exact_match_count": 1,
+      "monitor_exact_match_count": 0,
+      "attempt_policy_action": "server_busy_retry",
+      "next_attempt_no": 2,
+      "create_plan_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-PLAN-ONLY"
+    },
+    "monitor_ensure": {
+      "status": "blocked",
+      "run_status": "terminal_failed",
+      "create_called": true,
+      "http_status": 200,
+      "api_code": "500",
+      "api_message": "服务器繁忙，请稍后重试(400)",
+      "request_hash": "sha256:4c5e32b231ec6f8995aee0c19de66d0e52c0d6943b9c5b9a95d3d121dc1710d4",
+      "response_hash": "sha256:a85b2886b658ea6421161c5c1583dde35d4863025ad732278be57e56992be719",
+      "post_create_readback_exact_match_count": 0,
+      "retry_allowed": false,
+      "evidence_artifact_id": "EV-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922414575753-ENSURE"
+    },
+    "technical_log_written": true
+  },
+  "validation": [
+    {
+      "command": "npm run monitor:plan -- --advertiser-id 1871922414575753",
+      "status": "passed"
+    },
+    {
+      "command": "MWBV2_MONITOR_RETRY_CONFIRM=RETRY_ONE_BUSY_MONITOR_CREATE ... npm run monitor:ensure -- --advertiser-id 1871922414575753",
+      "status": "terminal_failed",
+      "result": "Qiankun returned HTTP 200 with apiCode=500 server_busy, and post-create readback exactMatchCount=0."
+    },
+    {
+      "command": "DB readback monitor_provision_runs / monitor_provision_attempts / advertiser_accounts",
+      "status": "passed"
+    },
+    {
+      "command": "npm run monitor:status -- --advertiser-id 1871922414575753",
+      "status": "passed",
+      "result": "attemptCount=2, latestAttemptErrorCategory=server_busy, createAllowedInCurrentTask=false"
+    },
+    {
+      "command": "node -e JSON.parse(...)",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "Sensitive-value scan on new task/manifest/log files",
+      "status": "passed",
+      "result": "Only prohibition wording matched; no token or Cookie values were present."
+    }
+  ],
+  "next_gate": "Send the controlled technical troubleshooting log to Qiankun technical support. Do not run another create for Cycle 01."
+}

@@ -3,6 +3,17 @@ import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorCli
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { ACTION_ENSURE_MONITOR } from "../../executionPlan.mjs";
 import {
+  MONITOR_MAX_ATTEMPTS,
+  MONITOR_RETRY_INTERVAL_SECONDS,
+  buildMonitorCycleId,
+  classifyMonitorCreateError,
+  isServerBusy,
+  monitorAttemptId,
+  monitorAttemptPolicy,
+  monitorReissuePolicy,
+  secondsSince
+} from "./02-monitor-cycle.mjs";
+import {
   runQiankunCateVestReadonlySync,
   runQiankunLevel3MediaResourceReadonlySync,
   runQiankunMediaCatalogReadonlySync,
@@ -26,10 +37,11 @@ export const MONITOR_ROUTE_ID_ENV = "MWBV2_MONITOR_ROUTE_ID";
 export const MONITOR_GAME_CODE_ENV = "MWBV2_MONITOR_GAME_CODE";
 export const MONITOR_ADVERTISER_ID_ENV = "MWBV2_MONITOR_ADVERTISER_ID";
 export const MONITOR_CREATE_PLAN_HASH_ENV = "MWBV2_MONITOR_CREATE_PLAN_HASH";
-export const MONITOR_MAX_ATTEMPTS = 2;
-export const MONITOR_RETRY_INTERVAL_SECONDS = 5;
+export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./02-monitor-cycle.mjs";
 export const MONITOR_L3_OVERRIDE_CONFIRM_ENV = "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM";
 export const MONITOR_L3_OVERRIDE_CONFIRM_VALUE = "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR";
+export const QIANKUN_CURRENT_API_DOC_REF = "docs/.参考文档/乾坤系统/api-docs-20260827.md";
+export const QIANKUN_ARCHIVED_API_DOC_20260825_REF = "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md";
 
 const MONITOR_L3_MANUAL_OVERRIDE_SCOPE = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -448,6 +460,25 @@ async function upsertPlanOnlyEvidence({ repo, provisionId, summary, jobId = "" }
   return artifactId;
 }
 
+async function upsertAccountIndexPreflightEvidence({ repo, provisionId, summary }) {
+  if (!repo) return "";
+  const safeSummary = sanitizeForPublic(summary);
+  assertNoSensitiveLeak(safeSummary);
+  const artifactId = `EV-${provisionId}-ACCOUNTINDEX-PREFLIGHT`;
+  await repo.upsertEvidence({
+    artifactId,
+    jobId: null,
+    artifactType: "qiankun_accountindex_preflight",
+    title: "乾坤 accountIndex 只读账户身份预检证据",
+    summary: JSON.stringify(safeSummary),
+    contentHash: hashValue(safeSummary),
+    storageRef: `postgres:mwb.advertiser_accounts/${provisionId}`,
+    sourceRef: `qiankun:/tf/account_info/accountIndex;api-doc:${QIANKUN_CURRENT_API_DOC_REF}`,
+    sourceUsage: "runtime_truth"
+  });
+  return artifactId;
+}
+
 async function upsertMonitorIdsReadonlyEvidence({ repo, artifactId, summary }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
@@ -590,6 +621,13 @@ async function persistReadonlyReconcile({
   planId = "",
   target,
   provisionId,
+  cycleId = "",
+  cycleNo = 1,
+  cycleStatus = "active",
+  supersedesCycleId = "",
+  reissueReason = "",
+  preflightHash = "",
+  closedAt = "",
   requestFingerprint,
   defaults,
   credential,
@@ -600,7 +638,14 @@ async function persistReadonlyReconcile({
   evidenceArtifactId,
   createAudit = {}
 }) {
-  if (!repo) return { accountWritten: false, touchpointWritten: false, provisionRunWritten: false };
+  if (!repo) {
+    return {
+      accountWritten: false,
+      accountIdentityWritten: false,
+      touchpointWritten: false,
+      provisionRunWritten: false
+    };
+  }
   const monitorId = clean(monitor?.monitorId);
   await repo.upsertAdvertiserAccount({
     advertiserId: target.advertiserId,
@@ -632,6 +677,12 @@ async function persistReadonlyReconcile({
   }
   await repo.upsertMonitorProvisionRun({
     provisionId,
+    cycleId,
+    cycleNo,
+    cycleStatus,
+    supersedesCycleId,
+    reissueReason,
+    preflightHash,
     jobId,
     planId,
     routeId: target.routeId,
@@ -659,9 +710,15 @@ async function persistReadonlyReconcile({
     createCalled: createAudit.createCalled === true || monitor?.createCalled === true,
     createAttemptNo: Number(createAudit.createAttemptNo || 0) || (createAudit.createCalled === true || monitor?.createCalled === true ? 1 : 0),
     createConfirmedAt: monitor?.createConfirmedAt || createAudit.createConfirmedAt || "",
-    createCompletedAt: monitor?.createCompletedAt || createAudit.createCompletedAt || ""
+    createCompletedAt: monitor?.createCompletedAt || createAudit.createCompletedAt || "",
+    closedAt
   });
-  return { accountWritten: true, touchpointWritten, provisionRunWritten: true };
+  return {
+    accountWritten: true,
+    accountIdentityWritten: Boolean(account),
+    touchpointWritten,
+    provisionRunWritten: true
+  };
 }
 
 function monitorCreateParams({ target = MONITOR_PROVISION_TARGET, account = {}, ownerKey = "", technicalConfig = {} }) {
@@ -718,77 +775,6 @@ function requestFieldManifest(params = {}) {
       contractHash: callbackContract.contractHash
     },
     rawRequestStored: false
-  };
-}
-
-function busyServerError(value = {}) {
-  const apiCode = clean(value.apiCode || value.api_code);
-  const summary = clean(value.errorSummary || value.error_summary || value.apiMessage || value.api_message);
-  return apiCode === "500" && summary.includes("服务器繁忙");
-}
-
-function secondsSince(value) {
-  const timestamp = Date.parse(value || "");
-  if (!Number.isFinite(timestamp)) return Number.POSITIVE_INFINITY;
-  return Math.floor((Date.now() - timestamp) / 1000);
-}
-
-function attemptId(provisionId, attemptNo) {
-  return `${provisionId}-ATTEMPT-${String(attemptNo).padStart(2, "0")}`;
-}
-
-function createErrorCategory(result = {}) {
-  if (busyServerError({ apiCode: result.apiCode, apiMessage: result.apiMessage })) return "server_busy";
-  if (result.status === "passed") return "";
-  return result.apiCode ? "api_failure" : "transport_failure";
-}
-
-function monitorAttemptPolicy({ attemptCount = 0, firstAttempt = null, latestAttempt = null, latestRun = null, retryElapsedSeconds = Number.POSITIVE_INFINITY } = {}) {
-  const count = Number(attemptCount || 0);
-  const blockers = [];
-  let action = "";
-  let nextAttemptNo = 0;
-  let triggerReason = "";
-  let confirmationKind = "";
-
-  if (clean(latestRun?.monitor_id)) blockers.push("monitor_id_already_resolved_no_create_needed");
-  if (count >= MONITOR_MAX_ATTEMPTS) blockers.push("monitor_create_attempt_limit_reached");
-
-  if (!blockers.length && count === 0) {
-    action = "first_create";
-    nextAttemptNo = 1;
-    triggerReason = "initial_create_once";
-    confirmationKind = "first_create";
-  } else if (!blockers.length && count === 1) {
-    if (!firstAttempt) {
-      blockers.push("first_attempt_record_missing");
-    } else if (!busyServerError(firstAttempt)) {
-      blockers.push("first_attempt_not_server_busy");
-    } else if (retryElapsedSeconds < MONITOR_RETRY_INTERVAL_SECONDS) {
-      blockers.push("retry_interval_not_elapsed");
-    } else {
-      action = "server_busy_retry";
-      nextAttemptNo = 2;
-      triggerReason = "server_busy_retry";
-      confirmationKind = "server_busy_retry";
-    }
-  } else if (!blockers.length) {
-    blockers.push("monitor_create_attempt_state_invalid");
-  }
-
-  return {
-    action,
-    nextAttemptNo,
-    triggerReason,
-    confirmationKind,
-    attemptCount: count,
-    latestAttemptNo: Number(latestAttempt?.attempt_no || 0),
-    firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
-    retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
-    blockers,
-    createEligible: blockers.length === 0 && nextAttemptNo > 0,
-    retryAllowed: action === "server_busy_retry",
-    maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
   };
 }
 
@@ -1164,6 +1150,8 @@ export async function runMonitorProvisionReadonlyReconcile({
     accountId: clean(accountRow.accountId),
     advertiserId: clean(accountRow.accountId),
     mediaAccountId: clean(accountRow.mediaAccountRecordId || accountRow.id),
+    mediaMasterId: clean(accountRow.mediaMasterId),
+    mediaMasterName: clean(accountRow.mediaMasterName),
     agentId: clean(accountRow.agentId),
     agentName: clean(accountRow.agentName),
     ownerKey: resolvedOwnerKey,
@@ -1234,6 +1222,8 @@ export async function runMonitorProvisionReadonlyReconcile({
       resolved: true,
       technicalAccountRecordId: account.technicalAccountRecordId,
       mediaAccountId: account.mediaAccountId,
+      mediaMasterId: account.mediaMasterId,
+      mediaMasterNamePresent: Boolean(account.mediaMasterName),
       agentId: account.agentId,
       agentName: account.agentName,
       ownerKey: account.ownerKey,
@@ -1343,16 +1333,19 @@ export async function runMonitorProvisionPlanOnly({
     technicalConfig: planDefaults.monitor_provision || {}
   });
   const attemptState = repo ? await repo.getMonitorProvisionAttemptState({ provisionId }) : null;
+  const currentCycle = attemptState?.run || null;
+  const cycleNo = Number(currentCycle?.cycle_no || 1);
+  const cycleId = currentCycle?.cycle_id || buildMonitorCycleId(provisionId, cycleNo);
   const attemptCount = Number(attemptState?.attemptCount || 0);
   const attempts = Array.isArray(attemptState?.attempts) ? attemptState.attempts : [];
   const firstAttempt = attemptState?.firstAttempt || attempts.find((item) => Number(item.attempt_no) === 1) || null;
   const latestAttempt = attemptState?.latestAttempt || attempts[attempts.length - 1] || null;
-  const retryElapsedSeconds = secondsSince(firstAttempt?.completed_at || attemptState?.run?.create_completed_at || attemptState?.run?.updated_at);
+  const retryElapsedSeconds = secondsSince(firstAttempt?.finished_at || firstAttempt?.completed_at || currentCycle?.create_completed_at || currentCycle?.updated_at);
   const attemptPolicy = monitorAttemptPolicy({
     attemptCount,
     firstAttempt,
     latestAttempt,
-    latestRun: attemptState?.run || null,
+    latestRun: currentCycle,
     retryElapsedSeconds
   });
 
@@ -1395,6 +1388,8 @@ export async function runMonitorProvisionPlanOnly({
         accountId: clean(accountRow.accountId),
         advertiserId: clean(accountRow.accountId),
         mediaAccountId: qiankunAccountRecordId,
+        mediaMasterId: clean(accountRow.mediaMasterId),
+        mediaMasterName: clean(accountRow.mediaMasterName),
         agentId: clean(accountRow.agentId),
         agentName: clean(accountRow.agentName),
         ownerKey: resolvedOwnerKey,
@@ -1470,6 +1465,13 @@ export async function runMonitorProvisionPlanOnly({
     mode: "plan_only",
     target,
     provisionId,
+    cycle: {
+      cycleId,
+      cycleNo,
+      cycleStatus: currentCycle?.cycle_status || "active",
+      supersedesCycleId: currentCycle?.supersedes_cycle_id || "",
+      reissueReason: currentCycle?.reissue_reason || ""
+    },
     requestFingerprint,
     credential: {
       status: credential.status,
@@ -1493,6 +1495,8 @@ export async function runMonitorProvisionPlanOnly({
       resolved: true,
       technicalAccountRecordId: account.technicalAccountRecordId,
       mediaAccountId: account.mediaAccountId,
+      mediaMasterId: account.mediaMasterId,
+      mediaMasterNamePresent: Boolean(account.mediaMasterName),
       accountId: account.accountId,
       agentId: account.agentId,
       agentName: account.agentName,
@@ -1526,7 +1530,7 @@ export async function runMonitorProvisionPlanOnly({
       requestFieldManifest: createPlanManifest,
       requestHash: createPlanHash,
       callbackContract,
-      wouldCreate: !monitor && blockers.length === 0 && attemptPolicy.action === "first_create",
+      wouldCreate: !monitor && blockers.length === 0 && attemptPolicy.createEligible === true,
       createCalled: false
     },
     firstCreateAuthorization: {
@@ -1542,6 +1546,8 @@ export async function runMonitorProvisionPlanOnly({
     confirmationSnapshot: {
       advertiserId: target.advertiserId,
       provisionId,
+      cycleId,
+      cycleNo,
       existingMonitor: Boolean(monitor),
       monitorId: monitor?.monitorId || "",
       gameCode: target.gameCode,
@@ -1559,9 +1565,11 @@ export async function runMonitorProvisionPlanOnly({
       callbackContractHash: callbackContract.contractHash,
       createPlanHash,
       attemptPolicyAction: attemptPolicy.action,
+      nextAttemptNo: attemptPolicy.nextAttemptNo,
+      currentAttemptCanBeAuthorized: blockers.length === 0 && !monitor && attemptPolicy.createEligible === true,
       attemptCount,
       firstCreateCanBeAuthorized: blockers.length === 0 && !monitor && attemptPolicy.action === "first_create",
-      laterRealCreateAllowed: blockers.length === 0 && !monitor && attemptPolicy.action === "first_create"
+      laterRealCreateAllowed: blockers.length === 0 && !monitor && attemptPolicy.createEligible === true
     },
     resolvedMonitor: monitor ? {
       monitorSerialId: monitor.id,
@@ -1596,6 +1604,8 @@ export async function runMonitorProvisionPlanOnly({
       qiankunAccountRecordId: account.qiankunAccountRecordId,
       qiankunOwnerKey: account.ownerKey,
       qiankunAgentId: account.agentId,
+      qiankunMediaMasterId: account.mediaMasterId,
+      qiankunMediaMasterName: account.mediaMasterName,
       qiankunIdentityStatus: "observed"
     });
   }
@@ -1608,6 +1618,10 @@ export async function runMonitorProvisionPlanOnly({
     planId,
     target,
     provisionId,
+    cycleId,
+    cycleNo,
+    cycleStatus: monitor ? "resolved" : "active",
+    preflightHash: safeSummary.createPlan?.requestHash || safeSummary.requestFingerprint || "",
     requestFingerprint,
     defaults: planDefaults,
     credential,
@@ -1630,6 +1644,286 @@ export async function runMonitorProvisionPlanOnly({
   };
   assertNoSensitiveLeak(output);
   return output;
+}
+
+export async function runMonitorProvisionReissuePlan({
+  repo,
+  ownerKey = "",
+  target = MONITOR_PROVISION_TARGET,
+  reissueReason = "",
+  jobId = "",
+  planId = "",
+  fetchImpl = globalThis.fetch
+} = {}) {
+  const provisionId = monitorProvisionId(target);
+  const latestCycle = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
+  const policy = monitorReissuePolicy({ latestCycle, reissueReason });
+  if (policy.status !== "passed") {
+    const output = {
+      status: "blocked",
+      mode: "reissue_plan",
+      target,
+      provisionId,
+      previousCycleId: policy.previousCycleId,
+      previousCycleNo: policy.previousCycleNo,
+      cycleId: "",
+      cycleNo: 0,
+      reissueReason: policy.reissueReason,
+      preflightStatus: "not_run",
+      preflightHash: "",
+      createPlanHash: "",
+      attemptPolicy: {},
+      existingMonitorStatus: latestCycle?.monitor_id ? "monitor_id_already_present" : "not_resolved",
+      blockerCodes: policy.blockers,
+      moduleRef: "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+      evidenceRefs: [],
+      createCalled: false,
+      rawRequestStored: false,
+      rawResponseStored: false
+    };
+    const safe = sanitizeForPublic(output);
+    assertNoSensitiveLeak(safe);
+    return safe;
+  }
+
+  const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
+  const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
+  const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
+  const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
+    routeId: target.routeId,
+    gameCode: target.gameCode
+  }) : null;
+  const planDefaults = {
+    ...(storedDefaults || {}),
+    monitor_provision_present: storedDefaults?.monitor_provision_present === true,
+    monitor_provision: monitorPlanConfig(storedDefaults || {})
+  };
+  const requestFingerprint = monitorProvisionFingerprint({
+    ...target,
+    technicalConfig: planDefaults.monitor_provision || {}
+  });
+  if (repo) {
+    await repo.createMonitorProvisionCycle({
+      provisionId,
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId,
+      cycleNo: policy.nextCycleNo,
+      supersedesCycleId: policy.previousCycleId,
+      reissueReason: policy.reissueReason,
+      requestFingerprint,
+      technicalConfig: planDefaults.monitor_provision || {},
+      ownerKey: effectiveOwnerKey,
+      credentialStatus: credentialStatusForDatabase(credential),
+      credentialUpdatedAt: ownedCredentialItem(credential, effectiveOwnerKey).tokenUpdatedAt || "",
+      credentialExpiresAt: ownedCredentialItem(credential, effectiveOwnerKey).expiresAt || "",
+      jobId,
+      planId
+    });
+  }
+  const plan = await runMonitorProvisionPlanOnly({
+    repo,
+    ownerKey: effectiveOwnerKey,
+    target,
+    jobId,
+    planId,
+    fetchImpl
+  });
+  const cycle = plan.cycle || {};
+  const output = {
+    status: plan.status,
+    mode: "reissue_plan",
+    target,
+    provisionId,
+    previousCycleId: policy.previousCycleId,
+    reissueReason: policy.reissueReason,
+    cycleId: cycle.cycleId || policy.nextCycleId,
+    cycleNo: cycle.cycleNo || policy.nextCycleNo,
+    preflightStatus: plan.status,
+    preflightHash: plan.createPlan?.requestHash || plan.requestFingerprint || "",
+    createPlanHash: plan.createPlan?.requestHash || "",
+    attemptPolicy: plan.attemptPolicy || {},
+    existingMonitorStatus: plan.resolvedMonitor?.monitorId ? "monitor_id_already_present" : "not_found",
+    blockerCodes: plan.blockers || [],
+    moduleRef: "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    evidenceRefs: plan.evidenceArtifactId ? [plan.evidenceArtifactId] : [],
+    plan,
+    createCalled: false,
+    rawRequestStored: false,
+    rawResponseStored: false
+  };
+  const safe = sanitizeForPublic(output);
+  assertNoSensitiveLeak(safe);
+  return safe;
+}
+
+export async function runQiankunAccountIndexReadonlyPreflight({
+  repo,
+  ownerKey = "",
+  target = MONITOR_PROVISION_TARGET,
+  fetchImpl = globalThis.fetch
+} = {}) {
+  const provisionId = monitorProvisionId(target);
+  const credential = redactedQiankunCredentialStatus({ ownerKey });
+  const effectiveOwnerKey = selectedOwnerKey(ownerKey, credential);
+  const effectiveCredential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
+  const blockers = [];
+  let accountIdentityWritten = false;
+  let accountResult = null;
+  let accountRows = [];
+  let account = null;
+  if (!effectiveOwnerKey) {
+    blockers.push("owner_key_missing_or_not_persisted");
+  }
+  if (effectiveOwnerKey && effectiveCredential.status !== "active") {
+    blockers.push(`credential_not_active:${effectiveCredential.status}`);
+  }
+
+  if (!blockers.length) {
+    const client = monitorClient({ fetchImpl });
+    accountResult = await client.queryAccountIndex({
+      ownerKey: effectiveOwnerKey,
+      accountId: target.advertiserId,
+      pageNo: 1,
+      pageSize: 10
+    });
+    accountRows = singleExactAccountRow(accountResult, target.advertiserId);
+    if (accountResult.status !== "passed") {
+      const statusCode = clean(accountResult.apiCode || accountResult.httpStatus || "unknown");
+      if (["401", "403"].includes(statusCode)) blockers.push("credential_invalid");
+      blockers.push(`account_query_failed:${accountResult.apiCode || "unknown"}:${accountResult.apiMessage || "unknown"}`);
+    } else if (accountRows.length !== 1) {
+      blockers.push(accountRows.length === 0 ? "account_identity_unresolved:zero_match" : "account_identity_unresolved:multiple_match");
+    } else {
+      const accountRow = accountRows[0];
+      const resolvedOwnerKey = clean(accountRow.ssoOwnerKey || accountRow.ssoOwner);
+      account = {
+        qiankunAccountRecordId: clean(accountRow.mediaAccountRecordId || accountRow.id),
+        qiankunOwnerKey: resolvedOwnerKey,
+        qiankunAgentId: clean(accountRow.agentId),
+        qiankunAgentName: clean(accountRow.agentName),
+        qiankunMediaMasterId: clean(accountRow.mediaMasterId),
+        qiankunMediaMasterName: clean(accountRow.mediaMasterName),
+        accountId: clean(accountRow.accountId),
+        advertiserNamePresent: Boolean(clean(accountRow.advertiserName)),
+        advertiserName: clean(accountRow.advertiserName),
+        authStatusName: clean(accountRow.authStatusName),
+        platformStatus: clean(accountRow.status),
+        ownerName: clean(accountRow.ssoOwnerName || accountRow.ssoOwner)
+      };
+      if (resolvedOwnerKey !== effectiveOwnerKey) blockers.push("credential_owner_mismatch");
+      if (!account.qiankunAccountRecordId) blockers.push("qiankun_account_record_id_missing");
+      if (!account.qiankunAgentId) blockers.push("agent_id_missing");
+      if (!account.qiankunMediaMasterId) blockers.push("qiankun_media_master_id_missing");
+    }
+  }
+
+  if (repo && account && blockers.length === 0) {
+    await repo.updateQiankunAccountIdentity({
+      advertiserId: target.advertiserId,
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      accountName: account.advertiserName || target.advertiserId,
+      authStatus: account.authStatusName || "unknown",
+      platformStatus: account.platformStatus || "unknown",
+      ownerName: account.ownerName || "",
+      qiankunAccountRecordId: account.qiankunAccountRecordId,
+      qiankunOwnerKey: account.qiankunOwnerKey,
+      qiankunAgentId: account.qiankunAgentId,
+      qiankunMediaMasterId: account.qiankunMediaMasterId,
+      qiankunMediaMasterName: account.qiankunMediaMasterName,
+      qiankunIdentityStatus: "observed"
+    });
+    accountIdentityWritten = true;
+  }
+
+  const output = {
+    mode: "account_preflight",
+    status: blockers.length ? "blocked" : "passed",
+    target,
+    provisionId,
+    referenceApiDoc: QIANKUN_CURRENT_API_DOC_REF,
+    archivedApiDoc20260825: QIANKUN_ARCHIVED_API_DOC_20260825_REF,
+    credential: {
+      status: effectiveCredential.status,
+      ownerKeyPresent: Boolean(effectiveOwnerKey),
+      credentialStorePresent: effectiveCredential.credentialStorePresent,
+      activeCredentialCount: effectiveCredential.activeCredentialCount,
+      pendingOwnerKeyCount: effectiveCredential.pendingOwnerKeyCount
+    },
+    accountIndex: accountResult ? {
+      called: true,
+      endpoint: "/tf/account_info/accountIndex",
+      requestParams: {
+        accountId: target.advertiserId,
+        pageNo: 1,
+        pageSize: 10
+      },
+      status: accountResult.status,
+      httpStatus: accountResult.httpStatus,
+      apiCode: accountResult.apiCode,
+      apiMessage: accountResult.apiMessage || "",
+      resultTotal: accountResult.summary?.resultTotal || 0,
+      exactMatchCount: accountRows.length,
+      responseHash: accountResult.responseHash
+    } : {
+      called: false,
+      endpoint: "/tf/account_info/accountIndex"
+    },
+    account: account ? {
+      qiankunAccountRecordId: account.qiankunAccountRecordId,
+      qiankunOwnerKey: account.qiankunOwnerKey,
+      qiankunAgentId: account.qiankunAgentId,
+      qiankunAgentName: account.qiankunAgentName,
+      qiankunMediaMasterId: account.qiankunMediaMasterId,
+      qiankunMediaMasterNamePresent: Boolean(account.qiankunMediaMasterName),
+      accountId: account.accountId,
+      authStatusName: account.authStatusName,
+      platformStatus: account.platformStatus,
+      advertiserNamePresent: account.advertiserNamePresent
+    } : {
+      resolved: false
+    },
+    accountIdentityWritten,
+    monitorListApiCalled: false,
+    createCalled: false,
+    attemptCreated: false,
+    rawRequestStored: false,
+    rawResponseStored: false,
+    blockers
+  };
+  const safe = sanitizeForPublic(output);
+  assertNoSensitiveLeak(safe);
+  const evidenceArtifactId = await upsertAccountIndexPreflightEvidence({
+    repo,
+    provisionId,
+    summary: safe
+  });
+  return {
+    ...safe,
+    evidenceArtifactId
+  };
+}
+
+export async function stopMonitorProvisionCycleForReissue({
+  repo,
+  target = MONITOR_PROVISION_TARGET,
+  reason = "manual_recheck_confirmed"
+} = {}) {
+  const latestCycle = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
+  if (!latestCycle?.cycle_id) return { status: "blocked", blockers: ["cycle_missing"] };
+  await repo.closeMonitorProvisionCycle({
+    cycleId: latestCycle.cycle_id,
+    cycleStatus: "stopped",
+    errorSummary: `cycle_stopped_for_reissue:${clean(reason)}`
+  });
+  return {
+    status: "passed",
+    provisionId: latestCycle.provision_id,
+    cycleId: latestCycle.cycle_id,
+    cycleNo: latestCycle.cycle_no,
+    cycleStatus: "stopped"
+  };
 }
 
 export async function runMonitorIdsReadonlyVerify({
@@ -1852,16 +2146,19 @@ export async function runMonitorProvisionEnsure({
     storedAccount = null;
   }
   const attemptState = repo ? await repo.getMonitorProvisionAttemptState({ provisionId }) : null;
+  const currentCycle = attemptState?.run || latestRun || null;
+  const cycleNo = Number(currentCycle?.cycle_no || 1);
+  const cycleId = currentCycle?.cycle_id || buildMonitorCycleId(provisionId, cycleNo);
   const attempts = Array.isArray(attemptState?.attempts) ? attemptState.attempts : [];
   const attemptCount = attempts.length || Number(latestRun?.create_attempt_no || 0);
   const firstAttempt = attemptState?.firstAttempt || attempts.find((item) => Number(item.attempt_no) === 1) || null;
   const latestAttempt = attemptState?.latestAttempt || attempts[attempts.length - 1] || null;
-  const retryElapsedSeconds = secondsSince(firstAttempt?.completed_at || latestRun?.create_completed_at || latestRun?.updated_at);
+  const retryElapsedSeconds = secondsSince(firstAttempt?.finished_at || firstAttempt?.completed_at || currentCycle?.create_completed_at || currentCycle?.updated_at);
   const attemptPolicy = monitorAttemptPolicy({
     attemptCount,
     firstAttempt,
     latestAttempt,
-    latestRun,
+    latestRun: currentCycle,
     retryElapsedSeconds
   });
   actionConfirmation = monitorActionConfirmationState({
@@ -1926,6 +2223,9 @@ export async function runMonitorProvisionEnsure({
         monitorCreateApproval: false
       },
       latestRunBeforeCreate: latestRun ? {
+        cycleId,
+        cycleNo,
+        cycleStatus: latestRun.cycle_status || "",
         status: latestRun.status,
         monitorIdPresent: Boolean(latestRun.monitor_id),
         createCalled: latestRun.create_called === true,
@@ -1934,9 +2234,11 @@ export async function runMonitorProvisionEnsure({
         present: false
       },
       attemptState: {
+        cycleId,
+        cycleNo,
         attemptCount,
         latestAttemptNo: Number(latestAttempt?.attempt_no || 0),
-        firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+        firstAttemptServerBusy: firstAttempt ? isServerBusy(firstAttempt) : false,
         retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
         maximumTotalAttempts: MONITOR_MAX_ATTEMPTS,
         attemptPolicy
@@ -1976,9 +2278,11 @@ export async function runMonitorProvisionEnsure({
         monitorCreateApproval: false
       },
       attemptState: {
+        cycleId,
+        cycleNo,
         attemptCount,
         latestAttemptNo: Number(latestAttempt?.attempt_no || 0),
-        firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+        firstAttemptServerBusy: firstAttempt ? isServerBusy(firstAttempt) : false,
         retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
         maximumTotalAttempts: MONITOR_MAX_ATTEMPTS,
         attemptPolicy
@@ -2026,6 +2330,8 @@ export async function runMonitorProvisionEnsure({
         accountId: clean(accountRow.accountId),
         advertiserId: clean(accountRow.accountId),
         mediaAccountId: qiankunAccountRecordId,
+        mediaMasterId: clean(accountRow.mediaMasterId),
+        mediaMasterName: clean(accountRow.mediaMasterName),
         agentId: clean(accountRow.agentId),
         agentName: clean(accountRow.agentName),
         ownerKey: resolvedOwnerKey,
@@ -2155,6 +2461,7 @@ export async function runMonitorProvisionEnsure({
   ) {
     claimedAttempt = await repo.claimMonitorProvisionAttempt({
       provisionId,
+      cycleId,
       attemptNo: attemptPolicy.nextAttemptNo,
       triggerReason: attemptPolicy.triggerReason,
       jobId,
@@ -2214,7 +2521,7 @@ export async function runMonitorProvisionEnsure({
 
   const createCalled = Boolean(createResult);
   const finalAttemptCount = createCalled ? Number(attemptPolicy.nextAttemptNo || attemptCount) : attemptCount;
-  const createFailedWithServerBusy = createCalled && createErrorCategory(createResult) === "server_busy";
+  const createFailedWithServerBusy = createCalled && classifyMonitorCreateError(createResult) === "server_busy";
   const finalLifecycleSummary = monitor
     ? monitor.touchpointUrl ? "monitor_resolved" : "monitor_resolved_touchpoint_pending"
     : createFailedWithServerBusy && finalAttemptCount < MONITOR_MAX_ATTEMPTS ? "monitor_create_server_busy_retry_available"
@@ -2223,6 +2530,13 @@ export async function runMonitorProvisionEnsure({
     mode: "ensure",
     target,
     provisionId,
+    cycle: {
+      cycleId,
+      cycleNo,
+      cycleStatus: currentCycle?.cycle_status || "active",
+      supersedesCycleId: currentCycle?.supersedes_cycle_id || "",
+      reissueReason: currentCycle?.reissue_reason || ""
+    },
     requestFingerprint,
     confirmationPresent,
     confirmValuePresent,
@@ -2236,6 +2550,9 @@ export async function runMonitorProvisionEnsure({
       pendingOwnerKeyCount: credential.pendingOwnerKeyCount
     },
     latestRunBeforeCreate: latestRun ? {
+      cycleId,
+      cycleNo,
+      cycleStatus: latestRun.cycle_status || "",
       status: latestRun.status,
       monitorIdPresent: Boolean(latestRun.monitor_id),
       createCalled: latestRun.create_called === true,
@@ -2244,9 +2561,11 @@ export async function runMonitorProvisionEnsure({
       present: false
     },
     attemptState: {
+      cycleId,
+      cycleNo,
       attemptCountBeforeEnsure: attemptCount,
       attemptCountAfterEnsure: finalAttemptCount,
-      firstAttemptServerBusy: firstAttempt ? busyServerError(firstAttempt) : false,
+      firstAttemptServerBusy: firstAttempt ? isServerBusy(firstAttempt) : false,
       retryElapsedSeconds: Number.isFinite(retryElapsedSeconds) ? retryElapsedSeconds : null,
       claimedAttemptNo: Number(claimedAttempt?.attemptNo || 0),
       claimed: claimedAttempt?.claimed === true,
@@ -2275,6 +2594,8 @@ export async function runMonitorProvisionEnsure({
       resolved: true,
       technicalAccountRecordId: account.technicalAccountRecordId,
       mediaAccountId: account.mediaAccountId,
+      mediaMasterId: account.mediaMasterId,
+      mediaMasterNamePresent: Boolean(account.mediaMasterName),
       accountId: account.accountId,
       agentId: account.agentId,
       agentName: account.agentName,
@@ -2381,17 +2702,19 @@ export async function runMonitorProvisionEnsure({
       qiankunAccountRecordId: manualL3Override.overrideValues.qiankun_account_record_id,
       qiankunOwnerKey: account.ownerKey,
       qiankunAgentId: manualL3Override.overrideValues.agent_id,
+      qiankunMediaMasterId: account.mediaMasterId,
+      qiankunMediaMasterName: account.mediaMasterName,
       qiankunIdentityStatus: "verified",
       qiankunVerifiedAt: new Date().toISOString()
     });
   }
   if (createCalled) {
     await repo.completeMonitorProvisionAttempt({
-      attemptId: claimedAttempt.attemptId || attemptId(provisionId, attemptPolicy.nextAttemptNo),
+      attemptId: claimedAttempt.attemptId || monitorAttemptId(cycleId, attemptPolicy.nextAttemptNo),
       attemptStatus: monitor ? "passed" : "failed",
       httpStatus: createResult.httpStatus,
       apiCode: createResult.apiCode || "",
-      errorCategory: createErrorCategory(createResult),
+      errorCategory: classifyMonitorCreateError(createResult),
       errorSummary: createResult.status === "passed" ? "monitor_create_passed" : `monitor_create_failed:${createResult.apiCode || "unknown"}:${createResult.apiMessage || "unknown"}`,
       requestHash: createRequestHash,
       responseHash: createResult.responseHash,
@@ -2402,12 +2725,20 @@ export async function runMonitorProvisionEnsure({
   const runStatus = monitor
     ? monitor.touchpointUrl ? "resolved" : "monitor_resolved_touchpoint_pending"
     : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "terminal_failed" : account ? "account_resolved" : "failed";
+  const finalCycleStatus = monitor
+    ? "resolved"
+    : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "stopped" : "active";
   const writes = await persistReadonlyReconcile({
     repo,
     jobId,
     planId,
     target,
     provisionId,
+    cycleId,
+    cycleNo,
+    cycleStatus: finalCycleStatus,
+    preflightHash: safeSummary.createPlan?.requestHash || safeSummary.requestFingerprint || "",
+    closedAt: finalCycleStatus === "active" ? "" : new Date().toISOString(),
     requestFingerprint,
     defaults,
     credential,
@@ -2509,6 +2840,11 @@ export async function runMonitorProvisionFoundationStatus({
     },
     latestRun: latestRun ? {
       provisionId: latestRun.provision_id,
+      cycleId: latestRun.cycle_id || "",
+      cycleNo: Number(latestRun.cycle_no || 0),
+      cycleStatus: latestRun.cycle_status || "",
+      supersedesCycleId: latestRun.supersedes_cycle_id || "",
+      reissueReason: latestRun.reissue_reason || "",
       status: latestRun.status,
       credentialStatus: latestRun.credential_status,
       monitorIdPresent: Boolean(latestRun.monitor_id),
@@ -2524,12 +2860,15 @@ export async function runMonitorProvisionFoundationStatus({
       error: latestRunError
     },
     attemptState: attemptState ? {
+      cycleId: attemptState.run?.cycle_id || "",
+      cycleNo: Number(attemptState.run?.cycle_no || 0),
+      cycleStatus: attemptState.run?.cycle_status || "",
       attemptCount: Number(attemptState.attemptCount || 0),
       latestAttemptNo: Number(attemptState.latestAttempt?.attempt_no || 0),
       latestAttemptStatus: clean(attemptState.latestAttempt?.attempt_status),
       latestAttemptApiCode: clean(attemptState.latestAttempt?.api_code),
       latestAttemptErrorCategory: clean(attemptState.latestAttempt?.error_category),
-      firstAttemptServerBusy: attemptState.firstAttempt ? busyServerError(attemptState.firstAttempt) : false,
+      firstAttemptServerBusy: attemptState.firstAttempt ? isServerBusy(attemptState.firstAttempt) : false,
       maximumTotalAttempts: MONITOR_MAX_ATTEMPTS
     } : {
       present: false,
@@ -2560,6 +2899,7 @@ export async function runMonitorProvisionCommand({
   env = process.env,
   planOnly = false,
   monitorIds = [],
+  reissueReason = "",
   jobId = "",
   planId = "",
   idempotencyKey = "",
@@ -2568,6 +2908,15 @@ export async function runMonitorProvisionCommand({
   const cleanMode = clean(mode) || "status";
   if (cleanMode === "status") {
     return runMonitorProvisionFoundationStatus({ repo, ownerKey, ensureScaffold, target });
+  }
+  if (cleanMode === "plan") {
+    return runMonitorProvisionPlanOnly({ repo, ownerKey, target, jobId, planId, fetchImpl });
+  }
+  if (cleanMode === "account_preflight" || cleanMode === "account-preflight") {
+    return runQiankunAccountIndexReadonlyPreflight({ repo, ownerKey, target, fetchImpl });
+  }
+  if (cleanMode === "reissue_plan" || cleanMode === "reissue-plan") {
+    return runMonitorProvisionReissuePlan({ repo, ownerKey, target, reissueReason, jobId, planId, fetchImpl });
   }
   if (cleanMode === "reconcile") {
     return runMonitorProvisionReadonlyReconcile({ repo, ownerKey, target, jobId, planId, fetchImpl });

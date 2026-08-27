@@ -25,7 +25,7 @@ confirm_variable: MWBV2_MONITOR_CREATE_CONFIRM=CREATE_ONE_MONITOR_SERIAL
 
 ## 范围
 
-- 创建请求按 `api-docs-20260825.md` 使用 `X-Passport-Token` 与表单 POST。
+- 创建请求当时按历史 `api-docs-20260825.md` 使用表单 POST；当前乾坤系统接口参考已切换为 `docs/.参考文档/乾坤系统/api-docs-20260827.md`。
 - 创建接口即使返回空 `data`，也必须立即用 `/tf/ad/index` 回查。
 - 回查必须唯一命中 `monitor_id`。
 - 创建、多条歧义、无结果、URL 缺失都必须脱敏入证据并阻断后续节点。

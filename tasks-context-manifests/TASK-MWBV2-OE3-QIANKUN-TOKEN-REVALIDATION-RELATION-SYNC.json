@@ -13,7 +13,7 @@
     "advertiser_id": "1871922346964041",
     "os": "3",
     "previous_task_ref": "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
-    "api_contract_ref": "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "api_contract_ref": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md",
     "observed_package_chain": {
       "cate_id": "122",
       "vest_id": "1414",
@@ -27,7 +27,7 @@
     "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.md",
     "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.json",
     "tasks/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.md",
-    "docs/.参考文档/乾坤系统/api-docs-20260825.md",
+    "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md",
     "src/platforms/qiankunMonitorClient.mjs",
     "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs",
     "src/repositories/postgresRepository.mjs",

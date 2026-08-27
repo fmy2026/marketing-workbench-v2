@@ -17,7 +17,7 @@
 官方接口合同参考：
 
 ```text
-docs/.参考文档/乾坤系统/api-docs-20260825.md
+docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md
 POST /tf/ad/changePackageId
 package_id: string
 host: 当前域名，用于拼接下载地址

@@ -619,42 +619,53 @@ export class PostgresRepository {
       WHERE run.route_id = ${sqlLiteral(routeId)}
         AND run.game_code = ${sqlLiteral(gameCode)}
         AND run.advertiser_id = ${sqlLiteral(advertiserId)}
-      ORDER BY run.updated_at DESC, run.created_at DESC
+      ORDER BY run.cycle_no DESC, run.updated_at DESC, run.created_at DESC
       LIMIT 1;
     `, this.database);
   }
 
-  async getMonitorProvisionAttemptState({ provisionId }) {
+  async getMonitorProvisionAttemptState({ provisionId, cycleId = "" }) {
     assertId("provision_id", provisionId);
+    if (cycleId) assertId("cycle_id", cycleId);
     return queryJson(`
+      WITH selected_run AS (
+        SELECT *
+        FROM mwb.monitor_provision_runs r
+        WHERE r.provision_id = ${sqlLiteral(provisionId)}
+          AND (${cycleId ? `r.cycle_id = ${sqlLiteral(cycleId)}` : "true"})
+        ORDER BY
+          CASE WHEN r.cycle_status = 'active' THEN 0 ELSE 1 END,
+          r.cycle_no DESC,
+          r.updated_at DESC,
+          r.created_at DESC
+        LIMIT 1
+      )
       SELECT jsonb_build_object(
         'run', (
           SELECT to_jsonb(r)
-          FROM mwb.monitor_provision_runs r
-          WHERE r.provision_id = ${sqlLiteral(provisionId)}
-          LIMIT 1
+          FROM selected_run r
         ),
         'attempts', coalesce((
           SELECT jsonb_agg(to_jsonb(a) ORDER BY a.attempt_no)
           FROM mwb.monitor_provision_attempts a
-          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+          WHERE a.cycle_id = (SELECT cycle_id FROM selected_run)
         ), '[]'::jsonb),
         'attemptCount', (
           SELECT count(*)
           FROM mwb.monitor_provision_attempts a
-          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+          WHERE a.cycle_id = (SELECT cycle_id FROM selected_run)
         ),
         'latestAttempt', (
           SELECT to_jsonb(a)
           FROM mwb.monitor_provision_attempts a
-          WHERE a.provision_id = ${sqlLiteral(provisionId)}
-          ORDER BY a.attempt_no DESC, coalesce(a.completed_at, a.started_at, a.created_at) DESC
+          WHERE a.cycle_id = (SELECT cycle_id FROM selected_run)
+          ORDER BY a.attempt_no DESC, coalesce(a.finished_at, a.completed_at, a.started_at, a.created_at) DESC
           LIMIT 1
         ),
         'firstAttempt', (
           SELECT to_jsonb(a)
           FROM mwb.monitor_provision_attempts a
-          WHERE a.provision_id = ${sqlLiteral(provisionId)}
+          WHERE a.cycle_id = (SELECT cycle_id FROM selected_run)
             AND a.attempt_no = 1
           LIMIT 1
         )
@@ -664,6 +675,7 @@ export class PostgresRepository {
 
   async claimMonitorProvisionAttempt({
     provisionId,
+    cycleId = "",
     attemptNo,
     triggerReason,
     scheduledAt = "",
@@ -673,25 +685,34 @@ export class PostgresRepository {
     idempotencyKey = ""
   }) {
     assertId("provision_id", provisionId);
+    if (cycleId) assertId("cycle_id", cycleId);
     const numericAttemptNo = Number(attemptNo);
     if (![1, 2].includes(numericAttemptNo)) throw new Error("invalid_attempt_no");
     if (jobId) assertId("job_id", jobId);
     if (planId) assertId("plan_id", planId);
-    const id = `${provisionId}-ATTEMPT-${String(numericAttemptNo).padStart(2, "0")}`;
+    const id = `${cycleId || provisionId}-ATTEMPT-${String(numericAttemptNo).padStart(2, "0")}`;
     const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
     return queryJson(`
       WITH scope_lock AS (
         SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(provisionId)}, 0)) AS locked
       ),
       current_attempts AS (
-        SELECT count(*)::integer AS attempt_count
-        FROM mwb.monitor_provision_attempts
-        WHERE provision_id = ${sqlLiteral(provisionId)}
+        SELECT r.cycle_id, count(a.*)::integer AS attempt_count
+        FROM mwb.monitor_provision_runs r
+        LEFT JOIN mwb.monitor_provision_attempts a
+          ON a.cycle_id = r.cycle_id
+        WHERE r.provision_id = ${sqlLiteral(provisionId)}
+          AND r.cycle_status = 'active'
+          AND (${cycleId ? `r.cycle_id = ${sqlLiteral(cycleId)}` : "true"})
+        GROUP BY r.cycle_id
+        ORDER BY r.cycle_id DESC
+        LIMIT 1
       ),
       claimed AS (
         INSERT INTO mwb.monitor_provision_attempts (
           attempt_id,
           provision_id,
+          cycle_id,
           job_id,
           plan_id,
           attempt_no,
@@ -705,6 +726,7 @@ export class PostgresRepository {
         SELECT
           ${sqlLiteral(id)},
           ${sqlLiteral(provisionId)},
+          current_attempts.cycle_id,
           ${jobId ? sqlLiteral(jobId) : "NULL"},
           ${planId ? sqlLiteral(planId) : "NULL"},
           ${numericAttemptNo},
@@ -723,7 +745,8 @@ export class PostgresRepository {
         'attemptId', ${sqlLiteral(id)},
         'claimed', EXISTS (SELECT 1 FROM claimed),
         'attemptNo', ${numericAttemptNo},
-        'attemptCountBeforeClaim', (SELECT attempt_count FROM current_attempts)
+        'cycleId', (SELECT cycle_id FROM current_attempts),
+        'attemptCountBeforeClaim', coalesce((SELECT attempt_count FROM current_attempts), 0)
       )::text;
     `, this.database);
   }
@@ -742,7 +765,8 @@ export class PostgresRepository {
           request_hash = ${attempt.requestHash ? sqlLiteral(attempt.requestHash) : "NULL"},
           response_hash = ${attempt.responseHash ? sqlLiteral(attempt.responseHash) : "NULL"},
           evidence_artifact_id = ${attempt.evidenceArtifactId ? sqlLiteral(attempt.evidenceArtifactId) : "NULL"},
-          completed_at = ${timestampOrNow(attempt.completedAt)}
+          completed_at = ${timestampOrNow(attempt.completedAt)},
+          finished_at = ${timestampOrNow(attempt.completedAt)}
       WHERE attempt_id = ${sqlLiteral(attempt.attemptId)};
     `, this.database);
   }
@@ -759,10 +783,19 @@ export class PostgresRepository {
     if (run.jobId) assertId("job_id", run.jobId);
     if (run.planId) assertId("plan_id", run.planId);
     const timestampOrNull = (value) => value ? `${sqlLiteral(value)}::timestamptz` : "NULL";
+    const cycleNo = Number(run.cycleNo || 1);
+    const cycleId = run.cycleId || `${run.provisionId}-CYCLE-${String(cycleNo).padStart(2, "0")}`;
+    const cycleStatus = assertId("cycle_status", run.cycleStatus || (run.monitorId ? "resolved" : "active"));
 
     await runPsql(`
       INSERT INTO mwb.monitor_provision_runs (
+        cycle_id,
         provision_id,
+        cycle_no,
+        cycle_status,
+        supersedes_cycle_id,
+        reissue_reason,
+        preflight_hash,
         job_id,
         plan_id,
         route_id,
@@ -791,10 +824,18 @@ export class PostgresRepository {
         create_attempt_no,
         create_confirmed_at,
         create_completed_at,
+        opened_at,
+        closed_at,
         created_at,
         updated_at
       ) VALUES (
+        ${sqlLiteral(cycleId)},
         ${sqlLiteral(run.provisionId)},
+        ${cycleNo},
+        ${sqlLiteral(cycleStatus)},
+        ${run.supersedesCycleId ? sqlLiteral(run.supersedesCycleId) : "NULL"},
+        ${sqlLiteral(run.reissueReason || "")},
+        ${sqlLiteral(run.preflightHash || "")},
         ${run.jobId ? sqlLiteral(run.jobId) : "NULL"},
         ${run.planId ? sqlLiteral(run.planId) : "NULL"},
         ${sqlLiteral(run.routeId)},
@@ -823,12 +864,18 @@ export class PostgresRepository {
         ${Number(run.createAttemptNo || 0)},
         ${timestampOrNull(run.createConfirmedAt)},
         ${timestampOrNull(run.createCompletedAt)},
+        coalesce(${timestampOrNull(run.openedAt)}, now()),
+        ${timestampOrNull(run.closedAt)},
         now(),
         now()
       )
-      ON CONFLICT (provision_id) DO UPDATE SET
+      ON CONFLICT (cycle_id) DO UPDATE SET
         job_id = coalesce(EXCLUDED.job_id, mwb.monitor_provision_runs.job_id),
         plan_id = coalesce(EXCLUDED.plan_id, mwb.monitor_provision_runs.plan_id),
+        cycle_status = EXCLUDED.cycle_status,
+        supersedes_cycle_id = coalesce(EXCLUDED.supersedes_cycle_id, mwb.monitor_provision_runs.supersedes_cycle_id),
+        reissue_reason = coalesce(nullif(EXCLUDED.reissue_reason, ''), mwb.monitor_provision_runs.reissue_reason),
+        preflight_hash = coalesce(nullif(EXCLUDED.preflight_hash, ''), mwb.monitor_provision_runs.preflight_hash),
         status = EXCLUDED.status,
         request_fingerprint = EXCLUDED.request_fingerprint,
         technical_config = EXCLUDED.technical_config,
@@ -852,35 +899,123 @@ export class PostgresRepository {
         create_attempt_no = greatest(mwb.monitor_provision_runs.create_attempt_no, EXCLUDED.create_attempt_no),
         create_confirmed_at = coalesce(mwb.monitor_provision_runs.create_confirmed_at, EXCLUDED.create_confirmed_at),
         create_completed_at = coalesce(mwb.monitor_provision_runs.create_completed_at, EXCLUDED.create_completed_at),
+        opened_at = coalesce(mwb.monitor_provision_runs.opened_at, EXCLUDED.opened_at),
+        closed_at = coalesce(EXCLUDED.closed_at, mwb.monitor_provision_runs.closed_at),
         updated_at = now();
     `, this.database);
   }
 
   async updateMonitorProvisionRunStatus({
     provisionId,
+    cycleId = "",
     status,
     requestFingerprint,
     credentialStatus = "",
     responseHash = "",
     errorSummary = "",
-    evidenceArtifactId = ""
+    evidenceArtifactId = "",
+    cycleStatus = "",
+    preflightHash = "",
+    closedAt = ""
   }) {
     assertId("provision_id", provisionId);
+    if (cycleId) assertId("cycle_id", cycleId);
     assertId("status", status);
     assertId("request_fingerprint", requestFingerprint);
     const credentialStatusValue = credentialStatus ? assertId("credential_status", credentialStatus) : "";
+    const cycleStatusValue = cycleStatus ? assertId("cycle_status", cycleStatus) : "";
 
     await runPsql(`
       UPDATE mwb.monitor_provision_runs
       SET status = ${sqlLiteral(status)},
           request_fingerprint = ${sqlLiteral(requestFingerprint)},
+          cycle_status = coalesce(nullif(${sqlLiteral(cycleStatusValue)}, ''), cycle_status),
+          preflight_hash = coalesce(nullif(${sqlLiteral(preflightHash)}, ''), preflight_hash),
           credential_status = coalesce(nullif(${sqlLiteral(credentialStatusValue)}, ''), credential_status),
           response_hash = coalesce(nullif(${sqlLiteral(responseHash)}, ''), response_hash),
           error_summary = ${sqlLiteral(errorSummary || "")},
           evidence_artifact_id = ${evidenceArtifactId ? sqlLiteral(evidenceArtifactId) : "NULL"},
+          closed_at = coalesce(${closedAt ? `${sqlLiteral(closedAt)}::timestamptz` : "NULL"}, closed_at),
           updated_at = now()
-      WHERE provision_id = ${sqlLiteral(provisionId)};
+      WHERE cycle_id = coalesce(nullif(${sqlLiteral(cycleId)}, ''), (
+        SELECT r.cycle_id
+        FROM mwb.monitor_provision_runs r
+        WHERE r.provision_id = ${sqlLiteral(provisionId)}
+        ORDER BY r.cycle_no DESC, r.updated_at DESC
+        LIMIT 1
+      ));
     `, this.database);
+  }
+
+  async closeMonitorProvisionCycle({ cycleId, cycleStatus = "stopped", errorSummary = "", evidenceArtifactId = "" }) {
+    assertId("cycle_id", cycleId);
+    const status = assertId("cycle_status", cycleStatus);
+    await runPsql(`
+      UPDATE mwb.monitor_provision_runs
+      SET cycle_status = ${sqlLiteral(status)},
+          status = CASE
+            WHEN ${sqlLiteral(status)} = 'resolved' THEN status
+            WHEN status = 'terminal_failed' THEN status
+            ELSE 'terminal_failed'
+          END,
+          error_summary = coalesce(nullif(${sqlLiteral(errorSummary || "")}, ''), error_summary),
+          evidence_artifact_id = coalesce(${evidenceArtifactId ? sqlLiteral(evidenceArtifactId) : "NULL"}, evidence_artifact_id),
+          closed_at = coalesce(closed_at, now()),
+          updated_at = now()
+      WHERE cycle_id = ${sqlLiteral(cycleId)};
+    `, this.database);
+  }
+
+  async createMonitorProvisionCycle({
+    provisionId,
+    routeId,
+    gameCode,
+    advertiserId,
+    cycleNo,
+    supersedesCycleId = "",
+    reissueReason = "",
+    preflightHash = "",
+    requestFingerprint = "",
+    technicalConfig = {},
+    ownerKey = "",
+    ownerName = "",
+    credentialStatus = "missing",
+    credentialUpdatedAt = "",
+    credentialExpiresAt = "",
+    technicalAccountRecordId = "",
+    mediaAccountId = "",
+    agentId = "",
+    evidenceArtifactId = "",
+    jobId = "",
+    planId = ""
+  }) {
+    return this.upsertMonitorProvisionRun({
+      provisionId,
+      cycleId: `${provisionId}-CYCLE-${String(Number(cycleNo || 1)).padStart(2, "0")}`,
+      cycleNo,
+      cycleStatus: "active",
+      supersedesCycleId,
+      reissueReason,
+      preflightHash,
+      routeId,
+      gameCode,
+      advertiserId,
+      status: "planned",
+      requestFingerprint,
+      technicalConfig,
+      ownerKey,
+      ownerName,
+      credentialStatus,
+      credentialUpdatedAt,
+      credentialExpiresAt,
+      technicalAccountRecordId,
+      mediaAccountId,
+      agentId,
+      evidenceArtifactId,
+      jobId,
+      planId,
+      openedAt: new Date().toISOString()
+    });
   }
 
   async upsertAdvertiserAccount(account) {

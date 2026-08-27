@@ -89,7 +89,7 @@
     "Close or block the task according to the returned changeMediaId result."
   ],
   "acceptance": [
-    "Docs are corrected without editing docs/.参考文档/乾坤系统/api-docs-20260825.md.",
+    "Docs are corrected without editing docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md.",
     "Retry mode does not call accountIndex, ad/index, or mediaList.",
     "changeMediaId(310) is called at most once under this task.",
     "A new independent evidence artifact records the retry result.",

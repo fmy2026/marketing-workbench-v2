@@ -6,7 +6,7 @@
 
 ## 目标
 
-围绕 `docs/.参考文档/乾坤系统/api-docs-20260825.md`，为 `JSZC + oceanengine_3_byte_mini_game + advertiser_id=1871922346964041` 梳理乾坤监测序号 8 个核心接口的数据字典、字段来源、v2 落点、关系类型和当前真实状态。
+围绕 `docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md`，为 `JSZC + oceanengine_3_byte_mini_game + advertiser_id=1871922346964041` 梳理乾坤监测序号 8 个核心接口的数据字典、字段来源、v2 落点、关系类型和当前真实状态。
 
 新增文档：
 
@@ -31,7 +31,7 @@ docs/乾坤监测序号-核心接口数据字典_20260826.md
 
 ## 范围
 
-- 完整读取并归纳 `api-docs-20260825.md` 中与监测序号相关的 8 个核心接口。
+- 完整读取并归纳归档历史文档 `.archive/api-docs-20260825.md` 中与监测序号相关的 8 个核心接口。
 - 复核当前真实状态：
   - 已验证包选择链：`cate_id=122 -> vest_id=1414 -> package_id=36820 -> channel=dymini3k`
   - 当前登录阻断：`/tf/account_info/accountIndex` 返回 `302: 跳转登录`
@@ -85,7 +85,7 @@ project.state.json
 
 ## 当前进展
 
-- 已完整阅读 `AGENTS.md`、`project.state.json`、`/Users/hys/Desktop/需求表述.md` 和 `docs/.参考文档/乾坤系统/api-docs-20260825.md`。
+- 已完整阅读 `AGENTS.md`、`project.state.json`、`/Users/hys/Desktop/需求表述.md` 和 `docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md`。
 - 已评估需求合理，无阻塞疑问。
 - 已创建本任务卡和 context manifest。
 - 已复核当前只读真实状态：`/tf/account_info/accountIndex` 仍返回 `apiCode=302`、`apiMessage=跳转登录`。

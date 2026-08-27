@@ -53,7 +53,7 @@ apiMessage=服务器繁忙，请稍后重试(400)
 - 不调用 `monitorSerialNumberAdd`。
 - 不创建 monitor，不刷新 token，不上传素材，不改预算/出价，不推 DMP。
 - 不新增 migration、表或大型一次性脚本。
-- 不修改官方参考文件 `docs/.参考文档/乾坤系统/api-docs-20260825.md`。
+- 不修改官方参考文件 `docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md`。
 - 不写 token、Cookie、完整请求头、raw request、raw response 或完整触点 URL。
 
 ## 验收
