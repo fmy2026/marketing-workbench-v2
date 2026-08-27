@@ -1,0 +1,57 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH",
+  "task_ref": "tasks/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.md",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Replace the old-project daily token keepalive with a v2-local daily OAuth refresh that writes only the ignored local credential file.",
+    "schedule": "daily 12:00 Asia/Shanghai, failed-runs-only notification",
+    "document_instruction_boundary": "This task does not authorize business platform APIs or disclosure of credentials."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.md",
+    "tasks-context-manifests/TASK-MWBV2-SCHEDULED-OAUTH-TOKEN-REFRESH.json",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "scripts/00-oceanengine-token-refresh.mjs",
+    "package.json"
+  ],
+  "allowed_actions": [
+    "Scoped OAuth refresh only",
+    "Update v2 .local/oceanengine.env only through credential store",
+    "Create/activate v2 local cron and delete the named legacy cron after a passed v2 validation"
+  ],
+  "forbidden_actions": [
+    "Business API calls",
+    "Project, promotion, material, DMP, or event-asset writes",
+    "Budget or bid changes",
+    "Credential disclosure",
+    "Deleting the legacy cron before v2 refresh validation passes"
+  ],
+  "validation": [
+    {
+      "check": "npm run test:token-refresh-scope",
+      "result": "passed: scope, confirmation, safe-output and file-mode cases"
+    },
+    {
+      "check": "first scoped OAuth refresh",
+      "result": "passed: v2 local credential status valid; no business API call"
+    },
+    {
+      "check": "npm run token:status and file mode",
+      "result": "passed: redacted valid status; .local/oceanengine.env mode 0600"
+    },
+    {
+      "check": "automation migration",
+      "result": "passed: oceanengine-v2-token-refresh active; legacy oceanengine-token-keepalive deleted"
+    },
+    {
+      "check": "git diff --check",
+      "result": "passed"
+    }
+  ]
+}

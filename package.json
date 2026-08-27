@@ -7,6 +7,7 @@
     "dev": "node src/server/index.mjs",
     "start": "node src/server/index.mjs",
     "workflow:dry-run": "node scripts/00-oe3-workflow-cli.mjs --mode dry_run",
+    "workflow:readonly-readiness": "node scripts/00-oe3-readonly-readiness-cli.mjs",
     "workflow:readback-only": "node scripts/00-oe3-workflow-cli.mjs --mode readback_only",
     "workflow:execute-once-mock": "node scripts/00-oe3-workflow-cli.mjs --mode execute_once --mock-execute",
     "smoke:workflow-skills": "node scripts/00-oe3-workflow-skills-smoke.mjs",
@@ -16,6 +17,7 @@
     "test:create-result-mapping": "node scripts/00-create-result-mapping-smoke.mjs",
     "test:execution-grant": "node scripts/00-execution-grant-smoke.mjs",
     "test:execution-plan": "node scripts/00-execution-plan-smoke.mjs",
+    "test:readonly-readiness-cli": "node scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
     "test:runtime-reservations": "node scripts/05-runtime-reservations-smoke.mjs",
     "test:monitor-bootstrap": "node scripts/02-monitor-bootstrap-smoke.mjs",
     "test:monitor-cycle": "node scripts/02-monitor-cycle-smoke.mjs",
@@ -40,6 +42,7 @@
     "check:oe3-backup-landing-page": "node scripts/03-backup-landing-page-readonly-resolve.mjs",
     "check:oe3-landing-page-inventory": "node scripts/03-landing-page-source-target-readonly-inventory.mjs",
     "token:status": "node scripts/00-oceanengine-token-status.mjs",
-    "token:refresh": "node scripts/00-oceanengine-token-refresh.mjs"
+    "token:refresh": "node scripts/00-oceanengine-token-refresh.mjs",
+    "test:token-refresh-scope": "node scripts/00-oceanengine-token-refresh-scope-smoke.mjs"
   }
 }

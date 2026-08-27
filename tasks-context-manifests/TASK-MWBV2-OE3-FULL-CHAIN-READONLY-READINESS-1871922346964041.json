@@ -1,0 +1,202 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "For advertiser 1871922346964041, create a formal runtime_truth readonly readiness job, run OE3 workflow Node 1-5, keep Node 6 locked, and avoid all platform writes.",
+    "mode": "runtime_truth_readonly_readiness",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "mechanism_observations_policy": "record_only_stop_no_repair_in_current_task"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041.json",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041.json",
+    "project.state.json",
+    "package.json",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "Postgres marketing_workbench_v2.mwb.launch_jobs",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_drafts",
+    "Postgres marketing_workbench_v2.mwb.launch_execution_plans",
+    "Postgres marketing_workbench_v2.mwb.readback_records",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.advertiser_accounts",
+    "Postgres marketing_workbench_v2.mwb.account_touchpoints",
+    "Postgres marketing_workbench_v2.mwb.monitor_provision_runs"
+  ],
+  "forbidden_actions": [
+    "POST /tf/ad/monitorSerialNumberAdd",
+    "POST /open_api/v3.0/std_project/create/",
+    "promotion create",
+    "project create retry",
+    "material upload",
+    "video material bind",
+    "cover image upload or bind",
+    "token refresh",
+    "DMP write or push",
+    "event asset create",
+    "budget or bid update",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/full callback URL/full landing URL/raw payload/raw request/raw response",
+    "runtime import from /Users/hys/Projects/marketing-workbench"
+  ],
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "source_usage": "runtime_truth",
+    "expected_monitor_id": "245828"
+  },
+  "execution_plan": [
+    "Set project.state.json.active_task to this task and keep platform writes disabled.",
+    "Run Qiankun monitor plan-only readonly preflight for accountIndex and /tf/ad/index.",
+    "Create or resume a runtime_truth launch job.",
+    "Run dry_run workflow with allowReadonlyDependency=true.",
+    "Verify 7 node runs, Node 1-5 execution, Node 6 locked, Node 7 dry_run not_applicable.",
+    "Verify launch_confirmations=0, platform_actions=0, created_objects=0.",
+    "Record mechanism observations without mechanism repair.",
+    "Close task and set active_task=null."
+  ],
+  "mechanism_observations": [
+    {
+      "title": "OceanEngine readonly adapter is not fully wired into the official workflow runner",
+      "evidence": "src/platforms/oceanengineReadonlyAdapter.mjs has broader probes; src/workflows/skills/oe3/00-runner.mjs only invokes specific skill gates.",
+      "impact": "This task can verify Node 1-5 workflow execution but cannot claim full live coverage for every resource probe.",
+      "next_task": "Wire oceanengineReadonlyAdapter into Node 4 with sanitized evidence and controlled account_resources updates.",
+      "boundary": "Record only in this task; do not repair or rerun mechanism here."
+    }
+  ],
+  "validation_plan": [
+    "node --check scripts/00-oe3-readonly-readiness-cli.mjs",
+    "node --check scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "npm run test:readonly-readiness-cli",
+    "npm run test:execution-plan",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:readonly",
+    "npm run check:runtime-consistency",
+    "git diff --check"
+  ],
+  "completion_summary": {
+    "completed_at": "2026-08-27 CST",
+    "status": "blocked_with_evidence",
+    "job": {
+      "job_id": "JOB-MWBV2-20260827080834-877CB8",
+      "source_usage": "runtime_truth",
+      "job_status": "draft_ready",
+      "current_node": "5",
+      "draft_id": "DRAFT-JOB-MWBV2-20260827080834-877CB8",
+      "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260827",
+      "payload_hash": "sha256:d0fed3f8e326f36d97518e1eff53356e54d8954958ddd9fc6d27090b35908d0e"
+    },
+    "qiankun_readonly_preflight": {
+      "account_index_called": true,
+      "monitor_index_called": true,
+      "exact_match_count": 1,
+      "expected_monitor_id": "245828",
+      "resolved_monitor_id": "245828",
+      "touchpoint_url_present": true,
+      "touchpoint_url_hash": "sha256:ccd1178914f17cc140a1c56c1d1fcbfd2ba461a58f8c5b4a1ca870f98504fff1",
+      "evidence_artifact_id": "EV-JOB-MWBV2-20260827080834-877CB8-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-PLAN-ONLY",
+      "note": "plan_only top-level status was blocked by historical attempt policy, while readonly monitor/touchpoint readback matched successfully."
+    },
+    "node_statuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "blocked",
+      "account_resource_prepare": "blocked",
+      "std_project_draft_builder": "repairable",
+      "std_project_create_executor": "locked",
+      "readback_closer": "waiting"
+    },
+    "primary_blocker": "backup_landing_page_resource_missing",
+    "blocker_groups": {
+      "backup_landing_page": [
+        "backup_landing_page_resource_missing",
+        "backup_landing_page_missing",
+        "backup_landing_page_url_missing_or_not_https",
+        "backup_landing_page_target_not_visible",
+        "backup_landing_page_readback_not_verified",
+        "backup_landing_page_hash_mismatch"
+      ],
+      "account_resources": [
+        "avatar_missing",
+        "dmp_custom_audience_ids_missing",
+        "event_asset_not_ready",
+        "product_image_missing",
+        "brand_info_missing",
+        "micro_app_instance_missing"
+      ],
+      "credentials_and_video_readonly": [
+        "credential_required",
+        "access_token_expired_refresh_required",
+        "required_video_material_readback_incomplete",
+        "required_video_cover_readback_incomplete"
+      ],
+      "payload_contract": [
+        "instance_id_long_id_transport_not_verified",
+        "brand_info_required",
+        "brand_info_numeric_fields",
+        "final_payload_blockers",
+        "payload_contract_not_passed"
+      ]
+    },
+    "audit_counts": {
+      "launch_node_runs": 7,
+      "launch_skill_runs": 22,
+      "launch_drafts": 1,
+      "launch_execution_plans": 1,
+      "readback_records": 1,
+      "evidence_artifacts": 2,
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0
+    },
+    "evidence": [
+      {
+        "artifact_id": "EV-JOB-MWBV2-20260827080834-877CB8-MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041-PLAN-ONLY",
+        "artifact_type": "qiankun_monitor_plan_only",
+        "content_hash": "sha256:ea4f29895ee7eeb8e72230465dbb58eaf9927efe3ad7d12fdc3fd933773df698"
+      },
+      {
+        "artifact_id": "EV-JOB-MWBV2-20260827080834-877CB8-STD-PROJECT-DUPLICATE-READONLY",
+        "artifact_type": "std_project_duplicate_readonly",
+        "content_hash": "sha256:427686bd8499422fb47b4e8209b552f8b64e7b250247d7d70e1117222b372501"
+      }
+    ],
+    "validation": {
+      "node_check_cli": "passed",
+      "node_check_cli_smoke": "passed",
+      "node_check_repository": "passed",
+      "test_readonly_readiness_cli": "passed",
+      "workflow_readonly_readiness": "completed",
+      "test_execution_plan": "passed",
+      "test_payload_contract": "passed",
+      "smoke_workflow_skills": "passed",
+      "smoke_readonly": "passed",
+      "runtime_consistency_target_job": "passed",
+      "git_diff_check": "passed"
+    },
+    "next_gate": "Do not create. First resolve target account resource and readonly credential blockers; separately wire oceanengineReadonlyAdapter into Node 4 if fuller live resource probe coverage is required."
+  }
+}

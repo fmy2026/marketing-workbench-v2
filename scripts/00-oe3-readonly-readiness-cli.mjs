@@ -1,0 +1,272 @@
+import { fileURLToPath } from "node:url";
+import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { runMonitorProvisionCommand } from "../src/workflows/skills/oe3/02-monitor-provision.mjs";
+import { assertNoSensitiveLeak, sanitizeForPublic } from "../src/workflows/skills/oe3/00-contracts.mjs";
+
+const FORBIDDEN_FLAGS = new Set([
+  "execute",
+  "execute-once",
+  "mock",
+  "mock-ready",
+  "mock-execute",
+  "allow-network-write",
+  "network-write",
+  "confirm",
+  "confirmation-intent",
+  "confirm-variable-value",
+  "grant-source",
+  "execution-grant-id",
+  "allowed-plan-actions",
+  "monitor-ensure",
+  "create-monitor",
+  "refresh-token"
+]);
+
+const FORBIDDEN_ENV_NAMES = [
+  "MWBV2_OE_EXECUTION_CONFIRM",
+  "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM",
+  "MWBV2_OE_VIDEO_MATERIAL_CONFIRM",
+  "MWBV2_OE_TOKEN_REFRESH_CONFIRM",
+  "MWBV2_MONITOR_CREATE_CONFIRM",
+  "MWBV2_MONITOR_RETRY_CONFIRM",
+  "MWBV2_MONITOR_PROVISION_ID",
+  "MWBV2_MONITOR_CREATE_PLAN_HASH",
+  "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM"
+];
+
+function argValue(argv, name, fallback = "") {
+  const inline = argv.find((item) => item.startsWith(`--${name}=`));
+  if (inline) return inline.slice(name.length + 3);
+  const index = argv.findIndex((item) => item === `--${name}`);
+  return index >= 0 ? argv[index + 1] || fallback : fallback;
+}
+
+function flagNames(argv) {
+  return argv
+    .filter((item) => item.startsWith("--"))
+    .map((item) => item.slice(2).split("=")[0])
+    .filter(Boolean);
+}
+
+export function parseReadonlyReadinessArgs(argv = process.argv.slice(2)) {
+  return {
+    routeId: argValue(argv, "route-id"),
+    gameCode: argValue(argv, "game-code").toUpperCase(),
+    advertiserId: argValue(argv, "advertiser-id"),
+    jobId: argValue(argv, "job-id"),
+    expectedMonitorId: argValue(argv, "expected-monitor-id", "245828"),
+    sourceRecordRef: argValue(argv, "source-record-ref"),
+    flags: flagNames(argv),
+    argv
+  };
+}
+
+export function assertReadonlyReadinessInvocation({ args, env = process.env } = {}) {
+  const forbiddenFlags = args.flags.filter((name) => FORBIDDEN_FLAGS.has(name));
+  const forbiddenEnv = FORBIDDEN_ENV_NAMES.filter((name) => env[name]);
+  const missing = [];
+  if (!args.jobId && !args.routeId) missing.push("route_id");
+  if (!args.jobId && !args.gameCode) missing.push("game_code");
+  if (!args.jobId && !args.advertiserId) missing.push("advertiser_id");
+  if (args.routeId && args.routeId !== "oceanengine_3_byte_mini_game") throw new Error("readonly_readiness_route_not_supported");
+  if (args.gameCode && args.gameCode !== "JSZC") throw new Error("readonly_readiness_game_not_supported");
+  if (args.advertiserId && !/^\d+$/.test(args.advertiserId)) throw new Error("invalid_advertiser_id");
+  if (missing.length) throw new Error(`missing_required_fields:${missing.join(",")}`);
+  if (forbiddenFlags.length) throw new Error(`forbidden_write_or_mock_flags:${forbiddenFlags.join(",")}`);
+  if (forbiddenEnv.length) throw new Error(`forbidden_confirmation_or_refresh_env:${forbiddenEnv.join(",")}`);
+}
+
+function requireSame(value, expected, label) {
+  if (expected && String(value || "") !== String(expected)) {
+    throw new Error(`${label}_mismatch`);
+  }
+}
+
+export async function createOrResolveReadonlyReadinessJob({ repo, args, sourceRecordPrefix = "workflow:readonly-readiness" }) {
+  if (args.jobId) {
+    const bundle = await repo.getLaunchJobBundle(args.jobId);
+    if (!bundle?.job) throw new Error("job_not_found");
+    if (bundle.job.source_usage !== "runtime_truth") throw new Error("job_not_runtime_truth");
+    requireSame(bundle.job.route_id, args.routeId, "route_id");
+    requireSame(bundle.job.game_code, args.gameCode, "game_code");
+    requireSame(bundle.job.advertiser_id, args.advertiserId, "advertiser_id");
+    return { jobId: args.jobId, created: false, bundle };
+  }
+
+  const sourceRecordRef = args.sourceRecordRef || `${sourceRecordPrefix}:${new Date().toISOString()}`;
+  const view = await createJob(repo, {
+    user_intent: `route_id=${args.routeId} game_code=${args.gameCode} advertiser_id=${args.advertiserId}`,
+    route_id: args.routeId,
+    game_code: args.gameCode,
+    advertiser_id: args.advertiserId,
+    source_usage: "runtime_truth",
+    source_record_ref: sourceRecordRef
+  });
+  const bundle = await repo.getLaunchJobBundle(view.jobId);
+  return { jobId: view.jobId, created: true, bundle };
+}
+
+function statusesByNode(bundle = {}) {
+  return Object.fromEntries((bundle.nodes || []).map((node) => [node.node_key, node.status]));
+}
+
+function skillStatuses(bundle = {}) {
+  return Object.fromEntries((bundle.skillRuns || []).map((run) => [run.skill_key, run.status]));
+}
+
+function evidenceRefs(bundle = {}) {
+  return (bundle.evidence || []).map((item) => ({
+    artifactId: item.artifact_id,
+    artifactType: item.artifact_type,
+    contentHash: item.content_hash
+  }));
+}
+
+function externalReadonlyCoverage({ bundle, monitorPreflight }) {
+  const skills = skillStatuses(bundle);
+  const evidenceTypes = new Set((bundle.evidence || []).map((item) => item.artifact_type));
+  return {
+    qiankun: {
+      accountIndexCalled: monitorPreflight.accountApiCalled === true,
+      monitorIndexCalled: monitorPreflight.monitorListApiCalled === true,
+      expectedMonitorId: monitorPreflight.resolvedMonitor?.monitorId || "",
+      touchpointControlledPresent: monitorPreflight.resolvedMonitor?.touchpointUrlPresent === true,
+      responseHashPresent: Boolean(monitorPreflight.monitorList?.responseHash)
+    },
+    oceanengine: {
+      stdProjectListDuplicateCheck: evidenceTypes.has("std_project_duplicate_readonly") || skills["duplicate-check"] === "passed",
+      dmpReadonlyGate: Boolean(skills["resource-verify-dmp-audience-package"]),
+      eventReadonlyGate: Boolean(skills["resource-verify-event-asset"]),
+      videoReadonlyGate: Boolean(skills["resource-verify-video-asset"]),
+      fullResourceProbeAdapterIntegrated: false,
+      coverageGap: "src/platforms/oceanengineReadonlyAdapter.mjs has broader probes but is not fully wired into src/workflows/skills/oe3/00-runner.mjs"
+    }
+  };
+}
+
+function createReadinessFromBundle(bundle = {}) {
+  const node = (bundle.nodes || []).find((item) => item.node_key === "std_project_draft_builder");
+  return node?.output_summary?.createReadiness || {};
+}
+
+function nodeFiveRan(bundle = {}) {
+  const skills = new Set((bundle.skillRuns || []).map((run) => run.skill_key));
+  return ["payload-build", "payload-contract", "duplicate-check", "create-readiness"].every((key) => skills.has(key));
+}
+
+function classifyConclusion({ bundle, auditCounts }) {
+  const readiness = createReadinessFromBundle(bundle);
+  const blockers = Array.isArray(readiness.blockers) ? readiness.blockers : [];
+  if (Number(auditCounts.platformActions || 0) > 0 || Number(auditCounts.launchConfirmations || 0) > 0 || Number(auditCounts.createdObjects || 0) > 0) {
+    return "blocked_with_evidence";
+  }
+  if (blockers.length) return "blocked_with_evidence";
+  return "mechanism_coverage_incomplete";
+}
+
+export async function runReadonlyReadiness({ repo = new PostgresRepository(), args, env = process.env } = {}) {
+  assertReadonlyReadinessInvocation({ args, env });
+  const job = await createOrResolveReadonlyReadinessJob({ repo, args });
+  const target = {
+    routeId: job.bundle.job.route_id,
+    gameCode: job.bundle.job.game_code,
+    advertiserId: job.bundle.job.advertiser_id
+  };
+  const monitorPreflight = await runMonitorProvisionCommand({
+    mode: "plan",
+    repo,
+    target,
+    jobId: job.jobId
+  });
+  if (args.expectedMonitorId) {
+    requireSame(monitorPreflight.resolvedMonitor?.monitorId, args.expectedMonitorId, "expected_monitor_id");
+  }
+  const view = await runJob(repo, job.jobId, {
+    mode: "dry_run",
+    allowReadonlyDependency: true
+  });
+  const bundle = await repo.getLaunchJobBundle(job.jobId);
+  const auditCounts = await repo.getLaunchJobAuditCounts(job.jobId);
+  const nodeStatuses = statusesByNode(bundle);
+  const conclusion = classifyConclusion({ bundle, auditCounts });
+  const summary = sanitizeForPublic({
+    status: "completed",
+    conclusion,
+    jobId: job.jobId,
+    jobCreated: job.created,
+    sourceUsage: bundle.job.source_usage,
+    target,
+    monitorPreflight: {
+      status: monitorPreflight.status,
+      runStatus: monitorPreflight.runStatus,
+      accountApiCalled: monitorPreflight.accountApiCalled === true,
+      monitorListApiCalled: monitorPreflight.monitorListApiCalled === true,
+      exactMatchCount: monitorPreflight.monitorList?.exactMatchCount || 0,
+      expectedMonitorId: args.expectedMonitorId,
+      resolvedMonitorId: monitorPreflight.resolvedMonitor?.monitorId || "",
+      touchpointUrlPresent: monitorPreflight.resolvedMonitor?.touchpointUrlPresent === true,
+      evidenceArtifactId: monitorPreflight.evidenceArtifactId || ""
+    },
+    workflow: {
+      nodeCount: (bundle.nodes || []).length,
+      nodeStatuses,
+      nodeFiveRan: nodeFiveRan(bundle),
+      skillRunCount: (bundle.skillRuns || []).length,
+      draftId: bundle.draft?.draft_id || "",
+      projectName: bundle.draft?.project_name || "",
+      payloadHash: bundle.draft?.payload_hash || "",
+      createReadiness: createReadinessFromBundle(bundle),
+      prewriteGateStatus: view.prewriteGate?.status || ""
+    },
+    auditCounts,
+    zeroPlatformWriteAudit: {
+      launchConfirmations: Number(auditCounts.launchConfirmations || 0),
+      platformActions: Number(auditCounts.platformActions || 0),
+      createdObjects: Number(auditCounts.createdObjects || 0),
+      passed: Number(auditCounts.launchConfirmations || 0) === 0 &&
+        Number(auditCounts.platformActions || 0) === 0 &&
+        Number(auditCounts.createdObjects || 0) === 0
+    },
+    externalReadonlyCoverage: externalReadonlyCoverage({ bundle, monitorPreflight }),
+    evidenceRefs: evidenceRefs(bundle),
+    mechanismObservations: [
+      {
+        title: "OceanEngine readonly adapter not fully wired into official runner",
+        evidence: "src/platforms/oceanengineReadonlyAdapter.mjs exposes broader probes; current runner invokes only selected gates.",
+        impact: "Node 1-5 readiness is recorded, while full resource live-probe coverage remains incomplete.",
+        nextTask: "Integrate oceanengineReadonlyAdapter into Node 4 as sanitized evidence and controlled account_resources updates.",
+        boundary: "record_only_no_repair_in_current_task"
+      }
+    ],
+    rawRequestStored: false,
+    rawResponseStored: false,
+    rawPayloadStored: false
+  });
+  assertNoSensitiveLeak(summary);
+  if (!summary.zeroPlatformWriteAudit.passed) throw new Error("zero_platform_write_audit_failed");
+  return summary;
+}
+
+async function main() {
+  const args = parseReadonlyReadinessArgs();
+  try {
+    const summary = await runReadonlyReadiness({ args });
+    console.log(JSON.stringify(summary, null, 2));
+  } catch (error) {
+    const output = sanitizeForPublic({
+      status: "failed",
+      error: error.message || "readonly_readiness_failed",
+      rawRequestStored: false,
+      rawResponseStored: false,
+      rawPayloadStored: false
+    });
+    assertNoSensitiveLeak(output);
+    console.error(JSON.stringify(output, null, 2));
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  await main();
+}

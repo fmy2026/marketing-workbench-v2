@@ -2227,6 +2227,23 @@ export class PostgresRepository {
     return Number(result || 0);
   }
 
+  async getLaunchJobAuditCounts(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'nodeRuns', (SELECT count(*) FROM mwb.launch_node_runs WHERE job_id = ${sqlLiteral(jobId)}),
+        'skillRuns', (SELECT count(*) FROM mwb.launch_skill_runs WHERE job_id = ${sqlLiteral(jobId)}),
+        'drafts', (SELECT count(*) FROM mwb.launch_drafts WHERE job_id = ${sqlLiteral(jobId)}),
+        'executionPlans', (SELECT count(*) FROM mwb.launch_execution_plans WHERE job_id = ${sqlLiteral(jobId)}),
+        'readbackRecords', (SELECT count(*) FROM mwb.readback_records WHERE job_id = ${sqlLiteral(jobId)}),
+        'evidenceArtifacts', (SELECT count(*) FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)}),
+        'launchConfirmations', (SELECT count(*) FROM mwb.launch_confirmations WHERE job_id = ${sqlLiteral(jobId)}),
+        'platformActions', (SELECT count(*) FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)}),
+        'createdObjects', (SELECT count(*) FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)})
+      )::text;
+    `, this.database);
+  }
+
   async upsertCreatedObject(object) {
     assertId("created_object_id", object.createdObjectId);
     assertId("job_id", object.jobId);
@@ -2301,6 +2318,28 @@ export class PostgresRepository {
         DELETE FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_jobs WHERE job_id = ${sqlLiteral(jobId)};
       END $$;
+    `, this.database);
+  }
+
+  async deleteReadonlyReadinessSmokeJobCascade(jobId) {
+    assertId("job_id", jobId);
+    const bundle = await this.getLaunchJobBundle(jobId);
+    if (!bundle?.job) throw new Error("job_not_found");
+    if (bundle.job.source_usage !== "runtime_truth") throw new Error("smoke_cleanup_requires_runtime_truth_job");
+    if (!String(bundle.job.source_record_ref || "").startsWith("smoke:readonly-readiness-cli:")) {
+      throw new Error("refuse_delete_non_readonly_readiness_smoke_job");
+    }
+    await runPsql(`
+      DELETE FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_confirmations WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.readback_records WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_drafts WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_execution_plans WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_skill_runs WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_node_runs WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.launch_jobs WHERE job_id = ${sqlLiteral(jobId)};
     `, this.database);
   }
 
