@@ -113,12 +113,21 @@ const readyNormalized = normalizeResourceSkillResult({
     status: "passed",
     blockers: [],
     outputSummary: {
+      existence_status: "exists",
+      readonly_status: "passed",
+      readiness_status: "ready",
+      avatar_status: "IN_AUDIT",
+      avatar_readiness_reason: "avatar_ready",
       ready: true,
       nextAction: "无需动作"
     }
   }
 });
 assert(readyNormalized.outputSummary.prepare_capability.status === "ready", "resource_ready_status_wrong");
+assert(readyNormalized.outputSummary.existence_status === "exists", "resource_existence_status_missing");
+assert(readyNormalized.outputSummary.readonly_status === "passed", "resource_readonly_status_missing");
+assert(readyNormalized.outputSummary.readiness_status === "ready", "resource_readiness_status_missing");
+assert(readyNormalized.outputSummary.avatar_status === "IN_AUDIT", "avatar_status_missing_from_normalized_output");
 
 const supportedNormalized = normalizeResourceSkillResult({
   resourceType: "video_asset",
@@ -132,6 +141,7 @@ const supportedNormalized = normalizeResourceSkillResult({
 });
 assert(supportedNormalized.outputSummary.prepare_capability.status === "prepare_supported", "resource_prepare_supported_status_wrong");
 assert(supportedNormalized.outputSummary.prepare_capability.prepare_action_type === "ensure_resource:video_asset", "resource_prepare_supported_action_wrong");
+assert(supportedNormalized.outputSummary.readiness_status === "not_ready", "video_readiness_status_missing");
 
 const unsupportedNormalized = normalizeResourceSkillResult({
   resourceType: "product_image",
@@ -144,6 +154,19 @@ const unsupportedNormalized = normalizeResourceSkillResult({
   }
 });
 assert(unsupportedNormalized.outputSummary.prepare_capability.status === "prepare_unsupported", "resource_prepare_unsupported_status_wrong");
+assert(unsupportedNormalized.outputSummary.existence_status === "missing", "product_missing_existence_status_wrong");
+
+const unsupportedExistingNormalized = normalizeResourceSkillResult({
+  resourceType: "product_image",
+  result: {
+    status: "blocked",
+    blockers: ["product_image_not_ready"],
+    outputSummary: {
+      ready: false
+    }
+  }
+});
+assert(unsupportedExistingNormalized.outputSummary.existence_status === "exists", "product_existing_existence_status_wrong");
 
 const allReadyResources = OE3_REQUIRED_RESOURCE_TYPES.map(readyResource);
 const videoMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(

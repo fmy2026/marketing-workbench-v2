@@ -25,13 +25,42 @@ async function recordEvidence({ repo, bundle, result }) {
     httpStatus: probe.httpStatus ?? null,
     apiCode: probe.apiCode || "",
     requestIdPresent: Boolean(probe.requestIdPresent),
-    responseHashPresent: Boolean(probe.responseHash)
+    responseHashPresent: Boolean(probe.responseHash),
+    responseHash: String(probe.label || "").includes("avatar") ? probe.responseHash || "" : "",
+    avatarDiagnostic: String(probe.label || "").includes("avatar") ? sanitizeForPublic({
+      avatar_status: probe.summary?.avatarStatus || "unknown",
+      avatar_ready: probe.summary?.avatarReady === true,
+      avatar_readiness_reason: probe.summary?.avatarReadinessReason || "",
+      image_present: probe.summary?.imagePresent === true,
+      width: Number(probe.summary?.width || 0),
+      height: Number(probe.summary?.height || 0)
+    }) : null,
+    requestFieldManifest: probe.requestFieldManifest || null
   }));
+  const requestFieldSummary = probeSummary
+    .filter((probe) => probe.requestFieldManifest)
+    .map((probe) => {
+      const manifest = probe.requestFieldManifest || {};
+      return `${probe.label}_fields=${(manifest.fieldNames || []).join(",")}; ` +
+        `origin_req_fields=${(manifest.originReqFieldNames || []).join(",")}; ` +
+        `forbidden_top_level=${(manifest.forbiddenTopLevelFieldNames || []).join(",")}`;
+    });
+  const avatarDiagnosticSummary = probeSummary
+    .filter((probe) => probe.avatarDiagnostic)
+    .map((probe) => {
+      const diagnostic = probe.avatarDiagnostic || {};
+      return `${probe.label}_avatar_status=${diagnostic.avatar_status || "unknown"}; ` +
+        `avatar_ready=${diagnostic.avatar_ready === true}; ` +
+        `image_present=${diagnostic.image_present === true}; ` +
+        `avatar_readiness_reason=${diagnostic.avatar_readiness_reason || ""}`;
+    });
   const summary = [
     `status=${result.status || "not_run"}`,
     `probe_count=${probeSummary.length}`,
     `request_id_present_count=${probeSummary.filter((item) => item.requestIdPresent).length}`,
     `response_hash_present_count=${probeSummary.filter((item) => item.responseHashPresent).length}`,
+    ...avatarDiagnosticSummary,
+    ...requestFieldSummary,
     "response_body_stored=false"
   ].join("; ");
   await repo.upsertEvidence({
@@ -99,6 +128,19 @@ export async function runPlatformReadonlyReconcileSkill({
   const result = await runOceanEngineBaselineResourceProbes({ bundle, client });
   const { artifactId, probeSummary } = await recordEvidence({ repo, bundle, result });
   for (const update of result.resourceUpdates || []) {
+    const checkedAt = new Date().toISOString();
+    const resourceMetadata = sanitizeForPublic({
+      ...(update.resourceMetadata || {}),
+      ...(update.resourceType === "avatar"
+        ? {
+          avatar_readonly_diagnostic: {
+            ...((update.resourceMetadata || {}).avatar_readonly_diagnostic || {}),
+            checked_at: checkedAt,
+            evidence_ref: artifactId
+          }
+        }
+        : {})
+    });
     await repo.updateAccountResourceReadonly({
       routeId: bundle.job.route_id,
       gameCode: bundle.job.game_code,
@@ -110,10 +152,10 @@ export async function runPlatformReadonlyReconcileSkill({
       inheritanceStatus: update.inheritanceStatus,
       metadata: {
         ...(update.readonlyCheck || {}),
-        checked_at: new Date().toISOString(),
+        checked_at: checkedAt,
         evidence_refs: [artifactId]
       },
-      resourceMetadata: update.resourceMetadata || {}
+      resourceMetadata
     });
   }
   const output = sanitizeForPublic({

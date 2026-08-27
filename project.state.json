@@ -7,16 +7,16 @@
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "oe3_full_chain_readonly_readiness_rerun_completed_blocked",
+  "project_status": "oe3_avatar_readonly_diagnosis_completed_blocked_on_avatar_unset",
   "phase": {
     "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
     "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-RERUN-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md",
-  "next_gate": "优先新建 Node 4 品牌行业只读参数诊断任务，定位 baseline_brand_industry 的受阻原因；诊断后新建 fresh runtime truth job 复核，禁止直接创建广告。",
+  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
+  "next_gate": "新建账户 1871922346964041 头像准备机制与单次提交方案任务：先确认官方头像上传/提交接口合同、素材来源和一次性确认变量；头像变为 IN_AUDIT 或 AUDIT_PASS 后重跑 fresh runtime truth，禁止直接进入 Node 6。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {

@@ -168,10 +168,12 @@ export const OE3_SKILL_DEFINITIONS = [
     dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
-      ? ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
+      ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
       : resourceType === "video_asset"
-        ? ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "selected_required_video_count", "verified_video_count", "cover_ready_count", "source_asset_id[]", "cover_mode"]
-        : ["resource_type", "status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status"],
+        ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "selected_required_video_count", "verified_video_count", "cover_ready_count", "source_asset_id[]", "cover_mode"]
+        : resourceType === "avatar"
+          ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status", "avatar_status", "avatar_readiness_reason", "image_present"]
+          : ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status"],
     stopConditions: [`${resourceType}_not_ready`, `resource_prepare_unsupported:${resourceType}`],
     writeScope: resourceType === "dmp_audience_package"
       ? "launch_skill_runs_account_resources_evidence_artifacts"

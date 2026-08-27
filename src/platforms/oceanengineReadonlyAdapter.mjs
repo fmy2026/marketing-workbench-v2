@@ -124,13 +124,42 @@ function summarizeAvatar(payload = {}) {
   const rawStatus = compact(data.avatar_status);
   const statusMap = { "0": "UNSET", "1": "IN_AUDIT", "2": "AUDIT_REJECT", "3": "AUDIT_PASS" };
   const avatarStatus = statusMap[rawStatus] || rawStatus;
+  const avatarReady = /^(AUDIT_PASS|IN_AUDIT)$/i.test(avatarStatus);
+  const imagePresent = Boolean(avatarInfo.web_uri || avatarInfo.audit_web_uri || avatarInfo.width || avatarInfo.height);
   return {
     advertiserIdPresent: Boolean(data.advertiser_id),
     avatarStatus,
-    avatarReady: /^(AUDIT_PASS|IN_AUDIT)$/i.test(avatarStatus),
-    imagePresent: Boolean(avatarInfo.web_uri || avatarInfo.audit_web_uri || avatarInfo.width || avatarInfo.height),
+    avatarReady,
+    avatarReadinessReason: avatarReady
+      ? "avatar_ready"
+      : avatarStatus === "UNSET"
+        ? "avatar_unset"
+        : avatarStatus === "AUDIT_REJECT"
+          ? "avatar_audit_rejected"
+          : avatarStatus
+            ? "avatar_status_not_ready"
+            : "avatar_status_missing",
+    imagePresent,
     width: Number(avatarInfo.width || 0),
     height: Number(avatarInfo.height || 0)
+  };
+}
+
+function avatarReadonlyDiagnostic(probe = {}) {
+  const summary = probe.summary || {};
+  const avatarStatus = compact(summary.avatarStatus) || "unknown";
+  return {
+    avatar_status: avatarStatus,
+    avatar_ready: summary.avatarReady === true,
+    avatar_readiness_reason: compact(summary.avatarReadinessReason) || (summary.avatarReady === true ? "avatar_ready" : "avatar_status_unknown"),
+    image_present: summary.imagePresent === true,
+    width: Number(summary.width || 0),
+    height: Number(summary.height || 0),
+    http_status: probe.httpStatus ?? null,
+    api_code: compact(probe.apiCode),
+    request_id_present: Boolean(probe.requestIdPresent),
+    response_hash: compact(probe.responseHash),
+    raw_response_stored: false
   };
 }
 
@@ -187,6 +216,27 @@ function summarizeBrand(payload = {}) {
     cdpBrandName: compact(brand.merge_brand_name || brand.brand_name),
     mergeBrandId: compact(brand.merge_brand_id),
     mergeBrandName: compact(brand.merge_brand_name || brand.brand_name)
+  };
+}
+
+export function buildBrandIndustryReadonlyRequest({ advertiserId, brandSummary = {} } = {}) {
+  const outerBrandId = compact(brandSummary.outerBrandId || brandSummary.brandNameId);
+  if (outerBrandId !== EXPECTED_BRAND_INFO_OFFICIAL.brand_name_id) return null;
+  return {
+    query: {
+      account_id: compact(advertiserId),
+      origin_req: JSON.stringify({
+        brand_data_source: "YUNTU",
+        outer_brand_id: maybeNumberId(outerBrandId)
+      })
+    },
+    requestFieldManifest: {
+      fieldNames: ["account_id", "origin_req"],
+      originReqFieldNames: ["brand_data_source", "outer_brand_id"],
+      forbiddenTopLevelFieldNames: ["brand_name_id"],
+      sourceField: "yuntu_brand_detail.outer_brand_id",
+      rawQueryStored: false
+    }
   };
 }
 
@@ -423,20 +473,16 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
   const manualBrand = manualBrandConfirmation(brandResource);
 
   let industryProbe = null;
-  const brandNameIdForIndustry = brandProbe.summary?.brandNameId === EXPECTED_BRAND_INFO_OFFICIAL.brand_name_id
-    ? brandProbe.summary.brandNameId
-    : "";
-  if (brandNameIdForIndustry) {
+  const brandIndustryRequest = buildBrandIndustryReadonlyRequest({
+    advertiserId,
+    brandSummary: brandProbe.summary || {}
+  });
+  if (brandIndustryRequest) {
     industryProbe = await run({
       label: "brand_industry",
       endpoint: "/open_api/v3.0/dpa/brand/adv_auth/industry/get/",
-      query: {
-        account_id: advertiserId,
-        origin_req: JSON.stringify({
-          brand_data_source: "YUNTU",
-          outer_brand_id: maybeNumberId(brandNameIdForIndustry)
-        })
-      },
+      query: brandIndustryRequest.query,
+      requestFieldManifest: brandIndustryRequest.requestFieldManifest,
       summarize: summarizeIndustry
     });
   }
@@ -663,11 +709,15 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
     },
     summarize: summarizeBrand
   });
-  const brandId = compact(brandProbe.summary?.brandNameId);
-  const industryProbe = brandProbe.status === "passed" && brandId ? await run({
+  const brandIndustryRequest = buildBrandIndustryReadonlyRequest({
+    advertiserId,
+    brandSummary: brandProbe.summary || {}
+  });
+  const industryProbe = brandProbe.status === "passed" && brandIndustryRequest ? await run({
     label: "baseline_brand_industry",
     endpoint: "/open_api/v3.0/dpa/brand/adv_auth/industry/get/",
-    query: { account_id: advertiserId, brand_name_id: brandId },
+    query: brandIndustryRequest.query,
+    requestFieldManifest: brandIndustryRequest.requestFieldManifest,
     summarize: summarizeIndustry
   }) : null;
   const imageProbe = await run({
@@ -678,6 +728,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
   });
 
   const avatarPassed = avatarProbe.status === "passed" && avatarProbe.summary?.avatarReady === true;
+  const avatarDiagnostic = avatarReadonlyDiagnostic(avatarProbe);
   const eventPassed = eventProbe.status === "passed" && eventProbe.summary?.expectedAssetFound === true;
   const brandPassed = brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 1 &&
     industryProbe?.status === "passed" && brandOfficialMatchesExpected(brandProbe.summary || {}, industryProbe.summary || {});
@@ -702,7 +753,18 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
         visibilityStatus: avatarPassed ? "visible" : undefined,
         readbackStatus: avatarPassed ? "readback_verified" : undefined,
         inheritanceStatus: avatarPassed ? "target_readonly_verified" : "target_readonly_blocked",
-        readonlyCheck: { status: avatarPassed ? "passed" : "blocked", key: "baseline_platform_avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready", probe_labels: [avatarProbe.label] }
+        resourceMetadata: {
+          avatar_readonly_diagnostic: avatarDiagnostic
+        },
+        readonlyCheck: {
+          status: avatarPassed ? "passed" : "blocked",
+          key: "baseline_platform_avatar",
+          gap: avatarPassed ? "" : "avatar_readonly_not_ready",
+          avatar_status: avatarDiagnostic.avatar_status,
+          avatar_readiness_reason: avatarDiagnostic.avatar_readiness_reason,
+          image_present: avatarDiagnostic.image_present,
+          probe_labels: [avatarProbe.label]
+        }
       },
       {
         resourceType: "event_asset",

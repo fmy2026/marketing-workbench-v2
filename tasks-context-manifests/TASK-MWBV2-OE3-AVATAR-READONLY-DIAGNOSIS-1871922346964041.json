@@ -1,0 +1,148 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041",
+  "status": "completed",
+  "created_at": "2026-08-27 CST",
+  "updated_at": "2026-08-27 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "Strengthen Node 4 resource child outputs and run a fresh readonly avatar diagnosis for advertiser 1871922346964041.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "expected_monitor_id": "245828",
+    "source_usage": "runtime_truth",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.json",
+    "tasks/TASK-MWBV2-OE3-NODE4-BRAND-INDUSTRY-READONLY-PARAMETER-ALIGNMENT-1871922346964041.md",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-AVATAR-READONLY-DIAGNOSIS-1871922346964041.json",
+    "project.state.json",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs",
+    "Postgres marketing_workbench_v2.mwb.launch_jobs",
+    "Postgres marketing_workbench_v2.mwb.launch_node_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_skill_runs",
+    "Postgres marketing_workbench_v2.mwb.launch_drafts",
+    "Postgres marketing_workbench_v2.mwb.launch_execution_plans",
+    "Postgres marketing_workbench_v2.mwb.account_resources",
+    "Postgres marketing_workbench_v2.mwb.evidence_artifacts",
+    "Postgres marketing_workbench_v2.mwb.monitor_provision_runs",
+    "Postgres marketing_workbench_v2.mwb.advertiser_accounts",
+    "Postgres marketing_workbench_v2.mwb.account_touchpoints"
+  ],
+  "allowed_external_readonly": [
+    "qiankun:POST /tf/account_info/accountIndex",
+    "qiankun:POST /tf/ad/index",
+    "oceanengine:GET advertiser/avatar/get",
+    "oceanengine:GET tools/event/all_assets/list",
+    "oceanengine:GET dpa/brand/adv_auth/fuzzy/get",
+    "oceanengine:GET dpa/brand/adv_auth/industry/get",
+    "oceanengine:GET file/image/get",
+    "oceanengine:GET file/video/get",
+    "oceanengine:GET dmp/custom_audience/select",
+    "oceanengine:GET event/goal readonly endpoints",
+    "oceanengine:GET std_project/list"
+  ],
+  "forbidden_actions": [
+    "all platform writes",
+    "monitorSerialNumberAdd",
+    "std_project/create",
+    "avatar upload or submit",
+    "material upload, bind, push, share, or selection",
+    "DMP write",
+    "event asset create",
+    "brand authorization change",
+    "budget or bid update",
+    "token refresh",
+    "writing token, secret, Cookie, raw request, raw response, full avatar URL, full touchpoint URL, full landing URL, or raw query"
+  ],
+  "acceptance": {
+    "resource_child_output_model": [
+      "existence_status",
+      "readonly_status",
+      "readiness_status",
+      "prepare_capability",
+      "next_action"
+    ],
+    "avatar_diagnostic_metadata_key": "avatar_readonly_diagnostic",
+    "avatar_ready_statuses": [
+      "AUDIT_PASS",
+      "IN_AUDIT"
+    ],
+    "expected_monitor_id": "245828",
+    "workflow_node_count": 7,
+    "platform_actions": 0,
+    "launch_confirmations": 0,
+    "created_objects": 0,
+    "runtime_job_id": "JOB-MWBV2-20260827103651-6B6D80",
+    "conclusion": "blocked_with_evidence",
+    "node4_status": "blocked",
+    "node5_status": "repairable",
+    "node6_status": "locked",
+    "node7_status": "waiting",
+    "latest_unique_blocker": "avatar_not_ready",
+    "avatar_diagnostic": {
+      "resource_exists": true,
+      "avatar_status": "UNSET",
+      "avatar_ready": false,
+      "avatar_readiness_reason": "avatar_unset",
+      "image_present": false,
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "evidence_ref": "EV-JOB-MWBV2-20260827103651-6B6D80-NODE4-BASELINE-READONLY",
+      "raw_response_stored": false
+    },
+    "zero_platform_write_audit": {
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0
+    },
+    "validation": [
+      "npm run test:baseline-resource-inheritance",
+      "npm run smoke:workflow-skills",
+      "npm run test:readonly-readiness-cli",
+      "npm run test:resource-action-registry",
+      "npm run test:payload-contract",
+      "npm run check:runtime-consistency",
+      "git diff --check"
+    ]
+  },
+  "next_gate": "Create an avatar prepare mechanism / one-time submit task for advertiser 1871922346964041; do not enter Node 6 until avatar is IN_AUDIT or AUDIT_PASS and a fresh runtime truth job passes the avatar gate.",
+  "mechanism_observations": [
+    {
+      "key": "monitor_preflight_status_label_confusing",
+      "fact": "The readonly command reported monitorPreflight.status=blocked while runStatus=touchpoint_resolved and expected monitor_id 245828 was resolved.",
+      "impact": "Does not affect the avatar diagnosis, but can confuse future operators.",
+      "suggested_followup": "Independent readonly CLI status naming cleanup."
+    },
+    {
+      "key": "avatar_prepare_capability_missing",
+      "fact": "avatar prepare_supported=false and no long-term avatar submit entrypoint is active.",
+      "impact": "The system can diagnose avatar state but cannot automatically repair it.",
+      "suggested_followup": "Independent avatar prepare mechanism / one-time submit task with official contract verification."
+    }
+  ]
+}

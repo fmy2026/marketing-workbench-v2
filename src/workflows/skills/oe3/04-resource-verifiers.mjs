@@ -20,6 +20,14 @@ export function resourceReady(item = {}) {
     (!readonlyStatus || ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus));
 }
 
+function existenceStatus(item = {}) {
+  return item.resource_type ? "exists" : "missing";
+}
+
+function readinessStatus(ready) {
+  return ready ? "ready" : "not_ready";
+}
+
 export function dmpCustomAudienceIds(bundle = {}) {
   const item = resource(bundle, "dmp_audience_package");
   const metadata = item.metadata || {};
@@ -230,18 +238,44 @@ export function runResourceVerifier({ bundle, resourceType, mockReady = false })
   const item = resource(bundle, resourceType);
   const ready = mockReady || resourceReady(item);
   const blocker = !item.resource_type ? `${resourceType}_missing` : `${resourceType}_not_ready`;
+  const avatarDiagnostic = resourceType === "avatar" ? (item.metadata?.avatar_readonly_diagnostic || {}) : {};
+  const readonlyStatus = item.metadata?.readonly_check?.status || "";
+  const avatarReadinessReason = clean(avatarDiagnostic.avatar_readiness_reason || item.metadata?.readonly_check?.avatar_readiness_reason);
   return {
     status: ready ? "passed" : "blocked",
     blockers: ready ? [] : [blocker],
     outputSummary: {
       resourceType,
       label: OE3_RESOURCE_LABELS[resourceType],
+      existenceStatus: existenceStatus(item),
+      existence_status: existenceStatus(item),
       visibilityStatus: item.visibility_status || "missing",
       readbackStatus: item.readback_status || "missing",
-      readonlyStatus: item.metadata?.readonly_check?.status || "",
+      readonlyStatus,
+      readonly_status: readonlyStatus,
+      readinessStatus: readinessStatus(ready),
+      readiness_status: readinessStatus(ready),
       ready,
       platformResourceIdPresent: Boolean(item.platform_resource_id),
-      nextAction: ready ? "无需动作" : "补齐资源或重跑只读校验"
+      ...(resourceType === "avatar" ? {
+        avatarStatus: clean(avatarDiagnostic.avatar_status || item.metadata?.readonly_check?.avatar_status || "unknown"),
+        avatar_status: clean(avatarDiagnostic.avatar_status || item.metadata?.readonly_check?.avatar_status || "unknown"),
+        avatarReadinessReason,
+        avatar_readiness_reason: avatarReadinessReason,
+        imagePresent: avatarDiagnostic.image_present === true || item.metadata?.readonly_check?.image_present === true,
+        image_present: avatarDiagnostic.image_present === true || item.metadata?.readonly_check?.image_present === true,
+        width: Number(avatarDiagnostic.width || 0),
+        height: Number(avatarDiagnostic.height || 0),
+        responseHashPresent: Boolean(avatarDiagnostic.response_hash),
+        evidenceRef: clean(avatarDiagnostic.evidence_ref)
+      } : {}),
+      nextAction: ready
+        ? "无需动作"
+        : resourceType === "avatar" && avatarReadinessReason === "avatar_unset"
+          ? "建立头像准备机制或单次提交任务"
+          : resourceType === "avatar" && avatarReadinessReason === "avatar_audit_rejected"
+            ? "更换头像素材后另建单次提交任务"
+            : "补齐资源或重跑只读校验"
     }
   };
 }

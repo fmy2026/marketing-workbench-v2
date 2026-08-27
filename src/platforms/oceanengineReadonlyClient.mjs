@@ -95,7 +95,7 @@ export class OceanEngineReadonlyClient {
     };
   }
 
-  async get({ label, endpoint, query = {}, summarize = null }) {
+  async get({ label, endpoint, query = {}, requestFieldManifest = null, summarize = null }) {
     if (!ALLOWED_ENDPOINTS.has(endpoint)) {
       throw new Error(`readonly_endpoint_not_allowed:${endpoint}`);
     }
@@ -112,6 +112,7 @@ export class OceanEngineReadonlyClient {
         requestIdPresent: false,
         dataPresent: false,
         responseHash: "",
+        requestFieldManifest,
         summary: {},
         gap: `平台只读凭据不可用或已过期：${credential.blockers.join(",") || "unknown"}。`
       };
@@ -164,6 +165,7 @@ export class OceanEngineReadonlyClient {
         requestIdPresent: requestIdPresent(payload),
         dataPresent: dataPresent(payload),
         responseHash: `sha256:${sha256(text)}`,
+        requestFieldManifest,
         summary,
         gap: response.ok && (code === "0" || code === "") ? "" : "平台只读 API 返回非通过状态。"
       };
@@ -191,6 +193,7 @@ export class OceanEngineReadonlyClient {
         requestIdPresent: false,
         dataPresent: false,
         responseHash: "",
+        requestFieldManifest,
         summary: {},
         gap: `平台只读请求失败：${clean(error.code || error.name || "transport_error")}`
       };

@@ -148,6 +148,11 @@ export function normalizeResourceSkillResult({ resourceType, result = {} } = {})
     ready,
     blockers
   });
+  const existenceStatus = outputSummary.existence_status ||
+    outputSummary.existenceStatus ||
+    (blockers.includes(`${resourceType}_missing`) ? "missing" : "exists");
+  const readonlyStatus = outputSummary.readonly_status || outputSummary.readonlyStatus || "";
+  const readinessStatus = outputSummary.readiness_status || outputSummary.readinessStatus || (ready ? "ready" : "not_ready");
   const nextAction = outputSummary.nextAction || (
     prepareCapability.status === "ready"
       ? "无需动作"
@@ -166,6 +171,12 @@ export function normalizeResourceSkillResult({ resourceType, result = {} } = {})
       ...outputSummary,
       resourceType,
       resource_type: resourceType,
+      existenceStatus,
+      existence_status: existenceStatus,
+      readonlyStatus,
+      readonly_status: readonlyStatus,
+      readinessStatus,
+      readiness_status: readinessStatus,
       status: prepareCapability.status,
       prepareCapability,
       prepare_capability: prepareCapability,
