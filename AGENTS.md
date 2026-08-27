@@ -38,6 +38,10 @@ OE3 问题优先查看本机官方资料：
 
 巨量营销接口资料仍优先查 3.0 知识库；只有 3.0 主库和 3.0 外部给定资料信息不足、缺页或不能定位接口合同时，才补查 2.0 知识库。若 2.0 与 3.0 冲突，必须暂停并记录冲突，不得直接把旧版字段当作 3.0 真值。
 
+## 项目经验
+
+可复用、已验证的经验统一记录在 `docs/project-lessons.md`；它只辅助问题定位，运行真值仍以 `project.state.json`、Postgres、active task / manifest 和当前代码为准。
+
 ## 运行链路与归属
 
 ```text
@@ -63,6 +67,7 @@ frontend/API
 | `src/platforms/`、`src/repositories/` | 平台适配与 Postgres 读写 |
 | `db/`、`schemas/` | migration/seed 与结构合同 |
 | `tasks/`、`tasks-context-manifests/` | 单任务合同与必读上下文 |
+| `docs/project-lessons.md` | 已验证、可复用的项目经验；不是运行真值 |
 | `.local/`、`.archive/` | 私密本机配置、历史参考 |
 
 `.archive/` 禁止被 runtime import、API route、package script 或 shell 调用；旧项目 `/Users/hys/Projects/marketing-workbench` 只能人工借鉴，不能成为 v2 运行依赖或真值。

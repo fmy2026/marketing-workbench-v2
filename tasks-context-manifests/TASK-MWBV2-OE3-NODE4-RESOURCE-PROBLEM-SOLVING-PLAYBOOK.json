@@ -1,0 +1,76 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK",
+  "task_ref": "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK.md",
+  "status": "closed_success",
+  "owner_agent": "codex",
+  "goal": "Create a tracked project lessons document from verified Node 4 avatar and DMP cases, and register its concise entry in AGENTS.md.",
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK.json",
+    "tasks/TASK-MWBV2-OE3-AVATAR-RECOVERY-REUPLOAD-SUBMIT-READBACK-1871922346964041.md",
+    "tasks/TASK-MWBV2-OE3-DMP-REMAINING9-PUSH-READBACK-1871922346964041.md",
+    "src/platforms/oceanengineAvatarExecutor.mjs",
+    "src/platforms/oceanengineDmpExecutor.mjs",
+    "src/workflows/skills/oe3/04-dmp-readonly.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_actions": [
+    "project_documentation_update",
+    "task_and_manifest_record_update",
+    "local_validation"
+  ],
+  "forbidden_actions": [
+    "platform_readonly_or_write",
+    "avatar_upload_or_submit",
+    "dmp_push",
+    "std_project_create",
+    "monitor_create",
+    "token_refresh",
+    "database_schema_change",
+    "raw_request_or_response_logging"
+  ],
+  "acceptance": {
+    "lessons_sections": [
+      "common_problem_framework",
+      "avatar_case",
+      "dmp_case",
+      "new_case_template"
+    ],
+    "agents_protocol_contains": [
+      "project_lessons_entry",
+      "runtime_truth_boundary",
+      "sensitive_data_boundary"
+    ],
+    "platform_actions": 0,
+    "database_schema_changes": 0
+  },
+  "mechanism_observations": [
+    {
+      "promotion_decision": "promote_to_lessons",
+      "fact": "Avatar and DMP both follow baseline definition, target readonly verification, fresh plan, one-time scoped write, and readback closure.",
+      "impact": "Future Node 4 tasks can reuse one decision framework while retaining resource-specific write and readback contracts.",
+      "regression_refs": [
+        "npm run test:avatar-executor",
+        "npm run test:dmp-executor",
+        "npm run test:dmp-readback"
+      ],
+      "boundary": "Lessons are not runtime truth and must not be used to infer target-account readiness."
+    }
+  ],
+  "result": {
+    "lessons_ref": "docs/project-lessons.md",
+    "platform_actions": 0,
+    "next_gate_changed": false,
+    "validation": [
+      "test:avatar-executor",
+      "test:dmp-executor",
+      "test:dmp-readback",
+      "test:resource-action-registry",
+      "git diff --check"
+    ]
+  },
+  "next_gate": "新建账户 1871922346964041 视频素材 Node 4 只读/保底推送任务；优先处理 JSZC-HUNT-4IG2-3，并同步核验 JSZC-HUNT-4GE6-14。"
+}

@@ -15,7 +15,7 @@
   },
   "active_task": null,
   "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-DMP-REMAINING9-PUSH-READBACK-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK.md",
   "next_gate": "新建账户 1871922346964041 视频素材 Node 4 只读/保底推送任务；DMP 已 10/10 passed，下一唯一优先 blocker 为 video_material_not_ready:JSZC-HUNT-4IG2-3，并需同步核验 JSZC-HUNT-4GE6-14。",
   "guardrails": {
     "platform_write_allowed": false,
