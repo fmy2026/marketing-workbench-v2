@@ -1,0 +1,75 @@
+{
+  "task_id": "TASK-MWBV2-OE3-MICRO-APP-INSTANCE-READONLY-1871922346964041",
+  "owner_agent": "codex",
+  "status": "completed_micro_app_instance_ready",
+  "updated_at": "2026-08-28 CST",
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "target_advertiser_id": "1871922346964041",
+    "resource_type": "micro_app_instance"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-MICRO-APP-INSTANCE-READONLY-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-MICRO-APP-INSTANCE-READONLY-1871922346964041.json",
+    "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "scripts/04-micro-app-instance-evidence-check.mjs"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "std_project/create instance_id field name, type, and MICRO_GAME applicability",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:199"
+    },
+    {
+      "purpose": "optimized_goal/get target eligibility query for mini_program_id and micro_app_instance_id",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/调控任务/标准项目下获取可用优化目标.md:27"
+    }
+  ],
+  "boundaries": {
+    "allowed_actions": [
+      "readonly:optimized_goal/get"
+    ],
+    "forbidden": [
+      "std_project/create",
+      "ensure_resource:micro_app_instance",
+      "token refresh",
+      "micro app create",
+      "micro app share",
+      "product_image changes",
+      "backup_landing_page changes"
+    ],
+    "prepare_supported": false,
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "full_url_stored": false
+  },
+  "acceptance": {
+    "resource_pass_requires": [
+      "candidate instance id present",
+      "target advertiser optimized_goal/get returned api success",
+      "expected objective found",
+      "expected deep objective found"
+    ],
+    "remaining_create_blocker": "instance_id_long_id_transport_not_verified"
+  },
+  "result": {
+    "job_id": "JOB-MWBV2-20260828083124-B7BE76",
+    "readonly_status": "passed",
+    "conclusion": "target_optimized_goal_eligible",
+    "micro_app_instance_resource_status": "visible",
+    "micro_app_instance_readback_status": "readback_verified",
+    "objective_found": true,
+    "deep_objective_found": true,
+    "node4_resource_ready": true,
+    "node5_create_transport_blocked": true,
+    "platform_write_called": false,
+    "token_refresh_called": false,
+    "raw_payload_stored": false,
+    "raw_response_stored": false
+  }
+}

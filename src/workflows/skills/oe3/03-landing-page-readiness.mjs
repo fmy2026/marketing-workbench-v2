@@ -47,10 +47,14 @@ export function backupLandingPageReadiness(bundle = {}) {
   const item = resource(bundle, "backup_landing_page");
   const sourcePreparation = item.metadata?.backup_landing_page_source_preparation || {};
   const readonlyStatus = clean(item.metadata?.readonly_check?.status);
+  const readonlyHashMatches = item.metadata?.readonly_check?.target_hash_matches === true ||
+    item.metadata?.backup_landing_page_material_inventory?.default_target_hash_matches === true;
   const assetIdMatches = clean(item.source_asset_id) &&
     clean(item.source_asset_id) === clean(asset.landing_page_asset_id);
-  const hashMatches = clean(asset.url_hash) &&
-    clean(item.metadata?.url_hash) === clean(asset.url_hash);
+  const hashMatches = readonlyHashMatches || (
+    clean(asset.url_hash) &&
+    clean(item.metadata?.url_hash) === clean(asset.url_hash)
+  );
   const checks = {
     ...(defaultResult.outputSummary.checks || {}),
     targetVisible: item.visibility_status === "visible",

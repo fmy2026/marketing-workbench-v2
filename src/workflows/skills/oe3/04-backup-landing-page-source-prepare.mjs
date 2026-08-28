@@ -96,19 +96,25 @@ export async function runBackupLandingPageSourcePrepareSkill({ repo, bundle } = 
   const defaultPresent = Boolean(clean(asset.landing_page_asset_id || item?.source_asset_id));
   const targetVisible = item?.visibility_status === "visible";
   const targetReadbackVerified = item?.readback_status === "readback_verified";
+  const readonlyCheck = item?.metadata?.readonly_check || {};
+  const targetResolvedByReadback = targetVisible &&
+    targetReadbackVerified &&
+    clean(readonlyCheck.status) === "passed" &&
+    readonlyCheck.target_visible === true &&
+    readonlyCheck.target_hash_matches === true;
   const blockers = [
     ...local.blockers,
     ...(!defaultPresent ? ["backup_landing_page_default_missing"] : []),
     ...(!sourceAccountPresent ? ["backup_landing_page_source_account_missing"] : []),
     ...(!targetVisible ? ["backup_landing_page_target_not_visible"] : []),
     ...(!targetReadbackVerified ? ["backup_landing_page_readback_not_verified"] : []),
-    "backup_landing_page_target_transport_contract_unverified"
+    ...(!targetResolvedByReadback ? ["backup_landing_page_target_transport_contract_unverified"] : [])
   ];
   const status = blockers.filter((item) => ![
     "backup_landing_page_target_not_visible",
     "backup_landing_page_readback_not_verified",
     "backup_landing_page_target_transport_contract_unverified"
-  ].includes(item)).length ? "blocked" : "needs_confirmation";
+  ].includes(item)).length ? "blocked" : targetResolvedByReadback ? "passed" : "needs_confirmation";
 
   const outputSummary = sanitizeForPublic({
     status,
@@ -122,6 +128,7 @@ export async function runBackupLandingPageSourcePrepareSkill({ repo, bundle } = 
     source_publish_stage_required: true,
     target_push_or_authorization_required: true,
     target_transport_contract_verified: false,
+    target_transport_resolved_by_readback: targetResolvedByReadback,
     landing_page_asset_id_present: defaultPresent,
     site_id_present: Boolean(clean(asset.site_id || item?.platform_resource_id)),
     url_hash_present: Boolean(clean(asset.url_hash || item?.metadata?.url_hash)),
@@ -129,7 +136,9 @@ export async function runBackupLandingPageSourcePrepareSkill({ repo, bundle } = 
     target_readback_verified: targetReadbackVerified,
     platform_write_called: false,
     flow: "local_folder_to_material_account_to_target_account",
-    next_action: "确认备用落地页官方发布/推送/授权合同后，再建立单次写入与目标户回查任务。",
+    next_action: targetResolvedByReadback
+      ? "目标账户已只读回查通过；无需落地页写入动作。"
+      : "确认备用落地页官方发布/推送/授权合同后，再建立单次写入与目标户回查任务。",
     raw_folder_path_stored: false,
     full_url_stored: false
   });

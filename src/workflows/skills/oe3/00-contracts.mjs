@@ -267,8 +267,8 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "account_resource_prepare",
     dependsOn: [],
     inputContract: ["route_id", "game_code", "advertiser_id", "source_advertiser_id", "controlled_default_asset_id"],
-    outputContract: ["conclusion", "candidate_count", "source_candidate_count", "target_match_count", "default_source_verified", "target_already_usable", "cross_account_path"],
-    stopConditions: ["backup_landing_page_default_source_missing", "backup_landing_page_default_source_not_usable", "backup_landing_page_default_candidate_not_unique", "site_get_source_blocked", "site_get_target_blocked"],
+    outputContract: ["conclusion", "candidate_count", "source_candidate_count", "target_match_count", "target_shared_match_count", "default_source_verified", "target_already_usable", "default_target_hash_matches", "cross_account_path"],
+    stopConditions: ["backup_landing_page_default_source_missing", "backup_landing_page_default_source_not_usable", "backup_landing_page_default_candidate_not_unique", "backup_landing_page_target_site_missing", "backup_landing_page_target_site_not_usable", "backup_landing_page_target_url_hash_mismatch", "site_get_source_blocked", "site_get_target_blocked", "site_get_target_shared_blocked"],
     writeScope: "launch_skill_runs_account_resources_landing_page_assets_evidence_artifacts",
     moduleRef: "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs"
   },

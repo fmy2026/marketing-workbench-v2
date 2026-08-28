@@ -1,6 +1,7 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import {
   BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
+  BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID,
   CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
   DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT,
   assertNoSensitiveLeak,
@@ -52,6 +53,7 @@ async function main() {
   };
   const record = !flag("--no-record") && !flag("--dry-run");
   const caseId = await resolveCaseId(repo, target, arg("--case-id", ""));
+  const sourceRecordRef = arg("--source-record-ref", BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID);
   const jobId = record
     ? await createBackupLandingPageInventoryJob({
       repo,
@@ -59,7 +61,7 @@ async function main() {
       routeId: target.routeId,
       gameCode: target.gameCode,
       advertiserId: target.advertiserId,
-      sourceRecordRef: BACKUP_LANDING_PAGE_INVENTORY_TASK_ID
+      sourceRecordRef
     })
     : "CLI-BACKUP-LANDING-PAGE-MATERIAL-INVENTORY";
 
@@ -91,7 +93,8 @@ async function main() {
   }
 
   const output = {
-    taskId: BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
+    taskId: sourceRecordRef,
+    skillTaskId: BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
     jobId,
     caseId,
     status: result.status,
@@ -109,6 +112,9 @@ async function main() {
     targetOrangeSiteAuxiliary: result.outputSummary?.target_orange_site_auxiliary || {},
     defaultSourceVerified: result.outputSummary?.default_source_verified === true,
     targetAlreadyUsable: result.outputSummary?.target_already_usable === true,
+    defaultTargetSeen: result.outputSummary?.default_target_seen === true,
+    defaultTargetResolutionSource: result.outputSummary?.default_target_resolution_source || "",
+    defaultTargetHashMatches: result.outputSummary?.default_target_hash_matches === true,
     blockers: result.blockers || [],
     default: {
       siteId: result.outputSummary?.default_site_id || "",

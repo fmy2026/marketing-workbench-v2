@@ -88,9 +88,17 @@ function resourceBySourceAsset(bundle = {}, type, sourceAssetId = "") {
 
 function resourceReady(item = {}) {
   const readonlyStatus = clean(item.metadata?.readonly_check?.status);
+  const productImageTargetReadback = item.resource_type === "product_image" &&
+    clean(item.metadata?.product_image_target_upload_readback?.status) === "passed" &&
+    item.metadata?.product_image_target_upload_readback?.image_id_present === true &&
+    item.metadata?.product_image_target_upload_readback?.material_id_present === true;
   return item.visibility_status === "visible" &&
     (item.readback_status === "readback_verified" || item.readback_status === "not_required") &&
-    (!readonlyStatus || ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus));
+    (
+      !readonlyStatus ||
+      ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) ||
+      productImageTargetReadback
+    );
 }
 
 function metadataValue(source = {}, paths = []) {
@@ -281,6 +289,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {}
 } = {}) {
+  const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
+  const miniProgramUrlRequired = !microGameByteGame;
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
     return value === "" || value === null || value === undefined || (Array.isArray(value) && !value.length);
@@ -298,7 +308,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!payload.asset_id ? ["asset_id_missing_or_not_integer"] : []),
     ...(instanceIdCreateEvidence.blockers || []),
     ...(!payload.aweme_id ? ["aweme_id_missing"] : []),
-    ...(!payload.project_materials?.mini_program_info?.url ? ["mini_program_url_missing"] : []),
+    ...(miniProgramUrlRequired && !payload.project_materials?.mini_program_info?.url ? ["mini_program_url_missing"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
     ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
@@ -351,6 +361,7 @@ function fieldManifest(payload = {}, blockers = [], {
     advertiserIdTransportSafe: Number.isSafeInteger(payload.advertiser_id),
     projectNamePresent: Boolean(payload.name),
     appIdPresent: Boolean(materials.mini_program_info?.app_id),
+    miniProgramUrlRequired: !(clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME"),
     eventAssetIdPresent: Boolean(payload.asset_id),
     eventAssetIdType: payload.asset_id === null ? "null" : typeof payload.asset_id,
     microAppInstanceIdPresent: Boolean(payload[instanceIdCreateEvidence.candidateField || "instance_id"]),

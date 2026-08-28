@@ -6,6 +6,7 @@ import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs"
 import { runBackupLandingPageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
 import { runMicroAppInstanceReadonlySkill } from "../src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
 import { runProductImageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
+import { runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { validateOe3WorkflowSchedules, workflowSkillScheduleForMode } from "../src/workflows/skills/oe3/00-runner.mjs";
 
 function assert(condition, message) {
@@ -59,6 +60,33 @@ const repo = {
   },
   async mergeAccountResourceMetadata(update) {
     metadataUpdates.push(update);
+  },
+  async updateAccountResourceReadonly(update) {
+    metadataUpdates.push(update);
+  }
+};
+
+const blockedMicroClient = {
+  credentialState() {
+    return { status: "ready", blockers: [] };
+  },
+  async get({ label, endpoint }) {
+    return {
+      label,
+      endpoint: endpoint.replace(/^\/open_api\/v3\.0\//, "").replace(/\/$/g, ""),
+      status: "passed",
+      httpStatus: 200,
+      apiCode: "0",
+      requestIdPresent: true,
+      dataPresent: true,
+      responseHash: "sha256:smoke",
+      summary: {
+        goalCount: 0,
+        externalActionFound: false,
+        deepExternalActionFound: false,
+        assetIdReferenced: true
+      }
+    };
   }
 };
 
@@ -82,7 +110,26 @@ const bundle = {
     }
   },
   defaults: {
+    objective: "AD_CONVERT_TYPE_PAY",
+    deep_objective: "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
     raw_defaults: {
+      optimization: {
+        external_action: "AD_CONVERT_TYPE_PAY",
+        deep_external_action: "AD_CONVERT_TYPE_PURCHASE_ROI_7D"
+      },
+      payload_defaults: {
+        project: {
+          landing_type: "MICRO_GAME",
+          ad_type: "ALL",
+          delivery_mode: "PROCEDURAL",
+          marketing_goal: "VIDEO_AND_IMAGE"
+        },
+        strategy: {
+          delivery_type: "NORMAL",
+          delivery_medium: "BYTE_GAME",
+          micro_promotion_type: "BYTE_GAME"
+        }
+      },
       official_create_field_contract: {
         instance_id_create_evidence: {
           field_name_verified: true,
@@ -161,16 +208,66 @@ assert(product.outputSummary.direct_target_upload_default === true, "product_sho
 assert(product.outputSummary.material_account_route_allowed === false, "product_should_not_default_to_material_account");
 assert(product.outputSummary.target_candidate_count === 0, "product_target_candidate_count_wrong");
 
-const micro = await runMicroAppInstanceReadonlySkill({ repo, bundle });
+const productReadbackBundle = {
+  ...bundle,
+  resources: bundle.resources.map((item) => item.resource_type === "product_image" ? {
+    ...item,
+    platform_resource_id: "1234567890123456789",
+    visibility_status: "visible",
+    readback_status: "readback_verified",
+    metadata: {
+      ...item.metadata,
+      readonly_check: {
+        status: "needs_confirmation"
+      },
+      product_image_target_upload_readback: {
+        status: "passed",
+        image_id_present: true,
+        material_id_present: true
+      }
+    }
+  } : item)
+};
+const productVerifier = runResourceVerifier({ bundle: productReadbackBundle, resourceType: "product_image" });
+assert(productVerifier.status === "passed", "product_target_upload_readback_should_override_stale_inventory_confirmation");
+
+const micro = await runMicroAppInstanceReadonlySkill({
+  repo,
+  bundle,
+  client: blockedMicroClient,
+  allowReadonlyDependency: true
+});
 assert(micro.status === "blocked", "micro_candidate_should_not_pass_without_target_readback");
-assert(micro.blockers.includes("micro_app_candidate_not_target_verified"), "micro_candidate_blocker_missing");
+assert(micro.blockers.includes("micro_app_objective_not_available"), "micro_target_objective_blocker_missing");
 assert(micro.outputSummary.material_account_route_allowed === false, "micro_should_not_use_material_account_route");
+assert(micro.outputSummary.target_visible === false, "micro_candidate_must_not_be_marked_visible_without_target_readback");
 
 const backup = await runBackupLandingPageSourcePrepareSkill({ repo, bundle });
 assert(backup.status === "needs_confirmation", "backup_source_ready_should_need_contract_confirmation");
 assert(backup.outputSummary.flow === "local_folder_to_material_account_to_target_account", "backup_flow_wrong");
 assert(backup.outputSummary.target_transport_contract_verified === false, "backup_transport_contract_should_stay_unverified");
 assert(backup.blockers.includes("backup_landing_page_target_transport_contract_unverified"), "backup_contract_blocker_missing");
+
+const backupReadbackBundle = {
+  ...bundle,
+  resources: bundle.resources.map((item) => item.resource_type === "backup_landing_page" ? {
+    ...item,
+    visibility_status: "visible",
+    readback_status: "readback_verified",
+    metadata: {
+      ...item.metadata,
+      readonly_check: {
+        status: "passed",
+        target_visible: true,
+        target_hash_matches: true
+      }
+    }
+  } : item)
+};
+const backupReadback = await runBackupLandingPageSourcePrepareSkill({ repo, bundle: backupReadbackBundle });
+assert(backupReadback.status === "passed", "backup_target_readback_should_close_source_prepare");
+assert(backupReadback.outputSummary.target_transport_resolved_by_readback === true, "backup_target_readback_resolution_flag_missing");
+assert(!backupReadback.blockers.includes("backup_landing_page_target_transport_contract_unverified"), "backup_manual_share_readback_should_not_keep_transport_blocker");
 
 const result = {
   status: "passed",
@@ -186,10 +283,12 @@ const result = {
   },
   micro: {
     status: micro.status,
-    candidateNotTargetVerified: micro.blockers.includes("micro_app_candidate_not_target_verified")
+    targetObjectiveBlocked: micro.blockers.includes("micro_app_objective_not_available"),
+    targetVisible: micro.outputSummary.target_visible
   },
   backup: {
     status: backup.status,
+    targetReadbackStatus: backupReadback.status,
     flow: backup.outputSummary.flow,
     targetTransportContractVerified: backup.outputSummary.target_transport_contract_verified
   },

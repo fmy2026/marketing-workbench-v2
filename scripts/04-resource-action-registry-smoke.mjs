@@ -109,6 +109,13 @@ assert(getResourceActionCapability("dmp_audience_package").prepare_supported ===
 assert(getResourceActionCapability("dmp_audience_package").prepare_module_ref === "src/platforms/oceanengineDmpExecutor.mjs", "dmp_prepare_module_ref_wrong");
 assert(getResourceActionCapability("avatar").prepare_supported === true, "avatar_prepare_should_be_supported");
 assert(getResourceActionCapability("avatar").prepare_module_ref === "src/platforms/oceanengineAvatarExecutor.mjs", "avatar_prepare_module_ref_wrong");
+assert(getResourceActionCapability("product_image").prepare_supported === true, "product_image_prepare_should_be_supported");
+assert(getResourceActionCapability("product_image").prepare_module_ref === "src/platforms/oceanengineProductImageExecutor.mjs", "product_image_prepare_module_ref_wrong");
+const backupCapability = getResourceActionCapability("backup_landing_page");
+assert(backupCapability.prepare_supported === false, "backup_landing_page_prepare_must_remain_disabled");
+assert(backupCapability.prepare_action_type === "", "backup_landing_page_prepare_action_must_not_be_active");
+assert(backupCapability.reserved_prepare_action_type === "ensure_resource:backup_landing_page", "backup_landing_page_reserved_action_missing");
+assert(backupCapability.reserved_prepare_scope === "source_material_account_to_target_account_designated_share_only", "backup_landing_page_reserved_scope_wrong");
 
 const readyNormalized = normalizeResourceSkillResult({
   resourceType: "avatar",
@@ -147,29 +154,29 @@ assert(supportedNormalized.outputSummary.prepare_capability.prepare_action_type 
 assert(supportedNormalized.outputSummary.readiness_status === "not_ready", "video_readiness_status_missing");
 
 const unsupportedNormalized = normalizeResourceSkillResult({
-  resourceType: "product_image",
+  resourceType: "backup_landing_page",
   result: {
     status: "blocked",
-    blockers: ["product_image_missing"],
+    blockers: ["backup_landing_page_missing"],
     outputSummary: {
       ready: false
     }
   }
 });
 assert(unsupportedNormalized.outputSummary.prepare_capability.status === "prepare_unsupported", "resource_prepare_unsupported_status_wrong");
-assert(unsupportedNormalized.outputSummary.existence_status === "missing", "product_missing_existence_status_wrong");
+assert(unsupportedNormalized.outputSummary.existence_status === "missing", "backup_missing_existence_status_wrong");
 
 const unsupportedExistingNormalized = normalizeResourceSkillResult({
-  resourceType: "product_image",
+  resourceType: "backup_landing_page",
   result: {
     status: "blocked",
-    blockers: ["product_image_not_ready"],
+    blockers: ["backup_landing_page_not_ready"],
     outputSummary: {
       ready: false
     }
   }
 });
-assert(unsupportedExistingNormalized.outputSummary.existence_status === "exists", "product_existing_existence_status_wrong");
+assert(unsupportedExistingNormalized.outputSummary.existence_status === "exists", "backup_existing_existence_status_wrong");
 
 const allReadyResources = OE3_REQUIRED_RESOURCE_TYPES.map(readyResource);
 const videoMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
@@ -196,8 +203,15 @@ assert(dmpMissingPlan.plannedActions.find((item) => item.action_type === "ensure
 const productMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
   allReadyResources.filter((item) => item.resource_type !== "product_image")
 ));
-assert(!actionTypes(productMissingPlan).includes("ensure_resource:product_image"), "unsupported_product_image_action_planned");
-assert(productMissingPlan.blockerCodes.includes("resource_prepare_unsupported:product_image"), "unsupported_product_image_blocker_missing");
+assert(actionTypes(productMissingPlan).includes("ensure_resource:product_image"), "product_image_missing_prepare_action_missing");
+assert(productMissingPlan.plannedActions.find((item) => item.action_type === "ensure_resource:product_image").module_ref === "src/platforms/oceanengineProductImageExecutor.mjs", "product_image_action_module_ref_wrong");
+assert(!productMissingPlan.blockerCodes.includes("resource_prepare_unsupported:product_image"), "supported_product_image_blocker_present");
+
+const backupMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "backup_landing_page")
+));
+assert(!actionTypes(backupMissingPlan).includes("ensure_resource:backup_landing_page"), "reserved_backup_landing_page_action_planned_without_contract");
+assert(backupMissingPlan.blockerCodes.includes("resource_prepare_unsupported:backup_landing_page"), "unsupported_backup_landing_page_blocker_missing");
 
 const backupBlocked = normalizeResourceSkillResult({
   resourceType: "backup_landing_page",
@@ -231,7 +245,9 @@ const result = {
   resourcePrepareSupported: supportedNormalized.outputSummary.prepare_capability.status,
   resourcePrepareUnsupported: unsupportedNormalized.outputSummary.prepare_capability.status,
   videoPlanAction: videoAction.action_type,
-  productUnsupportedBlocker: "resource_prepare_unsupported:product_image",
+  productPrepareAction: "ensure_resource:product_image",
+  backupLandingPageReservedAction: backupCapability.reserved_prepare_action_type,
+  backupLandingPageUnsupportedBlocker: "resource_prepare_unsupported:backup_landing_page",
   backupLandingPageBlockers: backupBlocked.blockers,
   microAppInstanceBlockers: microBlocked.blockers,
   noRealPlatformWrite: true,

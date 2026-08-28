@@ -10,6 +10,7 @@ import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineR
 
 export const BACKUP_LANDING_PAGE_INVENTORY_SKILL_KEY = "backup-landing-page-material-inventory";
 export const BACKUP_LANDING_PAGE_INVENTORY_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-MATERIAL-INVENTORY-1871922346964041";
+export const BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041";
 export const CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID = "LPA-JSZC-OE3-BACKUP-001";
 export const DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT = "1760246749825031";
 
@@ -57,6 +58,12 @@ function normalizedHash(value) {
   const text = clean(value);
   if (!text) return "";
   return text.startsWith("sha256:") ? text : `sha256:${text}`;
+}
+
+function sameHash(left, right) {
+  const normalizedLeft = normalizedHash(left);
+  const normalizedRight = normalizedHash(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
 }
 
 function siteIdFromItem(item = {}) {
@@ -210,9 +217,38 @@ async function fetchTargetOrangeSiteProbe({ client, advertiserId }) {
   };
 }
 
+function targetResolution(targetSite = null, targetSharedSite = null, expectedHash = "") {
+  const resolvedSite = targetSharedSite || targetSite || null;
+  const targetHash = normalizedHash(resolvedSite?.url_hash || "");
+  const hashMatches = sameHash(expectedHash, targetHash);
+  const exactMatch = Boolean(resolvedSite);
+  const usable = resolvedSite?.usable === true;
+  return {
+    target_match: Boolean(targetSite),
+    target_status: clean(targetSite?.status || ""),
+    target_usable: targetSite?.usable === true,
+    target_share_type: clean(targetSite?.share_type || ""),
+    target_shared_match: Boolean(targetSharedSite),
+    target_shared_status: clean(targetSharedSite?.status || ""),
+    target_shared_usable: targetSharedSite?.usable === true,
+    target_shared_share_type: clean(targetSharedSite?.share_type || ""),
+    target_resolution_source: targetSharedSite ? "shared_inventory" : targetSite ? "ordinary_inventory" : "",
+    target_exact_match: exactMatch,
+    target_resolved_status: clean(resolvedSite?.status || ""),
+    target_resolved_usable: usable,
+    target_url_hash: targetHash,
+    target_hash_matches: hashMatches,
+    target_verified: exactMatch && usable && hashMatches
+  };
+}
+
 function candidateSummary(candidate = {}, sourceSite = null, targetSite = null, targetSharedSite = null) {
   const siteId = clean(candidate.site_id);
   const name = clean(candidate.site_name);
+  const sourceUrlHash = normalizedHash(sourceSite?.url_hash || "");
+  const dbUrlHash = normalizedHash(candidate.url_hash || "");
+  const expectedUrlHash = sourceUrlHash || dbUrlHash || siteUrlHash(siteId);
+  const target = targetResolution(targetSite, targetSharedSite, expectedUrlHash);
   return {
     landing_page_asset_id: clean(candidate.landing_page_asset_id),
     site_id: siteId,
@@ -225,13 +261,11 @@ function candidateSummary(candidate = {}, sourceSite = null, targetSite = null, 
     source_status: clean(sourceSite?.status || ""),
     source_usable: sourceSite?.usable === true,
     source_name_hash: clean(sourceSite?.name_hash || ""),
-    target_match: Boolean(targetSite),
-    target_status: clean(targetSite?.status || ""),
-    target_usable: targetSite?.usable === true,
-    target_share_type: clean(targetSite?.share_type || targetSharedSite?.share_type || ""),
-    target_shared_match: Boolean(targetSharedSite),
-    url_hash: normalizedHash(sourceSite?.url_hash || candidate.url_hash || siteUrlHash(siteId)),
-    url_hash_present: Boolean(sourceSite?.url_hash || candidate.url_hash || siteId)
+    source_url_hash: sourceUrlHash,
+    db_url_hash: dbUrlHash,
+    ...target,
+    url_hash: expectedUrlHash,
+    url_hash_present: Boolean(expectedUrlHash)
   };
 }
 
@@ -247,20 +281,26 @@ function selectConclusion({ candidates, sourceInventory, targetInventory, target
   ));
   const defaultRows = candidateRows.filter((item) => item.landing_page_asset_id === CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID);
   const defaultRow = defaultRows[0] || null;
-  const targetAlreadyUsable = defaultRows.length === 1 && defaultRow.target_match && defaultRow.target_usable;
   const defaultSourceVerified = defaultRows.length === 1 && defaultRow.source_match && defaultRow.source_usable;
+  const targetAlreadyUsable = defaultSourceVerified && defaultRow.target_verified === true;
+  const defaultTargetSeen = defaultRows.length === 1 && defaultRow.target_exact_match === true;
   const blockers = [
     ...(candidates.length !== 4 ? ["backup_landing_page_candidate_count_unexpected"] : []),
     ...(defaultRows.length !== 1 ? ["backup_landing_page_default_candidate_not_unique"] : []),
     ...(sourceInventory.status === "passed" ? [] : sourceInventory.blockers),
     ...(targetInventory.status === "passed" ? [] : targetInventory.blockers),
+    ...(targetSharedInventory.status === "passed" ? [] : targetSharedInventory.blockers),
     ...(defaultRows.length === 1 && !defaultRow.source_match ? ["backup_landing_page_default_source_missing"] : []),
-    ...(defaultRows.length === 1 && defaultRow.source_match && !defaultRow.source_usable ? ["backup_landing_page_default_source_not_usable"] : [])
+    ...(defaultRows.length === 1 && defaultRow.source_match && !defaultRow.source_usable ? ["backup_landing_page_default_source_not_usable"] : []),
+    ...(defaultSourceVerified && !defaultTargetSeen ? ["backup_landing_page_target_site_missing"] : []),
+    ...(defaultSourceVerified && defaultTargetSeen && !defaultRow.target_resolved_usable ? ["backup_landing_page_target_site_not_usable"] : []),
+    ...(defaultSourceVerified && defaultTargetSeen && defaultRow.target_resolved_usable && !defaultRow.target_hash_matches ? ["backup_landing_page_target_url_hash_mismatch"] : [])
   ];
-  const hasBlockingProbeOrDefaultIssue = blockers.length > 0;
-  const conclusion = targetAlreadyUsable && !hasBlockingProbeOrDefaultIssue
+  const sourceBlockers = blockers.filter((blocker) => !String(blocker).startsWith("backup_landing_page_target_"));
+  const hasSourceBlockingProbeOrDefaultIssue = sourceBlockers.length > 0;
+  const conclusion = targetAlreadyUsable && !hasSourceBlockingProbeOrDefaultIssue
     ? "target_already_usable"
-    : defaultSourceVerified && !hasBlockingProbeOrDefaultIssue
+    : defaultSourceVerified && !hasSourceBlockingProbeOrDefaultIssue
       ? "default_source_verified"
       : "default_source_unverified";
   return {
@@ -270,7 +310,8 @@ function selectConclusion({ candidates, sourceInventory, targetInventory, target
     candidateRows,
     defaultRow,
     defaultSourceVerified,
-    targetAlreadyUsable
+    targetAlreadyUsable,
+    defaultTargetSeen
   };
 }
 
@@ -329,14 +370,16 @@ async function persistInventory({ repo, bundle, candidates, conclusion, outputSu
         sourceAssetId: row.landing_page_asset_id,
         resourceName: clean(candidate.site_name || row.site_id),
         platformResourceId: row.site_id,
-        visibilityStatus: row.target_usable ? "visible" : "unknown",
-        readbackStatus: row.target_usable ? "readback_verified" : "not_checked",
+        visibilityStatus: row.target_verified ? "visible" : "unknown",
+        readbackStatus: row.target_verified ? "readback_verified" : "not_checked",
         required: true,
         metadata: {
-          status: row.target_usable ? "passed" : outputSummary.conclusion,
+          status: row.target_verified ? "passed" : outputSummary.conclusion,
           source_verified: row.source_usable,
-          target_visible: row.target_match,
+          target_visible: row.target_exact_match,
           target_shared_match: row.target_shared_match,
+          target_resolution_source: row.target_resolution_source,
+          target_hash_matches: row.target_hash_matches,
           response_hash_present: true,
           evidence_ref: evidenceRef
         },
@@ -403,6 +446,9 @@ export async function runBackupLandingPageMaterialInventorySkill({
     default_site_id: defaultSiteId,
     default_source_verified: conclusion.defaultSourceVerified,
     target_already_usable: conclusion.targetAlreadyUsable,
+    default_target_seen: conclusion.defaultTargetSeen,
+    default_target_resolution_source: clean(conclusion.defaultRow?.target_resolution_source || ""),
+    default_target_hash_matches: conclusion.defaultRow?.target_hash_matches === true,
     source_page_count: sourceInventory.page_count,
     target_page_count: targetInventory.page_count,
     source_site_count: sourceInventory.site_count,
@@ -428,12 +474,16 @@ export async function runBackupLandingPageMaterialInventorySkill({
     candidates: conclusion.candidateRows,
     cross_account_path: {
       source_chain: "local_folder_to_material_account_to_target_account",
+      allowed_transfer_mode: "manual_share_designated_account_only",
       local_folder_required_for_this_inventory: false,
-      handsel_contract_present: true,
-      copy_contract_present: true,
-      handsel_content_retention_safe: false,
+      screenshot_share_scope_confirmed: true,
+      target_account_readback_model: "tools/site/get ordinary inventory plus share_type=SHARE inventory",
+      target_pass_requires: ["site_id_exact_match", "target_status_usable", "source_asset_id_exact_match", "url_hash_match"],
+      handsel_contract_present_in_local_official_docs: false,
+      copy_or_rebuild_allowed: false,
+      content_retention_contract_verified: false,
       write_allowed_this_cycle: false,
-      next_action: "Review content-preserving official contract and create a separately authorized handsel/copy task before any platform write."
+      next_action: "User manually shares the controlled source site to the target account, then rerun readonly target inventory."
     },
     platform_write_called: false,
     create_called: false,

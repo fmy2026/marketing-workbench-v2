@@ -1,0 +1,65 @@
+{
+  "task_id": "TASK-MWBV2-OE3-PRODUCT-IMAGE-TARGET-UPLOAD-1871922346964041",
+  "owner_agent": "codex",
+  "status": "completed_product_image_ready",
+  "updated_at": "2026-08-28 CST",
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "target_advertiser_id": "1871922346964041",
+    "resource_type": "product_image",
+    "source_asset_id": "PI-JSZC-PRODUCT-IMAGE-001"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-PRODUCT-IMAGE-TARGET-UPLOAD-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-PRODUCT-IMAGE-TARGET-UPLOAD-1871922346964041.json",
+    "src/workflows/skills/oe3/04-product-image-source-prepare.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/platforms/oceanengineProductImageExecutor.mjs",
+    "src/workflows/productImageExecutionScope.mjs",
+    "scripts/04-product-image-ensure-once.mjs"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "product_info.image_ids size requirement",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:165"
+    },
+    {
+      "purpose": "file upload contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:894"
+    },
+    {
+      "purpose": "file readback contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:2155"
+    }
+  ],
+  "boundaries": {
+    "allowed_actions": [
+      "ensure_resource:product_image"
+    ],
+    "maximum_platform_calls": 1,
+    "forbidden": [
+      "std_project/create",
+      "token refresh",
+      "url upload",
+      "cross-account image share",
+      "micro_app_instance changes"
+    ],
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "full_url_stored": false
+  },
+  "result": {
+    "job_id": "JOB-MWBV2-20260828080634-E8FD58",
+    "generated_image_sha256": "sha256:46ad4d14069a5b70c318d2a88c4bc57445785091833ae673a4df864072dec645",
+    "generated_image_md5_hash": "sha256:791627b9f545134e4544ebc4b0e2d4969650009592bd86ae01b8cd2867ed3aef",
+    "platform_write_called_once": true,
+    "target_readback_status": "readback_verified",
+    "product_image_resource_status": "visible",
+    "token_refresh_called": false,
+    "micro_app_instance_unchanged": true
+  }
+}

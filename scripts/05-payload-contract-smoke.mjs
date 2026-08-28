@@ -63,6 +63,8 @@ try {
   assert(dryInstanceEvidence.status === "blocked", "runtime-derived instance create evidence should block");
   assert(dryInstanceEvidence.blockers?.includes("instance_id_long_id_transport_not_verified"), "instance long-ID transport blocker missing");
   assert(dryManifest.microAppInstanceIdPresent === false, "unverified instance candidate must not enter payload");
+  assert(dryManifest.miniProgramUrlRequired === false, "BYTE_GAME MICRO_GAME route should not require mini_program_info.url");
+  assert(!dryManifest.blockers?.includes("mini_program_url_missing"), "BYTE_GAME MICRO_GAME route should not emit mini_program_url_missing");
   ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
     assert(dryFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted without direct create evidence`);
   });
@@ -109,6 +111,7 @@ try {
   assert(mockManifest.advertiserIdTransportSafe === true, "mock advertiser_id transport not safe");
   assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
+  assert(mockManifest.miniProgramUrlRequired === false, "mock BYTE_GAME MICRO_GAME route should not require mini_program_info.url");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
 

@@ -36,9 +36,9 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
   },
   product_image: {
     verifyModuleRef: DEFAULT_VERIFY_MODULE,
-    prepareSupported: false,
-    prepareModuleRef: "",
-    evidenceRequirement: "product image source preparation, target file/image/get inventory, and resource metadata"
+    prepareSupported: true,
+    prepareModuleRef: "src/platforms/oceanengineProductImageExecutor.mjs",
+    evidenceRequirement: "108x108 PNG product image source, one-time target advertiser file/image/ad upload, and file/image/get readback evidence"
   },
   brand_info: {
     verifyModuleRef: DEFAULT_VERIFY_MODULE,
@@ -56,7 +56,12 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     verifyModuleRef: "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
-    evidenceRequirement: "local landing page folder manifest, material source account, default/hash, and target visibility evidence"
+    reservedPrepareActionType: "ensure_resource:backup_landing_page",
+    reservedPrepareModuleRef: "src/platforms/oceanengineBackupLandingPageShareExecutor.mjs#reserved",
+    reservedPrepareScope: "source_material_account_to_target_account_designated_share_only",
+    reservedConfirmationModel: "single_explicit_confirmation_plus_write_readback",
+    reservedIdempotencyScope: "route_id:game_code:source_advertiser_id:site_id:target_advertiser_id",
+    evidenceRequirement: "material source account default site, target ordinary/shared inventory visibility, source asset id, and url hash match evidence"
   }
 });
 
@@ -86,6 +91,11 @@ export function getResourceActionCapability(resourceType) {
     prepare_supported: capability.prepareSupported === true,
     prepare_module_ref: capability.prepareModuleRef || "",
     prepare_action_type: capability.prepareSupported === true ? prepareActionType : "",
+    reserved_prepare_action_type: capability.reservedPrepareActionType || "",
+    reserved_prepare_module_ref: capability.reservedPrepareModuleRef || "",
+    reserved_prepare_scope: capability.reservedPrepareScope || "",
+    reserved_confirmation_model: capability.reservedConfirmationModel || "",
+    reserved_idempotency_scope: capability.reservedIdempotencyScope || "",
     prepare_stop_conditions: defaultStopConditions(resourceType),
     evidence_requirement: capability.evidenceRequirement || "account_resources readonly evidence"
   };

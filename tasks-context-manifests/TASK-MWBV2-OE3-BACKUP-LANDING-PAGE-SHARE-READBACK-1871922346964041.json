@@ -1,0 +1,98 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041",
+  "status": "completed_target_share_readback_verified",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "owner_agent": "Codex",
+  "brief": {
+    "goal": "固化默认备用落地页从物料户到目标账户的指定账户共享回查机制，并预留但不启用自动化共享动作。",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "source_advertiser_id": "1760246749825031",
+    "controlled_default_asset_id": "LPA-JSZC-OE3-BACKUP-001",
+    "site_id": "7624750304608649243",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "external_search_allowed": false,
+    "share_mode": "manual_designated_account_share_then_readonly_readback"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041.json",
+    "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs",
+    "scripts/04-backup-landing-page-material-inventory-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "official_sources": [
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041.json",
+    "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-index.mjs",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs",
+    "scripts/04-backup-landing-page-material-inventory-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "landing page create/update/copy/rebuild/delete",
+    "automatic landing page share before verified official local contract",
+    "token refresh",
+    "material upload or bind",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "external web search for OceanEngine docs",
+    "saving token, Cookie, full URL, raw request, or raw response"
+  ],
+  "entrypoints": {
+    "manual_share_readback_cli": "npm run check:oe3-landing-page-inventory -- --case-id=CASE-LEGACY-2E4217E20C9E26BFB648772C --advertiser-id=1871922346964041 --source-record-ref=TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041",
+    "inventory_smoke": "npm run test:backup-landing-page-material-inventory",
+    "capability_smoke": "npm run test:resource-action-registry"
+  },
+  "latest_result": {
+    "job_id": "JOB-MWBV2-BACKUP-LANDING-INVENTORY-20260828072633-A30063",
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "status": "passed",
+    "conclusion": "target_already_usable",
+    "source_inventory_status": "passed",
+    "target_inventory_status": "passed",
+    "target_shared_inventory_status": "passed",
+    "default_target_seen": true,
+    "default_target_resolution_source": "shared_inventory",
+    "default_target_hash_matches": true,
+    "blockers": [],
+    "backup_landing_page_visibility_status": "visible",
+    "backup_landing_page_readback_status": "readback_verified",
+    "platform_write_count": 0,
+    "token_refresh_called": false,
+    "remaining_independent_resource_blockers": [
+      "product_image",
+      "micro_app_instance"
+    ]
+  },
+  "acceptance": [
+    "source default site must be unique and usable",
+    "target ordinary inventory or target shared inventory must exactly match site_id and usable status",
+    "target url hash must match the controlled landing page asset hash",
+    "backup_landing_page prepare_supported remains false until a verified local official contract exists",
+    "execution plan does not generate ensure_resource:backup_landing_page while prepare_supported is false",
+    "product_image and micro_app_instance blockers remain independent",
+    "evidence stores only status, IDs, hashes, and response/request presence"
+  ]
+}

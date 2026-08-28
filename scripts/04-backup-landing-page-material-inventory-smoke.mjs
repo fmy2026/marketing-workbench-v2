@@ -1,8 +1,19 @@
-import { assertNoSensitiveLeak, runBackupLandingPageMaterialInventorySkill } from "../src/workflows/skills/oe3/00-index.mjs";
+import {
+  assertNoSensitiveLeak,
+  hashValue,
+  runBackupLandingPageMaterialInventorySkill
+} from "../src/workflows/skills/oe3/00-index.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const controlledUrls = [
+  "https://controlled.example.invalid/jszc/default",
+  "https://controlled.example.invalid/jszc/candidate-2",
+  "https://controlled.example.invalid/jszc/candidate-3",
+  "https://controlled.example.invalid/jszc/candidate-4"
+];
 
 const candidates = [
   ["LPA-JSZC-OE3-BACKUP-001", "7624750304608649243", "default"],
@@ -18,7 +29,7 @@ const candidates = [
   source_advertiser_id: "1760246749825031",
   is_default: index === 0,
   status: index === 0 ? "active" : "reference_candidate",
-  url_hash: `sha256:db-${index}`
+  url_hash: hashValue(controlledUrls[index])
 }));
 
 const bundle = {
@@ -32,10 +43,12 @@ const bundle = {
 };
 
 function site(siteId, status = "AUDIT_ACCEPTED", extra = {}) {
+  const index = candidates.findIndex((item) => item.site_id === siteId);
   return {
     site_id: siteId,
     name: `site ${siteId}`,
     status,
+    ...(index >= 0 ? { site_url: controlledUrls[index] } : {}),
     ...extra
   };
 }
@@ -117,16 +130,42 @@ const success = await runCase("default_source_verified", {
 assert(success.result.status === "needs_confirmation", "default source should need cross-account confirmation");
 assert(success.result.outputSummary.conclusion === "default_source_verified", "default source conclusion wrong");
 assert(success.result.outputSummary.candidate_count === 4, "candidate count should be 4");
+assert(success.result.blockers.includes("backup_landing_page_target_site_missing"), "target missing blocker absent");
 assert(success.result.outputSummary.prepare_supported === false, "prepare_supported must stay false");
 assert(success.result.outputSummary.cross_account_path.local_folder_required_for_this_inventory === false, "local folder should not block inventory");
+assert(success.result.outputSummary.cross_account_path.allowed_transfer_mode === "manual_share_designated_account_only", "manual share mode not recorded");
 
-const targetExisting = await runCase("target_already_usable", {
+const targetOrdinaryExisting = await runCase("target_already_usable_from_ordinary_inventory", {
   sourceSites: sourceFour,
-  targetSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED", { share_type: "SHARE" })],
+  targetSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED")],
+  targetSharedSites: []
+});
+assert(targetOrdinaryExisting.result.status === "passed", "target ordinary existing should pass");
+assert(targetOrdinaryExisting.result.outputSummary.conclusion === "target_already_usable", "target ordinary conclusion wrong");
+assert(targetOrdinaryExisting.result.outputSummary.default_target_resolution_source === "ordinary_inventory", "ordinary resolution source wrong");
+assert(targetOrdinaryExisting.result.outputSummary.default_target_hash_matches === true, "ordinary target hash should match");
+
+const targetSharedExisting = await runCase("target_already_usable_from_shared_inventory", {
+  sourceSites: sourceFour,
+  targetSites: [],
   targetSharedSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED", { share_type: "SHARE" })]
 });
-assert(targetExisting.result.status === "passed", "target existing should pass");
-assert(targetExisting.result.outputSummary.conclusion === "target_already_usable", "target existing conclusion wrong");
+assert(targetSharedExisting.result.status === "passed", "target shared existing should pass");
+assert(targetSharedExisting.result.outputSummary.conclusion === "target_already_usable", "target shared conclusion wrong");
+assert(targetSharedExisting.result.outputSummary.default_target_resolution_source === "shared_inventory", "shared resolution source wrong");
+
+const staleDbHashRows = [
+  { ...candidates[0], url_hash: "sha256:stale-controlled-db-hash" },
+  ...candidates.slice(1)
+];
+const staleDbHashButLiveSourceMatches = await runCase("stale_db_hash_but_live_source_matches_target", {
+  candidateRows: staleDbHashRows,
+  sourceSites: sourceFour,
+  targetSites: [],
+  targetSharedSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED", { share_type: "SHARE" })]
+});
+assert(staleDbHashButLiveSourceMatches.result.status === "passed", "live source hash should override stale db hash");
+assert(staleDbHashButLiveSourceMatches.result.outputSummary.default_target_hash_matches === true, "live source hash match should be true");
 
 const missingDefault = await runCase("default_missing", {
   sourceSites: sourceFour.filter((item) => item.site_id !== candidates[0].site_id),
@@ -141,6 +180,25 @@ const unusableDefault = await runCase("default_unusable", {
 });
 assert(unusableDefault.result.status === "blocked", "unusable default should block");
 assert(unusableDefault.result.blockers.includes("backup_landing_page_default_source_not_usable"), "unusable default blocker absent");
+
+const unusableTarget = await runCase("target_unusable", {
+  sourceSites: sourceFour,
+  targetSites: [],
+  targetSharedSites: [site(candidates[0].site_id, "AUDIT_REJECTED", { share_type: "SHARE" })]
+});
+assert(unusableTarget.result.status === "needs_confirmation", "unusable target should keep source verified but need confirmation");
+assert(unusableTarget.result.blockers.includes("backup_landing_page_target_site_not_usable"), "unusable target blocker absent");
+
+const targetHashMismatch = await runCase("target_hash_mismatch", {
+  sourceSites: sourceFour,
+  targetSites: [],
+  targetSharedSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED", {
+    share_type: "SHARE",
+    site_url: "https://controlled.example.invalid/jszc/changed"
+  })]
+});
+assert(targetHashMismatch.result.status === "needs_confirmation", "hash mismatch should keep source verified but need confirmation");
+assert(targetHashMismatch.result.blockers.includes("backup_landing_page_target_url_hash_mismatch"), "hash mismatch blocker absent");
 
 const ambiguousDefault = await runCase("default_ambiguous", {
   candidateRows: [...candidates, { ...candidates[0], site_id: "9999999999999999999" }],
@@ -162,9 +220,13 @@ const output = {
   status: "passed",
   cases: [
     success.name,
-    targetExisting.name,
+    targetOrdinaryExisting.name,
+    targetSharedExisting.name,
+    staleDbHashButLiveSourceMatches.name,
     missingDefault.name,
     unusableDefault.name,
+    unusableTarget.name,
+    targetHashMismatch.name,
     ambiguousDefault.name,
     apiFailure.name
   ],

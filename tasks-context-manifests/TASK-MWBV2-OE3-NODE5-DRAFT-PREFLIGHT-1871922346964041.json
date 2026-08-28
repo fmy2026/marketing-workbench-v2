@@ -1,0 +1,123 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041.md",
+  "status": "completed_node5_preflight_blocked_by_instance_transport",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Create a fresh runtime_truth readonly readiness job for advertiser 1871922346964041, run OE3 Node 1-5, generate the draft/payload hash/create preflight, and keep std_project/create locked.",
+    "mode": "runtime_truth_readonly_node5_preflight",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "target_advertiser_id": "1871922346964041",
+    "expected_monitor_id": "245828",
+    "source_record_ref": "TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041.json",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/05-official-create-field-contract.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "package.json"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "std_project/create direct create contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md"
+    },
+    {
+      "purpose": "instance_id field name, number type, and mini game applicability",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:199"
+    },
+    {
+      "purpose": "optimized_goal/get readonly eligibility for micro_app_instance_id",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/调控任务/标准项目下获取可用优化目标.md:27"
+    }
+  ],
+  "boundaries": {
+    "allowed_actions": [
+      "readonly:workflow_readiness",
+      "readonly:qiankun_monitor_plan",
+      "readonly:oceanengine_resource_probe",
+      "record:runtime_truth_job",
+      "record:draft_and_sanitized_evidence"
+    ],
+    "forbidden": [
+      "std_project/create",
+      "launch confirmation",
+      "token refresh",
+      "monitor create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "raw payload storage",
+      "raw response storage",
+      "full URL storage"
+    ],
+    "instance_id_policy": {
+      "storage": "decimal_digit_string",
+      "send_policy_until_official_long_id_transport_verified": "omit_and_block_create",
+      "expected_blocker": "instance_id_long_id_transport_not_verified"
+    }
+  },
+  "validation_plan": [
+    "npm run workflow:readonly-readiness -- --route-id=oceanengine_3_byte_mini_game --game-code=JSZC --advertiser-id=1871922346964041 --case-id=CASE-LEGACY-2E4217E20C9E26BFB648772C --source-record-ref=TASK-MWBV2-OE3-NODE5-DRAFT-PREFLIGHT-1871922346964041",
+    "npm run test:readonly-readiness-cli",
+    "npm run test:payload-contract",
+    "npm run test:execution-plan",
+    "npm run smoke:workflow-skills",
+    "npm run check:runtime-consistency -- --job-id <fresh-job-id>",
+    "git diff --check"
+  ],
+  "result": {
+    "completed_at": "2026-08-28 CST",
+    "job_id": "JOB-MWBV2-20260828085253-380771",
+    "draft_id": "DRAFT-JOB-MWBV2-20260828085253-380771",
+    "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P07_20260828",
+    "payload_hash": "sha256:687017cb90451e8b9aa408462cd95806be664f4c33cc7a18484c29b72f3ef636",
+    "node_statuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "repairable",
+      "std_project_create_executor": "locked",
+      "readback_closer": "waiting"
+    },
+    "duplicate_status": "platform_not_duplicate",
+    "final_payload_manifest_blockers": [
+      "instance_id_long_id_transport_not_verified"
+    ],
+    "create_readiness_wrapper_blockers": [
+      "final_payload_blockers",
+      "payload_contract_not_passed"
+    ],
+    "zero_platform_write_audit": {
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "passed": true
+    },
+    "micro_game_byte_game_mini_program_url_required": false,
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "full_url_stored": false,
+    "next_gate": "Provide or record official long-ID JSON number transport contract for std_project/create instance_id before opening a separate single-create confirmation task."
+  }
+}

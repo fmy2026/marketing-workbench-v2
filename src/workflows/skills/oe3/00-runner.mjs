@@ -467,7 +467,8 @@ async function executeSkill({ repo, context, skillKey }) {
       result = await runMicroAppInstanceReadonlySkill({
         repo,
         bundle: context.bundle,
-        mockReady: context.mockReady
+        mockReady: context.mockReady,
+        allowReadonlyDependency: context.allowReadonlyDependency === true
       });
     } else if (skillKey === "backup-landing-page-source-prepare") {
       result = await runBackupLandingPageSourcePrepareSkill({ repo, bundle: context.bundle });

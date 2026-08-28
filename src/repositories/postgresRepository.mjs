@@ -246,6 +246,21 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async updateGameAssetFile({ assetId, assetRef, assetHash, visibilityStatus = "", metadata = {} } = {}) {
+    assertId("asset_id", assetId);
+    if (!String(assetRef || "").trim()) throw new Error("asset_ref_required");
+    if (!String(assetHash || "").trim()) throw new Error("asset_hash_required");
+    await runPsql(`
+      UPDATE mwb.game_assets
+      SET asset_ref = ${sqlLiteral(assetRef)},
+          asset_hash = ${sqlLiteral(assetHash)},
+          visibility_status = coalesce(nullif(${sqlLiteral(visibilityStatus || "")}, ''), visibility_status),
+          metadata = metadata || ${sqlJson(metadata || {})},
+          updated_at = now()
+      WHERE asset_id = ${sqlLiteral(assetId)};
+    `, this.database);
+  }
+
   async getDmpPackageSet({ routeId, gameCode, packageSetId = "", targetAdvertiserId = "" }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
