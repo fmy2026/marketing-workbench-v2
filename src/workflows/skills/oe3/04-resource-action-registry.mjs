@@ -38,7 +38,7 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     verifyModuleRef: DEFAULT_VERIFY_MODULE,
     prepareSupported: false,
     prepareModuleRef: "",
-    evidenceRequirement: "account_resources readonly/resource metadata"
+    evidenceRequirement: "product image source preparation, target file/image/get inventory, and resource metadata"
   },
   brand_info: {
     verifyModuleRef: DEFAULT_VERIFY_MODULE,
@@ -50,13 +50,13 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     verifyModuleRef: "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
-    evidenceRequirement: "official create-field evidence and account resource metadata"
+    evidenceRequirement: "target account micro app instance readonly evidence and official create-field evidence"
   },
   backup_landing_page: {
     verifyModuleRef: "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
-    evidenceRequirement: "backup landing page asset/default/hash/target visibility evidence"
+    evidenceRequirement: "local landing page folder manifest, material source account, default/hash, and target visibility evidence"
   }
 });
 

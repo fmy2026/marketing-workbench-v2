@@ -158,12 +158,14 @@ export async function runPlatformReadonlyReconcileSkill({
       resourceMetadata
     });
   }
+  const readonlyStatus = result.status || "blocked";
+  const skillStatus = readonlyStatus === "passed" ? "passed" : "blocked";
   const output = sanitizeForPublic({
-    status: result.status || "blocked",
+    status: skillStatus,
     blockers: result.blockers || [],
     evidenceRefs: [artifactId],
     outputSummary: {
-      readonlyStatus: result.status || "blocked",
+      readonlyStatus,
       probeCount: probeSummary.length,
       resourceUpdateCount: (result.resourceUpdates || []).length,
       credential: safeCredential(result.credential),

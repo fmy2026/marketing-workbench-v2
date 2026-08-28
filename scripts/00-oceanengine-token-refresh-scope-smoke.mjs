@@ -7,8 +7,11 @@ import { refreshOceanEngineToken } from "../src/platforms/oceanengineTokenRefres
 const TEMP_DIR = mkdtempSync(path.join(os.tmpdir(), "mwbv2-token-refresh-smoke-"));
 const ENV_PATH = path.join(TEMP_DIR, "oceanengine.env");
 const STATE_PATH = path.join(TEMP_DIR, "project.state.json");
+const AUDIT_PATH = path.join(TEMP_DIR, "oceanengine-token-refresh-audit.jsonl");
+const LOCK_PATH = path.join(TEMP_DIR, "oceanengine-token-refresh.lock");
 const AUTOMATION_ID = "test-scheduled-token-refresh";
 const SECRET_MARKERS = ["test-app-secret", "test-refresh-token", "test-new-access-token", "test-new-refresh-token"];
+const OFFICIAL_REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refresh_token/";
 
 process.on("exit", () => rmSync(TEMP_DIR, { recursive: true, force: true }));
 
@@ -28,14 +31,25 @@ function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "sche
   }));
 }
 
-function writeEnv() {
+function writeEnv(overrides = {}) {
+  const values = {
+    OCEANENGINE_APP_ID: "test-app-id",
+    OCEANENGINE_APP_SECRET: "test-app-secret",
+    OCEANENGINE_REDIRECT_URI: "http://127.0.0.1/callback",
+    OCEANENGINE_ACCESS_TOKEN: "test-old-access-token",
+    OCEANENGINE_REFRESH_TOKEN: "test-refresh-token",
+    OCEANENGINE_TOKEN_STATUS: "valid",
+    ...overrides
+  };
   writeFileSync(ENV_PATH, [
-    "OCEANENGINE_APP_ID=test-app-id",
-    "OCEANENGINE_APP_SECRET=test-app-secret",
-    "OCEANENGINE_REDIRECT_URI=http://127.0.0.1/callback",
-    "OCEANENGINE_ACCESS_TOKEN=test-old-access-token",
-    "OCEANENGINE_REFRESH_TOKEN=test-refresh-token",
-    "OCEANENGINE_TOKEN_STATUS=valid"
+    `OCEANENGINE_APP_ID=${values.OCEANENGINE_APP_ID}`,
+    `OCEANENGINE_APP_SECRET=${values.OCEANENGINE_APP_SECRET}`,
+    `OCEANENGINE_REDIRECT_URI=${values.OCEANENGINE_REDIRECT_URI}`,
+    `OCEANENGINE_ACCESS_TOKEN=${values.OCEANENGINE_ACCESS_TOKEN}`,
+    `OCEANENGINE_REFRESH_TOKEN=${values.OCEANENGINE_REFRESH_TOKEN}`,
+    `OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=${values.OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT || ""}`,
+    `OCEANENGINE_REFRESH_FAILURE_TYPE=${values.OCEANENGINE_REFRESH_FAILURE_TYPE || ""}`,
+    `OCEANENGINE_TOKEN_STATUS=${values.OCEANENGINE_TOKEN_STATUS}`
   ].join("\n") + "\n", { mode: 0o600 });
 }
 
@@ -91,18 +105,50 @@ assert.equal(readFileSync(ENV_PATH, "utf8"), before);
 
 writeEnv();
 fetchCalls = 0;
+const requestedUrls = [];
 outcome = await refreshOceanEngineToken({
   env: testEnv(),
   now: () => new Date("2026-08-27T04:00:00.000Z"),
-  fetchImpl: async () => {
+  fetchImpl: async (url) => {
     fetchCalls += 1;
-    return mockResponse({ payload: { data: { access_token: "test-new-access-token", refresh_token: "test-new-refresh-token", expires_in: 3600 } } });
+    requestedUrls.push(url);
+    return mockResponse({
+      payload: {
+        data: {
+          access_token: "test-new-access-token",
+          refresh_token: "test-new-refresh-token",
+          expires_in: 3600,
+          refresh_token_expires_in: 86400,
+          request_id: "test-request-id"
+        }
+      }
+    });
   }
 });
 assert.equal(outcome.exitCode, 0);
 assert.equal(outcome.result.status, "valid");
 assert.equal(fetchCalls, 1);
+assert.deepEqual(requestedUrls, [OFFICIAL_REFRESH_URL]);
 assert.equal(statSync(ENV_PATH).mode & 0o777, 0o600);
+assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=2026-08-28T04:00:00.000Z/u);
+assertNoSecrets(outcome.result);
+
+writeEnv();
+writeFileSync(LOCK_PATH, "locked", { mode: 0o600 });
+before = readFileSync(ENV_PATH, "utf8");
+fetchCalls = 0;
+outcome = await refreshOceanEngineToken({
+  env: testEnv(),
+  fetchImpl: async () => {
+    fetchCalls += 1;
+    throw new Error("must not call");
+  }
+});
+assert.equal(outcome.exitCode, 1);
+assert.equal(outcome.result.status, "refresh_in_progress");
+assert.equal(fetchCalls, 0);
+assert.equal(readFileSync(ENV_PATH, "utf8"), before);
+rmSync(LOCK_PATH, { force: true });
 assertNoSecrets(outcome.result);
 
 writeEnv();
@@ -112,15 +158,17 @@ outcome = await refreshOceanEngineToken({
 });
 assert.equal(outcome.exitCode, 1);
 assert.equal(outcome.result.status, "refresh_failed");
+assert.equal(outcome.result.failureType, "transport_error");
 assertNoSecrets(outcome.result);
 
 writeEnv();
 outcome = await refreshOceanEngineToken({
   env: testEnv(),
-  fetchImpl: async () => mockResponse({ ok: false, status: 401, payload: { code: 401, message: "expired" } })
+  fetchImpl: async () => mockResponse({ ok: false, status: 401, payload: { code: 401, message: "expired", request_id: "test-request-id" } })
 });
 assert.equal(outcome.exitCode, 1);
-assert.equal(outcome.result.status, "refresh_failed");
+assert.equal(outcome.result.status, "reauthorize_required");
+assert.equal(outcome.result.failureType, "refresh_token_invalid_or_revoked");
 
 writeEnv();
 outcome = await refreshOceanEngineToken({
@@ -129,10 +177,39 @@ outcome = await refreshOceanEngineToken({
 });
 assert.equal(outcome.exitCode, 1);
 assert.equal(outcome.result.status, "refresh_failed");
+assert.equal(outcome.result.failureType, "incomplete_refresh_response");
 assertNoSecrets(outcome.result);
+
+writeEnv({ OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT: "2026-08-27T03:59:59.000Z" });
+fetchCalls = 0;
+outcome = await refreshOceanEngineToken({
+  env: testEnv(),
+  now: () => new Date("2026-08-27T04:00:00.000Z"),
+  fetchImpl: async () => {
+    fetchCalls += 1;
+    throw new Error("must not call");
+  }
+});
+assert.equal(outcome.exitCode, 1);
+assert.equal(outcome.result.status, "reauthorize_required");
+assert.equal(outcome.result.failureType, "refresh_token_expired");
+assert.equal(fetchCalls, 0);
+assertNoSecrets(outcome.result);
+assertNoSecrets(readFileSync(AUDIT_PATH, "utf8"));
 
 console.log(JSON.stringify({
   tokenRefreshScopeSmoke: "passed",
-  cases: ["scope_closed", "automation_mismatch", "confirmation_missing", "success_0600", "network_failure", "oauth_rejected", "incomplete_response"],
+  cases: [
+    "scope_closed",
+    "automation_mismatch",
+    "confirmation_missing",
+    "single_official_endpoint",
+    "success_atomic_0600_with_refresh_token_expiry",
+    "refresh_in_progress_zero_network",
+    "network_failure",
+    "oauth_rejected_reauthorize_required",
+    "incomplete_response",
+    "local_refresh_token_expired"
+  ],
   sensitiveValuesEmitted: false
 }, null, 2));

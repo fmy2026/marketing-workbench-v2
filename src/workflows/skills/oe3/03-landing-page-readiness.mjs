@@ -45,6 +45,7 @@ export function backupLandingPageReadiness(bundle = {}) {
   const defaultResult = resolveBackupLandingPageDefault(bundle);
   const asset = bundle.backupLandingPage || {};
   const item = resource(bundle, "backup_landing_page");
+  const sourcePreparation = item.metadata?.backup_landing_page_source_preparation || {};
   const readonlyStatus = clean(item.metadata?.readonly_check?.status);
   const assetIdMatches = clean(item.source_asset_id) &&
     clean(item.source_asset_id) === clean(asset.landing_page_asset_id);
@@ -82,6 +83,18 @@ export function backupLandingPageReadiness(bundle = {}) {
       visibilityStatus: item.visibility_status || "missing",
       readbackStatus: item.readback_status || "missing",
       readonlyStatus,
+      sourcePreparationStatus: clean(sourcePreparation.status || "not_run"),
+      source_preparation_status: clean(sourcePreparation.status || "not_run"),
+      localManifestHashPresent: Boolean(sourcePreparation.local_manifest_hash),
+      local_manifest_hash_present: Boolean(sourcePreparation.local_manifest_hash),
+      localFileCount: Number(sourcePreparation.local_file_count || 0),
+      local_file_count: Number(sourcePreparation.local_file_count || 0),
+      sourceAccountPresent: sourcePreparation.source_account_present === true,
+      source_account_present: sourcePreparation.source_account_present === true,
+      flow: clean(sourcePreparation.flow),
+      targetTransportContractVerified: sourcePreparation.target_transport_contract_verified === true,
+      target_transport_contract_verified: sourcePreparation.target_transport_contract_verified === true,
+      preparationEvidenceRef: clean(sourcePreparation.evidence_ref),
       ready: blockers.length === 0,
       checks,
       nextAction: blockers.length ? "只读解析真实 HTTPS URL 并验证目标账户可见性" : "无需动作"

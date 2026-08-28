@@ -239,6 +239,7 @@ export function runResourceVerifier({ bundle, resourceType, mockReady = false })
   const ready = mockReady || resourceReady(item);
   const blocker = !item.resource_type ? `${resourceType}_missing` : `${resourceType}_not_ready`;
   const avatarDiagnostic = resourceType === "avatar" ? (item.metadata?.avatar_readonly_diagnostic || {}) : {};
+  const productImagePreparation = resourceType === "product_image" ? (item.metadata?.product_image_source_preparation || {}) : {};
   const readonlyStatus = item.metadata?.readonly_check?.status || "";
   const avatarReadinessReason = clean(avatarDiagnostic.avatar_readiness_reason || item.metadata?.readonly_check?.avatar_readiness_reason);
   return {
@@ -268,6 +269,21 @@ export function runResourceVerifier({ bundle, resourceType, mockReady = false })
         height: Number(avatarDiagnostic.height || 0),
         responseHashPresent: Boolean(avatarDiagnostic.response_hash),
         evidenceRef: clean(avatarDiagnostic.evidence_ref)
+      } : {}),
+      ...(resourceType === "product_image" ? {
+        sourcePreparationStatus: clean(productImagePreparation.status || "not_run"),
+        source_preparation_status: clean(productImagePreparation.status || "not_run"),
+        sourceFilePresent: productImagePreparation.source_file_present === true,
+        source_file_present: productImagePreparation.source_file_present === true,
+        sourceHashPresent: Boolean(productImagePreparation.source_hash),
+        source_hash_present: Boolean(productImagePreparation.source_hash),
+        targetCandidateCount: Number(productImagePreparation.target_candidate_count || item.metadata?.product_image_inventory?.candidate_count || 0),
+        target_candidate_count: Number(productImagePreparation.target_candidate_count || item.metadata?.product_image_inventory?.candidate_count || 0),
+        directTargetUploadDefault: productImagePreparation.direct_target_upload_default === true,
+        direct_target_upload_default: productImagePreparation.direct_target_upload_default === true,
+        materialAccountRouteAllowed: productImagePreparation.material_account_route_allowed === true,
+        material_account_route_allowed: productImagePreparation.material_account_route_allowed === true,
+        preparationEvidenceRef: clean(productImagePreparation.evidence_ref)
       } : {}),
       nextAction: ready
         ? "无需动作"

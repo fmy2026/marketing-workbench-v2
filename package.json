@@ -39,6 +39,8 @@
     "test:dmp-executor": "node scripts/04-dmp-executor-smoke.mjs",
     "test:dmp-readback": "node scripts/04-dmp-readback-smoke.mjs",
     "test:video-material-executor": "node scripts/04-video-material-executor-smoke.mjs",
+    "test:node4-resource-prep-contracts": "node scripts/04-node4-resource-prep-contracts-smoke.mjs",
+    "test:backup-landing-page-material-inventory": "node scripts/04-backup-landing-page-material-inventory-smoke.mjs",
     "launch:execute-once": "node scripts/06-launch-execute-once.mjs",
     "monitor:status": "node scripts/02-monitor-provision-cli.mjs --mode status",
     "monitor:account-preflight": "node scripts/02-monitor-provision-cli.mjs --mode account_preflight",

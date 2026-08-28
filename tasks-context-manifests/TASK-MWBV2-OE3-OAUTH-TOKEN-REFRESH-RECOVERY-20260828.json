@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-RECOVERY-20260828",
+  "task_ref": "tasks/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-RECOVERY-20260828.md",
+  "status": "completed",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Recover the OceanEngine OAuth scheduled refresh mechanism, classify the 2026-08-28 refresh failure safely, and run one scoped refresh attempt.",
+    "scope": "OAuth token refresh only; no OceanEngine business APIs or platform writes.",
+    "official_source": "3.0 OAuth refresh contract not found; fallback to open.oceanengine.com-2.0/05-Oauth2.0授权.md per AGENTS.md."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-RECOVERY-20260828.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-RECOVERY-20260828.json",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "scripts/00-oceanengine-token-refresh.mjs",
+    "scripts/00-oceanengine-token-status.mjs",
+    "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+    "package.json"
+  ],
+  "allowed_actions": [
+    "Restore scheduled credential refresh guardrail scope",
+    "Update OAuth refresh implementation and smoke tests",
+    "Update v2 .local/oceanengine.env only through credential store",
+    "Append redacted refresh diagnostics to ignored .local audit file",
+    "Inspect or update the existing oceanengine-v2-token-refresh automation",
+    "Run one scoped OAuth refresh with the configured automation ID and confirmation variable"
+  ],
+  "forbidden_actions": [
+    "OceanEngine business API calls",
+    "Project, promotion, material, DMP, event asset, budget, or bid writes",
+    "Credential disclosure",
+    "Raw request or raw response persistence",
+    "Browser OAuth login automation"
+  ],
+  "validation": [
+    {
+      "check": "npm run test:token-refresh-scope",
+      "result": "passed"
+    },
+    {
+      "check": "scoped OAuth refresh",
+      "result": "passed: status valid, HTTP 200, API code 0, no business API call"
+    },
+    {
+      "check": "npm run token:status",
+      "result": "passed: redacted status valid with no blockers"
+    },
+    {
+      "check": "file modes",
+      "result": "passed: .local/oceanengine.env and .local/oceanengine-token-refresh-audit.jsonl are 0600"
+    },
+    {
+      "check": "automation configuration",
+      "result": "passed: oceanengine-v2-token-refresh ACTIVE, daily 12:00, failed-runs-only, v2 cwd, prompt permits env plus redacted .local audit writes only"
+    },
+    {
+      "check": "node --check OAuth files",
+      "result": "passed"
+    },
+    {
+      "check": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "result": {
+    "token_status": "valid",
+    "token_expires_at": "2026-08-29T06:38:39.392Z",
+    "token_refresh_after": "2026-08-29T06:08:39.392Z",
+    "refresh_token_expires_at": "2026-09-27T06:38:39.392Z",
+    "known_failure_root_cause": "The control-plane refactor removed credential_refresh_scope, which would block scheduled refreshes after 2026-08-28. The prior flat refresh_failed state did not preserve enough redacted HTTP/API diagnostics to recover the exact historical OAuth error code.",
+    "current_refresh_result": "A sandboxed run failed with redacted transport_error; the authorized network run succeeded with API code 0."
+  }
+}

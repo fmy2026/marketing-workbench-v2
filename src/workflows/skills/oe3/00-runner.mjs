@@ -43,11 +43,16 @@ import {
   runResourceVerifier,
   withDmpCustomAudienceIds
 } from "./04-resource-verifiers.mjs";
-import { runMicroAppInstanceReadinessSkill } from "./04-micro-app-instance-readiness.mjs";
+import {
+  runMicroAppInstanceReadinessSkill,
+  runMicroAppInstanceReadonlySkill
+} from "./04-micro-app-instance-readiness.mjs";
 import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconcile.mjs";
 import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
 import { runAvatarSourcePrepareSkill } from "./04-avatar-source-prepare.mjs";
 import { runAvatarSubmitPlanSkill } from "./04-avatar-submit-plan.mjs";
+import { runBackupLandingPageSourcePrepareSkill } from "./04-backup-landing-page-source-prepare.mjs";
+import { runProductImageSourcePrepareSkill } from "./04-product-image-source-prepare.mjs";
 import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
@@ -70,6 +75,11 @@ const DMP_SKILLS = new Set([
   "dmp-source-readonly-verify",
   "dmp-target-readonly-verify",
   "dmp-push-plan"
+]);
+const RESOURCE_PREP_CONTRACT_SKILLS = new Set([
+  "product-image-source-prepare",
+  "micro-app-instance-readonly",
+  "backup-landing-page-source-prepare"
 ]);
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
@@ -123,6 +133,9 @@ function skillsForMode(mode) {
       "dmp-target-readonly-verify",
       "dmp-push-plan",
       "video-material-bind-plan",
+      "product-image-source-prepare",
+      "micro-app-instance-readonly",
+      "backup-landing-page-source-prepare",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
@@ -146,6 +159,9 @@ function skillsForMode(mode) {
     "dmp-target-readonly-verify",
     "dmp-push-plan",
     "video-material-bind-plan",
+    "product-image-source-prepare",
+    "micro-app-instance-readonly",
+    "backup-landing-page-source-prepare",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
     "payload-build",
     "payload-contract",
@@ -318,17 +334,18 @@ async function executeCreateReadiness({ repo, context }) {
     ...(!brandIndustryPassed(latestBundle) && !context.mockReady ? ["brand_industry_readback_blocked"] : []),
     ...(!eventChainPassed(latestBundle) && !context.mockReady ? ["event_chain_readback_blocked"] : [])
   ])];
-  const ready = blockers.length === 0 || context.mockReady;
+  const effectiveBlockers = context.mockReady ? [] : blockers;
+  const ready = effectiveBlockers.length === 0;
   const status = ready
     ? "ready_for_user_create_confirmation"
     : platformActions > 0
       ? "blocked_after_single_create_failure"
-      : blockers.includes("brand_industry_readback_blocked")
+      : effectiveBlockers.includes("brand_industry_readback_blocked")
         ? "blocked_brand_industry"
         : "new_runtime_job_required";
   return {
     status: ready ? "passed" : "blocked",
-    blockers,
+    blockers: effectiveBlockers,
     outputSummary: {
       createReadiness: {
         status,
@@ -345,8 +362,8 @@ async function executeCreateReadiness({ repo, context }) {
         createPreflightStatus: createPreflight.status,
         createPreflightSummary: createPreflight.summary,
         createPreflightDiagnostics: createPreflight.diagnostics,
-        blockers,
-        uniqueBlocker: ready ? "无" : blockers[0],
+        blockers: effectiveBlockers,
+        uniqueBlocker: ready ? "无" : effectiveBlockers[0],
         nextAction: ready ? "等待单次创建确认任务。" : "修复唯一阻断后重跑 dry_run。"
       }
     }
@@ -443,6 +460,19 @@ async function executeSkill({ repo, context, skillKey }) {
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "video-material-bind-plan") {
     result = await runVideoMaterialBindPlanSkill({ bundle: context.bundle });
+  } else if (RESOURCE_PREP_CONTRACT_SKILLS.has(skillKey)) {
+    if (skillKey === "product-image-source-prepare") {
+      result = await runProductImageSourcePrepareSkill({ repo, bundle: context.bundle });
+    } else if (skillKey === "micro-app-instance-readonly") {
+      result = await runMicroAppInstanceReadonlySkill({
+        repo,
+        bundle: context.bundle,
+        mockReady: context.mockReady
+      });
+    } else if (skillKey === "backup-landing-page-source-prepare") {
+      result = await runBackupLandingPageSourcePrepareSkill({ repo, bundle: context.bundle });
+    }
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"

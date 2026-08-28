@@ -1,0 +1,114 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041.md",
+  "owner_agent": "codex",
+  "status": "closed_implemented",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "brief": {
+    "goal": "Implement independent Node 4 preparation-contract skills for product_image, micro_app_instance, and backup_landing_page without enabling platform writes.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "monitor_create_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041.json",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs"
+  ],
+  "allowed_local_writes": [
+    "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-NODE4-RESOURCE-PREP-CONTRACTS-1871922346964041.json",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-index.mjs",
+    "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs",
+    "src/workflows/skills/oe3/04-product-image-source-prepare.mjs",
+    "src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs",
+    "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+    "package.json"
+  ],
+  "forbidden_actions": [
+    "OceanEngine platform writes",
+    "file/material/bind",
+    "file/image upload",
+    "landing page upload or publish",
+    "DMP push",
+    "std_project/create",
+    "Qiankun monitor creation",
+    "token refresh",
+    "storing sensitive values or complete URLs"
+  ],
+  "validation_plan": [
+    "Run the dedicated Node 4 resource preparation contract smoke.",
+    "Run resource action registry, workflow skills, execution plan, and readonly readiness CLI regressions.",
+    "Verify product_image, micro_app_instance, and backup_landing_page still do not produce prepare actions.",
+    "Verify no sensitive fields are present in CLI output or evidence summaries."
+  ],
+  "result": {
+    "status": "closed_implemented",
+    "fresh_job_id": "JOB-MWBV2-20260828051246-FF7873",
+    "skills_added": [
+      "product-image-source-prepare",
+      "micro-app-instance-readonly",
+      "backup-landing-page-source-prepare"
+    ],
+    "product_image": {
+      "source_prepare_status": "passed",
+      "default_prepare_route": "target_account_single_image_upload_when_authorized",
+      "material_account_route_allowed": false,
+      "target_candidate_count": 0
+    },
+    "micro_app_instance": {
+      "readonly_status": "blocked",
+      "material_account_route_allowed": false,
+      "reason": "target_account_instance_not_verified"
+    },
+    "backup_landing_page": {
+      "source_prepare_status": "needs_confirmation",
+      "flow": "local_folder_to_material_account_to_target_account",
+      "target_transport_contract_verified": false
+    },
+    "prepare_supported_kept_false": [
+      "product_image",
+      "micro_app_instance",
+      "backup_landing_page"
+    ],
+    "fresh_readiness_observation": {
+      "oceanengine_readonly_status": "blocked",
+      "blockers": ["credential_required", "token_status_not_valid"],
+      "qiankun_monitor_id": "245828"
+    },
+    "zero_platform_write_audit": {
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "token_refresh_called": false
+    },
+    "validation": [
+      "test:node4-resource-prep-contracts",
+      "test:resource-action-registry",
+      "smoke:workflow-skills",
+      "test:execution-plan",
+      "test:readonly-readiness-cli",
+      "test:video-material-executor",
+      "test:workflow-case",
+      "workflow:readonly-readiness",
+      "git diff --check"
+    ]
+  }
+}

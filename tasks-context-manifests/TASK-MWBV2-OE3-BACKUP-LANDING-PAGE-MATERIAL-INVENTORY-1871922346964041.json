@@ -1,0 +1,66 @@
+{
+  "task_id": "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-MATERIAL-INVENTORY-1871922346964041",
+  "updated_at": "2026-08-28 CST",
+  "owner_agent": "Codex",
+  "status": "completed_default_source_verified",
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "workflow_case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "source_advertiser_id": "1760246749825031",
+    "resource_type": "backup_landing_page",
+    "controlled_default_asset_id": "LPA-JSZC-OE3-BACKUP-001"
+  },
+  "permissions": {
+    "platform_write_allowed": false,
+    "token_refresh_allowed": false,
+    "oceanengine_create_allowed": false,
+    "landing_page_handsel_allowed": false,
+    "landing_page_copy_allowed": false,
+    "upload_allowed": false,
+    "bind_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-MATERIAL-INVENTORY-1871922346964041.md",
+    "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs",
+    "scripts/03-landing-page-source-target-readonly-inventory.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "docs/project-lessons.md"
+  ],
+  "official_sources": [
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/15-建站管理.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/13-建站管理.md"
+  ],
+  "entrypoints": {
+    "inventory_cli": "npm run check:oe3-landing-page-inventory -- --case-id=CASE-LEGACY-2E4217E20C9E26BFB648772C --advertiser-id=1871922346964041",
+    "smoke": "npm run test:backup-landing-page-material-inventory"
+  },
+  "latest_result": {
+    "job_id": "JOB-MWBV2-BACKUP-LANDING-INVENTORY-20260828064407-6FAF91",
+    "conclusion": "default_source_verified",
+    "candidate_count": 4,
+    "source_candidate_count": 3,
+    "target_match_count": 0,
+    "source_inventory_status": "passed",
+    "target_inventory_status": "passed",
+    "target_shared_inventory_status": "passed",
+    "default_site_status": "AUDIT_ACCEPTED",
+    "target_orange_site_api_code": "40000",
+    "credential_status": "ready",
+    "token_status": "valid",
+    "blockers": [],
+    "platform_write_count": 0,
+    "token_refresh_called": false
+  },
+  "sensitive_data_policy": {
+    "store_token": false,
+    "store_cookie": false,
+    "store_full_url_in_evidence_or_metadata": false,
+    "store_raw_request_or_response": false
+  },
+  "next_task_boundary": "Cross-account landing page handsel/copy review and push is a separate task requiring official content-retention contract plus single write authorization."
+}

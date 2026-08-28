@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +18,7 @@ export const OCEANENGINE_TOKEN_STATUSES = new Set([
   "valid",
   "expired_refresh_token_first",
   "reauthorize_required",
+  "refresh_in_progress",
   "refresh_failed"
 ]);
 
@@ -36,6 +37,8 @@ export const OCEANENGINE_ENV_KEYS = [
   "OCEANENGINE_TOKEN_OBTAINED_AT",
   "OCEANENGINE_TOKEN_EXPIRES_AT",
   "OCEANENGINE_TOKEN_REFRESH_AFTER",
+  "OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT",
+  "OCEANENGINE_REFRESH_FAILURE_TYPE",
   "OCEANENGINE_TOKEN_STATUS"
 ];
 
@@ -54,6 +57,8 @@ const DEFAULT_ENV_VALUES = {
   OCEANENGINE_TOKEN_OBTAINED_AT: "",
   OCEANENGINE_TOKEN_EXPIRES_AT: "",
   OCEANENGINE_TOKEN_REFRESH_AFTER: "",
+  OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT: "",
+  OCEANENGINE_REFRESH_FAILURE_TYPE: "",
   OCEANENGINE_TOKEN_STATUS: "missing"
 };
 
@@ -155,9 +160,25 @@ function defaultEnvText() {
     "OCEANENGINE_TOKEN_OBTAINED_AT=",
     "OCEANENGINE_TOKEN_EXPIRES_AT=",
     "OCEANENGINE_TOKEN_REFRESH_AFTER=",
+    "OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=",
+    "OCEANENGINE_REFRESH_FAILURE_TYPE=",
     "OCEANENGINE_TOKEN_STATUS=missing",
     ""
   ].join("\n");
+}
+
+function writeEnvFileAtomic(resolved, text) {
+  mkdirSync(path.dirname(resolved), { recursive: true });
+  const tmpPath = path.join(path.dirname(resolved), `.${path.basename(resolved)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    writeFileSync(tmpPath, text, { encoding: "utf8", mode: 0o600 });
+    chmodSync(tmpPath, 0o600);
+    renameSync(tmpPath, resolved);
+    chmodSync(resolved, 0o600);
+  } catch (error) {
+    rmSync(tmpPath, { force: true });
+    throw error;
+  }
 }
 
 export function resolveOceanEngineEnvPath(envPath = process.env.OCEANENGINE_ENV_PATH || DEFAULT_OCEANENGINE_ENV_PATH) {
@@ -192,8 +213,7 @@ export function updateOceanEngineEnv(values = {}, { envPath, ensure = true } = {
   for (const [key, value] of Object.entries(values)) {
     if (OCEANENGINE_ENV_KEYS.includes(key)) setEntry(entries, key, value);
   }
-  writeFileSync(resolved, serializeEntries(entries), { encoding: "utf8", mode: 0o600 });
-  chmodSync(resolved, 0o600);
+  writeEnvFileAtomic(resolved, serializeEntries(entries));
   return readOceanEngineEnv({ envPath: resolved });
 }
 
@@ -204,8 +224,9 @@ function parseTime(value) {
   return Number.isFinite(ms) ? ms : NaN;
 }
 
-function tokenStatusFor({ env, blockers, tokenExpired }) {
+function tokenStatusFor({ env, blockers, tokenExpired, refreshTokenExpired }) {
   const stored = clean(env.OCEANENGINE_TOKEN_STATUS);
+  if (refreshTokenExpired) return "reauthorize_required";
   if (tokenExpired) return "expired_refresh_token_first";
   if (stored && OCEANENGINE_TOKEN_STATUSES.has(stored) && stored !== "valid") return stored;
   if (blockers.includes("token_status_not_valid")) return stored || "missing";
@@ -217,30 +238,36 @@ export function getOceanEngineCredentialSummary({ envPath, now = new Date(), ens
   const { envFilePresent, env } = readOceanEngineEnv({ envPath, ensure });
   const tokenExpiresAt = clean(env.OCEANENGINE_TOKEN_EXPIRES_AT);
   const tokenRefreshAfter = clean(env.OCEANENGINE_TOKEN_REFRESH_AFTER);
+  const refreshTokenExpiresAt = clean(env.OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT);
   const expiresMs = parseTime(tokenExpiresAt);
   const refreshAfterMs = parseTime(tokenRefreshAfter);
+  const refreshTokenExpiresMs = parseTime(refreshTokenExpiresAt);
   const nowMs = now.getTime();
   const accessTokenPresent = Boolean(clean(env.OCEANENGINE_ACCESS_TOKEN));
   const refreshTokenPresent = Boolean(clean(env.OCEANENGINE_REFRESH_TOKEN));
   const tokenExpired = Boolean(tokenExpiresAt && Number.isFinite(expiresMs) && expiresMs <= nowMs);
   const tokenRefreshAfterReached = Boolean(tokenRefreshAfter && Number.isFinite(refreshAfterMs) && refreshAfterMs <= nowMs);
+  const refreshTokenExpired = Boolean(refreshTokenExpiresAt && Number.isFinite(refreshTokenExpiresMs) && refreshTokenExpiresMs <= nowMs);
   const storedTokenStatus = clean(env.OCEANENGINE_TOKEN_STATUS);
+  const refreshFailureType = clean(env.OCEANENGINE_REFRESH_FAILURE_TYPE);
   const blockers = [
     ...(!envFilePresent ? ["env_file_missing"] : []),
     ...(!(clean(env.OCEANENGINE_APP_ID) && clean(env.OCEANENGINE_APP_SECRET) && clean(env.OCEANENGINE_REDIRECT_URI)) ? ["app_config_missing"] : []),
     ...(!accessTokenPresent ? ["access_token_missing"] : []),
     ...(!refreshTokenPresent ? ["refresh_token_missing"] : []),
+    ...(refreshTokenExpired ? ["refresh_token_expired_reauthorize_required"] : []),
     ...(tokenExpired ? ["access_token_expired_refresh_required"] : []),
     ...(
       accessTokenPresent &&
       refreshTokenPresent &&
       (!storedTokenStatus || storedTokenStatus !== "valid" || !OCEANENGINE_TOKEN_STATUSES.has(storedTokenStatus)) &&
-      !tokenExpired
+      !tokenExpired &&
+      !refreshTokenExpired
         ? ["token_status_not_valid"]
         : []
     )
   ];
-  const status = tokenStatusFor({ env, blockers, tokenExpired });
+  const status = tokenStatusFor({ env, blockers, tokenExpired, refreshTokenExpired });
 
   return {
     status,
@@ -252,11 +279,15 @@ export function getOceanEngineCredentialSummary({ envPath, now = new Date(), ens
     refreshTokenPresent,
     tokenExpiresAtPresent: Boolean(tokenExpiresAt),
     tokenRefreshAfterPresent: Boolean(tokenRefreshAfter),
+    refreshTokenExpiresAtPresent: Boolean(refreshTokenExpiresAt),
     tokenExpired,
     tokenRefreshAfterReached,
+    refreshTokenExpired,
     tokenExpiresAt,
     tokenRefreshAfter,
+    refreshTokenExpiresAt,
     tokenStatus: storedTokenStatus || "missing",
+    refreshFailureType,
     blockers
   };
 }
@@ -324,6 +355,13 @@ export function computeTokenWindow({ obtainedAt = new Date(), expiresIn, refresh
   };
 }
 
+export function computeExpiresAt({ obtainedAt = new Date(), expiresIn } = {}) {
+  const seconds = Number(expiresIn || 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  const obtained = obtainedAt instanceof Date ? obtainedAt : new Date(obtainedAt);
+  return new Date(obtained.getTime() + seconds * 1000).toISOString();
+}
+
 export function redactedCredentialStatus({ envPath, ensure = false } = {}) {
   const summary = getOceanEngineCredentialSummary({ envPath, ensure });
   return {
@@ -336,11 +374,15 @@ export function redactedCredentialStatus({ envPath, ensure = false } = {}) {
     refreshTokenPresent: summary.refreshTokenPresent,
     tokenExpiresAtPresent: summary.tokenExpiresAtPresent,
     tokenRefreshAfterPresent: summary.tokenRefreshAfterPresent,
+    refreshTokenExpiresAtPresent: summary.refreshTokenExpiresAtPresent,
     tokenExpired: summary.tokenExpired,
     tokenRefreshAfterReached: summary.tokenRefreshAfterReached,
+    refreshTokenExpired: summary.refreshTokenExpired,
     tokenExpiresAt: summary.tokenExpiresAt,
     tokenRefreshAfter: summary.tokenRefreshAfter,
+    refreshTokenExpiresAt: summary.refreshTokenExpiresAt,
     tokenStatus: summary.tokenStatus,
+    refreshFailureType: summary.refreshFailureType,
     blockers: summary.blockers
   };
 }

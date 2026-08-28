@@ -38,6 +38,24 @@ export {
   runDuplicateReadonlyCheck
 } from "./05-duplicate-readonly.mjs";
 export {
+  inspectProductImageSourceAsset,
+  runProductImageSourcePrepareSkill
+} from "./04-product-image-source-prepare.mjs";
+export {
+  runMicroAppInstanceReadonlySkill
+} from "./04-micro-app-instance-readiness.mjs";
+export {
+  runBackupLandingPageSourcePrepareSkill
+} from "./04-backup-landing-page-source-prepare.mjs";
+export {
+  BACKUP_LANDING_PAGE_INVENTORY_SKILL_KEY,
+  BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
+  CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
+  DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT,
+  createBackupLandingPageInventoryJob,
+  runBackupLandingPageMaterialInventorySkill
+} from "./04-backup-landing-page-material-inventory.mjs";
+export {
   createNodeStatusFromSkill,
   readbackNodeStatusFromSkill,
   workflowCreateCalled,

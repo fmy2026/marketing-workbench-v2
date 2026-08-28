@@ -13,6 +13,25 @@
   "guardrails": {
     "platform_write_allowed": false,
     "credential_refresh_allowed": true,
+    "credential_refresh_scope": {
+      "mode": "scheduled_daily_oauth_refresh_only",
+      "authorized_automation_id": "oceanengine-v2-token-refresh",
+      "timezone": "Asia/Shanghai",
+      "daily_at": "12:00",
+      "confirm_variable": "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
+      "allowed_actions": [
+        "oceanengine_oauth_refresh_token"
+      ],
+      "forbidden_actions": [
+        "std_project/create",
+        "material upload",
+        "event asset create",
+        "DMP push",
+        "budget or bid update"
+      ],
+      "granted_at": "2026-08-28 CST",
+      "granted_by": "user_confirmed_oauth_refresh_recovery"
+    },
     "budget_bid_change_allowed": false,
     "long_term_lesson_write_allowed": false,
     "git_history_rewrite_allowed": false,
