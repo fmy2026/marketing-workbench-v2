@@ -9,7 +9,6 @@ import {
 } from "../src/platforms/qiankunCredentialStore.mjs";
 import {
   MONITOR_PROVISION_ID_ENV,
-  MONITOR_PROVISION_TARGET,
   MONITOR_RETRY_CONFIRM_ENV,
   MONITOR_RETRY_CONFIRM_VALUE,
   monitorEnsureConfirmed,
@@ -26,6 +25,11 @@ function assert(condition, message) {
 }
 
 const tempDir = mkdtempSync(path.join(tmpdir(), "mwbv2-monitor-bootstrap-"));
+const TEST_TARGET = {
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  advertiserId: "1871922346964041"
+};
 try {
   const envPath = path.join(tempDir, "qiankun-monitor.env");
   const storePath = path.join(tempDir, "qiankun-passport-credentials.json");
@@ -144,6 +148,7 @@ try {
     const writes = [];
     const reconcile = await runMonitorProvisionCommand({
       mode: "reconcile",
+      target: TEST_TARGET,
       repo: {
         async getMonitorProvisionDefaults() {
           return {
@@ -193,7 +198,7 @@ try {
               list: [
                 {
                   id: "8448",
-                  account_id: MONITOR_PROVISION_TARGET.advertiserId,
+                  account_id: TEST_TARGET.advertiserId,
                   _media_account_id: "8448",
                   _agent_id: "613",
                   agent_id_name: "Agent",
@@ -221,7 +226,7 @@ try {
                 package_id: "36820",
                 _cate_id: "122",
                 _media_account_id: "8448",
-                media_account_id: MONITOR_PROVISION_TARGET.advertiserId,
+                media_account_id: TEST_TARGET.advertiserId,
                 _os_name: "3",
                 _media_id: "310",
                 media_id: "Media",
@@ -257,14 +262,14 @@ try {
     }
   }
 
-  const provisionId = monitorProvisionId(MONITOR_PROVISION_TARGET);
+  const provisionId = monitorProvisionId(TEST_TARGET);
   assert(provisionId === "MPR-OCEANENGINE-3-BYTE-MINI-GAME-JSZC-1871922346964041", "provision_id_unstable");
   const firstFingerprint = monitorProvisionFingerprint({
-    ...MONITOR_PROVISION_TARGET,
+    ...TEST_TARGET,
     technicalConfig: { os: 3, package_id: "36820" }
   });
   const secondFingerprint = monitorProvisionFingerprint({
-    ...MONITOR_PROVISION_TARGET,
+    ...TEST_TARGET,
     technicalConfig: { package_id: "36820", os: 3 }
   });
   assert(firstFingerprint === secondFingerprint, "fingerprint_must_be_canonical");
@@ -283,7 +288,8 @@ try {
   }) === true, "confirm_helper_failed");
   const createResult = await runMonitorProvisionCommand({
     mode: "ensure",
-    env: {}
+    env: {},
+    target: TEST_TARGET
   });
   assert(createResult.status === "blocked", "foundation_create_must_block");
   assert(createResult.createCalled === false, "foundation_create_must_not_call_platform");

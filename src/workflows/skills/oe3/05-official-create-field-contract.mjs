@@ -5,6 +5,7 @@ const EVIDENCE_LEVELS = new Set([
 ]);
 
 const SEND_POLICIES = new Set(["send", "omit", "block"]);
+const LONG_ID_TRANSPORT_STRATEGIES = new Set(["decimal_bigint_json_number"]);
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -53,7 +54,10 @@ export function getInstanceIdCreateEvidence(contract = {}, { resourceId = "" } =
   const fieldTypeVerified = raw.field_type_verified === true && Boolean(clean(raw.create_field_type));
   const applicabilityVerified = raw.applicability_verified === true &&
     clean(raw.landing_type) === "MICRO_GAME" && clean(raw.delivery_medium) === "BYTE_GAME";
-  const longIdTransportVerified = !longPlatformId || raw.long_id_transport_verified === true;
+  const longIdTransportStrategy = clean(raw.long_id_transport_strategy);
+  const longIdTransportSource = clean(raw.long_id_transport_source || raw.transport_source);
+  const longIdTransportVerified = !longPlatformId ||
+    (raw.long_id_transport_verified === true && LONG_ID_TRANSPORT_STRATEGIES.has(longIdTransportStrategy));
   const directContractVerified = fieldNameVerified && fieldTypeVerified && applicabilityVerified;
   const blockers = [
     ...(!directContractVerified ? ["instance_id_create_contract_not_verified"] : []),
@@ -71,7 +75,8 @@ export function getInstanceIdCreateEvidence(contract = {}, { resourceId = "" } =
     landingType: clean(raw.landing_type),
     deliveryMedium: clean(raw.delivery_medium),
     applicabilityVerified,
-    longIdTransportStrategy: clean(raw.long_id_transport_strategy),
+    longIdTransportStrategy,
+    longIdTransportSource,
     longIdTransportVerified,
     valuePresent: Boolean(value),
     longPlatformId,
@@ -91,6 +96,7 @@ export function instanceIdCreateEvidenceSummary(evidence = {}) {
     deliveryMedium: evidence.deliveryMedium || "",
     applicabilityVerified: evidence.applicabilityVerified === true,
     longIdTransportStrategy: evidence.longIdTransportStrategy || "",
+    longIdTransportSource: evidence.longIdTransportSource || "",
     longIdTransportVerified: evidence.longIdTransportVerified === true,
     valuePresent: evidence.valuePresent === true,
     longPlatformId: evidence.longPlatformId === true,

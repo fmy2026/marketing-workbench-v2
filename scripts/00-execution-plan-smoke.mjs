@@ -78,6 +78,44 @@ try {
   }).planHash;
   assert(missingMonitorPlan.planHash === missingMonitorHashAgain, "missing_monitor_plan_hash_not_stable");
 
+  const leafBlockerPlan = buildExecutionPlanFromBundle({
+    ...bundle,
+    nodes: (bundle.nodes || []).map((node) => node.node_key === "std_project_draft_builder" ? {
+      ...node,
+      output_summary: {
+        ...(node.output_summary || {}),
+        createReadiness: {
+          ...(node.output_summary?.createReadiness || {}),
+          status: "blocked",
+          canCreateCurrentJob: false,
+          blockers: ["instance_id_long_id_transport_not_verified"],
+          requestFieldManifest: {
+            blockers: ["instance_id_long_id_transport_not_verified"]
+          }
+        }
+      }
+    } : node)
+  });
+  assert(leafBlockerPlan.metadata.root_blocker_codes.length === 1, "root_blocker_not_projected");
+  assert(leafBlockerPlan.metadata.root_blocker_codes[0] === "instance_id_long_id_transport_not_verified", "root_blocker_code_mismatch");
+  assert(leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create"), "structural_blocker_not_retained");
+  const readinessFallbackPlan = buildExecutionPlanFromBundle({
+    ...bundle,
+    nodes: (bundle.nodes || []).map((node) => node.node_key === "std_project_draft_builder" ? {
+      ...node,
+      output_summary: {
+        ...(node.output_summary || {}),
+        createReadiness: {
+          ...(node.output_summary?.createReadiness || {}),
+          status: "blocked",
+          canCreateCurrentJob: false,
+          blockers: ["instance_id_long_id_transport_not_verified", "final_payload_blockers"]
+        }
+      }
+    } : node)
+  });
+  assert(readinessFallbackPlan.metadata.root_blocker_codes[0] === "instance_id_long_id_transport_not_verified", "readiness_root_blocker_fallback_missing");
+
   const attemptState = await repo.getCreateAttemptState(jobId);
   assert((attemptState.createActionCount || 0) === 0, "platform_action_recorded_by_plan_smoke");
   assert((attemptState.confirmationCount || 0) === 0, "confirmation_recorded_by_plan_smoke");
@@ -96,6 +134,10 @@ try {
       actionTypes: actionTypes(missingMonitorPlan),
       hasEnsureMonitor: true,
       stableHash: true
+    },
+    leafBlockerProjection: {
+      rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
+      structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")
     },
     planScope: {
       exactScopeStatus: exactScope.status,

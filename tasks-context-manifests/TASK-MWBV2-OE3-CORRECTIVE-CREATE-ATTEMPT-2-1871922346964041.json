@@ -1,0 +1,18 @@
+{
+  "task_id": "TASK-MWBV2-OE3-CORRECTIVE-CREATE-ATTEMPT-2-1871922346964041",
+  "owner_agent": "codex",
+  "scope": {
+    "job_id": "JOB-MWBV2-20260828133507-78C36B",
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "advertiser_id": "1871922346964041",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC"
+  },
+  "policy": {
+    "maximum_total_std_project_create_attempts": 3,
+    "attempt_number": 2,
+    "raw_url_in_manifest": false,
+    "raw_payload_or_response": false
+  },
+  "status": "completed_with_platform_create_failure"
+}

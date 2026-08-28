@@ -1,0 +1,39 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-ACCOUNT-SCOPE-AND-ROOT-BLOCKER-PROJECTION-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-ACCOUNT-SCOPE-AND-ROOT-BLOCKER-PROJECTION-1871922346964041.md",
+  "status": "completed",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make Node 2 account scope explicit and surface Node 5 root blockers without platform writes.",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "target_advertiser_id": "1871922346964041"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-ACCOUNT-SCOPE-AND-ROOT-BLOCKER-PROJECTION-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-ACCOUNT-SCOPE-AND-ROOT-BLOCKER-PROJECTION-1871922346964041.json",
+    "src/workflows/skills/oe3/02-monitor-provision.mjs",
+    "src/workflows/executionPlan.mjs",
+    "db/035_add_workflow_cases.sql",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "boundaries": {
+    "forbidden": ["std_project/create", "monitor create", "material upload", "token refresh", "raw payload storage", "raw response storage", "full URL storage"],
+    "instance_id_policy": "decimal_digit_string; omit and block until official long-id transport is verified"
+  },
+  "result": {
+    "fresh_readonly_job_id": "JOB-MWBV2-20260828093157-210B29",
+    "visible_leaf_blocker": "instance_id_long_id_transport_not_verified",
+    "platform_actions": 0,
+    "launch_confirmations": 0,
+    "created_objects": 0
+  }
+}

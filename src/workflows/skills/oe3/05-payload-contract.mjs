@@ -5,6 +5,7 @@ import {
 } from "../../stdProjectNameBuilder.mjs";
 import { buildOe3StdProjectPayload } from "./05-payload.mjs";
 import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
+import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -63,6 +64,10 @@ function canonicalJson(value) {
 
 export function stablePayloadHash(value) {
   return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+}
+
+function sha256Text(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
 }
 
 function valuePresent(value) {
@@ -135,8 +140,12 @@ function draftToBundleShape(draft) {
   };
 }
 
-export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
+export async function buildSkillDraft({ repo, bundle, mockReady = false, attemptNo = 1 }) {
   const effectiveBundle = mockReady ? mockReadyBundle(bundle) : bundle;
+  const numericAttemptNo = Number(attemptNo || 1);
+  if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
+    throw new Error("invalid_std_project_create_attempt_no");
+  }
   const yyyymmdd = cstYyyymmdd(effectiveBundle.job.created_at);
   const nameContext = {
     account: effectiveBundle.account,
@@ -146,9 +155,11 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     yyyymmdd
   };
   const namePrefix = buildStdProjectNamePrefix(nameContext);
-  const draftId = `DRAFT-${effectiveBundle.job.job_id}`;
+  const draftId = numericAttemptNo === 1
+    ? `DRAFT-${effectiveBundle.job.job_id}`
+    : `DRAFT-${effectiveBundle.job.job_id}-V${numericAttemptNo}`;
   const existingProjectName = clean(effectiveBundle.draft?.project_name);
-  const reservation = await repo.reserveProjectName({
+  const reservation = numericAttemptNo === 1 ? await repo.reserveProjectName({
     jobId: effectiveBundle.job.job_id,
     draftId,
     routeId: effectiveBundle.job.route_id,
@@ -158,12 +169,15 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     namePrefix,
     yyyymmdd,
     sourceUsage: effectiveBundle.job.source_usage || "runtime_truth"
-  });
-  if (existingProjectName && existingProjectName !== reservation.project_name) {
+  }) : null;
+  if (numericAttemptNo > 1 && !existingProjectName) throw new Error("corrective_attempt_project_name_missing");
+  if (reservation && existingProjectName && existingProjectName !== reservation.project_name) {
     throw new Error("project_name_reservation_mismatch");
   }
-  const projectSeq = Number(reservation.project_seq);
-  const projectName = reservation.project_name;
+  const projectSeq = reservation
+    ? Number(reservation.project_seq)
+    : Number(existingProjectName.match(/_P(\d+)_\d{8}$/)?.[1] || 0);
+  const projectName = reservation?.project_name || existingProjectName;
   const baseSummary = basePayloadSummary({
     bundle: effectiveBundle,
     projectName,
@@ -194,6 +208,24 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
         gameCode: effectiveBundle.job.game_code,
         advertiserId: effectiveBundle.job.advertiser_id
       });
+  const mockMiniProgramLaunchUrl = `sslocal://microgame?app_id=${effectiveBundle.platformApp?.app_id || "tt0000000000000000"}`;
+  const miniProgramLaunchLink = mockReady
+    ? {
+        link_ref: "GRLL-JSZC-OE3-BYTE-MINI-GAME-MOCK",
+        route_id: effectiveBundle.job.route_id,
+        game_code: effectiveBundle.job.game_code,
+        platform_app_id: effectiveBundle.platformApp?.id || "GPA-JSZC-OE-BYTE-MINI-GAME",
+        app_id: effectiveBundle.platformApp?.app_id || "tt0000000000000000",
+        url_hash: sha256Text(mockMiniProgramLaunchUrl),
+        status: "active",
+        launch_url: mockMiniProgramLaunchUrl
+      }
+    : await repo.getControlledGameRouteLaunchLink({
+        routeId: effectiveBundle.job.route_id,
+        gameCode: effectiveBundle.job.game_code,
+        platformAppId: effectiveBundle.platformApp?.id || "",
+        appId: effectiveBundle.platformApp?.app_id || ""
+      });
   const finalBundle = {
     ...effectiveBundle,
     draft: {
@@ -208,10 +240,12 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
   const finalPayload = buildOe3StdProjectPayload({
     bundle: finalBundle,
     touchpointUrl: touchpoint?.touchpoint_url || "",
-    backupLandingPageUrl: backupLandingPageUrl || {}
+    backupLandingPageUrl: backupLandingPageUrl || {},
+    miniProgramLaunchLink: miniProgramLaunchLink || {}
   });
   const payloadSummary = {
     ...baseSummary,
+    create_attempt_no: numericAttemptNo,
     payload_hash_source: "final_controlled_payload",
     final_payload_hash: finalPayload.payloadHash,
     final_payload_manifest: finalPayload.requestFieldManifest,
@@ -226,6 +260,16 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
       readback_verified: finalPayload.requestFieldManifest.backupLandingPageReadbackVerified === true,
       hash_match: finalPayload.requestFieldManifest.backupLandingPageHashMatch === true
     },
+    mini_program_launch_link: {
+      present: finalPayload.requestFieldManifest.miniProgramLaunchLinkPresent === true,
+      link_ref: finalPayload.requestFieldManifest.miniProgramLaunchLinkRef || "",
+      url_hash: finalPayload.requestFieldManifest.miniProgramLaunchLinkHash || "",
+      status: finalPayload.requestFieldManifest.miniProgramLaunchLinkStatus || "missing",
+      scheme_ok: finalPayload.requestFieldManifest.miniProgramLaunchLinkSchemeOk === true,
+      hash_match: finalPayload.requestFieldManifest.miniProgramLaunchLinkHashMatch === true,
+      platform_app_id_match: finalPayload.requestFieldManifest.miniProgramLaunchLinkPlatformAppIdMatch === true,
+      app_id_match: finalPayload.requestFieldManifest.miniProgramLaunchLinkAppIdMatch === true
+    },
     payload_body_stored: false,
     controlled_touchpoint_stored_in_payload_summary: false
   };
@@ -238,7 +282,7 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false }) {
     payloadHash: finalPayload.payloadHash,
     duplicateStatus: effectiveBundle.draft?.duplicate_status || "not_checked",
     writePolicy: mockReady ? "workflow_skill_mock_execute_once_confirm_required" : "workflow_skill_execute_once_confirm_required",
-    reservationId: reservation.reservation_id
+    reservationId: reservation?.reservation_id || ""
   };
 }
 
@@ -311,6 +355,16 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.backupLandingPageReadbackVerified === true &&
       finalManifest.backupLandingPageHashMatch === true
     );
+  const miniProgramLaunchLinkRequired = finalManifest.miniProgramUrlRequired === true;
+  const finalPayloadMiniProgramLaunchLinkOk = !usesFinalPayloadHash ||
+    !miniProgramLaunchLinkRequired ||
+    (
+      finalManifest.miniProgramLaunchLinkPresent === true &&
+      finalManifest.miniProgramLaunchLinkSchemeOk === true &&
+      finalManifest.miniProgramLaunchLinkHashMatch === true &&
+      finalManifest.miniProgramLaunchLinkPlatformAppIdMatch === true &&
+      finalManifest.miniProgramLaunchLinkAppIdMatch === true
+    );
   const materialReadiness = finalManifest.finalMaterialReadiness || {};
   const coverReadyCount = Number(materialReadiness.coverReadyCount ?? materialReadiness.coverVerifiedCount ?? 0);
   const finalMaterialReady = !usesFinalPayloadHash ||
@@ -327,6 +381,14 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       contractMapping.optimizedGoalQueryAppFieldName === "mini_program_id"
     );
   const businessDefaultsReady = !usesFinalPayloadHash || finalManifest.businessDefaultsPresent === true;
+  const finalPayloadWireBodyReady = !usesFinalPayloadHash ||
+    (
+      finalManifest.createWireBodyEncodingStatus === "passed" &&
+      (finalManifest.miniProgramUrlRequired !== false || finalManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY) &&
+      (finalManifest.miniProgramUrlRequired !== false || finalManifest.microAppInstanceIdWireNumberTokenPresent === true) &&
+      /^sha256:[a-f0-9]{64}$/.test(clean(finalManifest.createWireBodyHash)) &&
+      finalManifest.createWireBodyHash === finalManifest.createRequestHash
+    );
 
   const checks = [
     {
@@ -431,6 +493,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
         : "备用网页链接未通过 HTTPS、目标账户可见性或 hash 一致性检查。"
     },
     {
+      key: "mini_game_launch_link",
+      status: finalPayloadMiniProgramLaunchLinkOk ? "passed" : "blocked",
+      summary: finalPayloadMiniProgramLaunchLinkOk
+        ? "字节小游戏调起链接已通过存在性、scheme、hash 和 app_id 绑定检查。"
+        : "字节小游戏调起链接缺失，或未通过 scheme、hash、platform_app_id、app_id 绑定检查。"
+    },
+    {
       key: "final_material_readiness",
       status: finalMaterialReady ? "passed" : "blocked",
       summary: finalMaterialReady
@@ -441,6 +510,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "route_payload_defaults",
       status: businessDefaultsReady ? "passed" : "blocked",
       summary: businessDefaultsReady ? "业务默认值来自 Postgres 路线配置。" : "业务默认值缺少 Postgres 路线配置来源。"
+    },
+    {
+      key: "create_wire_body",
+      status: finalPayloadWireBodyReady ? "passed" : "blocked",
+      summary: finalPayloadWireBodyReady
+        ? "最终 std_project/create wire body 已绑定 hash，instance_id 采用受控 JSON number token。"
+        : "最终 std_project/create wire body 或 instance_id 无损传输策略未通过。"
     },
     {
       key: "mini_game_instance_field_mapping",

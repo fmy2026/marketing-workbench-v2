@@ -148,6 +148,8 @@ function statusLabel(status) {
     created_pending_readback: "已创建待回查",
     blocked_brand_industry: "brand_industry 阻断",
     blocked_after_single_create_failure: "单次创建失败后锁定",
+    corrective_attempt_requires_new_payload_version: "需修正参数后建立下一次尝试",
+    corrective_attempt_limit_or_sequence_blocked: "创建尝试次数或顺序阻断",
     ready_for_user_create_confirmation: "可等待创建确认",
     new_runtime_job_required: "需要新的 runtime job",
     failed_or_unconfirmed: "失败或未确认",
@@ -290,22 +292,26 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
   const brandIndustryStatus = persisted.brandIndustryStatus || brandIndustryRepair.brandIndustryStatus || gateStatuses.brand_industry || "not_run";
   const eventGateKeys = ["event_asset_detail", "available_events", "event_configs", "optimized_goal", "dbt"];
   const eventChainStatus = persisted.eventChainStatus || (eventGateKeys.every((key) => gateStatuses[key] === "passed") ? "passed" : "blocked");
-  const hasSingleCreateAttempt = Boolean(bundle.platformAction);
+  const latestAttemptNo = Number(bundle.platformAction?.attempt_no || 0);
+  const currentAttemptNo = Number(bundle.executionPlan?.metadata?.create_attempt_no || bundle.executionPlan?.plan_version || 1);
+  const maximumCreateAttempts = Number(bundle.executionPlan?.metadata?.maximum_create_attempts || 3);
+  const hasCurrentCreateAttempt = latestAttemptNo >= currentAttemptNo;
+  const correctiveAttemptAvailable = latestAttemptNo < currentAttemptNo && currentAttemptNo <= maximumCreateAttempts;
   const payloadContractStatus = runtimeChecks.payloadContract?.status || createGate.createReadiness?.payloadContractStatus || "waiting";
   const payloadHashStable = runtimeChecks.payloadContract?.expectedPayloadHash
     ? runtimeChecks.payloadContract.expectedPayloadHash === bundle.draft?.payload_hash
     : true;
   const inferredBlockers = [
     ...(brandIndustryStatus !== "passed" ? ["brand_industry_readback_blocked"] : []),
-    ...(hasSingleCreateAttempt ? ["single_create_attempt_already_recorded"] : []),
+    ...(hasCurrentCreateAttempt ? [`std_project_create_attempt_${currentAttemptNo}_already_recorded`] : []),
     ...(payloadContractStatus !== "passed" ? ["payload_contract_blocked"] : []),
     ...(bundle.draft?.duplicate_status && bundle.draft.duplicate_status !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : [])
   ];
-  const blockers = hasSingleCreateAttempt
+  const blockers = hasCurrentCreateAttempt
     ? [...new Set([...(Array.isArray(persisted.blockers) ? persisted.blockers : []), ...inferredBlockers])]
     : (Array.isArray(persisted.blockers) ? persisted.blockers : inferredBlockers);
-  const status = hasSingleCreateAttempt
-    ? "blocked_after_single_create_failure"
+  const status = hasCurrentCreateAttempt
+    ? "corrective_attempt_requires_new_payload_version"
     : (persisted.status || (
       brandIndustryStatus !== "passed"
         ? "blocked_brand_industry"
@@ -313,11 +319,11 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
           ? "new_runtime_job_required"
           : "ready_for_user_create_confirmation"
     ));
-  const canCreateCurrentJob = status === "ready_for_user_create_confirmation" && !hasSingleCreateAttempt;
-  const uniqueBlocker = hasSingleCreateAttempt
+  const canCreateCurrentJob = status === "ready_for_user_create_confirmation" && correctiveAttemptAvailable;
+  const uniqueBlocker = hasCurrentCreateAttempt
     ? (brandIndustryStatus === "passed"
-      ? "当前 job 已有单次 create attempt，不能重试"
-      : "当前 job 已有单次 create attempt，不能重试；brand_industry 仍未通过")
+      ? `当前 attempt ${currentAttemptNo} 已消耗；修正参数后才能生成下一版本。`
+      : `当前 attempt ${currentAttemptNo} 已消耗；brand_industry 仍未通过。`)
     : (persisted.uniqueBlocker || (
       canCreateCurrentJob
         ? "无"
@@ -325,10 +331,12 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
           ? "brand_industry fresh readback 未通过"
           : blockers.join("；")
     ));
-  const nextAction = hasSingleCreateAttempt
+  const nextAction = hasCurrentCreateAttempt
     ? (brandIndustryStatus === "passed"
-      ? "当前 job 禁止重试；下一步新建 fresh runtime job 并先 dry-run。"
-      : "当前 job 禁止重试；修完 brand_industry 后新建 fresh runtime job 并先 dry-run。")
+      ? (currentAttemptNo < maximumCreateAttempts
+        ? "修正 payload 后生成下一 attempt 版本，再执行 readonly preflight。"
+        : "已达到测试期创建次数上限，进入人工排障。")
+      : "修完 brand_industry 后再生成下一 attempt 版本。")
     : (persisted.nextAction || (
       brandIndustryStatus !== "passed"
         ? "先修 brand_industry fresh readback。"
@@ -344,13 +352,17 @@ function createReadinessView(bundle = {}, runtimeChecks = {}) {
     targetJobReusable: canCreateCurrentJob,
     retryAllowed: false,
     nextConfirmationRequired: canCreateCurrentJob,
-    hasSingleCreateAttempt,
+    hasSingleCreateAttempt: latestAttemptNo > 0,
+    currentAttemptNo,
+    latestAttemptNo,
+    maximumCreateAttempts,
+    correctiveAttemptAvailable,
     brandIndustryStatus,
     eventChainStatus,
     payloadContractStatus: persisted.payloadContractStatus || payloadContractStatus,
     payloadHashStable: persisted.payloadHashStable ?? payloadHashStable,
     duplicateStatus: bundle.draft?.duplicate_status || "not_generated",
-    platformActions: hasSingleCreateAttempt ? 1 : 0,
+    platformActions: latestAttemptNo,
     createdObjects: bundle.createdObject ? 1 : 0,
     blockers: [...new Set(blockers)]
   };
@@ -416,6 +428,7 @@ function publicWorkflowStatus(status, fallback = "waiting") {
   if (PUBLIC_WORKFLOW_STATUSES.has(status)) return status;
   if (["created", "mock_created", "diagnosed", "readback_verified", "resolved"].includes(status)) return "passed";
   if (["draft_ready", "ready_for_user_create_confirmation"].includes(status)) return "needs_confirmation";
+  if (status === "corrective_attempt_requires_new_payload_version") return "blocked";
   if (["created_pending_readback", "running"].includes(status)) return "running";
   if (["not_found_or_mismatch", "failed_or_unconfirmed", "failed_waiting_manual_review"].includes(status)) return "failed";
   if (String(status || "").startsWith("blocked")) return "blocked";
@@ -885,7 +898,8 @@ export async function runJob(repo, jobId, options = {}) {
     env: options.env || process.env,
     allowedPlanActions: options.allowedPlanActions || [],
     mockMonitorEnsure: options.mockMonitorEnsure === true,
-    qiankunOwnerKey: options.qiankunOwnerKey || ""
+    qiankunOwnerKey: options.qiankunOwnerKey || "",
+    createAttemptNo: options.createAttemptNo || 1
   });
   return buildPublicJobView(repo, result.bundle, options);
 }

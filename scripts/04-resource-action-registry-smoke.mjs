@@ -87,7 +87,7 @@ function bundleWithResources(resources) {
             field_type_verified: true,
             applicability_verified: true,
             long_id_transport_verified: true,
-            long_id_transport_strategy: "decimal_digit_string"
+            long_id_transport_strategy: "decimal_bigint_json_number"
           }
         }
       }

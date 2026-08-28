@@ -16,7 +16,7 @@
 | 平台长数字 ID | `advertiser_id`、`monitor_id`、`object_id` 等均为 `text` |
 | 状态字段 | 状态类字段均为 `text` |
 | 复杂摘要 | 使用 `jsonb` |
-| 私密信息 | token、Cookie、raw payload、raw response 不入普通表；完整触点 URL 仅允许进入受控字段，不进普通 API、前端、日志或任务文件 |
+| 私密信息 | token、Cookie、raw payload、raw response 不入普通表；完整触点 URL、落地页 URL 和小游戏调起深链仅允许进入受控字段，不进普通 API、前端、日志或任务文件 |
 
 ## 最小表
 
@@ -33,6 +33,7 @@
 | `mwb.game_route_defaults` | 游戏 x 路线默认优化、预算、定向、排期和 DMP 摘要 |
 | `mwb.game_assets` | 游戏素材、产品身份、方向包引用 |
 | `mwb.game_platform_apps` | 游戏在不同平台/形态下的 appid 唯一读取入口 |
+| `mwb.game_route_launch_links` | 游戏 x 路线小游戏调起深链；完整 `sslocal` 仅允许进入受控列，普通摘要只输出 ref/hash/status/存在性 |
 | `mwb.account_resources` | 账户级头像、DMP、事件、视频、产品图、品牌、小程序可用性；`metadata.readonly_check` 保存脱敏只读校验摘要 |
 | `mwb.landing_page_assets` | 游戏 x 路线备用网页落地页资产；完整 URL 仅允许进入受控列，普通摘要只输出 site/hash/status |
 | `mwb.material_packs` | 保底物料包 |
@@ -75,6 +76,7 @@
 | `db/027_add_launch_execution_plans.sql` | 新增统一执行计划表、plan_id 关联、platform action 幂等键，以及 Skill 定位字段 |
 | `db/028_add_monitor_attempt_idempotency.sql` | 新增 monitor provision attempt 的 planned-action 幂等键 |
 | `db/029_monitor_provision_cycles.sql` | 将 monitor provision 从单行生命周期升级为 provision 下多 cycle；历史数据迁移为 Cycle 01，attempt 唯一约束改为 `(cycle_id, attempt_no)`，并新增显式 reissue 字段 |
+| `db/038_add_game_route_launch_links.sql` | 新增游戏 x 路线小游戏调起深链受控表；普通摘要不暴露完整 `sslocal` |
 
 ## 读取约定
 
@@ -82,6 +84,7 @@
 | --- | --- |
 | 游戏主档 | `mwb.games` |
 | 平台 appid | `mwb.game_platform_apps`，按 `game_code + platform + app_type` 查询 |
+| 小游戏调起深链 | `mwb.game_route_launch_links`，按 `route_id + game_code` 唯一读取；最终 payload 前再校验 `platform_app_id + app_id + hash + sslocal://microgame` |
 | 游戏级素材 | `mwb.game_assets` |
 | 账户级资源可用性 | `mwb.account_resources` |
 | 备用网页落地页库存 | `mwb.landing_page_assets`，目标账户可见性继续看 `mwb.account_resources.resource_type='backup_landing_page'` |

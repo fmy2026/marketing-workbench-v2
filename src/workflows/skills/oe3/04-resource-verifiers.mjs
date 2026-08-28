@@ -1,5 +1,6 @@
 import { OE3_RESOURCE_LABELS } from "./00-contracts.mjs";
 import { backupLandingPageReadiness as node3BackupLandingPageReadiness } from "./03-landing-page-readiness.mjs";
+import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 
 export function clean(value) {
   return String(value ?? "").trim();
@@ -109,12 +110,13 @@ export function mockReadyBundle(bundle = {}) {
   if (instanceEvidence) {
     Object.assign(instanceEvidence, {
       field_name_verified: true,
-      create_field_type: "decimal_digit_string",
+      create_field_type: "number",
       field_type_verified: true,
       landing_type: "MICRO_GAME",
       delivery_medium: "BYTE_GAME",
       applicability_verified: true,
-      long_id_transport_strategy: "decimal_digit_string",
+      long_id_transport_strategy: INSTANCE_ID_WIRE_STRATEGY,
+      long_id_transport_source: "test_fixture:local_engineering_wire_encoder",
       long_id_transport_verified: true
     });
   }

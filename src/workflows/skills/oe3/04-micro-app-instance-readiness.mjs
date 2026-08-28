@@ -79,7 +79,7 @@ export function evaluateMicroAppInstanceReadiness({ bundle = {}, mockReady = fal
     fieldNameVerified: evidence.field_name_verified === true,
     fieldTypeVerified: evidence.field_type_verified === true || Boolean(evidence.create_field_type),
     applicabilityVerified: evidence.applicability_verified === true,
-    longIdTransportVerified: evidence.long_id_transport_verified === true || clean(evidence.long_id_transport_strategy) === "decimal_digit_string"
+    longIdTransportVerified: evidence.long_id_transport_verified === true || clean(evidence.long_id_transport_strategy) === "decimal_bigint_json_number"
   };
   const ready = mockReady || (
     Boolean(item.resource_type) &&

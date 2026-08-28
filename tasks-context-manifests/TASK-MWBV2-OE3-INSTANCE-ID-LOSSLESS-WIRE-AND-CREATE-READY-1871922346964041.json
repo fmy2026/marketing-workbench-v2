@@ -1,0 +1,39 @@
+{
+  "task_id": "TASK-MWBV2-OE3-INSTANCE-ID-LOSSLESS-WIRE-AND-CREATE-READY-1871922346964041",
+  "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041"
+  },
+  "scope": {
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "real_create_requires_separate_single_action_authorization": true,
+    "raw_payload_stored": false,
+    "raw_response_stored": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-INSTANCE-ID-LOSSLESS-WIRE-AND-CREATE-READY-1871922346964041.md",
+    "src/workflows/skills/oe3/05-std-project-create-wire-body.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/06-std-project-create-wire-body-smoke.mjs"
+  ],
+  "official_doc_basis": [
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/调控任务/标准项目下获取可用优化目标.md"
+  ],
+  "acceptance": [
+    "wire_body_encoder_passed",
+    "payload_contract_passed",
+    "execution_grant_mock_single_send_passed",
+    "fresh_readonly_job_ready_for_user_create_confirmation",
+    "zero_platform_write_before_user_authorization"
+  ]
+}

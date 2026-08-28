@@ -102,6 +102,7 @@ export async function executeConfirmedLaunch({
   }
 
   const executionGrantId = grantId(jobId, grantSource);
+  const createAttemptNo = Number((latestBundleBeforeCreate.executionPlan?.metadata?.create_attempt_no) || latestBundleBeforeCreate.executionPlan?.plan_version || 1);
   try {
     const view = await runJob(repo, jobId, {
       mode: "execute_once",
@@ -112,6 +113,7 @@ export async function executeConfirmedLaunch({
       confirmVariableValue: STD_PROJECT_CREATE_CONFIRM_VALUE,
       grantSource,
       executionGrantId,
+      createAttemptNo,
       projectStatePath,
       fetchImpl
     });

@@ -1,0 +1,46 @@
+{
+  "task_id": "TASK-MWBV2-OE3-MINI-GAME-LAUNCH-LINK-AND-FRESH-CREATE-1871922346964041",
+  "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041"
+  },
+  "legacy_reference": {
+    "advertiser_id": "1871922175825993",
+    "std_project_id": "7675218401040220179",
+    "usage": "one_time_import_only",
+    "runtime_dependency": false
+  },
+  "scope": {
+    "platform_write_allowed_during_migration_and_preflight": false,
+    "real_create_requires_fresh_job_single_action_authorization": true,
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "full_launch_link_stored_in_project_files": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-MINI-GAME-LAUNCH-LINK-AND-FRESH-CREATE-1871922346964041.md",
+    "db/038_add_game_route_launch_links.sql",
+    "schemas/postgres-minimal-truth.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/05-game-route-launch-link-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/06-launch-execute-once.mjs"
+  ],
+  "official_doc_basis": [
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md"
+  ],
+  "acceptance": [
+    "game_route_launch_links_table_exists",
+    "legacy_success_launch_link_imported_with_hash_only_public_projection",
+    "mini_game_launch_link_missing_blocks_node5",
+    "fresh_readonly_job_ready_before_create",
+    "single_real_create_called_at_most_once_after_fresh_authorization"
+  ]
+}

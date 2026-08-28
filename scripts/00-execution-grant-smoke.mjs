@@ -67,7 +67,16 @@ function fakeFetchFactory({
   const calls = [];
   async function fakeFetch(url, options = {}) {
     const href = String(url);
-    calls.push({ href, method: options.method || "GET" });
+    const bodyText = String(options.body || "");
+    calls.push({
+      href,
+      method: options.method || "GET",
+      ...(href.includes("/std_project/create/") ? {
+        instanceIdJsonNumberTokenPresent: /"instance_id":7434750138926546994/.test(bodyText),
+        instanceIdQuotedStringPresent: /"instance_id":"7434750138926546994"/.test(bodyText),
+        instanceIdScientificNotationPresent: /7\.434750138926547e\+18/i.test(bodyText)
+      } : {})
+    });
     if (href.includes("/std_project/create/")) {
       return new Response(JSON.stringify({
         code: createApiCode,
@@ -281,6 +290,10 @@ try {
     debugCreateBlock("fake_create_not_called", result, successFetch);
   }
   assertOneCreateOneReadback(successFetch);
+  const successCreateCall = successFetch.calls.find((call) => call.href.includes("/std_project/create/")) || {};
+  assert(successCreateCall.instanceIdJsonNumberTokenPresent === true, "create body should contain unquoted lossless instance_id token");
+  assert(successCreateCall.instanceIdQuotedStringPresent === false, "create body must not quote instance_id");
+  assert(successCreateCall.instanceIdScientificNotationPresent === false, "create body must not use scientific notation for instance_id");
   assert(statuses.launch_intake === "passed", "node 1 should pass");
   assert(statuses.creation_context === "passed", "node 2 should pass");
   assert(statuses.game_launch_pack === "passed", "node 3 should pass");

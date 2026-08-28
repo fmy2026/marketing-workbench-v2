@@ -7,6 +7,10 @@ import {
   instanceIdCreateEvidenceSummary,
   officialFieldEvidenceSummary
 } from "./05-official-create-field-contract.mjs";
+import {
+  buildStdProjectCreateWireBody,
+  INSTANCE_ID_WIRE_STRATEGY
+} from "./05-std-project-create-wire-body.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -282,15 +286,43 @@ function backupLandingPageReadiness(bundle = {}, controlled = {}) {
   };
 }
 
+function miniProgramLaunchLinkReadiness(bundle = {}, controlled = {}) {
+  const routeApp = bundle.platformApp || {};
+  const publicRecord = bundle.gameRouteLaunchLink || {};
+  const appId = clean(bundle.draft?.payload_summary?.platform_app_id || routeApp.app_id);
+  const url = clean(controlled.launch_url);
+  const urlHash = clean(controlled.url_hash || publicRecord.url_hash);
+  const computedHash = url ? sha256Hex(url) : "";
+  const checks = {
+    present: Boolean(clean(controlled.link_ref || publicRecord.link_ref)),
+    active: clean(controlled.status || publicRecord.status) === "active",
+    scheme: /^sslocal:\/\/microgame/.test(url),
+    hashMatch: Boolean(url && urlHash && computedHash === urlHash),
+    platformAppIdMatch: Boolean(clean(controlled.platform_app_id || publicRecord.platform_app_id) && clean(controlled.platform_app_id || publicRecord.platform_app_id) === clean(routeApp.id)),
+    appIdMatch: Boolean(clean(controlled.app_id || publicRecord.app_id) && clean(controlled.app_id || publicRecord.app_id) === appId)
+  };
+  const ready = Object.values(checks).every(Boolean);
+  return {
+    ready,
+    url: ready ? url : "",
+    linkRef: clean(controlled.link_ref || publicRecord.link_ref),
+    urlHash,
+    status: clean(controlled.status || publicRecord.status || "missing"),
+    checks
+  };
+}
+
 function finalPayloadBlockers(payload = {}, bundle = {}, {
   configBlockers = [],
   materialReadiness = {},
   backupLandingPage = {},
+  miniProgramLaunchLink = {},
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
-  const miniProgramUrlRequired = !microGameByteGame;
+  const miniProgramUrlRequired = microGameByteGame;
+  const wireBody = instanceIdCreateEvidence.canSend ? buildStdProjectCreateWireBody(payload) : { status: "not_required", blockers: [] };
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
     return value === "" || value === null || value === undefined || (Array.isArray(value) && !value.length);
@@ -307,8 +339,9 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!Number.isSafeInteger(payload.advertiser_id) ? ["advertiser_id_not_safe_integer_for_platform_payload"] : []),
     ...(!payload.asset_id ? ["asset_id_missing_or_not_integer"] : []),
     ...(instanceIdCreateEvidence.blockers || []),
+    ...(wireBody.status === "blocked" ? wireBody.blockers : []),
     ...(!payload.aweme_id ? ["aweme_id_missing"] : []),
-    ...(miniProgramUrlRequired && !payload.project_materials?.mini_program_info?.url ? ["mini_program_url_missing"] : []),
+    ...(miniProgramUrlRequired && !miniProgramLaunchLink.ready ? ["mini_game_launch_url_not_ready"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
     ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
@@ -345,6 +378,7 @@ function fieldManifest(payload = {}, blockers = [], {
   configSource = {},
   materialReadiness = {},
   backupLandingPage = {},
+  miniProgramLaunchLink = {},
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {}
 } = {}) {
@@ -352,6 +386,17 @@ function fieldManifest(payload = {}, blockers = [], {
   const materials = payload.project_materials || {};
   const brand = payload.brand_info || {};
   const advertiserIdStorageText = clean(advertiserIdStorageValue);
+  const instanceField = instanceIdCreateEvidence.candidateField || "instance_id";
+  const instanceValue = payload[instanceField];
+  const wireBody = buildStdProjectCreateWireBody(payload);
+  const instanceTransportStrategy = typeof instanceValue === "string" &&
+    instanceIdCreateEvidence.longIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY
+    ? INSTANCE_ID_WIRE_STRATEGY
+    : typeof instanceValue === "string"
+      ? "digit_string_long_platform_id"
+      : instanceValue === undefined
+        ? "missing"
+        : "safe_integer_number";
   return {
     kind: "oe3_std_project_final_payload_manifest",
     requiredFieldsPresent: REQUIRED_CREATE_FIELDS.every((field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== ""),
@@ -361,13 +406,27 @@ function fieldManifest(payload = {}, blockers = [], {
     advertiserIdTransportSafe: Number.isSafeInteger(payload.advertiser_id),
     projectNamePresent: Boolean(payload.name),
     appIdPresent: Boolean(materials.mini_program_info?.app_id),
-    miniProgramUrlRequired: !(clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME"),
+    miniProgramAppIdOmittedWhenUrl: Boolean(materials.mini_program_info?.url) && !materials.mini_program_info?.app_id,
+    miniProgramUrlRequired: clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME",
+    miniProgramLaunchLinkPresent: Boolean(materials.mini_program_info?.url),
+    miniProgramLaunchLinkRef: miniProgramLaunchLink.linkRef || "",
+    miniProgramLaunchLinkHash: miniProgramLaunchLink.urlHash || "",
+    miniProgramLaunchLinkStatus: miniProgramLaunchLink.status || "missing",
+    miniProgramLaunchLinkSchemeOk: miniProgramLaunchLink.checks?.scheme === true,
+    miniProgramLaunchLinkHashMatch: miniProgramLaunchLink.checks?.hashMatch === true,
+    miniProgramLaunchLinkPlatformAppIdMatch: miniProgramLaunchLink.checks?.platformAppIdMatch === true,
+    miniProgramLaunchLinkAppIdMatch: miniProgramLaunchLink.checks?.appIdMatch === true,
     eventAssetIdPresent: Boolean(payload.asset_id),
     eventAssetIdType: payload.asset_id === null ? "null" : typeof payload.asset_id,
-    microAppInstanceIdPresent: Boolean(payload[instanceIdCreateEvidence.candidateField || "instance_id"]),
-    microAppInstanceIdType: payload[instanceIdCreateEvidence.candidateField || "instance_id"] === null ? "null" : typeof payload[instanceIdCreateEvidence.candidateField || "instance_id"],
-    microAppInstanceIdTransportLossless: platformIdTransportLossless(payload[instanceIdCreateEvidence.candidateField || "instance_id"]),
-    microAppInstanceIdTransportStrategy: typeof payload[instanceIdCreateEvidence.candidateField || "instance_id"] === "string" ? "digit_string_long_platform_id" : "safe_integer_number",
+    microAppInstanceIdPresent: Boolean(instanceValue),
+    microAppInstanceIdType: instanceValue === null ? "null" : typeof instanceValue,
+    microAppInstanceIdTransportLossless: platformIdTransportLossless(instanceValue),
+    microAppInstanceIdTransportStrategy: instanceTransportStrategy,
+    microAppInstanceIdWireNumberTokenPresent: wireBody.instanceIdWireNumberTokenPresent === true,
+    createWireBodyEncodingStatus: wireBody.status,
+    createWireBodyHash: wireBody.bodyHash || "",
+    createRequestHash: wireBody.requestHash || "",
+    createWireBodyBlockers: wireBody.blockers || [],
     awemeIdPresent: Boolean(payload.aweme_id),
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
@@ -425,7 +484,7 @@ function fieldManifest(payload = {}, blockers = [], {
   };
 }
 
-export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLandingPageUrl = {} } = {}) {
+export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLandingPageUrl = {}, miniProgramLaunchLink = {} } = {}) {
   const summary = bundle.draft?.payload_summary || {};
   const { payloadDefaults, contractMapping } = routePayloadConfig(bundle);
   const configBlockers = [];
@@ -437,6 +496,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const dmpIds = dmpAudienceIds(bundle);
   const brand = brandInfo(bundle);
   const backupLandingPage = backupLandingPageReadiness(bundle, backupLandingPageUrl);
+  const miniProgramLink = miniProgramLaunchLinkReadiness(bundle, miniProgramLaunchLink);
   const objective = clean(summary.objective || bundle.defaults?.objective);
   const deepObjective = clean(summary.deep_objective || bundle.defaults?.deep_objective);
   const instanceCandidateField = clean(
@@ -493,10 +553,9 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       image_material_list: [],
       external_url_material_list: backupLandingPage.ready ? [backupLandingPage.url] : [],
       source: clean(bundle.game?.brand_name || bundle.game?.game_name || "产品").slice(0, 10),
-      mini_program_info: {
-        app_id: clean(summary.platform_app_id || bundle.platformApp?.app_id),
-        url: clean(metadataValue(microApp, ["metadata.mini_program_url", "metadata.launch_url", "metadata.byte_mini_game_launch_url"]))
-      },
+      // Official 3.0 contract: with url, app_id/start_path/params are omitted.
+      // app_id remains a controlled database binding used before payload creation.
+      mini_program_info: miniProgramLink.ready ? { url: miniProgramLink.url } : {},
       product_info: {
         titles: [clean(bundle.game?.product_name || bundle.game?.game_name || "产品")],
         image_ids: [clean(productImage.platform_resource_id)].filter(Boolean),
@@ -536,10 +595,12 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     configBlockers,
     materialReadiness,
     backupLandingPage,
+    miniProgramLaunchLink: miniProgramLink,
     officialFieldEvidence,
     instanceIdCreateEvidence
   });
-  const payloadHash = hashValue(payload);
+  const wireBody = buildStdProjectCreateWireBody(payload);
+  const payloadHash = wireBody.bodyHash || hashValue(payload);
   return {
     payload,
     payloadHash,
@@ -548,6 +609,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       configSource,
       materialReadiness,
       backupLandingPage,
+      miniProgramLaunchLink: miniProgramLink,
       officialFieldEvidence,
       instanceIdCreateEvidence
     }),

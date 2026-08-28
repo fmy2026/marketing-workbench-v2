@@ -258,7 +258,8 @@ async function executePayloadBuild({ repo, context }) {
   const draft = await buildSkillDraft({
     repo,
     bundle: withDmpCustomAudienceIds(context.bundle, context.dmpCustomAudienceIds || []),
-    mockReady: context.mockReady
+    mockReady: context.mockReady,
+    attemptNo: context.createAttemptNo
   });
   await repo.upsertDraft(draft);
   context.draft = draft;
@@ -324,12 +325,15 @@ async function executeCreateReadiness({ repo, context }) {
     payloadContractStatus: context.payloadContract?.status || "not_run"
   });
   const skillBlockers = [...context.skillOutputs.values()].flatMap((item) => item.blockers || []);
-  const platformActions = latestBundle.platformAction ? 1 : 0;
+  const attemptState = await repo.getCreateAttemptState(latestBundle.job.job_id);
+  const platformActions = Number(attemptState.createActionCount || 0);
   const createdObjects = latestBundle.createdObject ? 1 : 0;
+  const correctiveAttemptReady = Number(context.createAttemptNo) === Number(attemptState.nextCreateAttemptNo) &&
+    Number(context.createAttemptNo) <= Number(attemptState.maximumCreateAttempts || 3);
   const blockers = [...new Set([
     ...skillBlockers,
     ...createPreflight.blocker_codes,
-    ...(platformActions > 0 ? ["single_create_attempt_already_recorded"] : []),
+    ...(!correctiveAttemptReady ? ["std_project_create_attempt_not_available"] : []),
     ...(createdObjects > 0 ? ["created_object_already_recorded"] : []),
     ...(!brandIndustryPassed(latestBundle) && !context.mockReady ? ["brand_industry_readback_blocked"] : []),
     ...(!eventChainPassed(latestBundle) && !context.mockReady ? ["event_chain_readback_blocked"] : [])
@@ -338,8 +342,8 @@ async function executeCreateReadiness({ repo, context }) {
   const ready = effectiveBlockers.length === 0;
   const status = ready
     ? "ready_for_user_create_confirmation"
-    : platformActions > 0
-      ? "blocked_after_single_create_failure"
+    : !correctiveAttemptReady
+      ? "corrective_attempt_limit_or_sequence_blocked"
       : effectiveBlockers.includes("brand_industry_readback_blocked")
         ? "blocked_brand_industry"
         : "new_runtime_job_required";
@@ -351,6 +355,9 @@ async function executeCreateReadiness({ repo, context }) {
         status,
         canCreateCurrentJob: ready,
         retryAllowed: false,
+        createAttemptNo: context.createAttemptNo,
+        maximumCreateAttempts: Number(attemptState.maximumCreateAttempts || 3),
+        nextCreateAttemptNo: Number(attemptState.nextCreateAttemptNo || 1),
         nextConfirmationRequired: ready && context.mode === "execute_once",
         platformActions,
         createdObjects,
@@ -413,7 +420,7 @@ async function executeSkill({ repo, context, skillKey }) {
     // The initial plan may have seen no target account resource rows. Rebuild it
     // after candidate materialization so later gates use the current local truth.
     if (result.status === "passed") {
-      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
+      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "avatar-source-prepare") {
@@ -455,7 +462,7 @@ async function executeSkill({ repo, context, skillKey }) {
         bundle: context.bundle,
         previousOutputs: context.skillOutputs
       });
-      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
+      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
     }
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "video-material-bind-plan") {
@@ -699,13 +706,18 @@ export async function runOe3WorkflowSkills({
   env = process.env,
   allowedPlanActions = [],
   mockMonitorEnsure = false,
-  qiankunOwnerKey = ""
+  qiankunOwnerKey = "",
+  createAttemptNo = 1
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
+  const numericAttemptNo = Number(createAttemptNo || 1);
+  if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
+    throw new Error("invalid_std_project_create_attempt_no");
+  }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
   if (mode !== "readback_only") {
-    await compileAndSaveExecutionPlan({ repo, jobId });
+    await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
   const touchpointVerification = await getTouchpointVerification(repo, bundle);
@@ -725,6 +737,8 @@ export async function runOe3WorkflowSkills({
     allowedPlanActions,
     mockMonitorEnsure,
     qiankunOwnerKey,
+    createAttemptNo: numericAttemptNo,
+    planVersion: numericAttemptNo,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
@@ -741,6 +755,9 @@ export async function runOe3WorkflowSkills({
     skillOutputs: context.skillOutputs
   });
   await repo.upsertNodeRuns(jobId, nodes);
+  if (mode !== "readback_only") {
+    await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
+  }
   if (mode === "dry_run") {
     const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
     if (latestDraftBundle?.draft?.project_name) {

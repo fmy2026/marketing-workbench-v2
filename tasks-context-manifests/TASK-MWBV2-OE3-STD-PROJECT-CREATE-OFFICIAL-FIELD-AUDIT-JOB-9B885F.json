@@ -1,0 +1,60 @@
+{
+  "schema_version": "2026-08-28.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-STD-PROJECT-CREATE-OFFICIAL-FIELD-AUDIT-JOB-9B885F",
+  "status": "completed",
+  "owner_agent": "Codex",
+  "created_at": "2026-08-28 CST",
+  "scope": {
+    "mode": "readonly_official_contract_audit",
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "job_id": "JOB-MWBV2-20260828123736-9B885F",
+    "draft_id": "DRAFT-JOB-MWBV2-20260828123736-9B885F",
+    "plan_id": "PLAN-JOB-MWBV2-20260828123736-9B885F-V1",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041"
+  },
+  "read_order": [
+    "/Users/hys/Projects/marketing-workbench-v2/AGENTS.md",
+    "/Users/hys/Projects/marketing-workbench-v2/project.state.json",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md",
+    "/Users/hys/Projects/marketing-workbench-v2/src/workflows/skills/oe3/05-payload.mjs",
+    "/Users/hys/Projects/marketing-workbench-v2/src/workflows/skills/oe3/05-official-create-field-contract.mjs",
+    "/Users/hys/Projects/marketing-workbench-v2/src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "/Users/hys/Projects/marketing-workbench-v2/src/workflows/skills/oe3/05-std-project-create-wire-body.mjs"
+  ],
+  "source_policy": {
+    "allowed": [
+      "local_oe3_3p0_official_docs",
+      "local_project_code",
+      "postgres_runtime_summary_without_raw_payload"
+    ],
+    "forbidden": [
+      "external_web_search",
+      "old_project_reference",
+      "oceanengine_platform_call",
+      "fresh_job_create",
+      "std_project_create_retry",
+      "token_refresh"
+    ]
+  },
+  "route_context": {
+    "ad_type": "ALL",
+    "landing_type": "MICRO_GAME",
+    "marketing_goal": "VIDEO_AND_IMAGE",
+    "delivery_medium": "BYTE_GAME",
+    "native_type": "AWEME"
+  },
+  "artifacts": {
+    "human_report": "/Users/hys/Projects/marketing-workbench-v2/docs/.问题排查/20260828-oe3-std-project-create-official-field-audit-JOB-MWBV2-20260828123736-9B885F.md",
+    "machine_matrix": "/Users/hys/Projects/marketing-workbench-v2/docs/.问题排查/20260828-oe3-std-project-create-field-matrix-JOB-MWBV2-20260828123736-9B885F.json"
+  },
+  "evidence_boundary": {
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "token_stored": false,
+    "full_url_stored": false
+  },
+  "next_gate": "Review candidate field-contract risks, then create a separate patch/preflight task before any new real create authorization."
+}

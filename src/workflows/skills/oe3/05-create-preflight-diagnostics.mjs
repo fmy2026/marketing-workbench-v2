@@ -1,3 +1,5 @@
+import { INSTANCE_ID_WIRE_STRATEGY, buildStdProjectCreateWireBody } from "./05-std-project-create-wire-body.mjs";
+
 function clean(value) {
   return String(value ?? "").trim();
 }
@@ -181,10 +183,10 @@ function checkIntegerOrDigitString(payload, path, { blockerCode = `invalid_integ
     checkId: `integer_or_digit_string:${path}`,
     fieldPath: path,
     status: ok ? "passed" : "blocked",
-    expectedTypeOrRule: "safe_integer_number_or_decimal_digit_string",
+    expectedTypeOrRule: "safe_integer_number_or_controlled_decimal_string_for_wire_number_token",
     actualValue: value,
     blockerCode,
-    repairHint: `${path} 必须是安全 integer；超过 JS 安全整数范围的平台长 ID 必须保持数字字符串。`
+    repairHint: `${path} 必须是安全 integer；超过 JS 安全整数范围的平台长 ID 必须保持数字字符串，并由受控 wire encoder 写成 JSON number token。`
   });
 }
 
@@ -332,7 +334,7 @@ function checkInstanceIdCreateEvidence(manifest = {}) {
     checkId: "manifest:instance_id_create_evidence",
     fieldPath: "final_payload_manifest.instanceIdCreateEvidence",
     status: evidence.status === "passed" && blockers.length === 0 ? "passed" : "blocked",
-    expectedTypeOrRule: "official_direct_field_name + type + MICRO_GAME_BYTE_GAME_condition + long_id_transport",
+    expectedTypeOrRule: "official_direct_field_name + type + MICRO_GAME_BYTE_GAME_condition + verified_engineering_wire_transport",
     actualValue: {
       status: evidence.status || "missing",
       candidateField: evidence.candidateField || "",
@@ -340,10 +342,56 @@ function checkInstanceIdCreateEvidence(manifest = {}) {
       fieldTypeVerified: evidence.fieldTypeVerified === true,
       applicabilityVerified: evidence.applicabilityVerified === true,
       longIdTransportVerified: evidence.longIdTransportVerified === true,
+      longIdTransportStrategy: evidence.longIdTransportStrategy || "",
       longPlatformId: evidence.longPlatformId === true
     },
     blockerCode: blockers[0] || "instance_id_create_contract_not_verified",
-    repairHint: "仅在本机官方创建文档明确字段名、类型、BYTE_GAME 适用条件和长数字 JSON 传输策略后发送实例字段。"
+    repairHint: "字段名、类型和 BYTE_GAME 适用性来自本机官方创建文档；19 位 number 传输必须由本地受控 wire encoder 验证后才发送。"
+  });
+}
+
+function checkCreateWireBody(payload = {}) {
+  const wireBody = buildStdProjectCreateWireBody(payload);
+  return diag({
+    checkId: "wire_body:std_project_create",
+    fieldPath: "std_project_create.request_body",
+    status: wireBody.status,
+    expectedTypeOrRule: `canonical_json_body_with_top_level_instance_id:${INSTANCE_ID_WIRE_STRATEGY}`,
+    actualValue: {
+      requestHashPresent: Boolean(wireBody.requestHash),
+      instanceIdPresent: wireBody.instanceIdPresent === true,
+      instanceIdWireNumberTokenPresent: wireBody.instanceIdWireNumberTokenPresent === true,
+      instanceIdTransportStrategy: wireBody.instanceIdTransportStrategy || "",
+      rawBodyStored: false
+    },
+    blockerCode: wireBody.blockers[0] || "std_project_create_wire_body_invalid",
+    repairHint: "仅顶层 instance_id 可由数字字符串编码为 JSON number token；请求体只用于发送和 hash，不保存原文。"
+  });
+}
+
+function checkCreateWireBodyManifest(manifest = {}) {
+  const requiresInstanceId = manifest.miniProgramUrlRequired === false;
+  const blockers = Array.isArray(manifest.createWireBodyBlockers) ? manifest.createWireBodyBlockers : [];
+  const passed = manifest.createWireBodyEncodingStatus === "passed" &&
+    (!requiresInstanceId || manifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY) &&
+    (!requiresInstanceId || manifest.microAppInstanceIdWireNumberTokenPresent === true) &&
+    /^sha256:[a-f0-9]{64}$/.test(clean(manifest.createWireBodyHash)) &&
+    clean(manifest.createWireBodyHash) === clean(manifest.createRequestHash);
+  return diag({
+    checkId: "manifest:create_wire_body",
+    fieldPath: "final_payload_manifest.createWireBodyHash",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `hash_present_and_instance_id_strategy:${INSTANCE_ID_WIRE_STRATEGY}`,
+    actualValue: {
+      encodingStatus: manifest.createWireBodyEncodingStatus || "",
+      hashPresent: Boolean(clean(manifest.createWireBodyHash)),
+      requestHashMatches: clean(manifest.createWireBodyHash) === clean(manifest.createRequestHash),
+      instanceIdTransportStrategy: manifest.microAppInstanceIdTransportStrategy || "",
+      instanceIdWireNumberTokenPresent: manifest.microAppInstanceIdWireNumberTokenPresent === true,
+      rawBodyStored: false
+    },
+    blockerCode: blockers[0] || "std_project_create_wire_body_not_verified",
+    repairHint: "重新生成 Node 5 草稿，确认 payload_hash 与最终 create wire body hash 绑定。"
   });
 }
 
@@ -403,6 +451,7 @@ export function evaluateStdProjectCreatePreflight({
         blockerCode: "invalid_lossless_platform_id:instance_id"
       }));
     }
+    diagnostics.push(checkCreateWireBody(payload));
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
     diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
     diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
@@ -491,6 +540,7 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkBusinessDefaults(requestFieldManifest));
   diagnostics.push(checkContractMapping(requestFieldManifest));
   diagnostics.push(checkInstanceIdCreateEvidence(requestFieldManifest));
+  diagnostics.push(checkCreateWireBodyManifest(requestFieldManifest));
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 

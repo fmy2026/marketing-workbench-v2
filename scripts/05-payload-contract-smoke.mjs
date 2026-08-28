@@ -3,6 +3,7 @@ import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
+import { INSTANCE_ID_WIRE_STRATEGY } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -60,11 +61,20 @@ try {
   assert(dry.touchpointVerification.touchpointUrlPresent, "touchpoint URL not present");
   assert(dry.touchpointVerification.urlHashMatches, "touchpoint URL hash mismatch");
   assert(dry.bundle.job.source_usage === "test_run", "dry payload contract job source_usage is not test_run");
-  assert(dryInstanceEvidence.status === "blocked", "runtime-derived instance create evidence should block");
-  assert(dryInstanceEvidence.blockers?.includes("instance_id_long_id_transport_not_verified"), "instance long-ID transport blocker missing");
-  assert(dryManifest.microAppInstanceIdPresent === false, "unverified instance candidate must not enter payload");
-  assert(dryManifest.miniProgramUrlRequired === false, "BYTE_GAME MICRO_GAME route should not require mini_program_info.url");
-  assert(!dryManifest.blockers?.includes("mini_program_url_missing"), "BYTE_GAME MICRO_GAME route should not emit mini_program_url_missing");
+  assert(dryInstanceEvidence.status === "passed", "runtime-derived instance create evidence should pass after wire transport verification");
+  assert(!dryInstanceEvidence.blockers?.includes("instance_id_long_id_transport_not_verified"), "instance long-ID transport blocker should be removed");
+  assert(dryManifest.microAppInstanceIdPresent === true, "verified instance candidate must enter payload");
+  assert(dryManifest.microAppInstanceIdType === "string", "instance candidate should stay a string in memory");
+  assert(dryManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY, "instance candidate should use controlled wire number strategy");
+  assert(dryManifest.microAppInstanceIdWireNumberTokenPresent === true, "instance candidate should be encoded as a JSON number token for create");
+  assert(/^sha256:[a-f0-9]{64}$/.test(dryManifest.createWireBodyHash || ""), "create wire body hash missing");
+  assert(dryManifest.createWireBodyHash === dryManifest.createRequestHash, "create request hash must match wire body hash");
+  assert(dryManifest.miniProgramUrlRequired === true, "BYTE_GAME MICRO_GAME route should require mini_program_info.url");
+  assert(dryManifest.miniProgramLaunchLinkPresent === true, "BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
+  assert(dryManifest.miniProgramLaunchLinkSchemeOk === true, "mini_program_info.url should use sslocal microgame scheme");
+  assert(dryManifest.miniProgramLaunchLinkHashMatch === true, "mini_program_info.url hash should match controlled DB hash");
+  assert(dryManifest.miniProgramLaunchLinkAppIdMatch === true, "mini_program_info.url should be bound to the active app_id");
+  assert(!dryManifest.blockers?.includes("mini_game_launch_url_not_ready"), "ready BYTE_GAME MICRO_GAME route should not emit mini_game_launch_url_not_ready");
   ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
     assert(dryFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted without direct create evidence`);
   });
@@ -102,6 +112,8 @@ try {
   assert(mock.contract.status === "passed", "mock payload contract did not pass");
   assert(mockFieldEvidence.status === "passed", "complete test field evidence should pass");
   assert(mockInstanceEvidence.status === "passed", "complete test instance evidence should pass");
+  assert(mockManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY, "mock instance should use controlled wire number strategy");
+  assert(mockManifest.microAppInstanceIdWireNumberTokenPresent === true, "mock instance should be encoded as JSON number token for create");
   ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
     assert(mockFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted in complete-evidence fixture`);
   });
@@ -111,12 +123,19 @@ try {
   assert(mockManifest.advertiserIdTransportSafe === true, "mock advertiser_id transport not safe");
   assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
-  assert(mockManifest.miniProgramUrlRequired === false, "mock BYTE_GAME MICRO_GAME route should not require mini_program_info.url");
+  assert(mockManifest.miniProgramUrlRequired === true, "mock BYTE_GAME MICRO_GAME route should require mini_program_info.url");
+  assert(mockManifest.miniProgramLaunchLinkPresent === true, "mock BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
+  assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
 
   const longIdTransportPreflight = evaluateStdProjectCreatePreflight({
     requestFieldManifest: {
+      requiredFieldsPresent: true,
+      blockers: ["instance_id_long_id_transport_not_verified"],
+      advertiserIdStorageType: "string",
+      advertiserIdTransportType: "number",
+      advertiserIdTransportSafe: true,
       instanceIdCreateEvidence: {
         status: "blocked",
         candidateField: "instance_id",
@@ -130,7 +149,7 @@ try {
       }
     }
   });
-  assert(longIdTransportPreflight.blocker_codes.includes("instance_id_long_id_transport_not_verified"), "19-digit instance transport must remain blocked without an official JSON transport contract");
+  assert(longIdTransportPreflight.blocker_codes.includes("instance_id_long_id_transport_not_verified"), "19-digit instance transport must remain blocked without verified wire transport");
 
   const result = {
     dryRun: {

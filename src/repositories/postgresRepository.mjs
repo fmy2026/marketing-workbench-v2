@@ -62,6 +62,24 @@ function safeLandingPageJson(alias = "lpa") {
   )`;
 }
 
+function safeGameRouteLaunchLinkJson(alias = "grll") {
+  return `jsonb_build_object(
+    'link_ref', ${alias}.link_ref,
+    'route_id', ${alias}.route_id,
+    'game_code', ${alias}.game_code,
+    'platform_app_id', ${alias}.platform_app_id,
+    'app_id', ${alias}.app_id,
+    'url_hash', ${alias}.url_hash,
+    'status', ${alias}.status,
+    'source_usage', ${alias}.source_usage,
+    'source_summary', ${alias}.source_summary,
+    'metadata', ${alias}.metadata,
+    'controlled_value_present', (${alias}.launch_url IS NOT NULL AND ${alias}.launch_url <> ''),
+    'created_at', ${alias}.created_at,
+    'updated_at', ${alias}.updated_at
+  )`;
+}
+
 function assertId(name, value, pattern = /^[A-Za-z0-9_:\-.]+$/) {
   const text = String(value ?? "");
   if (!text || !pattern.test(text)) {
@@ -173,6 +191,15 @@ export class PostgresRepository {
           WHERE pa.game_code = g.game_code
             AND pa.platform = r.platform
             AND pa.app_type = r.marketing_product
+          LIMIT 1
+        ),
+        'gameRouteLaunchLink', (
+          SELECT ${safeGameRouteLaunchLinkJson("grll")}
+          FROM mwb.game_route_launch_links grll
+          WHERE grll.route_id = r.route_id
+            AND grll.game_code = g.game_code
+            AND grll.status = 'active'
+          ORDER BY grll.updated_at DESC
           LIMIT 1
         ),
         'materialPack', (
@@ -560,6 +587,15 @@ export class PostgresRepository {
             AND pa.app_type = r.marketing_product
           LIMIT 1
         ),
+        'gameRouteLaunchLink', (
+          SELECT ${safeGameRouteLaunchLinkJson("grll")}
+          FROM mwb.game_route_launch_links grll
+          WHERE grll.route_id = j.route_id
+            AND grll.game_code = j.game_code
+            AND grll.status = 'active'
+          ORDER BY grll.updated_at DESC
+          LIMIT 1
+        ),
         'materialPack', (
           SELECT jsonb_build_object(
             'pack', to_jsonb(mp),
@@ -650,6 +686,8 @@ export class PostgresRepository {
           SELECT jsonb_build_object(
             'action_id', pa.action_id,
             'action_type', pa.action_type,
+            'plan_id', pa.plan_id,
+            'attempt_no', pa.attempt_no,
             'endpoint', pa.endpoint,
             'action_status', pa.action_status,
             'http_status', pa.http_status,
@@ -766,6 +804,29 @@ export class PostgresRepository {
       SELECT to_jsonb(summary)::text
       FROM mwb.workflow_case_summary summary
       WHERE summary.case_id = ${sqlLiteral(caseId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getManualL3OverrideEvidence({ routeId, gameCode, advertiserId, provisionId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("provision_id", provisionId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'artifactId', artifact_id,
+        'target', summary::jsonb->'target',
+        'manualConfirm', summary::jsonb->'manualConfirm',
+        'createdAt', created_at
+      )::text
+      FROM mwb.evidence_artifacts
+      WHERE artifact_type = 'qiankun_manual_l3_confirm'
+        AND summary::jsonb->'target'->>'routeId' = ${sqlLiteral(routeId)}
+        AND summary::jsonb->'target'->>'gameCode' = ${sqlLiteral(gameCode)}
+        AND summary::jsonb->'target'->>'advertiserId' = ${sqlLiteral(advertiserId)}
+        AND summary::jsonb->'target'->>'provisionId' = ${sqlLiteral(provisionId)}
+      ORDER BY created_at DESC
       LIMIT 1;
     `, this.database);
   }
@@ -1839,6 +1900,133 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getControlledGameRouteLaunchLink({ routeId, gameCode, platformAppId = "", appId = "" }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    if (platformAppId) assertId("platform_app_id", platformAppId);
+    if (appId) assertId("app_id", appId, /^tt[A-Za-z0-9]+$/);
+
+    const row = await queryJson(`
+      SELECT jsonb_build_object(
+        'link_ref', grll.link_ref,
+        'route_id', grll.route_id,
+        'game_code', grll.game_code,
+        'platform_app_id', grll.platform_app_id,
+        'app_id', grll.app_id,
+        'url_hash', grll.url_hash,
+        'status', grll.status,
+        'source_usage', grll.source_usage,
+        'controlled_value_present', (grll.launch_url IS NOT NULL AND grll.launch_url <> ''),
+        'launch_url', grll.launch_url
+      )::text
+      FROM mwb.game_route_launch_links grll
+      WHERE grll.route_id = ${sqlLiteral(routeId)}
+        AND grll.game_code = ${sqlLiteral(gameCode)}
+        AND grll.status = 'active'
+        ${platformAppId ? `AND grll.platform_app_id = ${sqlLiteral(platformAppId)}` : ""}
+        ${appId ? `AND grll.app_id = ${sqlLiteral(appId)}` : ""}
+      ORDER BY grll.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+    if (!row) return null;
+    const launchUrl = String(row.launch_url || "").trim();
+    const computedHash = launchUrl ? sha256Hex(launchUrl) : "";
+    const urlHash = String(row.url_hash || "").trim();
+    return {
+      ...row,
+      launch_url: launchUrl,
+      hash_matches: Boolean(launchUrl && urlHash && computedHash === urlHash),
+      computed_url_hash: computedHash
+    };
+  }
+
+  async upsertGameRouteLaunchLink({
+    linkRef,
+    routeId,
+    gameCode,
+    platformAppId,
+    appId,
+    launchUrl,
+    status = "active",
+    sourceUsage = "private_runtime",
+    sourceSummary = {},
+    metadata = {}
+  }) {
+    assertId("link_ref", linkRef);
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("platform_app_id", platformAppId);
+    assertId("app_id", appId, /^tt[A-Za-z0-9]+$/);
+    assertId("status", status);
+    assertId("source_usage", sourceUsage);
+    const cleanLaunchUrl = String(launchUrl || "").trim();
+    if (!/^sslocal:\/\/microgame/.test(cleanLaunchUrl)) throw new Error("invalid_mini_game_launch_url_scheme");
+    const urlHash = sha256Hex(cleanLaunchUrl);
+    const row = await queryJson(`
+      WITH route_app AS (
+        SELECT pa.id
+        FROM mwb.game_platform_apps pa
+        JOIN mwb.platform_routes r
+          ON r.platform = pa.platform
+         AND r.marketing_product = pa.app_type
+        WHERE pa.id = ${sqlLiteral(platformAppId)}
+          AND pa.game_code = ${sqlLiteral(gameCode)}
+          AND pa.app_id = ${sqlLiteral(appId)}
+          AND pa.status = 'active'
+          AND r.route_id = ${sqlLiteral(routeId)}
+      ),
+      upserted AS (
+        INSERT INTO mwb.game_route_launch_links (
+          link_ref,
+          route_id,
+          game_code,
+          platform_app_id,
+          app_id,
+          launch_url,
+          url_hash,
+          status,
+          source_usage,
+          source_summary,
+          metadata,
+          created_at,
+          updated_at
+        )
+        SELECT
+          ${sqlLiteral(linkRef)},
+          ${sqlLiteral(routeId)},
+          ${sqlLiteral(gameCode)},
+          ${sqlLiteral(platformAppId)},
+          ${sqlLiteral(appId)},
+          ${sqlLiteral(cleanLaunchUrl)},
+          ${sqlLiteral(urlHash)},
+          ${sqlLiteral(status)},
+          ${sqlLiteral(sourceUsage)},
+          ${sqlJson(sourceSummary || {})},
+          ${sqlJson(metadata || {})},
+          now(),
+          now()
+        FROM route_app
+        ON CONFLICT (route_id, game_code) DO UPDATE SET
+          link_ref = EXCLUDED.link_ref,
+          platform_app_id = EXCLUDED.platform_app_id,
+          app_id = EXCLUDED.app_id,
+          launch_url = EXCLUDED.launch_url,
+          url_hash = EXCLUDED.url_hash,
+          status = EXCLUDED.status,
+          source_usage = EXCLUDED.source_usage,
+          source_summary = EXCLUDED.source_summary,
+          metadata = mwb.game_route_launch_links.metadata || EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING *
+      )
+      SELECT ${safeGameRouteLaunchLinkJson("u")}::text
+      FROM upserted u
+      LIMIT 1;
+    `, this.database);
+    if (!row) throw new Error("game_route_launch_link_app_id_mismatch_or_platform_app_missing");
+    return row;
+  }
+
   async getBackupLandingPageCandidates({ routeId, gameCode }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
@@ -2090,6 +2278,13 @@ export class PostgresRepository {
     assertId("plan_id", plan.planId);
     assertId("job_id", plan.jobId);
     await runPsql(`
+      UPDATE mwb.launch_execution_plans
+      SET plan_status = 'stale',
+          updated_at = now()
+      WHERE job_id = ${sqlLiteral(plan.jobId)}
+        AND plan_version < ${Number(plan.planVersion || 1)}
+        AND plan_status IN ('blocked', 'planned', 'ready');
+
       INSERT INTO mwb.launch_execution_plans (
         plan_id,
         job_id,
@@ -3056,7 +3251,20 @@ export class PostgresRepository {
           WHERE job_id = ${sqlLiteral(jobId)}
             AND readback_status <> 'not_applicable'
             AND object_id <> 'NOT_APPLICABLE_DRY_RUN'
-        )
+        ),
+        'maxCreateAttemptNo', coalesce((
+          SELECT max(attempt_no)
+          FROM mwb.platform_actions
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND action_type = 'oceanengine_std_project_create'
+        ), 0),
+        'nextCreateAttemptNo', coalesce((
+          SELECT max(attempt_no) + 1
+          FROM mwb.platform_actions
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND action_type = 'oceanengine_std_project_create'
+        ), 1),
+        'maximumCreateAttempts', 3
       )::text;
     `, this.database);
   }
@@ -3171,6 +3379,15 @@ export class PostgresRepository {
         AND game_code = ${sqlLiteral(gameCode)}
         AND advertiser_id = ${sqlLiteral(advertiserId)}
         AND source_usage = 'test_run';
+      DELETE FROM mwb.workflow_cases
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND source_usage = 'test_run'
+        AND NOT EXISTS (
+          SELECT 1 FROM mwb.launch_jobs j
+          WHERE j.case_id = mwb.workflow_cases.case_id
+        );
       DELETE FROM mwb.monitor_provision_attempts
       WHERE provision_id IN (
         SELECT provision_id

@@ -10,6 +10,7 @@ import {
   evaluateStdProjectCreatePreflight,
   OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS
 } from "../workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
+import { buildStdProjectCreateWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
@@ -35,6 +36,7 @@ function canonicalJson(value) {
 }
 
 function redactedPayloadSummary(payload = {}) {
+  const wireBody = buildStdProjectCreateWireBody(payload);
   return {
     advertiser_id: clean(payload.advertiser_id),
     name: clean(payload.name),
@@ -42,12 +44,14 @@ function redactedPayloadSummary(payload = {}) {
     event_asset_id_present: Boolean(payload.asset_id),
     micro_app_instance_id_present: Boolean(payload.instance_id),
     aweme_id_present: Boolean(payload.aweme_id),
-    mini_program_url_present: Boolean(payload.project_materials?.mini_program_info?.url),
+    mini_program_launch_link_present: Boolean(payload.project_materials?.mini_program_info?.url),
     touchpoint_present: Boolean(payload.track_url_setting?.action_track_url?.length),
     product_image_id_present: Boolean(payload.project_materials?.product_info?.image_ids?.length),
     video_material_count: payload.project_materials?.video_material_list?.length || 0,
     title_material_count: payload.project_materials?.title_material_list?.length || 0,
-    payload_fingerprint: `sha256:${sha256(canonicalJson(payload))}`
+    payload_fingerprint: wireBody.bodyHash || `sha256:${sha256(canonicalJson(payload))}`,
+    wire_body_hash_present: Boolean(wireBody.bodyHash),
+    raw_payload_stored: false
   };
 }
 
@@ -189,7 +193,9 @@ function targetFromBundle(bundle = {}) {
     gameCode: bundle.job?.game_code || "",
     advertiserId: bundle.job?.advertiser_id || "",
     projectName: bundle.draft?.project_name || "",
-    payloadHash: bundle.draft?.payload_hash || ""
+    payloadHash: bundle.draft?.payload_hash || "",
+    createAttemptNo: Number(executionPlan.metadata?.create_attempt_no || executionPlan.plan_version || 1),
+    maximumCreateAttempts: Number(executionPlan.metadata?.maximum_create_attempts || 3)
   };
 }
 
@@ -220,6 +226,12 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     gameCode: bundle.job.game_code,
     advertiserId: bundle.job.advertiser_id
   });
+  const miniProgramLaunchLink = await repo.getControlledGameRouteLaunchLink({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    platformAppId: bundle.platformApp?.id || "",
+    appId: bundle.platformApp?.app_id || ""
+  });
   const touchpointVerification = await repo.getTouchpointVerification({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
@@ -233,13 +245,15 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
   const finalPayload = buildOe3StdProjectPayload({
     bundle,
     touchpointUrl: touchpoint?.touchpoint_url || "",
-    backupLandingPageUrl: backupLandingPageUrl || {}
+    backupLandingPageUrl: backupLandingPageUrl || {},
+    miniProgramLaunchLink: miniProgramLaunchLink || {}
   });
   const createPreflight = evaluateStdProjectCreatePreflight({
     payload: finalPayload.payload,
     requestFieldManifest: finalPayload.requestFieldManifest,
     payloadContractStatus: contract.status
   });
+  const wireBody = buildStdProjectCreateWireBody(finalPayload.payload);
   const blockers = [
     ...(bundle.job.job_id !== runtimeTarget.jobId ? ["target_job_mismatch"] : []),
     ...(bundle.draft?.draft_id !== runtimeTarget.draftId ? ["target_draft_mismatch"] : []),
@@ -254,6 +268,7 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     ...(!touchpoint?.touchpoint_url ? ["controlled_touchpoint_url_missing"] : []),
     ...(!touchpointVerification.urlHashMatches ? ["touchpoint_hash_mismatch"] : []),
     ...finalPayload.blockers,
+    ...(wireBody.status === "blocked" ? wireBody.blockers : []),
     ...createPreflight.blocker_codes
   ];
   return {
@@ -265,7 +280,13 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     redactedPayloadSummary: redactedPayloadSummary(finalPayload.payload),
     payloadContractStatus: contract.status,
     payloadHashStable,
-    createPreflight
+    createPreflight,
+    createWireBodySummary: {
+      status: wireBody.status,
+      requestHash: wireBody.requestHash,
+      instanceIdWireNumberTokenPresent: wireBody.instanceIdWireNumberTokenPresent === true,
+      rawPayloadStored: false
+    }
   };
 }
 
@@ -294,10 +315,9 @@ export async function createStdProjectForTargetOnce({
     ...(confirmVariableValue !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirm_variable_missing_or_invalid"] : []),
     ...(!fakeTransport && !credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
     ...(bundle.job.source_usage !== "runtime_truth" && !fakeTransport ? ["job_not_runtime_truth"] : []),
-    ...((attemptState.createActionCount || 0) > 0 ? ["platform_action_already_recorded"] : []),
-    ...((attemptState.confirmationCount || 0) > 0 ? ["confirmation_already_recorded"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
-    ...((attemptState.realReadbackCount || 0) > 0 ? ["real_readback_already_recorded"] : []),
+    ...(Number(runtimeTarget.createAttemptNo) !== Number(attemptState.nextCreateAttemptNo) ? ["create_attempt_number_not_next"] : []),
+    ...(Number(runtimeTarget.createAttemptNo) > Number(runtimeTarget.maximumCreateAttempts) ? ["create_attempt_limit_reached"] : []),
     ...(readiness.status !== "ready_for_user_create_confirmation" ? [`readiness_not_ready:${readiness.status || "missing"}`] : []),
     ...(!fakeTransport && readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
     ...(!fakeTransport && readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
@@ -320,9 +340,11 @@ export async function createStdProjectForTargetOnce({
   }
 
   const env = fakeTransport ? {} : readOceanEngineEnv().env;
-  const confirmationId = `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
-  const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
-  const requestHash = `sha256:${sha256(canonicalJson(prepared.payload))}`;
+  const attemptLabel = String(runtimeTarget.createAttemptNo).padStart(2, "0");
+  const confirmationId = `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+  const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+  const wireBody = buildStdProjectCreateWireBody(prepared.payload);
+  const requestHash = wireBody.requestHash;
   const claim = await repo.claimStdProjectCreateAction({
     confirmation: {
       confirmationId,
@@ -342,9 +364,13 @@ export async function createStdProjectForTargetOnce({
         plan_hash: runtimeTarget.planHash,
         payload_hash: runtimeTarget.payloadHash,
         maximum_actions: 1,
+        attempt_no: runtimeTarget.createAttemptNo,
+        maximum_total_attempts: runtimeTarget.maximumCreateAttempts,
         retry_allowed: false,
         raw_payload_stored: false,
-        raw_response_stored: false
+        raw_response_stored: false,
+        create_wire_body_hash: requestHash,
+        create_wire_body_strategy: "decimal_bigint_json_number"
       }
     },
     action: {
@@ -355,17 +381,17 @@ export async function createStdProjectForTargetOnce({
       actionType: "oceanengine_std_project_create",
       endpoint: CREATE_ENDPOINT,
       method: "POST",
-      attemptNo: 1,
+      attemptNo: runtimeTarget.createAttemptNo,
       requestHash,
       idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
-      metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
+      metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false, attempt_no: runtimeTarget.createAttemptNo, create_wire_body_hash: requestHash }
     }
   });
   if (!claim.claimed) {
     return {
       status: "blocked_before_create",
       createCalled: false,
-      blockers: ["platform_action_already_recorded"],
+      blockers: ["platform_action_already_recorded_for_attempt"],
       credentialStatus: credentialSummary.status,
       attemptState: await createAttemptState(repo, runtimeTarget.jobId),
       redactedPayloadSummary: prepared.redactedPayloadSummary,
@@ -376,7 +402,7 @@ export async function createStdProjectForTargetOnce({
   const response = await fetchImpl(`${API_BASE}${CREATE_ENDPOINT}`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
-    body: JSON.stringify(prepared.payload)
+    body: wireBody.body
   });
   const text = await response.text();
   let payload = {};
@@ -391,7 +417,7 @@ export async function createStdProjectForTargetOnce({
   const safeErrorSummary = safePlatformErrorSummary(payload);
   const responseHash = `sha256:${sha256(text)}`;
   const passed = response.ok && (apiCode === "0" || apiCode === "") && Boolean(stdProjectId);
-  const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-ONCE`;
+  const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
   await repo.upsertPlatformAction({
     actionId,
     jobId: runtimeTarget.jobId,
@@ -401,7 +427,7 @@ export async function createStdProjectForTargetOnce({
     endpoint: CREATE_ENDPOINT,
     method: "POST",
     actionStatus: passed ? "succeeded" : "failed_or_unconfirmed",
-    attemptNo: 1,
+    attemptNo: runtimeTarget.createAttemptNo,
     requestHash,
     responseHash,
     httpStatus: response.status,
@@ -419,7 +445,7 @@ export async function createStdProjectForTargetOnce({
       response_hash_present: true
     },
     finishedAt: new Date().toISOString(),
-    metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false }
+    metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false, attempt_no: runtimeTarget.createAttemptNo }
   });
   await repo.upsertEvidence({
     artifactId: evidenceRef,

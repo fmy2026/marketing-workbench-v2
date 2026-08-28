@@ -293,7 +293,7 @@ export const OE3_SKILL_DEFINITIONS = [
     skillKey: "payload-build",
     nodeKey: "std_project_draft_builder",
     dependsOn: OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`),
-    inputContract: ["job", "account", "route_defaults", "material_pack", "account_resources", "controlled_touchpoint"],
+    inputContract: ["job", "account", "route_defaults", "material_pack", "account_resources", "controlled_touchpoint", "controlled_mini_game_launch_link"],
     outputContract: ["project_name", "final_payload_hash", "request_field_manifest"],
     stopConditions: ["payload_build_blocked"],
     writeScope: "launch_drafts"

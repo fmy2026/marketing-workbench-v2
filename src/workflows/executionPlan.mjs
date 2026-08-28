@@ -71,6 +71,18 @@ function createReadiness(bundle = {}) {
   return draftNode?.output_summary?.createReadiness || {};
 }
 
+function rootBlockerCodes(bundle = {}) {
+  const readiness = createReadiness(bundle);
+  const manifest = readiness.requestFieldManifest ||
+    bundle.draft?.payload_summary?.final_payload_manifest || {};
+  const candidates = Array.isArray(manifest.blockers) && manifest.blockers.length
+    ? manifest.blockers
+    : Array.isArray(readiness.blockers) ? readiness.blockers : [];
+  return [...new Set(candidates.filter((code) =>
+    code && !["final_payload_blockers", "payload_contract_not_passed", "draft_not_ready_for_std_project_create"].includes(code)
+  ))];
+}
+
 function draftReady(bundle = {}) {
   const draft = bundle.draft || {};
   const readiness = createReadiness(bundle);
@@ -84,7 +96,7 @@ function draftReady(bundle = {}) {
   );
 }
 
-function compilePlannedActions(bundle = {}) {
+function compilePlannedActions(bundle = {}, { planVersion = EXECUTION_PLAN_VERSION } = {}) {
   const job = bundle.job || {};
   const draft = bundle.draft || null;
   const actions = [];
@@ -135,7 +147,7 @@ function compilePlannedActions(bundle = {}) {
     actions.push({
       action_type: ACTION_STD_PROJECT_CREATE,
       target_ref: `draft:${draft.draft_id}`,
-      idempotency_key: actionKey(job.job_id, ACTION_STD_PROJECT_CREATE),
+      idempotency_key: actionKey(job.job_id, ACTION_STD_PROJECT_CREATE, `V${planVersion}`),
       status: dependencyForCreate.length ? "waiting_on_plan_actions" : "ready",
       module_ref: "src/workflows/skills/oe3/06-create-once.mjs",
       depends_on: ["payload_hash_latest", ...dependencyForCreate],
@@ -148,7 +160,8 @@ function compilePlannedActions(bundle = {}) {
 
   return {
     plannedActions: actions.map((action) => sanitizeForPublic(action)),
-    blockerCodes: [...new Set(blockers)].filter(Boolean)
+    blockerCodes: [...new Set(blockers)].filter(Boolean),
+    rootBlockerCodes: rootBlockerCodes(bundle)
   };
 }
 
@@ -156,7 +169,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUT
   const job = bundle.job || {};
   if (!job.job_id) throw new Error("job_id_required");
 
-  const { plannedActions, blockerCodes } = compilePlannedActions(bundle);
+  const { plannedActions, blockerCodes, rootBlockerCodes } = compilePlannedActions(bundle, { planVersion });
   const draft = bundle.draft || null;
   const planHash = hashValue(stablePlanInput({
     job,
@@ -190,6 +203,22 @@ export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUT
       game_code: job.game_code,
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs",
+      create_attempt_no: Number(planVersion),
+      maximum_create_attempts: 3,
+      execution_scope: {
+        target_job_id: job.job_id,
+        target_draft_id: draft?.draft_id || "",
+        target_payload_hash: draft?.payload_hash || "",
+        target_plan_id: planId(job.job_id, planVersion),
+        target_plan_hash: planHash,
+        target_attempt_no: Number(planVersion),
+        maximum_total_attempts: 3,
+        allowed_actions: ["oceanengine_std_project_create"],
+        allowed_plan_actions: plannedActions.map((action) => action.action_type),
+        maximum_actions: 1,
+        retry_allowed: false
+      },
+      root_blocker_codes: rootBlockerCodes,
       real_platform_write_called: false
     }
   };
