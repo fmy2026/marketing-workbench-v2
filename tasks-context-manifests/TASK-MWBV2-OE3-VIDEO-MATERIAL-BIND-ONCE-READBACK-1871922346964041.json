@@ -1,0 +1,137 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041",
+  "owner_agent": "codex",
+  "status": "closed_readback_pending",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "source_advertiser_id": "1760246749825031",
+    "resource_type": "video_asset",
+    "job_id": "JOB-MWBV2-20260828020933-3D65DC",
+    "plan_id": "PLAN-JOB-MWBV2-20260828020933-3D65DC-V1",
+    "plan_hash": "sha256:ffadc9cc96709794ac1ef6b0615c0aa4fa00433942aac4b89b99e5dce5313a8e",
+    "expected_video_assets": [
+      "JSZC-HUNT-4IG2-3",
+      "JSZC-HUNT-4GE6-14"
+    ]
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041.md",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "scripts/04-video-material-ensure-once.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_actions": [
+    "local_code_change",
+    "local_tests",
+    "postgres_runtime_truth_evidence",
+    "oceanengine_readonly:file/video/get",
+    "oceanengine_readonly:file/image/get",
+    "oceanengine_write:file/material/bind"
+  ],
+  "forbidden_actions": [
+    "qiankun_api_call",
+    "monitorSerialNumberAdd",
+    "std_project/create",
+    "material_upload",
+    "token_refresh",
+    "budget_or_bid_update",
+    "raw_request_or_response_logging"
+  ],
+  "official_contract": {
+    "priority": "3.0 first; 2.0 fallback only because 3.0 detailed bind contract was not located locally",
+    "fallback_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/14-素材管理.md:242",
+    "detail_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:4091",
+    "endpoint": "/open_api/2/file/material/bind/",
+    "method": "POST",
+    "request_fields": [
+      "advertiser_id",
+      "target_advertiser_ids",
+      "video_ids"
+    ],
+    "response_fields": [
+      "code",
+      "message",
+      "request_id",
+      "data.fail_list"
+    ],
+    "max_video_ids_per_request": 50
+  },
+  "write_scope": {
+    "confirm_variable": "MWBV2_OE_VIDEO_MATERIAL_CONFIRM=BIND_ONE_VIDEO_SET_TO_TARGET",
+    "allowed_actions": [
+      "ensure_resource:video_asset"
+    ],
+    "maximum_actions": 1,
+    "maximum_platform_calls": 1,
+    "retry_allowed": false
+  },
+  "mechanism_observations": [
+    {
+      "status": "resolved_in_task",
+      "observation": "单视频执行器不适合当前集合绑定，因为首条动作记录会让同 job 后续单条被 scope 识别为既有动作。",
+      "resolution": "改为以 fresh batch plan 为原子单位执行；scope 按 batch 数校验。"
+    },
+    {
+      "status": "intentionally_out_of_scope",
+      "observation": "乾坤 accountIndex token 当前无效。",
+      "impact": "本任务只处理 Node 4 视频，不调用乾坤；后续 full-chain readiness 再独立处理。"
+    }
+  ],
+  "evidence": {
+    "pre_task_job_id": "JOB-MWBV2-20260828020933-3D65DC",
+    "pre_task_video_state": "two_required_videos_source_ready_target_missing",
+    "expected_batch_count": 1,
+    "platform_write_called": true,
+    "bind_result": {
+      "action_id": "ACTION-JOB-MWBV2-20260828020933-3D65DC-VIDEO-BIND-BATCH-01",
+      "action_status": "succeeded",
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "request_hash": "sha256:1e5adae2032ff17500492a397823421e5792a2d8c0960a366b14e6123f797aab",
+      "response_hash_present": true,
+      "fail_list_count": 0,
+      "evidence_ref": "EV-JOB-MWBV2-20260828020933-3D65DC-VIDEO-BIND-BATCH-01-RESPONSE"
+    },
+    "readback_result": {
+      "status": "readback_pending",
+      "attempts": [
+        {
+          "delay_ms": 0,
+          "verified_video_count": 0,
+          "selected_required_video_count": 2
+        },
+        {
+          "delay_ms": 30000,
+          "verified_video_count": 0,
+          "selected_required_video_count": 2
+        },
+        {
+          "delay_ms": 60000,
+          "verified_video_count": 0,
+          "selected_required_video_count": 2
+        }
+      ],
+      "evidence_ref": "EV-JOB-MWBV2-20260828020933-3D65DC-VIDEO-BIND-BATCH-01-READBACK"
+    }
+  },
+  "acceptance": {
+    "max_material_bind_calls": 1,
+    "created_objects": 0,
+    "token_refresh_called": false,
+    "sensitive_fields_stored": false
+  },
+  "next_gate": "新建视频素材绑定后延迟只读复核/技术确认任务；不重复绑定，除非后续另行确认重发。"
+}

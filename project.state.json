@@ -1,26 +1,26 @@
 {
   "schema_version": "2026-08-23.project-state-v1",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-27 CST",
+  "updated_at": "2026-08-28 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
     "type": "local_marketing_agent_workbench_v2"
   },
-  "project_status": "oe3_dmp_ready_video_material_pending",
+  "project_status": "oe3_video_material_bind_accepted_readback_pending",
   "phase": {
     "id": "LEGACY-DEV-PLAN-LOCALIZE",
     "status": "completed",
     "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-NODE4-RESOURCE-PROBLEM-SOLVING-PLAYBOOK.md",
-  "next_gate": "新建账户 1871922346964041 视频素材 Node 4 只读/保底推送任务；DMP 已 10/10 passed，下一唯一优先 blocker 为 video_material_not_ready:JSZC-HUNT-4IG2-3，并需同步核验 JSZC-HUNT-4GE6-14。",
+  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041.md",
+  "next_gate": "新建账户 1871922346964041 视频素材绑定后延迟只读复核/技术确认任务；本次 file/material/bind 已返回 200/api_code=0/fail_list=0，但 0/30/60 秒目标户仍未查到视频。不得自动第二次绑定；后续 full-chain readiness 仍需独立处理乾坤 ApiToken。",
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "read_only_after_single_dmp_push_attempt",
+      "mode": "read_only_after_single_video_material_bind_attempt",
       "target_job_id": "",
       "target_draft_id": "",
       "target_payload_hash": "",
@@ -33,21 +33,21 @@
       "maximum_platform_calls": 0,
       "retry_allowed": false,
       "official_contract": {
-        "source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/09-DMP人群管理.md:2428",
-        "summary_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/11-DMP人群管理.md:158",
-        "official_link": "https://open.oceanengine.com/labels/7/docs/1696710572311552",
-        "endpoint": "https://ad.oceanengine.com/open_api/2/dmp/custom_audience/push_v2/",
+        "source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/14-素材管理.md:242",
+        "detail_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:4091",
+        "priority": "3.0 first; 2.0 fallback because 3.0 detailed bind contract is not located locally",
+        "endpoint": "https://api.oceanengine.com/open_api/2/file/material/bind/",
         "method": "POST",
-        "content_hash": "sha256:41b9c87f6d6da19783da95114b53c9243acff98f4cb13bd50ce84fdd14ec57ad",
         "request_fields": [
           "advertiser_id",
-          "custom_audience_id",
-          "target_advertiser_ids"
+          "target_advertiser_ids",
+          "video_ids"
         ],
-        "delivery_status_policy": "readback_only_not_sent"
+        "max_video_ids_per_request": 50,
+        "response_fail_list_field": "data.fail_list"
       },
-      "granted_at": "2026-08-27 CST",
-      "granted_by": "user_confirmed_single_dmp_push_scope_execute"
+      "granted_at": "2026-08-28 CST",
+      "granted_by": "user_confirmed_single_video_material_batch_bind"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

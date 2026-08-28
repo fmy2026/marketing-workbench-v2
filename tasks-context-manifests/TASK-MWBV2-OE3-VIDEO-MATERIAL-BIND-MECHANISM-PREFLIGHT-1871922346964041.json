@@ -1,0 +1,123 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041",
+  "owner_agent": "codex",
+  "status": "closed_success",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "resource_type": "video_asset",
+    "expected_video_assets": [
+      "JSZC-HUNT-4IG2-3",
+      "JSZC-HUNT-4GE6-14"
+    ]
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041.json",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_actions": [
+    "local_code_change",
+    "local_tests",
+    "postgres_runtime_truth_evidence",
+    "oceanengine_readonly:file/video/get",
+    "oceanengine_readonly:file/image/get"
+  ],
+  "forbidden_actions": [
+    "oceanengine_write:file/material/bind",
+    "material_upload",
+    "std_project/create",
+    "monitorSerialNumberAdd",
+    "token_refresh",
+    "budget_or_bid_update",
+    "raw_request_or_response_logging"
+  ],
+  "official_contract": {
+    "priority": "3.0 first; 2.0 fallback only when 3.0 lacks detailed bind contract",
+    "fallback_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/14-素材管理.md:242",
+    "detail_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:4091",
+    "endpoint": "/open_api/2/file/material/bind/",
+    "method": "POST",
+    "request_fields": [
+      "advertiser_id",
+      "target_advertiser_ids",
+      "video_ids"
+    ],
+    "response_fields": [
+      "code",
+      "message",
+      "request_id",
+      "data.fail_list"
+    ]
+  },
+  "mechanism_observations": [
+    {
+      "status": "resolved_in_task",
+      "observation": "v2 video executor retained old target advertiser defaults from P04 history.",
+      "resolution": "All source/target/video candidates now come from fresh plan and optional scope validation."
+    },
+    {
+      "status": "resolved_in_task",
+      "observation": "Official bind response can include per-material fail_list even when transport succeeds.",
+      "resolution": "Executor success now requires current video/target not present in fail_list."
+    },
+    {
+      "status": "external_blocker_recorded",
+      "observation": "Full readonly readiness with expected monitor was blocked by Qiankun accountIndex 403 invalid ApiToken before monitor readback.",
+      "impact": "Video Node 4 mechanism can still be verified with fresh job, but the next full-chain readiness should refresh/update Qiankun token before using expected-monitor-id validation."
+    }
+  ],
+  "evidence": {
+    "expected_monitor_readiness_attempt": {
+      "status": "blocked",
+      "error": "expected_monitor_id_mismatch",
+      "root_summary": "Qiankun accountIndex returned 403 invalid ApiToken; monitor list was not called.",
+      "platform_write_called": false
+    },
+    "fresh_video_readonly_job_id": "JOB-MWBV2-20260828020933-3D65DC",
+    "fresh_execution_plan_id": "PLAN-JOB-MWBV2-20260828020933-3D65DC-V1",
+    "fresh_execution_plan_hash": "sha256:ffadc9cc96709794ac1ef6b0615c0aa4fa00433942aac4b89b99e5dce5313a8e",
+    "video_bind_plan_skill": {
+      "status": "passed",
+      "plan_status": "planned",
+      "bind_action_count": 2,
+      "request_hash_count": 2
+    },
+    "video_resource_gate": {
+      "status": "blocked",
+      "items": [
+        {
+          "source_asset_id": "JSZC-HUNT-4IG2-3",
+          "plan_status": "source_ready_target_missing",
+          "source_visible": true,
+          "target_visible": false,
+          "cover_mode": "cover_not_ready"
+        },
+        {
+          "source_asset_id": "JSZC-HUNT-4GE6-14",
+          "plan_status": "source_ready_target_missing",
+          "source_visible": true,
+          "target_visible": false,
+          "cover_mode": "cover_not_ready"
+        }
+      ]
+    }
+  },
+  "acceptance": {
+    "platform_actions": 0,
+    "created_objects": 0,
+    "token_refresh_called": false,
+    "sensitive_fields_stored": false
+  },
+  "next_gate": "新建账户 1871922346964041 的视频集合单次绑定与 0/30/60 秒回查任务；后续 full-chain readiness 需先更新乾坤 ApiToken。"
+}

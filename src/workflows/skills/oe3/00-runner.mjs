@@ -48,6 +48,7 @@ import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconc
 import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
 import { runAvatarSourcePrepareSkill } from "./04-avatar-source-prepare.mjs";
 import { runAvatarSubmitPlanSkill } from "./04-avatar-submit-plan.mjs";
+import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
@@ -121,6 +122,7 @@ function skillsForMode(mode) {
       "dmp-source-readonly-verify",
       "dmp-target-readonly-verify",
       "dmp-push-plan",
+      "video-material-bind-plan",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
@@ -143,6 +145,7 @@ function skillsForMode(mode) {
     "dmp-source-readonly-verify",
     "dmp-target-readonly-verify",
     "dmp-push-plan",
+    "video-material-bind-plan",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
     "payload-build",
     "payload-contract",
@@ -438,6 +441,8 @@ async function executeSkill({ repo, context, skillKey }) {
       await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id });
     }
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+  } else if (skillKey === "video-material-bind-plan") {
+    result = await runVideoMaterialBindPlanSkill({ bundle: context.bundle });
   } else if (skillKey.startsWith("resource-verify-")) {
     const resourceType = resourceTypeFromSkill(skillKey);
     result = resourceType === "dmp_audience_package"

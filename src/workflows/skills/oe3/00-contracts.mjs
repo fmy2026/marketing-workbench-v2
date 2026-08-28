@@ -222,10 +222,20 @@ export const OE3_SKILL_DEFINITIONS = [
     writeScope: "launch_skill_runs_dmp_package_push_plans_account_resources_evidence_artifacts",
     moduleRef: "src/workflows/skills/oe3/04-dmp-readonly.mjs"
   },
+  {
+    skillKey: "video-material-bind-plan",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["resource-live-readonly-reconcile"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "video_asset[]", "material_source_account"],
+    outputContract: ["plan_status", "source_asset_id[]", "source_advertiser_id", "target_advertiser_id", "request_hash[]", "request_field_manifest", "next_action"],
+    stopConditions: ["video_material_bind_plan_blocked", "source_missing_local_ready", "source_missing_local_missing", "platform_probe_failed"],
+    writeScope: "launch_skill_runs_only",
+    moduleRef: "src/workflows/skills/oe3/04-video-material-bind-plan.mjs"
+  },
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
     skillKey: `resource-verify-${resourceType.replace(/_/g, "-")}`,
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : [])],
+    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : []), ...(resourceType === "video_asset" ? ["video-material-bind-plan"] : [])],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
@@ -369,6 +379,7 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey === "avatar-source-prepare") return "src/workflows/skills/oe3/04-avatar-source-prepare.mjs";
   if (skillKey === "avatar-submit-plan") return "src/workflows/skills/oe3/04-avatar-submit-plan.mjs";
   if (skillKey.startsWith("dmp-")) return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
+  if (skillKey === "video-material-bind-plan") return "src/workflows/skills/oe3/04-video-material-bind-plan.mjs";
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
   if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";
