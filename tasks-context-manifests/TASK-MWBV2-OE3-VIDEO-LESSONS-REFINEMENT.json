@@ -1,0 +1,56 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT",
+  "task_ref": "tasks/TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT.md",
+  "owner_agent": "codex",
+  "status": "closed",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "brief": {
+    "goal": "Make the video Skill lesson complete, concise, and evidence-backed.",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "long_term_lesson_write_allowed_for_this_task": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041.md",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "scripts/04-video-material-executor-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_local_writes": [
+    "docs/project-lessons.md",
+    "tasks/TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-LESSONS-REFINEMENT.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "external platform calls",
+    "platform writes",
+    "token refresh",
+    "storing account IDs, credentials, complete URLs, raw requests, or raw responses"
+  ],
+  "result": {
+    "status": "closed",
+    "video_lesson_items": 13,
+    "covers": [
+      "source_to_target_flow",
+      "preflight",
+      "acceptance_contract",
+      "target_readiness",
+      "seven_point_readback",
+      "delayed_readback",
+      "latency_statistics",
+      "write_boundary",
+      "failure_routing",
+      "redacted_evidence",
+      "regression_basis"
+    ],
+    "external_platform_calls": 0,
+    "long_term_lesson_write_revoked_on_close": true
+  }
+}

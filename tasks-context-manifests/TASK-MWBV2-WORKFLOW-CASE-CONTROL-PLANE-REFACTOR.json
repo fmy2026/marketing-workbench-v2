@@ -1,0 +1,67 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR.md",
+  "owner_agent": "codex",
+  "status": "completed",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "brief": {
+    "goal": "Separate project coordination state from multi-case workflow runtime truth.",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "external_platform_calls_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR.json",
+    "db/034_expand_dmp_member_readback_statuses.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/server/index.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/avatarExecutionScope.mjs",
+    "src/workflows/dmpExecutionScope.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "schemas/postgres-minimal-truth.md"
+  ],
+  "allowed_local_writes": [
+    "db/035_add_workflow_cases.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/server/index.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-workflow-case-smoke.mjs",
+    "package.json",
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-CASE-CONTROL-PLANE-REFACTOR.json"
+  ],
+  "forbidden_actions": [
+    "external platform calls",
+    "platform writes",
+    "token refresh",
+    "runtime truth deletion",
+    "storing tokens, cookies, complete URLs, raw requests, raw payloads, or raw responses"
+  ],
+  "validation_plan": [
+    "Run migration and validate legacy backfill, foreign keys, and case summary projection.",
+    "Run a case isolation smoke with two cases for one account and distinct blockers/next actions.",
+    "Run existing readonly readiness and execution grant smokes with explicit case assignment.",
+    "Verify project state is project-only and platform writes remain disabled."
+  ],
+  "completion": {
+    "workflow_case_runtime_enabled": true,
+    "external_platform_calls": 0,
+    "platform_writes": 0,
+    "token_refreshes": 0,
+    "test_data_cleanup_completed": true
+  }
+}

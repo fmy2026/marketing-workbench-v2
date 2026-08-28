@@ -1,0 +1,130 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041",
+  "task_ref": "tasks/TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041.md",
+  "owner_agent": "codex",
+  "status": "closed_readonly_reconciled",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "brief": {
+    "goal": "Create one fresh runtime-truth full-chain readonly readiness job, aggregate current Node 4 facts, and correct independently scoped Node 4 lessons.",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "expected_monitor_id": "245828",
+    "platform_write_allowed": false,
+    "monitor_create_allowed": false,
+    "credential_refresh_allowed": false,
+    "long_term_lesson_write_allowed_for_this_task": true
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041.json",
+    "tasks/TASK-MWBV2-OE3-QIANKUN-TOKEN-RECOVERY-READONLY-RECONCILE-1871922346964041.md",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041.md",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "docs/project-lessons.md",
+    "package.json"
+  ],
+  "allowed_external_calls": [
+    {
+      "scope": "Qiankun account and monitor exact readonly reconcile",
+      "purpose": "Reconfirm the resolved account and monitor facts without any monitor creation."
+    },
+    {
+      "scope": "OceanEngine Node 4 target-account readonly resource probes",
+      "purpose": "Rebuild current target resource visibility, readback, and evidence summaries."
+    }
+  ],
+  "forbidden_actions": [
+    "OceanEngine writes",
+    "file/material/bind",
+    "material upload",
+    "DMP push",
+    "std_project/create",
+    "Qiankun monitor serial creation or retry",
+    "token refresh",
+    "execute, mock, confirmation, or network-write CLI modes",
+    "storing tokens, cookies, complete URLs, raw requests, raw payloads, or raw responses"
+  ],
+  "allowed_local_writes": [
+    "tasks/TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-FULL-CHAIN-READONLY-READINESS-1871922346964041.json",
+    "project.state.json",
+    "docs/project-lessons.md",
+    "mwb.launch_jobs",
+    "mwb.launch_node_runs",
+    "mwb.launch_skill_runs",
+    "mwb.evidence_artifacts",
+    "mwb.account_resources"
+  ],
+  "validation_plan": [
+    "Run readonly readiness, monitor lifecycle/planned-action, and video readback regression smokes.",
+    "Run the readonly readiness command once without a job id to force a fresh runtime-truth job.",
+    "Verify Node 4 reconcile execution, resolved video and Qiankun facts, and the independent status of the three focus resources.",
+    "Verify zero platform writes, zero launch confirmation, zero created platform objects, no token refresh, and monitor attempt count remains two.",
+    "Check task artifacts and lessons for sensitive-data leakage."
+  ],
+  "result": {
+    "status": "closed_readonly_reconciled",
+    "job_id": "JOB-MWBV2-20260828033934-DA7950",
+    "source_usage": "runtime_truth",
+    "node4_readonly_reconcile": "passed",
+    "video_asset": {
+      "status": "passed",
+      "old_video_blocker_present": false
+    },
+    "qiankun_monitor": {
+      "credential_status": "active",
+      "exact_match_count": 1,
+      "monitor_id": "245828",
+      "touchpoint_hash_present": true,
+      "cycle_status": "resolved",
+      "historical_attempt_count": 2,
+      "new_create_called": false
+    },
+    "remaining_resources": {
+      "product_image": {
+        "status": "blocked",
+        "blockers": ["product_image_not_ready"],
+        "prepare_capability": "prepare_unsupported",
+        "next_action": "补齐资源或重跑只读校验"
+      },
+      "micro_app_instance": {
+        "status": "blocked",
+        "blockers": ["micro_app_instance_id_missing", "micro_app_instance_not_ready", "instance_id_long_id_transport_not_verified"],
+        "prepare_capability": "prepare_unsupported",
+        "next_action": "补齐小程序实例证据或确认 instance_id 创建字段合同"
+      },
+      "backup_landing_page": {
+        "status": "blocked",
+        "blockers": ["backup_landing_page_target_not_visible", "backup_landing_page_readback_not_verified", "backup_landing_page_readonly_not_passed"],
+        "prepare_capability": "prepare_unsupported",
+        "next_action": "只读解析真实 HTTPS URL 并验证目标账户可见性"
+      }
+    },
+    "zero_platform_write_audit": {
+      "platform_actions": 0,
+      "created_objects": 0,
+      "launch_confirmations": 0,
+      "token_refresh_called": false
+    },
+    "evidence": {
+      "count": 7,
+      "full_url_stored": false,
+      "secret_marker_stored": false,
+      "plan_only_evidence_redacted_after_detection": true
+    },
+    "lesson_document": {
+      "node4_resource_sections": 8,
+      "avatar_target_direct_upload": true,
+      "dmp_material_account_to_target": true,
+      "video_material_account_to_target": true,
+      "long_term_lesson_write_revoked_on_close": true
+    }
+  }
+}

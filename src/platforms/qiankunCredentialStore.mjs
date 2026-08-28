@@ -366,7 +366,7 @@ export function redactedQiankunCredentialStatus(options = {}) {
     status: summary.status,
     envFilePresent: summary.envFilePresent,
     credentialStorePresent: summary.credentialStorePresent,
-    apiBaseUrl: summary.apiBaseUrl,
+    apiBaseUrlPresent: Boolean(summary.apiBaseUrl),
     credentialStorePathPresent: summary.credentialStorePathPresent,
     schemaVersionMatches: summary.schemaVersionMatches,
     storeUpdatedAt: summary.storeUpdatedAt,

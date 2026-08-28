@@ -5,6 +5,7 @@ import {
   parseReadonlyReadinessArgs,
   summarizeReadonlyReconcileExecution
 } from "./00-oe3-readonly-readiness-cli.mjs";
+import { createWorkflowCase } from "../src/workflows/launchWorkflow.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -14,10 +15,19 @@ const repo = new PostgresRepository();
 const cleanupJobIds = [];
 
 try {
+  const workflowCase = await createWorkflowCase(repo, {
+    case_key: `smoke.readonly-readiness.${Date.now()}`,
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922346964041",
+    business_goal: "Disposable readonly readiness CLI smoke.",
+    source_usage: "runtime_truth"
+  });
   const baseArgv = [
     "--route-id", "oceanengine_3_byte_mini_game",
     "--game-code", "JSZC",
     "--advertiser-id", "1871922346964041",
+    "--case-id", workflowCase.case_id,
     "--source-record-ref", `smoke:readonly-readiness-cli:${new Date().toISOString()}`
   ];
   const args = parseReadonlyReadinessArgs(baseArgv);
@@ -39,7 +49,8 @@ try {
     "--job-id", created.jobId,
     "--route-id", "oceanengine_3_byte_mini_game",
     "--game-code", "JSZC",
-    "--advertiser-id", "1871922346964041"
+    "--advertiser-id", "1871922346964041",
+    "--case-id", workflowCase.case_id
   ]);
   assertReadonlyReadinessInvocation({ args: resumedArgs, env: {} });
   const resumed = await createOrResolveReadonlyReadinessJob({ repo, args: resumedArgs });

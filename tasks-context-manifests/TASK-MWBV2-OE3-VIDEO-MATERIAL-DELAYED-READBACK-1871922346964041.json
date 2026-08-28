@@ -1,0 +1,90 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041",
+  "owner_agent": "codex",
+  "status": "closed_readback_verified",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-28 CST",
+  "target": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "source_advertiser_id": "1760246749825031",
+    "resource_type": "video_asset",
+    "job_id": "JOB-MWBV2-20260828020933-3D65DC",
+    "original_action_id": "ACTION-JOB-MWBV2-20260828020933-3D65DC-VIDEO-BIND-BATCH-01",
+    "expected_video_assets": [
+      "JSZC-HUNT-4IG2-3",
+      "JSZC-HUNT-4GE6-14"
+    ]
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041.json",
+    "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.md",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "scripts/04-video-material-readback.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "package.json"
+  ],
+  "allowed_actions": [
+    "local_code_change",
+    "local_tests",
+    "postgres_runtime_truth_evidence",
+    "oceanengine_readonly:file/video/get",
+    "oceanengine_readonly:file/image/get"
+  ],
+  "forbidden_actions": [
+    "oceanengine_write:file/material/bind",
+    "qiankun_api_call",
+    "monitorSerialNumberAdd",
+    "std_project/create",
+    "material_upload",
+    "token_refresh",
+    "budget_or_bid_update",
+    "raw_request_or_response_logging"
+  ],
+  "implementation": {
+    "readback_schedule_ms": [
+      0,
+      10000,
+      20000,
+      30000,
+      60000,
+      120000,
+      180000
+    ],
+    "post_bind_probe_scope": "target_account_only",
+    "cycle_metadata_field": "platform_actions.metadata.readback_cycles",
+    "unique_evidence_type": "video_material_readback_cycle",
+    "cli": "npm run resource:video-material-readback"
+  },
+  "evidence": {
+    "bind_action_count": 1,
+    "original_action_validated": {
+      "http_status": 200,
+      "api_code": "0",
+      "fail_list_count": 0
+    },
+    "delayed_readback_result": {
+      "status": "readback_verified",
+      "attempt_count": 1,
+      "first_full_visible_observed_at_ms": 1402,
+      "cover_mode": "platform_default_cover_allowed",
+      "platform_write_called": false,
+      "token_refresh_called": false,
+      "evidence_ref": "EV-JOB-MWBV2-20260828020933-3D65DC-VIDEO-MATERIAL-READBACK-CYCLE-VRB-JOB-MWBV2-20260828020933-3D65DC-delayed_manual_readback-20260828T030052-9b1d9f77"
+    },
+    "stats": {
+      "cycle_count": 2,
+      "success_cycle_count": 1,
+      "unresolved_cycle_count": 1,
+      "insufficient_sample": true,
+      "p50_first_visible_ms": null,
+      "p90_first_visible_ms": null
+    }
+  }
+}

@@ -67,8 +67,9 @@ function contractVerified(scope = {}) {
 export async function validateDmpWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath } = {}) {
   if (!repo || !bundle?.job) throw new Error("dmp_scope_job_bundle_required");
   const state = await readState(projectStatePath);
-  const scope = state.guardrails?.platform_write_scope || {};
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const scope = plan?.metadata?.execution_scope || plan?.metadata?.executionScope ||
+    (bundle.job.source_usage === "test_run" || projectStatePath !== defaultProjectStatePath ? state.guardrails?.platform_write_scope || {} : {});
   const plannedActions = plan?.planned_actions || plan?.plannedActions || [];
   const dmpAction = plannedActions.find((item) => item.action_type === DMP_ENSURE_ACTION);
   const pushPlans = await repo.getDmpPackagePushPlans(bundle.job.job_id);
@@ -112,6 +113,7 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
   });
   const blockers = [
     ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...(bundle.case?.lifecycle_status === "active" || (!bundle.case && projectStatePath !== defaultProjectStatePath) ? [] : ["workflow_case_not_active"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
     ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
     ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
@@ -157,19 +159,14 @@ export async function revokeDmpWriteScope(projectStatePath = defaultProjectState
   const state = await readState(projectStatePath);
   state.guardrails ||= {};
   state.guardrails.platform_write_allowed = false;
-  state.guardrails.platform_write_scope = {
-    ...(state.guardrails.platform_write_scope || {}),
-    mode: "read_only_after_single_dmp_push_attempt",
-    target_job_id: "",
-    target_advertiser_id: "",
-    target_plan_id: "",
-    target_plan_hash: "",
-    target_draft_id: "",
-    target_payload_hash: "",
-    allowed_actions: [],
-    maximum_actions: 0,
-    maximum_platform_calls: 0,
-    retry_allowed: false
-  };
+  if (state.guardrails.platform_write_scope) {
+    state.guardrails.platform_write_scope = {
+      ...state.guardrails.platform_write_scope,
+      allowed_actions: [],
+      maximum_actions: 0,
+      maximum_platform_calls: 0,
+      retry_allowed: false
+    };
+  }
   await writeState(projectStatePath, state);
 }

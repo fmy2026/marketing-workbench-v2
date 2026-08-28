@@ -1,13 +1,13 @@
 # AGENTS
 
-定位：Codex 和协作者的项目级启动协议，也是 v2 唯一的长期文件机制说明。这里只保留稳定规则；动态状态、活动任务、上一任务和下一 gate 只看 `project.state.json`。
+定位：Codex 和协作者的项目级启动协议，也是 v2 唯一的长期文件机制说明。这里只保留稳定规则；`project.state.json` 只管理项目协调和全局权限，所有 case/job/Node/资源运行事实只看 Postgres。
 
 ## 启动
 
 1. 先读 `AGENTS.md`。
 2. 再读 `project.state.json`。
 3. 若 `active_task` 为对象，按其 `read_order` 读取任务卡和 context manifest。
-4. 若 `active_task = null`，只报告 `project_status` 和 `next_gate`，等待用户指定新任务。
+4. 若 `active_task = null`，只报告项目生命周期；若需要判断业务下一步，查询 `mwb.workflow_case_summary`，不从项目文件推断账户或 job 状态。
 
 `docs/.开发方案/` 仅为本机旧开发方案留存，禁止作为启动必读、任务 manifest `read_order`、运行真值或需求依据；`.archive/` 仅供历史复盘，二者均不是启动必读或运行真值。
 
@@ -24,7 +24,7 @@
 
 ## 真值与知识入口
 
-运行事实优先级：`project.state.json`（动态状态与权限）-> Postgres `marketing_workbench_v2.mwb` -> active task / manifest -> `schemas/` 与运行代码 -> 已验证的官方资料。Markdown 只解释规则，不保存动态任务状态；冲突时按更高优先级执行并提出最小修正。
+项目协调与全局权限优先级：`project.state.json` -> active task / manifest -> 代码与 schema。业务运行事实优先级：Postgres `marketing_workbench_v2.mwb`（`workflow_cases`、`launch_jobs`、Node/Skill/资源/action/evidence）-> active task / manifest -> 代码与 schema -> 已验证官方资料。Markdown 只解释规则，不保存动态运行状态；冲突时按对应真值链路提出最小修正。
 
 OE3 问题优先查看本机官方资料：
 
@@ -49,7 +49,7 @@ OE3 问题优先查看本机官方资料：
 
 ## 项目经验
 
-可复用、已验证的经验统一记录在 `docs/project-lessons.md`；它只辅助问题定位，运行真值仍以 `project.state.json`、Postgres、active task / manifest 和当前代码为准。
+可复用、已验证的经验统一记录在 `docs/project-lessons.md`；它只辅助问题定位，运行真值仍以 Postgres、active task / manifest 和当前代码为准；`project.state.json` 只提供全局协调和权限基线。
 
 ## 运行链路与归属
 
@@ -75,6 +75,7 @@ frontend/API
 | `src/workflows/` | 工作流编排与 OE3 Skill |
 | `src/platforms/`、`src/repositories/` | 平台适配与 Postgres 读写 |
 | `db/`、`schemas/` | migration/seed 与结构合同 |
+| `mwb.workflow_cases`、`mwb.workflow_case_summary` | 账户投放闭环总控与只读当前 Gate 投影 |
 | `tasks/`、`tasks-context-manifests/` | 单任务合同与必读上下文 |
 | `docs/project-lessons.md` | 已验证、可复用的项目经验；不是运行真值 |
 | `.local/`、`.archive/` | 私密本机配置、历史参考 |
@@ -87,10 +88,12 @@ frontend/API
 - Node 2 monitor lifecycle 以 `monitor_provision_runs.cycle_id` 为周期真值；同一 provision 可显式 reissue 多个 cycle，每个 cycle 最多两次 attempt，停止后不自动重试。
 - `executionPlan.mjs` 只为 `prepare_supported=true` 的资源生成 `ensure_resource:*`；其他未就绪资源写 `resource_prepare_unsupported:<resource_type>` blocker。
 - `source_usage`：`runtime_truth` 为真实用户轮次，`test_run` 必须由 smoke/CLI 清理，`seed_source` 仅作初始化；项目名占用只写 `mwb.project_name_reservations`。
-- `project.state.json.guardrails` 是当前权限边界；任务可收紧，不得自行放宽。真实平台写入必须单次、低频、可回查、带确认变量，完成后立即收回。
+- `workflow_cases` 是业务闭环唯一总控层。新 runtime job 必须显式带 `case_id`；不得仅因账户相同而自动合并。一个 case 可保留多个 fresh job、只读复核和回查 job。
+- `mwb.workflow_case_summary` 由最新 job、Node/Skill、资源、monitor、action/readback 事实生成当前 Gate、blocker 与建议下一动作；UI、CLI 和任务卡引用它，不手写或复制 `next_gate`。
+- `project.state.json.guardrails` 只提供项目全局权限基线；单次真实写入必须同时满足全局允许与当前 job 的 execution plan/confirmation/platform action 授权。任务可收紧，不得自行放宽。
 
 禁止把 token、secret、auth_code、Cookie、完整 callback/点击监测 URL、raw payload 或 raw response 写入项目文件、普通日志、API 或前端。平台长数字 ID 按字符串处理，除非平台合同明确要求且通过安全范围校验。
 
 ## 闭环
 
-新需求先归一为 brief，明确目标、范围、非目标、权限、验收和缺口；执行只推进当前任务。关闭任务时更新任务卡、manifest 和 `project.state.json`，设 `active_task=null` 并写清下一 gate。同一任务只允许一个 `owner_agent`，协同 Agent 只补证据、风险和校验。
+新需求先归一为 brief，明确目标、范围、非目标、权限、验收和缺口；执行只推进当前任务。关闭任务时更新任务卡、manifest 和 `project.state.json`，只设 `active_task=null` 并保留项目协调信息；业务下一 gate 由 case summary 投影取得。同一任务只允许一个 `owner_agent`，协同 Agent 只补证据、风险和校验。

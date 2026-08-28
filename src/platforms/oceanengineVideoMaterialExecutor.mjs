@@ -6,7 +6,10 @@ import {
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
-import { runVideoMaterialReadonlyGate } from "../workflows/skills/oe3/04-video-material-readiness.mjs";
+import {
+  runVideoMaterialReadonlyGate,
+  runVideoMaterialTargetReadonlyProbe
+} from "../workflows/skills/oe3/04-video-material-readiness.mjs";
 import {
   VIDEO_MATERIAL_ENSURE_CONFIRM_ENV,
   VIDEO_MATERIAL_ENSURE_CONFIRM_VALUE,
@@ -18,7 +21,8 @@ export const VIDEO_MATERIAL_CONFIRM_VALUE = VIDEO_MATERIAL_ENSURE_CONFIRM_VALUE;
 const API_BASE = "https://api.oceanengine.com";
 const MATERIAL_BIND_ENDPOINT = "/open_api/2/file/material/bind/";
 const MATERIAL_BIND_FULL_ENDPOINT = `${API_BASE}${MATERIAL_BIND_ENDPOINT}`;
-const DEFAULT_VIDEO_READBACK_DELAYS_MS = [0, 30000, 60000];
+export const DEFAULT_VIDEO_READBACK_DELAYS_MS = [0, 10000, 20000, 30000, 60000, 120000, 180000];
+export const VIDEO_MATERIAL_READBACK_SCHEDULE_VERSION = "video_material_readback_v2_0_10_20_30_60_120_180";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -479,6 +483,132 @@ function batchEvidenceId(jobId, batchIndex, stage = "RESPONSE") {
   return `EV-${jobId}-VIDEO-BIND-BATCH-${String(batchIndex).padStart(2, "0")}-${stage}`;
 }
 
+function safeIdPart(value) {
+  return clean(value).replace(/[^A-Za-z0-9_.:-]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function cycleTimestamp(value = new Date()) {
+  return value.toISOString().replace(/[^0-9A-Za-z]+/g, "").replace(/Z$/g, "").slice(0, 18);
+}
+
+function readbackCycleId({ jobId, kind = "immediate", actionId = "", now = new Date() } = {}) {
+  return `VRB-${safeIdPart(jobId)}-${safeIdPart(kind || "readback")}-${cycleTimestamp(now)}${actionId ? `-${hashValue(actionId).slice(-8)}` : ""}`;
+}
+
+function percentile(sortedNumbers = [], p = 0.5) {
+  if (!sortedNumbers.length) return null;
+  const index = Math.max(0, Math.ceil(sortedNumbers.length * p) - 1);
+  return sortedNumbers[Math.min(index, sortedNumbers.length - 1)];
+}
+
+function readbackVisibleWindow(attempts = []) {
+  const passedIndex = attempts.findIndex((attempt) => attempt.status === "passed");
+  if (passedIndex < 0) return null;
+  const passed = attempts[passedIndex];
+  const previous = attempts[passedIndex - 1] || null;
+  return {
+    fromDelayMs: previous ? previous.plannedDelayMs : 0,
+    toDelayMs: passed.plannedDelayMs,
+    observedAtMs: passed.actualElapsedMs,
+    fromStatus: previous ? previous.status : "cycle_start",
+    toStatus: "passed"
+  };
+}
+
+function readbackCycleFromResult({
+  jobId,
+  actionId = "",
+  kind = "immediate_post_bind",
+  startedAtIso,
+  finishedAtIso,
+  scheduleMs = [],
+  readback = {},
+  now = new Date()
+} = {}) {
+  const attempts = Array.isArray(readback.attempts) ? readback.attempts : [];
+  const visibleWindow = readbackVisibleWindow(attempts);
+  const status = readback.status === "passed" ? "passed" : "readback_pending";
+  return sanitizeForPublic({
+    cycleId: readbackCycleId({ jobId, kind, actionId, now }),
+    kind,
+    actionId,
+    scheduleVersion: VIDEO_MATERIAL_READBACK_SCHEDULE_VERSION,
+    scheduleMs: scheduleMs.map((item) => Number(item || 0)),
+    startedAt: startedAtIso || "",
+    finishedAt: finishedAtIso || "",
+    status,
+    windowExhausted: status !== "passed",
+    terminalReason: status === "passed" ? "" : "readback_window_exhausted",
+    firstFullVisibleWindow: visibleWindow,
+    attempts,
+    finalCounts: {
+      verifiedVideoCount: readback.final?.outputSummary?.verifiedVideoCount || 0,
+      selectedRequiredVideoCount: readback.final?.outputSummary?.selectedRequiredVideoCount || 0,
+      coverReadyCount: readback.final?.outputSummary?.coverReadyCount || 0
+    },
+    requestIdPresent: attempts.some((item) => item.requestIdPresent === true),
+    responseHashPresent: attempts.some((item) => item.responseHashPresent === true),
+    rawPayloadStored: false,
+    rawResponseStored: false
+  });
+}
+
+function cyclesFromAction(action = {}) {
+  const metadata = action.metadata || {};
+  const cycles = Array.isArray(metadata.readback_cycles) ? [...metadata.readback_cycles] : [];
+  if (Array.isArray(metadata.readback_attempts)) {
+    cycles.unshift({
+      cycleId: `legacy-${action.action_id || action.actionId || "unknown"}`,
+      kind: "legacy_immediate_post_bind",
+      actionId: action.action_id || action.actionId || "",
+      scheduleVersion: "legacy_0_30_60",
+      scheduleMs: metadata.readback_attempts.map((item) => Number(item.delayMs ?? item.plannedDelayMs ?? 0)),
+      finishedAt: metadata.readback_finished_at || "",
+      status: metadata.readback_status || "readback_pending",
+      windowExhausted: metadata.readback_status !== "passed",
+      terminalReason: metadata.readback_status === "passed" ? "" : "readback_window_exhausted",
+      firstFullVisibleWindow: readbackVisibleWindow(metadata.readback_attempts.map((item) => ({
+        ...item,
+        plannedDelayMs: Number(item.delayMs ?? item.plannedDelayMs ?? 0),
+        actualElapsedMs: Number(item.actualElapsedMs ?? item.delayMs ?? item.plannedDelayMs ?? 0)
+      }))),
+      attempts: metadata.readback_attempts,
+      legacy: true
+    });
+  }
+  return cycles;
+}
+
+export function summarizeVideoMaterialReadbackCycles(actions = []) {
+  const cycles = actions.flatMap(cyclesFromAction);
+  const successful = cycles.filter((cycle) => cycle.status === "passed" && cycle.firstFullVisibleWindow);
+  const values = successful
+    .map((cycle) => Number(cycle.firstFullVisibleWindow?.observedAtMs ?? cycle.firstFullVisibleWindow?.toDelayMs ?? 0))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  const recentCycle = cycles[cycles.length - 1] || null;
+  const rawObservationWindows = successful.map((cycle) => ({
+    cycleId: cycle.cycleId,
+    kind: cycle.kind,
+    firstFullVisibleWindow: cycle.firstFullVisibleWindow
+  }));
+  const sufficientSample = values.length >= 3;
+  return sanitizeForPublic({
+    status: cycles.length ? "summarized" : "no_readback_cycles",
+    cycleCount: cycles.length,
+    successCycleCount: successful.length,
+    unresolvedCycleCount: cycles.length - successful.length,
+    insufficientSample: !sufficientSample,
+    minFirstVisibleMs: values.length ? values[0] : null,
+    p50FirstVisibleMs: sufficientSample ? percentile(values, 0.5) : null,
+    p90FirstVisibleMs: sufficientSample ? percentile(values, 0.9) : null,
+    recentObservationWindow: recentCycle?.firstFullVisibleWindow || null,
+    rawObservationWindows: sufficientSample ? [] : rawObservationWindows,
+    rawPayloadStored: false,
+    rawResponseStored: false
+  });
+}
+
 async function saveVideoBatchEvidence({ repo, jobId, batchIndex, stage, status, responseHash = "", actionId = "", itemCount = 0, failListCount = 0, readback = {} } = {}) {
   const artifactId = batchEvidenceId(jobId, batchIndex, stage.toUpperCase());
   await repo.upsertEvidence({
@@ -505,36 +635,119 @@ async function saveVideoBatchEvidence({ repo, jobId, batchIndex, stage, status, 
   return artifactId;
 }
 
-async function pollVideoMaterialReadback({
+async function saveVideoReadbackCycleEvidence({ repo, jobId, cycle, actionId = "" } = {}) {
+  const artifactId = `EV-${safeIdPart(jobId)}-VIDEO-MATERIAL-READBACK-CYCLE-${safeIdPart(cycle.cycleId || cycleTimestamp())}`;
+  await repo.upsertEvidence({
+    artifactId,
+    jobId,
+    artifactType: "video_material_readback_cycle",
+    title: "video material readback cycle",
+    summary: [
+      `cycle_id=${cycle.cycleId || "unknown"}`,
+      `kind=${cycle.kind || "unknown"}`,
+      `status=${cycle.status || "unknown"}`,
+      `action_id=${actionId || cycle.actionId || "none"}`,
+      `attempt_count=${Array.isArray(cycle.attempts) ? cycle.attempts.length : 0}`,
+      `window_exhausted=${cycle.windowExhausted === true}`,
+      `terminal_reason=${cycle.terminalReason || "none"}`,
+      `request_id_present=${cycle.requestIdPresent === true}`,
+      `response_hash_present=${cycle.responseHashPresent === true}`,
+      "request_body_stored=false",
+      "response_body_stored=false"
+    ].join("; "),
+    contentHash: hashValue(canonicalJson(cycle)),
+    storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+    sourceRef: "oceanengine:file/video/get+file/image/get",
+    sourceUsage: "runtime_truth"
+  });
+  return artifactId;
+}
+
+async function appendReadbackCycleToAction({ repo, actionId, cycle, updateCompatibilityFields = true } = {}) {
+  if (typeof repo.getPlatformAction !== "function") throw new Error("repo_get_platform_action_required");
+  const action = await repo.getPlatformAction(actionId);
+  if (!action) throw new Error("platform_action_not_found");
+  const existingCycles = Array.isArray(action.metadata?.readback_cycles) ? action.metadata.readback_cycles : [];
+  const metadata = {
+    readback_cycles: [...existingCycles, cycle],
+    latest_readback_cycle_id: cycle.cycleId,
+    latest_readback_status: cycle.status,
+    latest_readback_finished_at: cycle.finishedAt || new Date().toISOString(),
+    latest_readback_window_exhausted: cycle.windowExhausted === true,
+    latest_readback_terminal_reason: cycle.terminalReason || "",
+    readback_schedule_version: VIDEO_MATERIAL_READBACK_SCHEDULE_VERSION
+  };
+  if (updateCompatibilityFields) {
+    metadata.readback_status = cycle.status;
+    metadata.readback_attempts = cycle.attempts;
+    metadata.readback_finished_at = cycle.finishedAt || new Date().toISOString();
+    metadata.window_exhausted = cycle.windowExhausted === true;
+    metadata.terminal_reason = cycle.terminalReason || "";
+  }
+  await repo.mergePlatformActionMetadata(actionId, metadata);
+  return metadata;
+}
+
+export async function pollVideoMaterialReadback({
   repo,
   jobId,
   client,
-  delaysMs = DEFAULT_VIDEO_READBACK_DELAYS_MS
+  delaysMs = DEFAULT_VIDEO_READBACK_DELAYS_MS,
+  startedAtMs = Date.now(),
+  nowMs = () => Date.now(),
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sourceAssetIds = []
 } = {}) {
   const attempts = [];
-  const started = Date.now();
   let last = null;
   for (const targetDelay of delaysMs) {
-    const waitMs = Math.max(0, Number(targetDelay || 0) - (Date.now() - started));
-    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const plannedDelayMs = Number(targetDelay || 0);
+    const waitMs = Math.max(0, plannedDelayMs - (nowMs() - startedAtMs));
+    if (waitMs > 0) await wait(waitMs);
     const bundle = await repo.getLaunchJobBundle(jobId);
-    last = await runVideoMaterialReadonlyGate({
+    last = await runVideoMaterialTargetReadonlyProbe({
       repo,
       bundle,
       client,
-      allowReadonlyDependency: true
+      allowReadonlyDependency: true,
+      sourceAssetIds,
+      assumeSourceReady: true
     });
+    const probeSummary = last.outputSummary?.readbackProbeSummary || {};
+    const finalItems = last.outputSummary?.finalMaterialReadiness?.items || [];
     attempts.push({
-      delayMs: Number(targetDelay || 0),
+      delayMs: plannedDelayMs,
+      plannedDelayMs,
+      actualElapsedMs: Math.max(0, nowMs() - startedAtMs),
       status: last.status,
       verifiedVideoCount: last.outputSummary?.verifiedVideoCount || 0,
       selectedRequiredVideoCount: last.outputSummary?.selectedRequiredVideoCount || 0,
-      coverReadyCount: last.outputSummary?.coverReadyCount || 0
+      coverReadyCount: last.outputSummary?.coverReadyCount || 0,
+      requestIdPresent: probeSummary.requestIdPresent === true,
+      responseHashPresent: probeSummary.responseHashPresent === true,
+      items: finalItems.map((item) => ({
+        sourceAssetId: item.sourceAssetId,
+        readbackStatus: item.readbackStatus,
+        targetVideoVisible: item.targetVideoVisible === true,
+        coverMode: item.coverMode,
+        explicitCoverVisible: item.explicitCoverVisible === true,
+        videoRequestIdPresent: item.videoRequestIdPresent === true,
+        coverRequestIdPresent: item.coverRequestIdPresent === true,
+        videoResponseHashPresent: item.videoResponseHashPresent === true,
+        coverResponseHashPresent: item.coverResponseHashPresent === true
+      }))
     });
     if (last.status === "passed") break;
   }
+  const visibleWindow = readbackVisibleWindow(attempts);
+  const status = last?.status === "passed" ? "passed" : "readback_pending";
   return sanitizeForPublic({
-    status: last?.status === "passed" ? "passed" : "readback_pending",
+    status,
+    window_exhausted: status !== "passed",
+    windowExhausted: status !== "passed",
+    terminal_reason: status === "passed" ? "" : "readback_window_exhausted",
+    terminalReason: status === "passed" ? "" : "readback_window_exhausted",
+    firstFullVisibleWindow: visibleWindow,
     attempts,
     final: last,
     rawPayloadStored: false,
@@ -709,6 +922,8 @@ export async function ensureVideoMaterialBindSetOnce({
       });
     }
 
+    const responseAcceptedAtMs = Date.now();
+    const responseAcceptedAtIso = new Date(responseAcceptedAtMs).toISOString();
     const code = apiCode(payload);
     const responseHash = hashValue(text);
     const failedIds = materialBindFailedIdsForTarget(payload, batch.outputSummary.targetAdvertiserId);
@@ -754,7 +969,7 @@ export async function ensureVideoMaterialBindSetOnce({
       },
       finishedAt: new Date().toISOString()
     });
-    executed.push({ actionId, batchIndex, responseHash, evidenceRef, passed });
+    executed.push({ actionId, batchIndex, responseHash, evidenceRef, passed, responseAcceptedAtMs, responseAcceptedAtIso });
     if (!passed) {
       return sanitizeForPublic({
         status: "video_material_bind_failed_once",
@@ -774,13 +989,33 @@ export async function ensureVideoMaterialBindSetOnce({
     repo,
     jobId,
     client,
-    delaysMs: readbackDelaysMs
+    delaysMs: readbackDelaysMs,
+    startedAtMs: executed.length
+      ? Math.max(...executed.map((item) => Number(item.responseAcceptedAtMs || 0)))
+      : Date.now(),
+    sourceAssetIds: freshPreflight.bindItems.map((item) => item.sourceAssetId)
   });
   for (const item of executed) {
-    await repo.mergePlatformActionMetadata(item.actionId, {
-      readback_status: readback.status,
-      readback_attempts: readback.attempts,
-      readback_finished_at: new Date().toISOString()
+    const cycleFinishedAt = new Date().toISOString();
+    const cycle = readbackCycleFromResult({
+      jobId,
+      actionId: item.actionId,
+      kind: "immediate_post_bind",
+      startedAtIso: item.responseAcceptedAtIso,
+      finishedAtIso: cycleFinishedAt,
+      scheduleMs: readbackDelaysMs,
+      readback,
+      now: new Date(cycleFinishedAt)
+    });
+    const cycleEvidenceRef = await saveVideoReadbackCycleEvidence({ repo, jobId, cycle, actionId: item.actionId });
+    await appendReadbackCycleToAction({
+      repo,
+      actionId: item.actionId,
+      cycle: {
+        ...cycle,
+        evidenceRef: cycleEvidenceRef
+      },
+      updateCompatibilityFields: true
     });
     await saveVideoBatchEvidence({
       repo,
@@ -801,8 +1036,157 @@ export async function ensureVideoMaterialBindSetOnce({
     platformWriteCalled: executed.length > 0,
     readbackStatus: readback.status,
     readbackAttempts: readback.attempts,
+    windowExhausted: readback.windowExhausted === true,
+    terminalReason: readback.terminalReason || "",
+    firstFullVisibleWindow: readback.firstFullVisibleWindow || null,
     verifiedVideoCount: readback.final?.outputSummary?.verifiedVideoCount || 0,
     selectedRequiredVideoCount: readback.final?.outputSummary?.selectedRequiredVideoCount || 0,
+    rawPayloadStored: false,
+    rawResponseStored: false
+  });
+  assertNoSensitiveLeak(result);
+  return result;
+}
+
+function actionField(action = {}, snakeName = "", camelName = "") {
+  return action[snakeName] ?? action[camelName] ?? "";
+}
+
+function actionResponseSummary(action = {}) {
+  return action.response_summary || action.responseSummary || {};
+}
+
+function acceptedBindActionBlockers(action = {}, {
+  jobId = "",
+  expectedTargetAdvertiserId = "",
+  expectedSourceAdvertiserId = ""
+} = {}) {
+  if (!action) return ["platform_action_not_found"];
+  const metadata = action.metadata || {};
+  const responseSummary = actionResponseSummary(action);
+  const failListCount = Number(responseSummary.fail_list_count ?? responseSummary.failListCount ?? -1);
+  const actionJobId = clean(actionField(action, "job_id", "jobId"));
+  const actionType = clean(actionField(action, "action_type", "actionType"));
+  const actionStatus = clean(actionField(action, "action_status", "actionStatus"));
+  const endpoint = clean(action.endpoint);
+  const method = clean(action.method || "POST").toUpperCase();
+  const targetAdvertiserId = clean(metadata.target_advertiser_id || metadata.targetAdvertiserId);
+  const sourceAdvertiserId = clean(metadata.source_advertiser_id || metadata.sourceAdvertiserId);
+  return [
+    ...(!action ? ["platform_action_not_found"] : []),
+    ...(jobId && actionJobId !== jobId ? ["platform_action_job_mismatch"] : []),
+    ...(actionType === "oceanengine_material_bind_target" ? [] : ["platform_action_type_not_material_bind"]),
+    ...(endpoint === MATERIAL_BIND_ENDPOINT ? [] : ["platform_action_endpoint_not_material_bind"]),
+    ...(method === "POST" ? [] : ["platform_action_method_not_post"]),
+    ...(["succeeded", "succeeded_or_already_bound", "succeeded_readback_verified"].includes(actionStatus) ? [] : ["platform_action_not_successful"]),
+    ...(Number(action.http_status ?? action.httpStatus) === 200 ? [] : ["platform_action_http_not_200"]),
+    ...(clean(action.api_code ?? action.apiCode) === "0" ? [] : ["platform_action_api_code_not_0"]),
+    ...(failListCount === 0 ? [] : ["platform_action_fail_list_not_zero"]),
+    ...(expectedTargetAdvertiserId && targetAdvertiserId !== expectedTargetAdvertiserId ? ["target_advertiser_mismatch"] : []),
+    ...(expectedSourceAdvertiserId && sourceAdvertiserId !== expectedSourceAdvertiserId ? ["source_advertiser_mismatch"] : [])
+  ];
+}
+
+export async function readbackVideoMaterialTargetOnce({
+  repo,
+  jobId,
+  actionId,
+  expectedTargetAdvertiserId = "",
+  expectedSourceAdvertiserId = "",
+  expectedSourceAssetIds = [],
+  readonlyClient = null,
+  fetchImpl = globalThis.fetch,
+  nowMs = () => Date.now(),
+  wait = async () => {},
+  readbackDelaysMs = [0]
+} = {}) {
+  if (!repo || !jobId || !actionId) throw new Error("video_material_readback_repo_job_action_required");
+  if (typeof repo.getPlatformAction !== "function") throw new Error("repo_get_platform_action_required");
+  const action = await repo.getPlatformAction(actionId);
+  const actionBlockers = acceptedBindActionBlockers(action, {
+    jobId,
+    expectedTargetAdvertiserId,
+    expectedSourceAdvertiserId
+  });
+  if (actionBlockers.length) {
+    const blocked = sanitizeForPublic({
+      status: "blocked_before_video_material_readback",
+      jobId,
+      actionId,
+      blockers: actionBlockers,
+      platformWriteCalled: false,
+      rawPayloadStored: false,
+      rawResponseStored: false
+    });
+    assertNoSensitiveLeak(blocked);
+    return blocked;
+  }
+
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  if (!bundle?.job) throw new Error("job_not_found");
+  const sourceAssetIds = expectedSourceAssetIds.length
+    ? expectedSourceAssetIds
+    : (action.metadata?.source_asset_ids || action.metadata?.sourceAssetIds || []);
+  const client = readonlyClient || createOceanEngineReadonlyClient({ fetchImpl });
+  const startedAtMs = nowMs();
+  const startedAtIso = new Date(startedAtMs).toISOString();
+  const readback = await pollVideoMaterialReadback({
+    repo,
+    jobId,
+    client,
+    delaysMs: readbackDelaysMs,
+    startedAtMs,
+    nowMs,
+    wait,
+    sourceAssetIds
+  });
+  const finishedAtIso = new Date(nowMs()).toISOString();
+  const cycle = readbackCycleFromResult({
+    jobId,
+    actionId,
+    kind: "delayed_manual_readback",
+    startedAtIso,
+    finishedAtIso,
+    scheduleMs: readbackDelaysMs,
+    readback,
+    now: new Date(finishedAtIso)
+  });
+  const cycleEvidenceRef = await saveVideoReadbackCycleEvidence({ repo, jobId, cycle, actionId });
+  await appendReadbackCycleToAction({
+    repo,
+    actionId,
+    cycle: {
+      ...cycle,
+      evidenceRef: cycleEvidenceRef
+    },
+    updateCompatibilityFields: false
+  });
+  const actions = typeof repo.listVideoMaterialBindActions === "function"
+    ? await repo.listVideoMaterialBindActions({
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id,
+      sourceAdvertiserId: clean(action.metadata?.source_advertiser_id || "")
+    })
+    : [await repo.getPlatformAction(actionId)];
+  const stats = summarizeVideoMaterialReadbackCycles(actions);
+  const result = sanitizeForPublic({
+    status: readback.status === "passed" ? "readback_verified" : "readback_pending",
+    jobId,
+    actionId,
+    sourceAssetIds,
+    targetAdvertiserId: bundle.job.advertiser_id,
+    sourceAdvertiserId: clean(action.metadata?.source_advertiser_id || ""),
+    platformWriteCalled: false,
+    writeActionCalled: false,
+    tokenRefreshCalled: false,
+    readbackStatus: readback.status,
+    readbackAttempts: readback.attempts,
+    windowExhausted: readback.windowExhausted === true,
+    terminalReason: readback.terminalReason || "",
+    firstFullVisibleWindow: readback.firstFullVisibleWindow || null,
+    evidenceRef: cycleEvidenceRef,
+    stats,
     rawPayloadStored: false,
     rawResponseStored: false
   });

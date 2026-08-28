@@ -303,6 +303,17 @@ function monitorPlanConfig(defaults = {}) {
   };
 }
 
+function monitorReadonlyDefaults(defaults = {}) {
+  const config = monitorPlanConfig(defaults);
+  const candidateFieldsApplied = ["media_id", "agent_id", "monitor_api"]
+    .filter((key) => clean(defaults?.monitor_provision?.[key]) === "" && clean(config[key]) !== "");
+  return {
+    ...(defaults || {}),
+    monitor_provision: config,
+    monitor_provision_candidate_fields_applied: candidateFieldsApplied
+  };
+}
+
 function callbackDataTypes(config = {}) {
   if (Array.isArray(config.server_callback_data_types)) {
     return config.server_callback_data_types.map(clean).filter(Boolean);
@@ -404,6 +415,17 @@ function compactMonitorRows(monitorResult = {}) {
   }));
 }
 
+export function sanitizeMonitorPublicSummary(value) {
+  const redactUrls = (item) => {
+    if (Array.isArray(item)) return item.map(redactUrls);
+    if (item && typeof item === "object") {
+      return Object.fromEntries(Object.entries(item).map(([key, child]) => [key, redactUrls(child)]));
+    }
+    return typeof item === "string" && /https?:\/\/\S+/i.test(item) ? "[redacted]" : item;
+  };
+  return sanitizeForPublic(redactUrls(value));
+}
+
 async function upsertReadonlyEvidence({ repo, provisionId, summary, jobId = "" }) {
   if (!repo) return "";
   const safeSummary = sanitizeForPublic(summary);
@@ -444,7 +466,7 @@ async function upsertEnsureEvidence({ repo, provisionId, summary, jobId = "" }) 
 
 async function upsertPlanOnlyEvidence({ repo, provisionId, summary, jobId = "" }) {
   if (!repo) return "";
-  const safeSummary = sanitizeForPublic(summary);
+  const safeSummary = sanitizeMonitorPublicSummary(summary);
   assertNoSensitiveLeak(safeSummary);
   const artifactId = jobId ? `EV-${jobId}-${provisionId}-PLAN-ONLY` : `EV-${provisionId}-PLAN-ONLY`;
   await repo.upsertEvidence({
@@ -1128,10 +1150,11 @@ export async function runMonitorProvisionReadonlyReconcile({
       "/tf/ad/index"
     ]
   });
-  const defaults = repo ? await repo.getMonitorProvisionDefaults({
+  const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
     gameCode: target.gameCode
   }) : null;
+  const defaults = monitorReadonlyDefaults(storedDefaults || {});
   const readiness = monitorDefaultsReadiness(defaults || {});
   const requestFingerprint = monitorProvisionFingerprint({
     ...target,
@@ -1249,7 +1272,8 @@ export async function runMonitorProvisionReadonlyReconcile({
     defaults: {
       monitorProvisionPresent: readiness.present,
       missingFields: readiness.missingFields,
-      exactMonitorMatchingEnabled: readiness.readyForReadonlyReconcile
+      exactMonitorMatchingEnabled: readiness.readyForReadonlyReconcile,
+      referenceCandidateFieldsApplied: defaults.monitor_provision_candidate_fields_applied || []
     },
     monitorList: monitorResult ? {
       called: true,
@@ -1276,7 +1300,7 @@ export async function runMonitorProvisionReadonlyReconcile({
     rawRequestStored: false,
     rawResponseStored: false
   };
-  const safeSummary = sanitizeForPublic(publicSummary);
+  const safeSummary = sanitizeMonitorPublicSummary(publicSummary);
   assertNoSensitiveLeak(safeSummary);
 
   const evidenceArtifactId = await upsertReadonlyEvidence({
@@ -1288,6 +1312,7 @@ export async function runMonitorProvisionReadonlyReconcile({
   const runStatus = monitor
     ? monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved"
     : account ? "account_resolved" : "failed";
+  const cycleStatus = runStatus === "touchpoint_resolved" ? "resolved" : "active";
   const writes = await persistReadonlyReconcile({
     repo,
     jobId,
@@ -1295,6 +1320,7 @@ export async function runMonitorProvisionReadonlyReconcile({
     target,
     provisionId,
     requestFingerprint,
+    cycleStatus,
     defaults,
     credential,
     account,

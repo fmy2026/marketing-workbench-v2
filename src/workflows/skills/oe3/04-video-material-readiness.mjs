@@ -82,7 +82,13 @@ function publicItem({
   planStatus,
   nextAction,
   readbackStatus,
-  evidenceRef
+  evidenceRef,
+  targetVideoVisible = false,
+  explicitCoverVisible = false,
+  videoRequestIdPresent = false,
+  coverRequestIdPresent = false,
+  videoResponseHashPresent = false,
+  coverResponseHashPresent = false
 }) {
   return {
     sourceAssetId,
@@ -94,7 +100,13 @@ function publicItem({
     planStatus: planStatus || "",
     nextAction: nextAction || "",
     readbackStatus,
-    evidenceRef
+    evidenceRef,
+    targetVideoVisible: Boolean(targetVideoVisible),
+    explicitCoverVisible: Boolean(explicitCoverVisible),
+    videoRequestIdPresent: Boolean(videoRequestIdPresent),
+    coverRequestIdPresent: Boolean(coverRequestIdPresent),
+    videoResponseHashPresent: Boolean(videoResponseHashPresent),
+    coverResponseHashPresent: Boolean(coverResponseHashPresent)
   };
 }
 
@@ -118,6 +130,59 @@ function nextActionForPlan(planStatus) {
   if (planStatus === "source_missing_local_ready") return "先上传本地 MP4 到物料户，再绑定或推送到目标账户";
   if (planStatus === "platform_probe_failed") return "只读 probe 失败，停止并复查平台返回";
   return "补齐 v2 本地 MP4 或确认物料户素材";
+}
+
+function videoQueryFor(item, advertiserId) {
+  return {
+    advertiser_id: advertiserId,
+    filtering: JSON.stringify({ video_ids: [item.videoId] }),
+    page: "1",
+    page_size: "100"
+  };
+}
+
+function coverQueryFor(item, advertiserId) {
+  return {
+    advertiser_id: advertiserId,
+    filtering: JSON.stringify({ image_ids: [item.coverId] }),
+    page: "1",
+    page_size: "100"
+  };
+}
+
+function sourceReadyFromCachedResource(resource = {}) {
+  const readonlyCheck = resource?.metadata?.readonly_check || {};
+  const finalReadiness = resource?.metadata?.final_material_readiness || {};
+  const planStatus = clean(readonlyCheck.plan_status || finalReadiness.plan_status);
+  return readonlyCheck.source_video_visible === true ||
+    finalReadiness.source_video_visible === true ||
+    ["source_ready_target_missing", "source_ready_target_ready"].includes(planStatus);
+}
+
+function probeFailedStatus(...probes) {
+  return probes.some((probe) => ["transport_failed", "credential_required"].includes(probe?.status));
+}
+
+function readbackProbeSummaryFromItems(items = []) {
+  return {
+    itemProbeCount: items.length,
+    requestIdPresent: items.some((item) => item.videoRequestIdPresent || item.coverRequestIdPresent),
+    responseHashPresent: items.some((item) => item.videoResponseHashPresent || item.coverResponseHashPresent),
+    videoRequestIdPresentCount: items.filter((item) => item.videoRequestIdPresent).length,
+    coverRequestIdPresentCount: items.filter((item) => item.coverRequestIdPresent).length,
+    videoResponseHashPresentCount: items.filter((item) => item.videoResponseHashPresent).length,
+    coverResponseHashPresentCount: items.filter((item) => item.coverResponseHashPresent).length,
+    items: items.map((item) => ({
+      sourceAssetId: item.sourceAssetId,
+      targetVideoVisible: item.targetVideoVisible === true,
+      explicitCoverVisible: item.explicitCoverVisible === true,
+      coverMode: item.coverMode,
+      videoRequestIdPresent: item.videoRequestIdPresent === true,
+      coverRequestIdPresent: item.coverRequestIdPresent === true,
+      videoResponseHashPresent: item.videoResponseHashPresent === true,
+      coverResponseHashPresent: item.coverResponseHashPresent === true
+    }))
+  };
 }
 
 async function recordVideoEvidence({ repo, bundle, item, status, videoProbe, coverProbe, blocker, coverMode, planStatus }) {
@@ -347,40 +412,28 @@ export async function runVideoMaterialReadonlyGate({
     if (!item.videoId) {
       blocker = "video_id_missing";
     } else {
-      const videoQuery = (advertiserId) => ({
-        advertiser_id: advertiserId,
-        filtering: JSON.stringify({ video_ids: [item.videoId] }),
-        page: "1",
-        page_size: "100"
-      });
-      const coverQuery = (advertiserId) => ({
-        advertiser_id: advertiserId,
-        filtering: JSON.stringify({ image_ids: [item.coverId] }),
-        page: "1",
-        page_size: "100"
-      });
       videoSourceProbe = sourceAccount.advertiserId ? await client.get({
         label: `source_video_material_${item.sourceAssetId}`,
         endpoint: "file/video/get",
-        query: videoQuery(sourceAccount.advertiserId),
+        query: videoQueryFor(item, sourceAccount.advertiserId),
         summarize: (payload) => summarizeMaterial(payload, item.videoId)
       }) : null;
       coverSourceProbe = sourceAccount.advertiserId && item.coverId ? await client.get({
         label: `source_video_cover_${item.sourceAssetId}`,
         endpoint: "file/image/get",
-        query: coverQuery(sourceAccount.advertiserId),
+        query: coverQueryFor(item, sourceAccount.advertiserId),
         summarize: (payload) => summarizeMaterial(payload, item.coverId)
       }) : null;
       videoTargetProbe = await client.get({
         label: `target_video_material_${item.sourceAssetId}`,
         endpoint: "file/video/get",
-        query: videoQuery(targetAdvertiserId),
+        query: videoQueryFor(item, targetAdvertiserId),
         summarize: (payload) => summarizeMaterial(payload, item.videoId)
       });
       coverTargetProbe = item.coverId ? await client.get({
         label: `target_video_cover_${item.sourceAssetId}`,
         endpoint: "file/image/get",
-        query: coverQuery(targetAdvertiserId),
+        query: coverQueryFor(item, targetAdvertiserId),
         summarize: (payload) => summarizeMaterial(payload, item.coverId)
       }) : null;
       sourceVideoVisible = sourceAccount.advertiserId &&
@@ -388,7 +441,7 @@ export async function runVideoMaterialReadonlyGate({
         videoSourceProbe.summary?.targetVisible === true;
       targetVideoVisible = videoTargetProbe.status === "passed" && videoTargetProbe.summary?.targetVisible === true;
       targetCoverVisible = coverTargetProbe?.status === "passed" && coverTargetProbe.summary?.targetVisible === true;
-      probeFailed = [videoSourceProbe, videoTargetProbe].some((probe) => ["transport_failed", "credential_required"].includes(probe?.status));
+      probeFailed = probeFailedStatus(videoSourceProbe, videoTargetProbe);
       coverMode = coverModeFrom({ explicitCoverVisible: targetCoverVisible, videoVisible: targetVideoVisible });
       planStatus = materialPlanStatus({
         sourceVideoVisible,
@@ -450,14 +503,215 @@ export async function runVideoMaterialReadonlyGate({
       planStatus,
       nextAction: nextActionForPlan(planStatus),
       readbackStatus: status === "passed" ? "readback_verified" : "not_checked",
-      evidenceRef
+      evidenceRef,
+      targetVideoVisible,
+      explicitCoverVisible: targetCoverVisible,
+      videoRequestIdPresent: videoTargetProbe?.requestIdPresent === true,
+      coverRequestIdPresent: coverTargetProbe?.requestIdPresent === true,
+      videoResponseHashPresent: Boolean(videoTargetProbe?.responseHash),
+      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash)
     }));
   }
 
   const result = summaryFromItems({ items: checkedItems, source: "oceanengine_readonly_probe" });
   return sanitizeForPublic({
     ...result,
+    outputSummary: {
+      ...result.outputSummary,
+      readbackProbeSummary: readbackProbeSummaryFromItems(checkedItems)
+    },
     evidenceRefs,
+    blockers: result.status === "passed" ? [] : [
+      ...new Set(checkedItems
+        .filter((item) => item.readbackStatus !== "readback_verified")
+        .map((item) => `video_material_not_ready:${item.sourceAssetId}`))
+    ]
+  });
+}
+
+export async function runVideoMaterialTargetReadonlyProbe({
+  repo,
+  bundle,
+  client = createOceanEngineReadonlyClient(),
+  allowReadonlyDependency = false,
+  sourceAssetIds = [],
+  assumeSourceReady = true
+} = {}) {
+  const wantedAssetIds = new Set((sourceAssetIds || []).map(clean).filter(Boolean));
+  const requiredItems = requiredVideoEntries(bundle)
+    .filter((item) => wantedAssetIds.size === 0 || wantedAssetIds.has(item.sourceAssetId));
+  if (requiredItems.length === 0) {
+    return summaryFromItems({ items: [], source: "material_pack_missing_required_video" });
+  }
+
+  const permission = readonlyPermissionState({ allowReadonlyDependency });
+  if (!permission.allowed) {
+    const items = requiredItems.map((item) => publicItem({
+      sourceAssetId: item.sourceAssetId,
+      videoIdPresent: Boolean(item.videoId),
+      videoCoverIdPresent: Boolean(item.coverId),
+      videoReadonlyStatus: "readonly_permission_required",
+      coverReadonlyStatus: "readonly_permission_required",
+      coverMode: "not_checked",
+      planStatus: "not_checked",
+      nextAction: "仅开放真实平台只读依赖后重跑目标户视频 readback",
+      readbackStatus: "not_checked",
+      evidenceRef: ""
+    }));
+    const summary = summaryFromItems({ items, source: "target_account_readonly_permission_required" });
+    return sanitizeForPublic({
+      ...summary,
+      blockers: permission.blockers,
+      outputSummary: {
+        ...summary.outputSummary,
+        readonlyStatus: "readonly_permission_required",
+        readbackProbeSummary: readbackProbeSummaryFromItems(items)
+      }
+    });
+  }
+
+  const credential = client.credentialState();
+  if (credential.status !== "ready") {
+    const items = requiredItems.map((item) => publicItem({
+      sourceAssetId: item.sourceAssetId,
+      videoIdPresent: Boolean(item.videoId),
+      videoCoverIdPresent: Boolean(item.coverId),
+      videoReadonlyStatus: "credential_required",
+      coverReadonlyStatus: "credential_required",
+      coverMode: "not_checked",
+      planStatus: "platform_probe_failed",
+      nextAction: "处理 v2 OceanEngine 凭据后重跑目标户视频 readback",
+      readbackStatus: "not_checked",
+      evidenceRef: ""
+    }));
+    const summary = summaryFromItems({ items, source: "target_account_credential_required" });
+    return sanitizeForPublic({
+      ...summary,
+      blockers: ["credential_required", ...(credential.blockers || [])],
+      outputSummary: {
+        ...summary.outputSummary,
+        readonlyStatus: "credential_required",
+        credential: {
+          status: credential.status,
+          envFilePresent: Boolean(credential.envFilePresent),
+          accessTokenPresent: Boolean(credential.accessTokenPresent),
+          refreshTokenPresent: Boolean(credential.refreshTokenPresent),
+          tokenExpired: Boolean(credential.tokenExpired),
+          blockers: credential.blockers || []
+        },
+        readbackProbeSummary: readbackProbeSummaryFromItems(items)
+      }
+    });
+  }
+
+  const targetAdvertiserId = clean(bundle.job.advertiser_id);
+  const checkedItems = [];
+  const evidenceRefs = [];
+  for (const item of requiredItems) {
+    const resource = accountResourceForVideo(bundle, item.sourceAssetId);
+    const sourceVideoVisible = assumeSourceReady || sourceReadyFromCachedResource(resource);
+    let blocker = "";
+    let videoTargetProbe = null;
+    let coverTargetProbe = null;
+    let targetVideoVisible = false;
+    let targetCoverVisible = false;
+    let coverMode = "not_checked";
+    let planStatus = "not_checked";
+
+    if (!item.videoId) {
+      blocker = "video_id_missing";
+    } else {
+      videoTargetProbe = await client.get({
+        label: `target_video_material_${item.sourceAssetId}`,
+        endpoint: "file/video/get",
+        query: videoQueryFor(item, targetAdvertiserId),
+        summarize: (payload) => summarizeMaterial(payload, item.videoId)
+      });
+      coverTargetProbe = item.coverId ? await client.get({
+        label: `target_video_cover_${item.sourceAssetId}`,
+        endpoint: "file/image/get",
+        query: coverQueryFor(item, targetAdvertiserId),
+        summarize: (payload) => summarizeMaterial(payload, item.coverId)
+      }) : null;
+      targetVideoVisible = videoTargetProbe.status === "passed" && videoTargetProbe.summary?.targetVisible === true;
+      targetCoverVisible = coverTargetProbe?.status === "passed" && coverTargetProbe.summary?.targetVisible === true;
+      coverMode = coverModeFrom({ explicitCoverVisible: targetCoverVisible, videoVisible: targetVideoVisible });
+      planStatus = materialPlanStatus({
+        sourceVideoVisible,
+        targetVideoVisible,
+        localFileReady: Boolean(item.localFilePath && item.localFileHash && item.localFileSizeBytes > 0),
+        probeFailed: probeFailedStatus(videoTargetProbe)
+      });
+      if (!blocker && planStatus === "platform_probe_failed") blocker = "platform_probe_failed";
+      if (!blocker && planStatus === "source_missing_local_missing") blocker = "source_readiness_not_verified_by_precheck";
+      if (!blocker && planStatus === "source_missing_local_ready") blocker = "source_readiness_not_verified_by_precheck";
+      if (!blocker && planStatus === "source_ready_target_missing") blocker = "source_ready_target_missing";
+    }
+
+    const status = blocker ? "blocked" : "passed";
+    const evidenceRef = await recordVideoEvidence({
+      repo,
+      bundle,
+      item,
+      status,
+      videoProbe: {
+        ...(videoTargetProbe || {}),
+        summary: {
+          ...(videoTargetProbe?.summary || {}),
+          sourceVisible: sourceVideoVisible
+        }
+      },
+      coverProbe: {
+        ...(coverTargetProbe || {}),
+        summary: coverTargetProbe?.summary || {}
+      },
+      blocker,
+      coverMode,
+      planStatus
+    });
+    evidenceRefs.push(evidenceRef);
+    await persistVideoResource({
+      repo,
+      bundle,
+      item,
+      status,
+      evidenceRef,
+      blocker,
+      coverMode,
+      planStatus,
+      sourceVideoVisible,
+      targetVideoVisible,
+      explicitCoverVisible: targetCoverVisible
+    });
+    checkedItems.push(publicItem({
+      sourceAssetId: item.sourceAssetId,
+      videoIdPresent: Boolean(item.videoId),
+      videoCoverIdPresent: Boolean(item.coverId),
+      videoReadonlyStatus: targetVideoVisible ? "passed" : (videoTargetProbe?.status === "passed" ? "blocked" : (videoTargetProbe?.status || (item.videoId ? "not_called" : "missing"))),
+      coverReadonlyStatus: coverMode === "explicit_cover_verified" ? "passed" : (coverMode === "platform_default_cover_allowed" ? "not_required" : (coverTargetProbe?.status || (item.coverId ? "not_called" : "missing"))),
+      coverMode,
+      planStatus,
+      nextAction: nextActionForPlan(planStatus),
+      readbackStatus: status === "passed" ? "readback_verified" : "not_checked",
+      evidenceRef,
+      targetVideoVisible,
+      explicitCoverVisible: targetCoverVisible,
+      videoRequestIdPresent: videoTargetProbe?.requestIdPresent === true,
+      coverRequestIdPresent: coverTargetProbe?.requestIdPresent === true,
+      videoResponseHashPresent: Boolean(videoTargetProbe?.responseHash),
+      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash)
+    }));
+  }
+
+  const result = summaryFromItems({ items: checkedItems, source: "oceanengine_target_readonly_probe" });
+  return sanitizeForPublic({
+    ...result,
+    evidenceRefs,
+    outputSummary: {
+      ...result.outputSummary,
+      sourceReadinessMode: assumeSourceReady ? "precheck_reused" : "postgres_metadata_reused",
+      readbackProbeSummary: readbackProbeSummaryFromItems(checkedItems)
+    },
     blockers: result.status === "passed" ? [] : [
       ...new Set(checkedItems
         .filter((item) => item.readbackStatus !== "readback_verified")

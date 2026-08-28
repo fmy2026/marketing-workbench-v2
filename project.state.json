@@ -1,74 +1,18 @@
 {
-  "schema_version": "2026-08-23.project-state-v1",
+  "schema_version": "2026-08-28.project-control-plane-v2",
   "methodology_version": "human-ai-project-v2",
   "updated_at": "2026-08-28 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
-    "type": "local_marketing_agent_workbench_v2"
-  },
-  "project_status": "oe3_video_material_bind_accepted_readback_pending",
-  "phase": {
-    "id": "LEGACY-DEV-PLAN-LOCALIZE",
-    "status": "completed",
-    "plan_ref": "tasks/TASK-MWBV2-LEGACY-DEV-PLAN-LOCALIZE.md"
+    "type": "local_marketing_agent_workbench_v2",
+    "lifecycle": "active",
+    "capabilities_version": "workflow-case-v1"
   },
   "active_task": null,
-  "last_blocked_task_ref": "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.md",
-  "last_closed_task_ref": "tasks/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-MECHANISM-PREFLIGHT-1871922346964041.md",
-  "next_gate": "新建账户 1871922346964041 视频素材绑定后延迟只读复核/技术确认任务；本次 file/material/bind 已返回 200/api_code=0/fail_list=0，但 0/30/60 秒目标户仍未查到视频。不得自动第二次绑定；后续 full-chain readiness 仍需独立处理乾坤 ApiToken。",
   "guardrails": {
     "platform_write_allowed": false,
-    "platform_write_scope": {
-      "mode": "read_only_after_single_video_material_bind_attempt",
-      "target_job_id": "",
-      "target_draft_id": "",
-      "target_payload_hash": "",
-      "target_project_name": "",
-      "target_advertiser_id": "",
-      "target_plan_id": "",
-      "target_plan_hash": "",
-      "allowed_actions": [],
-      "maximum_actions": 0,
-      "maximum_platform_calls": 0,
-      "retry_allowed": false,
-      "official_contract": {
-        "source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/14-素材管理.md:242",
-        "detail_source_ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/12-素材管理.md:4091",
-        "priority": "3.0 first; 2.0 fallback because 3.0 detailed bind contract is not located locally",
-        "endpoint": "https://api.oceanengine.com/open_api/2/file/material/bind/",
-        "method": "POST",
-        "request_fields": [
-          "advertiser_id",
-          "target_advertiser_ids",
-          "video_ids"
-        ],
-        "max_video_ids_per_request": 50,
-        "response_fail_list_field": "data.fail_list"
-      },
-      "granted_at": "2026-08-28 CST",
-      "granted_by": "user_confirmed_single_video_material_batch_bind"
-    },
     "credential_refresh_allowed": true,
-    "credential_refresh_scope": {
-      "mode": "scheduled_daily_oauth_refresh_only",
-      "authorized_automation_id": "oceanengine-v2-token-refresh",
-      "timezone": "Asia/Shanghai",
-      "daily_at": "12:00",
-      "confirm_variable": "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
-      "allowed_actions": [
-        "oceanengine_oauth_refresh_token"
-      ],
-      "forbidden_actions": [
-        "std_project/create",
-        "material upload",
-        "event asset create",
-        "DMP push",
-        "budget or bid update"
-      ],
-      "granted_at": "2026-08-27 CST",
-      "granted_by": "user_confirmed_scheduled_token_refresh"
-    },
     "budget_bid_change_allowed": false,
     "long_term_lesson_write_allowed": false,
     "git_history_rewrite_allowed": false,
@@ -76,16 +20,11 @@
     "real_platform_dependency_allowed": true,
     "existing_deletion_handling_allowed": true,
     "do_not_start": [
-      "Project 创建重试",
+      "未经项目全局允许和当前 job 授权的真实平台写入",
       "Promotion 创建或重试",
-      "未带确认变量的 std_project 创建或重试",
-      "未另建单次真实创建任务的 std_project 创建",
       "监测链接组创建",
-      "乾坤监测序号第三次创建",
-      "未另建单次真实创建任务的 monitor:ensure 真实写入分支",
-      "预算/出价修改",
-      "未通过定时专用 credential_refresh_scope 的 OAuth token 刷新",
-      "本任务范围外的真实平台写入",
+      "预算或出价修改",
+      "未获独立授权的 OAuth token 刷新",
       "把 token、Cookie、secret、auth_code 或完整触点 URL 写入项目文件",
       "直接依赖旧项目路径作为 v2 运行时真值",
       "未建立任务卡和 context manifest 时推进跨阶段开发"

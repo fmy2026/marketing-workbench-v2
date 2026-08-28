@@ -42,7 +42,7 @@ function derivedTrace(kind) {
     },
     execution_grant: {
       resolverRef: "src/workflows/executionGrantScope.mjs#getExecutionGrantAvailability",
-      inputContract: ["project.state.json.guardrails", "launch_confirmations", "platform_actions"],
+      inputContract: ["project.state.json.guardrails.platform_write_allowed", "workflow_cases", "launch_execution_plans", "launch_confirmations", "platform_actions"],
       outputContract: ["can_execute_once", "already_attempted", "child_status"],
       stopConditions: ["platform_write_disabled", "single_create_attempt_already_recorded"]
     },

@@ -54,6 +54,7 @@ export function parseReadonlyReadinessArgs(argv = process.argv.slice(2)) {
     routeId: argValue(argv, "route-id"),
     gameCode: argValue(argv, "game-code").toUpperCase(),
     advertiserId: argValue(argv, "advertiser-id"),
+    caseId: argValue(argv, "case-id"),
     jobId: argValue(argv, "job-id"),
     expectedMonitorId: argValue(argv, "expected-monitor-id", "245828"),
     sourceRecordRef: argValue(argv, "source-record-ref"),
@@ -69,6 +70,7 @@ export function assertReadonlyReadinessInvocation({ args, env = process.env } = 
   if (!args.jobId && !args.routeId) missing.push("route_id");
   if (!args.jobId && !args.gameCode) missing.push("game_code");
   if (!args.jobId && !args.advertiserId) missing.push("advertiser_id");
+  if (!args.jobId && !args.caseId) missing.push("case_id");
   if (args.routeId && args.routeId !== "oceanengine_3_byte_mini_game") throw new Error("readonly_readiness_route_not_supported");
   if (args.gameCode && args.gameCode !== "JSZC") throw new Error("readonly_readiness_game_not_supported");
   if (args.advertiserId && !/^\d+$/.test(args.advertiserId)) throw new Error("invalid_advertiser_id");
@@ -91,6 +93,7 @@ export async function createOrResolveReadonlyReadinessJob({ repo, args, sourceRe
     requireSame(bundle.job.route_id, args.routeId, "route_id");
     requireSame(bundle.job.game_code, args.gameCode, "game_code");
     requireSame(bundle.job.advertiser_id, args.advertiserId, "advertiser_id");
+    requireSame(bundle.job.case_id, args.caseId, "case_id");
     return { jobId: args.jobId, created: false, bundle };
   }
 
@@ -100,6 +103,7 @@ export async function createOrResolveReadonlyReadinessJob({ repo, args, sourceRe
     route_id: args.routeId,
     game_code: args.gameCode,
     advertiser_id: args.advertiserId,
+    case_id: args.caseId,
     source_usage: "runtime_truth",
     source_record_ref: sourceRecordRef
   });

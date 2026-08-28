@@ -2,13 +2,17 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  DEFAULT_VIDEO_READBACK_DELAYS_MS,
   VIDEO_MATERIAL_CONFIRM_VALUE,
   buildVideoMaterialBatchBindRequestPlan,
   bindVideoMaterialToTargetOnce,
   buildVideoMaterialBindRequestPlan,
   buildVideoMaterialPreparePlan,
   ensureVideoMaterialBindSetOnce,
-  materialBindFailList
+  materialBindFailList,
+  pollVideoMaterialReadback,
+  readbackVideoMaterialTargetOnce,
+  summarizeVideoMaterialReadbackCycles
 } from "../src/platforms/oceanengineVideoMaterialExecutor.mjs";
 import { validateVideoMaterialWriteScope } from "../src/workflows/videoMaterialExecutionScope.mjs";
 
@@ -28,7 +32,7 @@ const secondSourceAssetId = "JSZC-HUNT-4GE6-14";
 const videoId = "v02033g10000smoke";
 const secondVideoId = "v02033g10000smoke2";
 
-function videoEntry(id, platformVideoId) {
+function videoEntry(id, platformVideoId, { withCover = false } = {}) {
   return {
     item: { item_type: "video_asset", required: true, asset_id: id },
     asset: {
@@ -36,6 +40,7 @@ function videoEntry(id, platformVideoId) {
       asset_name: `smoke video ${id}`,
       metadata: {
         video_id: platformVideoId,
+        ...(withCover ? { video_cover_id: `img-${id}` } : {}),
         local_file: {
           path: "/tmp/smoke.mp4",
           sha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -64,11 +69,11 @@ function resourceEntry(id) {
   };
 }
 
-function bundle({ twoVideos = false } = {}) {
-  const entries = [videoEntry(sourceAssetId, videoId)];
+function bundle({ twoVideos = false, withCover = false } = {}) {
+  const entries = [videoEntry(sourceAssetId, videoId, { withCover })];
   const resources = [resourceEntry(sourceAssetId)];
   if (twoVideos) {
-    entries.push(videoEntry(secondSourceAssetId, secondVideoId));
+    entries.push(videoEntry(secondSourceAssetId, secondVideoId, { withCover }));
     resources.push(resourceEntry(secondSourceAssetId));
   }
   return {
@@ -100,7 +105,7 @@ function bundle({ twoVideos = false } = {}) {
 }
 
 function makeRepo(options = {}) {
-  const actions = [];
+  const actions = [...(options.initialActions || [])];
   const evidence = [];
   const resourceUpdates = [];
   const base = bundle(options);
@@ -118,7 +123,13 @@ function makeRepo(options = {}) {
       return 0;
     },
     async upsertPlatformAction(value) {
-      actions.push(value);
+      const id = value.actionId || value.action_id;
+      const index = actions.findIndex((item) => (item.actionId || item.action_id) === id);
+      if (index >= 0) {
+        actions[index] = { ...actions[index], ...value };
+      } else {
+        actions.push(value);
+      }
     },
     async upsertEvidence(value) {
       evidence.push(value);
@@ -127,7 +138,25 @@ function makeRepo(options = {}) {
       resourceUpdates.push(value);
     },
     async mergePlatformActionMetadata(actionId, metadata) {
-      actions.push({ actionId, metadata, merged: true });
+      const index = actions.findIndex((item) => (item.actionId || item.action_id) === actionId);
+      if (index >= 0) {
+        actions[index] = {
+          ...actions[index],
+          metadata: {
+            ...(actions[index].metadata || {}),
+            ...metadata
+          },
+          merged: true
+        };
+      } else {
+        actions.push({ actionId, metadata, merged: true });
+      }
+    },
+    async getPlatformAction(actionId) {
+      return [...actions].reverse().find((item) => (item.actionId || item.action_id) === actionId) || null;
+    },
+    async listVideoMaterialBindActions() {
+      return actions.filter((item) => (item.actionType || item.action_type) === "oceanengine_material_bind_target");
     }
   };
 }
@@ -155,6 +184,100 @@ const oneBatch = buildVideoMaterialBatchBindRequestPlan({ sourceAdvertiserId, ta
 assert(oneBatch.requestFieldManifest.sourceAssetCount === 50, "video_batch_request_limit_wrong");
 
 assert(materialBindFailList({ data: { fail_list: [{ video_id: videoId, target_advertiser_id: targetAdvertiserId }] } }).length === 1, "video_fail_list_parse_failed");
+assert(DEFAULT_VIDEO_READBACK_DELAYS_MS.join(",") === "0,10000,20000,30000,60000,120000,180000", "video_default_readback_schedule_wrong");
+
+for (const thresholdMs of DEFAULT_VIDEO_READBACK_DELAYS_MS) {
+  let currentMs = 0;
+  const pollRepo = makeRepo();
+  const polling = await pollVideoMaterialReadback({
+    repo: pollRepo,
+    jobId,
+    client: {
+      credentialState: () => ({ status: "ready", blockers: [] }),
+      async get({ label, endpoint, summarize }) {
+        assert(!String(label).startsWith("source_"), "post_bind_poll_should_not_query_source_account");
+        return {
+          label,
+          endpoint,
+          status: "passed",
+          requestIdPresent: true,
+          responseHash: "sha256:poll",
+          summary: summarize({ data: { list: currentMs >= thresholdMs ? [{ video_id: videoId }] : [] } })
+        };
+      }
+    },
+    delaysMs: DEFAULT_VIDEO_READBACK_DELAYS_MS,
+    startedAtMs: 0,
+    nowMs: () => currentMs,
+    wait: async (ms) => {
+      currentMs += ms;
+    },
+    sourceAssetIds: [sourceAssetId]
+  });
+  assert(polling.status === "passed", `video_poll_should_pass_at_${thresholdMs}`);
+  assert(polling.attempts[polling.attempts.length - 1].plannedDelayMs === thresholdMs, `video_poll_last_delay_wrong_${thresholdMs}`);
+}
+
+let exhaustedMs = 0;
+const exhausted = await pollVideoMaterialReadback({
+  repo: makeRepo(),
+  jobId,
+  client: {
+    credentialState: () => ({ status: "ready", blockers: [] }),
+    async get({ label, endpoint, summarize }) {
+      assert(!String(label).startsWith("source_"), "exhausted_poll_should_not_query_source_account");
+      return {
+        label,
+        endpoint,
+        status: "passed",
+        requestIdPresent: true,
+        responseHash: "sha256:poll",
+        summary: summarize({ data: { list: [] } })
+      };
+    }
+  },
+  delaysMs: DEFAULT_VIDEO_READBACK_DELAYS_MS,
+  startedAtMs: 0,
+  nowMs: () => exhaustedMs,
+  wait: async (ms) => {
+    exhaustedMs += ms;
+  },
+  sourceAssetIds: [sourceAssetId]
+});
+assert(exhausted.status === "readback_pending", "video_poll_exhausted_status_wrong");
+assert(exhausted.windowExhausted === true, "video_poll_exhausted_flag_missing");
+assert(exhausted.terminalReason === "readback_window_exhausted", "video_poll_exhausted_reason_wrong");
+
+const explicitCoverPolling = await pollVideoMaterialReadback({
+  repo: makeRepo({ withCover: true }),
+  jobId,
+  client: {
+    credentialState: () => ({ status: "ready", blockers: [] }),
+    async get({ label, endpoint, summarize }) {
+      assert(!String(label).startsWith("source_"), "explicit_cover_poll_should_not_query_source_account");
+      return {
+        label,
+        endpoint,
+        status: "passed",
+        requestIdPresent: true,
+        responseHash: "sha256:poll",
+        summary: summarize({
+          data: {
+            list: endpoint === "file/image/get"
+              ? [{ image_id: `img-${sourceAssetId}` }]
+              : [{ video_id: videoId }]
+          }
+        })
+      };
+    }
+  },
+  delaysMs: [0],
+  startedAtMs: 0,
+  nowMs: () => 0,
+  sourceAssetIds: [sourceAssetId]
+});
+assert(explicitCoverPolling.status === "passed", "video_poll_explicit_cover_should_pass");
+assert(explicitCoverPolling.attempts[0].items[0].coverMode === "explicit_cover_verified", "video_poll_explicit_cover_mode_wrong");
 
 const dir = await mkdtemp(path.join(os.tmpdir(), "mwbv2-video-executor-"));
 try {
@@ -292,6 +415,83 @@ try {
   });
   assert(batchResult.status === "video_material_ready", "video_batch_ensure_should_finish_ready");
   assert(batchRepo.actions.filter((item) => item.actionType === "oceanengine_material_bind_target" && item.actionStatus === "succeeded").length === 1, "video_batch_should_record_one_succeeded_action");
+  const batchAction = await batchRepo.getPlatformAction(`ACTION-${jobId}-VIDEO-BIND-BATCH-01`);
+  assert(Array.isArray(batchAction.metadata.readback_cycles), "video_batch_should_append_readback_cycle");
+  assert(batchAction.metadata.readback_cycles.length === 1, "video_batch_readback_cycle_count_wrong");
+  assert(batchAction.metadata.readback_status === "passed", "video_batch_compat_readback_status_wrong");
+
+  const delayedActionId = `ACTION-${jobId}-VIDEO-BIND-BATCH-01`;
+  const delayedRepo = makeRepo({
+    twoVideos: true,
+    initialActions: [{
+      actionId: delayedActionId,
+      jobId,
+      actionType: "oceanengine_material_bind_target",
+      endpoint: "/open_api/2/file/material/bind/",
+      method: "POST",
+      actionStatus: "succeeded",
+      httpStatus: 200,
+      apiCode: "0",
+      responseSummary: { fail_list_count: 0 },
+      metadata: {
+        source_asset_ids: [sourceAssetId, secondSourceAssetId],
+        source_advertiser_id: sourceAdvertiserId,
+        target_advertiser_id: targetAdvertiserId,
+        readback_status: "readback_pending",
+        readback_attempts: [{ delayMs: 0, status: "blocked" }, { delayMs: 30000, status: "blocked" }, { delayMs: 60000, status: "blocked" }]
+      }
+    }]
+  });
+  const delayedLabels = [];
+  const delayedResult = await readbackVideoMaterialTargetOnce({
+    repo: delayedRepo,
+    jobId,
+    actionId: delayedActionId,
+    expectedTargetAdvertiserId: targetAdvertiserId,
+    expectedSourceAdvertiserId: sourceAdvertiserId,
+    expectedSourceAssetIds: [sourceAssetId, secondSourceAssetId],
+    readonlyClient: {
+      credentialState: () => ({ status: "ready", blockers: [] }),
+      async get({ label, endpoint, summarize }) {
+        delayedLabels.push(label);
+        assert(!String(label).startsWith("source_"), "delayed_readback_should_not_query_source_account");
+        const id = label.includes(secondSourceAssetId) ? secondVideoId : videoId;
+        return {
+          label,
+          endpoint,
+          status: "passed",
+          requestIdPresent: true,
+          responseHash: "sha256:delayed",
+          summary: summarize({ data: { list: [{ video_id: id }] } })
+        };
+      }
+    },
+    nowMs: () => 0
+  });
+  assert(delayedResult.status === "readback_verified", "delayed_readback_should_verify");
+  assert(delayedResult.platformWriteCalled === false, "delayed_readback_should_not_write_platform");
+  assert(delayedLabels.length === 2, "delayed_readback_should_query_target_video_only_for_two_assets");
+  const delayedAction = await delayedRepo.getPlatformAction(delayedActionId);
+  assert(delayedAction.metadata.readback_attempts.length === 3, "delayed_readback_should_preserve_legacy_attempts");
+  assert(delayedAction.metadata.readback_cycles.length === 1, "delayed_readback_should_append_cycle");
+
+  const insufficientStats = summarizeVideoMaterialReadbackCycles([delayedAction]);
+  assert(insufficientStats.insufficientSample === true, "video_readback_stats_should_mark_insufficient_sample");
+  assert(insufficientStats.p50FirstVisibleMs === null, "video_readback_stats_should_not_compute_p50_for_small_sample");
+  const richStats = summarizeVideoMaterialReadbackCycles([{
+    metadata: {
+      readback_cycles: [10000, 20000, 60000].map((value, index) => ({
+        cycleId: `CYCLE-${index}`,
+        kind: "immediate_post_bind",
+        status: "passed",
+        firstFullVisibleWindow: { observedAtMs: value, fromDelayMs: 0, toDelayMs: value }
+      }))
+    }
+  }]);
+  assert(richStats.insufficientSample === false, "video_readback_stats_should_compute_when_sample_sufficient");
+  assert(richStats.minFirstVisibleMs === 10000, "video_readback_stats_min_wrong");
+  assert(richStats.p50FirstVisibleMs === 20000, "video_readback_stats_p50_wrong");
+  assert(richStats.p90FirstVisibleMs === 60000, "video_readback_stats_p90_wrong");
 
   const result = {
     status: "passed",

@@ -185,6 +185,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUT
     payloadHash: draft?.payload_hash || "",
     sourceUsage: job.source_usage || "runtime_truth",
     metadata: {
+      case_id: job.case_id || "",
       route_id: job.route_id,
       game_code: job.game_code,
       object_type: job.object_type,

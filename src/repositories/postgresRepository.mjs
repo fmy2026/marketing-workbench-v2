@@ -517,6 +517,7 @@ export class PostgresRepository {
     return queryJson(`
       SELECT jsonb_build_object(
         'job', to_jsonb(j),
+        'case', to_jsonb(wc),
         'route', to_jsonb(r),
         'game', to_jsonb(g),
         'account', to_jsonb(a),
@@ -684,12 +685,127 @@ export class PostgresRepository {
         )
       )::text
       FROM mwb.launch_jobs j
+      JOIN mwb.workflow_cases wc ON wc.case_id = j.case_id
       JOIN mwb.platform_routes r ON r.route_id = j.route_id
       JOIN mwb.games g ON g.game_code = j.game_code
       JOIN mwb.advertiser_accounts a ON a.advertiser_id = j.advertiser_id
       WHERE j.job_id = ${sqlLiteral(jobId)}
       LIMIT 1;
     `, this.database);
+  }
+
+  async createWorkflowCase({
+    caseId,
+    caseKey,
+    routeId,
+    gameCode,
+    advertiserId,
+    businessGoal = "",
+    lifecycleStatus = "active",
+    sourceUsage = "runtime_truth",
+    metadata = {}
+  }) {
+    assertId("case_id", caseId);
+    assertId("case_key", caseKey, /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/);
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("lifecycle_status", lifecycleStatus);
+    assertId("source_usage", sourceUsage);
+    if (typeof metadata !== "object" || Array.isArray(metadata) || metadata === null) throw new Error("invalid_workflow_case_metadata");
+    await runPsql(`
+      INSERT INTO mwb.workflow_cases (
+        case_id, case_key, route_id, game_code, advertiser_id,
+        business_goal, lifecycle_status, source_usage, metadata, created_at, updated_at
+      ) VALUES (
+        ${sqlLiteral(caseId)}, ${sqlLiteral(caseKey)}, ${sqlLiteral(routeId)}, ${sqlLiteral(gameCode)}, ${sqlLiteral(advertiserId)},
+        ${sqlLiteral(businessGoal)}, ${sqlLiteral(lifecycleStatus)}, ${sqlLiteral(sourceUsage)}, ${sqlJson(metadata)}, now(), now()
+      );
+    `, this.database);
+    return this.getWorkflowCase(caseId);
+  }
+
+  async getWorkflowCase(caseId) {
+    assertId("case_id", caseId);
+    return queryJson(`
+      SELECT to_jsonb(wc)::text
+      FROM mwb.workflow_cases wc
+      WHERE wc.case_id = ${sqlLiteral(caseId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getWorkflowCaseByKey(caseKey) {
+    assertId("case_key", caseKey, /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/);
+    return queryJson(`
+      SELECT to_jsonb(wc)::text
+      FROM mwb.workflow_cases wc
+      WHERE wc.case_key = ${sqlLiteral(caseKey)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getWorkflowCaseSummary(caseId) {
+    assertId("case_id", caseId);
+    return queryJson(`
+      SELECT to_jsonb(summary)::text
+      FROM mwb.workflow_case_summary summary
+      WHERE summary.case_id = ${sqlLiteral(caseId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async listWorkflowCaseSummaries({ sourceUsage = "" } = {}) {
+    if (sourceUsage) assertId("source_usage", sourceUsage);
+    const sourceFilter = sourceUsage ? `WHERE summary.source_usage = ${sqlLiteral(sourceUsage)}` : "";
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(summary) ORDER BY summary.latest_job_updated_at DESC NULLS LAST, summary.updated_at DESC), '[]'::jsonb)::text
+      FROM mwb.workflow_case_summary summary
+      ${sourceFilter};
+    `, this.database);
+  }
+
+  async listWorkflowCaseJobs(caseId) {
+    assertId("case_id", caseId);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'job_id', j.job_id,
+        'job_status', j.job_status,
+        'current_node', j.current_node,
+        'source_usage', j.source_usage,
+        'source_record_ref', j.source_record_ref,
+        'created_at', j.created_at,
+        'updated_at', j.updated_at,
+        'plan_status', coalesce(ep.plan_status, ''),
+        'blocker_codes', coalesce(ep.blocker_codes, '[]'::jsonb)
+      ) ORDER BY j.updated_at DESC, j.created_at DESC), '[]'::jsonb)::text
+      FROM mwb.launch_jobs j
+      LEFT JOIN LATERAL (
+        SELECT plan_status, blocker_codes
+        FROM mwb.launch_execution_plans ep
+        WHERE ep.job_id = j.job_id
+        ORDER BY ep.plan_version DESC, ep.updated_at DESC
+        LIMIT 1
+      ) ep ON true
+      WHERE j.case_id = ${sqlLiteral(caseId)};
+    `, this.database);
+  }
+
+  async assertWorkflowCaseScope({ caseId, routeId, gameCode, advertiserId, sourceUsage }) {
+    const workflowCase = await this.getWorkflowCase(caseId);
+    if (!workflowCase) return { status: "not_found", workflowCase: null };
+    const matches = workflowCase.route_id === routeId &&
+      workflowCase.game_code === gameCode &&
+      workflowCase.advertiser_id === advertiserId &&
+      workflowCase.source_usage === sourceUsage;
+    return {
+      status: matches && workflowCase.lifecycle_status === "active" ? "passed" : "blocked",
+      workflowCase,
+      blockers: [
+        ...(matches ? [] : ["workflow_case_scope_mismatch"]),
+        ...(workflowCase.lifecycle_status === "active" ? [] : ["workflow_case_not_active"])
+      ]
+    };
   }
 
   async getOccupiedProjectNames({ routeId, gameCode, advertiserId, objectType = "std_project" }) {
@@ -1485,11 +1601,15 @@ export class PostgresRepository {
   }
 
   async getMonitorProvisionBlockerReport({ provisionId = "" } = {}) {
-    const filter = provisionId ? `WHERE provision_id = ${sqlLiteral(assertId("provision_id", provisionId))}` : "";
+    const filters = [
+      "coalesce(cycle_status, '') <> 'resolved'",
+      "coalesce(provision_status, '') NOT IN ('touchpoint_resolved', 'resolved')"
+    ];
+    if (provisionId) filters.unshift(`provision_id = ${sqlLiteral(assertId("provision_id", provisionId))}`);
     return queryJson(`
       SELECT coalesce(jsonb_agg(to_jsonb(v) ORDER BY v.updated_at DESC, v.blocker), '[]'::jsonb)::text
       FROM mwb.v_monitor_provision_blocker_report v
-      ${filter};
+      WHERE ${filters.join(" AND ")};
     `, this.database);
   }
 
@@ -1788,8 +1908,9 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async createLaunchJob({ jobId, routeId, gameCode, advertiserId, objectType, sourceRecordRef, sourceUsage = "runtime_truth" }) {
+  async createLaunchJob({ jobId, caseId, routeId, gameCode, advertiserId, objectType, sourceRecordRef, sourceUsage = "runtime_truth" }) {
     assertId("job_id", jobId);
+    assertId("case_id", caseId);
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
@@ -1798,6 +1919,7 @@ export class PostgresRepository {
     await runPsql(`
       INSERT INTO mwb.launch_jobs (
         job_id,
+        case_id,
         route_id,
         game_code,
         advertiser_id,
@@ -1810,6 +1932,7 @@ export class PostgresRepository {
         updated_at
       ) VALUES (
         ${sqlLiteral(jobId)},
+        ${sqlLiteral(caseId)},
         ${sqlLiteral(routeId)},
         ${sqlLiteral(gameCode)},
         ${sqlLiteral(advertiserId)},
@@ -2644,6 +2767,77 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getPlatformAction(actionId) {
+    assertId("action_id", actionId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'action_id', action_id,
+        'job_id', job_id,
+        'confirmation_id', confirmation_id,
+        'plan_id', plan_id,
+        'action_type', action_type,
+        'endpoint', endpoint,
+        'method', method,
+        'action_status', action_status,
+        'attempt_no', attempt_no,
+        'request_hash', request_hash,
+        'response_hash', response_hash,
+        'http_status', http_status,
+        'api_code', api_code,
+        'request_id_present', request_id_present,
+        'object_id_present', object_id_present,
+        'error_summary', error_summary,
+        'error_category', error_category,
+        'request_field_manifest', request_field_manifest,
+        'response_summary', response_summary,
+        'metadata', metadata,
+        'started_at', started_at,
+        'finished_at', finished_at
+      )::text
+      FROM mwb.platform_actions
+      WHERE action_id = ${sqlLiteral(actionId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async listVideoMaterialBindActions({ routeId = "", gameCode = "", advertiserId = "", sourceAdvertiserId = "" } = {}) {
+    if (routeId) assertId("route_id", routeId);
+    if (gameCode) assertId("game_code", gameCode);
+    if (advertiserId) assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    if (sourceAdvertiserId) assertId("source_advertiser_id", sourceAdvertiserId, /^[0-9A-Za-z_\-.]+$/);
+    const filters = [
+      "pa.action_type = 'oceanengine_material_bind_target'",
+      routeId ? `j.route_id = ${sqlLiteral(routeId)}` : "",
+      gameCode ? `j.game_code = ${sqlLiteral(gameCode)}` : "",
+      advertiserId ? `j.advertiser_id = ${sqlLiteral(advertiserId)}` : "",
+      sourceAdvertiserId ? `pa.metadata->>'source_advertiser_id' = ${sqlLiteral(sourceAdvertiserId)}` : ""
+    ].filter(Boolean).join(" AND ");
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'action_id', pa.action_id,
+        'job_id', pa.job_id,
+        'route_id', j.route_id,
+        'game_code', j.game_code,
+        'advertiser_id', j.advertiser_id,
+        'action_type', pa.action_type,
+        'endpoint', pa.endpoint,
+        'method', pa.method,
+        'action_status', pa.action_status,
+        'http_status', pa.http_status,
+        'api_code', pa.api_code,
+        'request_id_present', pa.request_id_present,
+        'response_hash_present', (pa.response_hash IS NOT NULL AND pa.response_hash <> ''),
+        'response_summary', pa.response_summary,
+        'metadata', pa.metadata,
+        'started_at', pa.started_at,
+        'finished_at', pa.finished_at
+      ) ORDER BY pa.started_at ASC, pa.action_id ASC), '[]'::jsonb)::text
+      FROM mwb.platform_actions pa
+      JOIN mwb.launch_jobs j ON j.job_id = pa.job_id
+      WHERE ${filters};
+    `, this.database);
+  }
+
   async countPlatformActions({ jobId, actionType, sourceAssetId = "", statuses = [] }) {
     assertId("job_id", jobId);
     assertId("action_type", actionType);
@@ -2729,8 +2923,9 @@ export class PostgresRepository {
       DO $$
       DECLARE
         job_usage text;
+        job_case_id text;
       BEGIN
-        SELECT source_usage INTO job_usage
+        SELECT source_usage, case_id INTO job_usage, job_case_id
         FROM mwb.launch_jobs
         WHERE job_id = ${sqlLiteral(jobId)};
 
@@ -2754,6 +2949,10 @@ export class PostgresRepository {
         DELETE FROM mwb.launch_node_runs WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)};
         DELETE FROM mwb.launch_jobs WHERE job_id = ${sqlLiteral(jobId)};
+        DELETE FROM mwb.workflow_cases wc
+        WHERE wc.case_id = job_case_id
+          AND wc.source_usage = 'test_run'
+          AND NOT EXISTS (SELECT 1 FROM mwb.launch_jobs j WHERE j.case_id = wc.case_id);
       END $$;
     `, this.database);
   }
@@ -2766,6 +2965,7 @@ export class PostgresRepository {
     if (!String(bundle.job.source_record_ref || "").startsWith("smoke:readonly-readiness-cli:")) {
       throw new Error("refuse_delete_non_readonly_readiness_smoke_job");
     }
+    const caseId = bundle.job.case_id;
     await runPsql(`
       DELETE FROM mwb.created_objects WHERE job_id = ${sqlLiteral(jobId)};
       DELETE FROM mwb.platform_actions WHERE job_id = ${sqlLiteral(jobId)};
@@ -2777,6 +2977,10 @@ export class PostgresRepository {
       DELETE FROM mwb.launch_node_runs WHERE job_id = ${sqlLiteral(jobId)};
       DELETE FROM mwb.evidence_artifacts WHERE job_id = ${sqlLiteral(jobId)};
       DELETE FROM mwb.launch_jobs WHERE job_id = ${sqlLiteral(jobId)};
+      DELETE FROM mwb.workflow_cases wc
+      WHERE wc.case_id = ${sqlLiteral(caseId)}
+        AND wc.case_key LIKE 'smoke.%'
+        AND NOT EXISTS (SELECT 1 FROM mwb.launch_jobs j WHERE j.case_id = wc.case_id);
     `, this.database);
   }
 
@@ -2803,6 +3007,11 @@ export class PostgresRepository {
     for (const job of jobs) {
       await this.deleteTestJobCascade(job.job_id);
     }
+    await runPsql(`
+      DELETE FROM mwb.workflow_cases wc
+      WHERE wc.source_usage = 'test_run'
+        AND NOT EXISTS (SELECT 1 FROM mwb.launch_jobs j WHERE j.case_id = wc.case_id);
+    `, this.database);
     return jobs;
   }
 

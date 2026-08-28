@@ -37,12 +37,27 @@ function optionalPlanScopeBlockers(scope = {}, plan = null) {
 
 export async function validateWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
   const state = await readProjectState(projectStatePath);
-  const scope = state.guardrails?.platform_write_scope || {};
   const attemptState = await repo.getCreateAttemptState(bundle.job.job_id);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const testCompatibilityScope = (bundle.job.source_usage === "test_run" || projectStatePath !== defaultProjectStatePath)
+    ? state.guardrails?.platform_write_scope || {}
+    : {};
+  const planScope = plan?.metadata?.execution_scope || plan?.metadata?.executionScope || {};
+  const scope = Object.keys(testCompatibilityScope).length ? testCompatibilityScope : {
+    target_job_id: bundle.job.job_id,
+    target_draft_id: bundle.draft?.draft_id || "",
+    target_payload_hash: bundle.draft?.payload_hash || "",
+    target_plan_id: plan?.plan_id || "",
+    target_plan_hash: plan?.plan_hash || "",
+    allowed_actions: [CREATE_ACTION],
+    maximum_actions: 1,
+    retry_allowed: false,
+    ...planScope
+  };
   const planScopeBlockers = optionalPlanScopeBlockers(scope, plan);
   const blockers = [
     ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
     ...(scope.target_draft_id === bundle.draft?.draft_id ? [] : ["platform_write_scope_draft_mismatch"]),
     ...(scope.target_payload_hash === bundle.draft?.payload_hash ? [] : ["platform_write_scope_payload_hash_mismatch"]),
@@ -61,6 +76,7 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
     attemptState,
     scopeSummary: {
       platformWriteAllowed: state.guardrails?.platform_write_allowed === true,
+      workflowCaseActive: bundle.case?.lifecycle_status === "active",
       targetJobMatches: scope.target_job_id === bundle.job.job_id,
       targetDraftMatches: scope.target_draft_id === bundle.draft?.draft_id,
       targetPayloadHashMatches: scope.target_payload_hash === bundle.draft?.payload_hash,
@@ -93,15 +109,15 @@ export async function revokeWriteScope(projectStatePath = defaultProjectStatePat
   const state = await readProjectState(projectStatePath);
   if (!state.guardrails) state.guardrails = {};
   state.guardrails.platform_write_allowed = false;
-  state.guardrails.platform_write_scope = {
-    ...(state.guardrails.platform_write_scope || {}),
-    mode: "read_only_no_platform_write_after_single_create_attempt",
-    target_job_id: "",
-    target_draft_id: "",
-    target_payload_hash: "",
-    allowed_actions: [],
-    maximum_actions: 0,
-    retry_allowed: false
-  };
+  // Runtime authorization belongs to the consumed job plan/action. The following
+  // reset is only retained for disposable legacy test fixtures that inject it.
+  if (state.guardrails.platform_write_scope) {
+    state.guardrails.platform_write_scope = {
+      ...state.guardrails.platform_write_scope,
+      allowed_actions: [],
+      maximum_actions: 0,
+      retry_allowed: false
+    };
+  }
   await writeProjectState(projectStatePath, state);
 }

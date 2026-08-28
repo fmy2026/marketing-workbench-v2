@@ -704,6 +704,99 @@ export async function getJobView(repo, jobId, options = {}) {
   return buildPublicJobView(repo, bundle, options);
 }
 
+function workflowCaseId(caseKey) {
+  return `CASE-MWBV2-${hashText(`${caseKey}:${Date.now()}:${randomBytes(4).toString("hex")}`).slice(0, 18).toUpperCase()}`;
+}
+
+function requiredCaseScope(body = {}, intake = {}) {
+  return {
+    routeId: body.route_id || body.routeId || intake.route_id,
+    gameCode: String(body.game_code || body.gameCode || intake.game_code || "").toUpperCase(),
+    advertiserId: body.advertiser_id || body.advertiserId || intake.advertiser_id,
+    sourceUsage: body.source_usage || body.sourceUsage || "runtime_truth"
+  };
+}
+
+export async function createWorkflowCase(repo, body = {}) {
+  const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
+  const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, intake);
+  const caseKey = String(body.case_key || body.caseKey || "").trim();
+  const businessGoal = String(body.business_goal || body.businessGoal || "").trim();
+  const missingFields = [];
+  if (!caseKey) missingFields.push("case_key");
+  if (!routeId) missingFields.push("route_id");
+  if (!gameCode) missingFields.push("game_code");
+  if (!advertiserId) missingFields.push("advertiser_id");
+  if (missingFields.length) {
+    const error = new Error("missing_required_fields");
+    error.statusCode = 400;
+    error.details = { missingFields };
+    throw error;
+  }
+  const context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+  if (!context) {
+    const error = new Error("core_context_not_found");
+    error.statusCode = 404;
+    throw error;
+  }
+  const existing = await repo.getWorkflowCaseByKey(caseKey);
+  if (existing) {
+    const error = new Error("workflow_case_key_already_exists");
+    error.statusCode = 409;
+    error.details = { caseId: existing.case_id };
+    throw error;
+  }
+  return repo.createWorkflowCase({
+    caseId: workflowCaseId(caseKey),
+    caseKey,
+    routeId,
+    gameCode,
+    advertiserId,
+    businessGoal,
+    sourceUsage,
+    metadata: { created_via: "workflow_case_api_or_cli" }
+  });
+}
+
+async function resolveCaseForNewJob(repo, { body, routeId, gameCode, advertiserId, sourceUsage, sourceRecordRef }) {
+  const caseId = String(body.case_id || body.caseId || "").trim();
+  if (caseId) {
+    const scope = await repo.assertWorkflowCaseScope({ caseId, routeId, gameCode, advertiserId, sourceUsage });
+    if (scope.status === "not_found") {
+      const error = new Error("workflow_case_not_found");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (scope.status !== "passed") {
+      const error = new Error("workflow_case_scope_invalid");
+      error.statusCode = 409;
+      error.details = { blockers: scope.blockers || [] };
+      throw error;
+    }
+    return scope.workflowCase;
+  }
+
+  // Test runs are disposable fixtures, not business workflow cases. Keep the
+  // fixture creation local to the runner while requiring every runtime job to
+  // explicitly select a durable case.
+  if (sourceUsage === "test_run") {
+    const fixtureKey = `test.${hashText(`${routeId}:${gameCode}:${advertiserId}:${sourceRecordRef || Date.now()}`).slice(0, 24)}`;
+    return repo.createWorkflowCase({
+      caseId: workflowCaseId(fixtureKey),
+      caseKey: fixtureKey,
+      routeId,
+      gameCode,
+      advertiserId,
+      businessGoal: "Disposable test fixture.",
+      sourceUsage: "test_run",
+      metadata: { fixture: true }
+    });
+  }
+  const error = new Error("case_id_required_for_runtime_job");
+  error.statusCode = 400;
+  throw error;
+}
+
 export async function createJob(repo, body = {}) {
   const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
   const routeId = body.route_id || body.routeId || intake.route_id;
@@ -729,10 +822,20 @@ export async function createJob(repo, body = {}) {
     throw error;
   }
 
+  const workflowCase = await resolveCaseForNewJob(repo, {
+    body,
+    routeId,
+    gameCode,
+    advertiserId,
+    sourceUsage,
+    sourceRecordRef
+  });
+
   const nowStamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const jobId = `JOB-MWBV2-${nowStamp}-${hashText(`${routeId}:${gameCode}:${advertiserId}:${Date.now()}:${randomBytes(4).toString("hex")}`).slice(0, 6).toUpperCase()}`;
   await repo.createLaunchJob({
     jobId,
+    caseId: workflowCase.case_id,
     routeId,
     gameCode,
     advertiserId,

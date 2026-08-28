@@ -1,4 +1,4 @@
-import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
+import { credentialStatusForDatabase, getQiankunCredentialSummary, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
 import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 
@@ -907,7 +907,7 @@ export async function runQiankunPackageBaseInfoReadonlySync({
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
   const allowPendingOwnerKeyBootstrap = !clean(effectiveOwnerKey) && initialCredential.pendingOwnerKeyCount === 1;
-  const host = hostFromBaseUrl(credential.apiBaseUrl);
+  const host = hostFromBaseUrl(getQiankunCredentialSummary({ ownerKey: effectiveOwnerKey }).apiBaseUrl);
   const client = createQiankunMonitorClient({
     allowPendingOwnerKeyBootstrap,
     pendingOwnerKeyBootstrapEndpoints: [CHANGE_PACKAGE_ENDPOINT]

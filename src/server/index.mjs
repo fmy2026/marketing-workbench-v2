@@ -4,12 +4,12 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
-import { createJob, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
+import { createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
-const port = 3000;
+const port = Number(process.env.MWBV2_SERVER_PORT || 3000);
 const repo = new PostgresRepository();
 
 const mimeTypes = {
@@ -78,6 +78,27 @@ async function handleApi(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/launch/jobs") {
     const body = await readBody(req);
     return sendJson(res, 201, await createJob(repo, body));
+  }
+
+  if (req.method === "GET" && pathname === "/api/workflow-cases") {
+    return sendJson(res, 200, { cases: await repo.listWorkflowCaseSummaries() });
+  }
+
+  if (req.method === "POST" && pathname === "/api/workflow-cases") {
+    const body = await readBody(req);
+    return sendJson(res, 201, await createWorkflowCase(repo, body));
+  }
+
+  const workflowCaseMatch = pathname.match(/^\/api\/workflow-cases\/([^/]+)$/);
+  if (req.method === "GET" && workflowCaseMatch) {
+    const caseId = decodeURIComponent(workflowCaseMatch[1]);
+    const [workflowCase, summary, jobs] = await Promise.all([
+      repo.getWorkflowCase(caseId),
+      repo.getWorkflowCaseSummary(caseId),
+      repo.listWorkflowCaseJobs(caseId)
+    ]);
+    if (!workflowCase || !summary) return sendJson(res, 404, { error: "workflow_case_not_found" });
+    return sendJson(res, 200, { case: workflowCase, summary, jobs });
   }
 
   const jobMatch = pathname.match(/^\/api\/launch\/jobs\/([^/]+)(?:\/([^/]+))?$/);
