@@ -1,0 +1,55 @@
+一、维度划分与映射表
+推广路线维度（delivery_route = oceanengine_3_byte_mini_game）=对标媒体渠道+投放形式
+维度	字段（API参数）	显示值	实际值	来源	建议方案
+推广路线	media_id	通投智选（原生竞价）	310	举例.md _media_id	按 delivery_route 保底，本质是旧媒体渠道的资源位
+推广路线	monitor_api	[wxgame]头条微信小游戏	toutiao_wxgame	举例.md _monitor_api	按 delivery_route 保底，本质是媒体的监测链接类型；
+推广路线	os	小游戏	3	举例.md _os_name	按 delivery_route 保底
+游戏	channel_type	H5	H5	举例.md	按 game_slug 保底；
+游戏	channel	dymini3k	dymini3k	举例.md	按 game_slug 保底；本质上乾坤系统的融合渠道；
+关键发现：oceanengine_3_byte_mini_game 在乾坤系统中实际映射为 头条微信小游戏（toutiao_wxgame），os=3（小游戏）。字节小游戏在乾坤系统中归类为"微信小游戏"（os=3），通过抖音/头条渠道投放。
+
+游戏维度（game_slug = jushou-hunt）
+维度	字段（API参数）	显示值	实际值	来源	建议方案
+游戏	cate_id	巨兽战场[122]（巨兽战场）	122	举例.md _cate_id	按 game_slug 保底；本质是乾坤系统的游戏组
+游戏	game_id	-	2023	举例.md	按 game_slug 保底；；本质是乾坤系统的游戏组id
+游戏	vest_id	巨兽战场	1414	举例.md _vest_id	按 game_slug 保底；本质是乾坤系统的马甲包
+游戏	package_id	-	36820	举例.md	按 game_slug 保底；本质是乾坤系统的马甲包融合包id
+
+账户维度（advertiser_id = 1871922175825993）
+维度	字段（API参数）	显示值	实际值	来源	建议方案
+账户	media_account_id	1871922175825993	8443	举例.md _media_account_id	必须查询 accountIndex；本质是乾坤系统的账号id、也是巨量引擎 advertiser_id
+账户	agent_id	北京国新汇金股份有限公司	613	举例.md _agent_id	必须查询 accountIndex；本质是乾坤系统的代理商名词
+账户	owner	冯美钰	fengmeiyu	举例.md _sso_owner	必须查询 accountIndex；；本质是乾坤系统的用户角色
+⚠️ 关键发现：调用 API 时必须传 int 8443（乾坤内部记录ID），不能传字符串 1871922175825993（巨量引擎 advertiser_id）。需要通过 /tf/account_info/accountIndex 查询转换。
+
+固定值
+维度	字段	实际值	建议方案
+固定	num	1	硬编码
+固定	usage	0	保底配置
+固定	package_download_url	""	硬编码空字符串
+
+返回字段（有效触点链接）
+字段	实际值	是否作为巨量引擎 download_url
+wxgame_click_url	https://tf-api.3k.com/v1/media/callback/click?monitor_id=245791&...	✅ 首选
+
+二、用户 3 字段 → 乾坤 13 参数映射关系
+用户输入
+├── advertiser_id = 1871922175825993  ──→ 查询 accountIndex ──→ media_account_id=8443, agent_id=613, owner=fengmeiyu
+├── game_slug = jushou-hunt            ──→ 查表 ──→ package_id=36820, cate_id=122, vest_id=1414
+└── delivery_route = oceanengine_3_byte_mini_game  ──→ 查表 ──→ media_id=310, monitor_api=toutiao_wxgame, os=3, channel=dymini3k
+                                              ↓
+              组装 13 个参数 ──→ 调用 monitorSerialNumberAdd（form-urlencoded）
+                                              ↓
+              返回 monitor_id=245791 + wxgame_click_url（有效触点链接）
+
+
+三、请求格式修正（重要）
+项目	之前假设	实际要求
+Content-Type	application/json	application/x-www-form-urlencoded
+请求体	JSON 对象	os=3&package_id=36820&cate_id=122&...
+
+四、需要确认的问题
+#	问题	建议
+Q1	agent_id=613 和 owner=fengmeiyu 是否仅绑定当前 advertiser_id？换其他账户是否不同？	统一按"不同账户不同值"处理，每次通过 accountIndex 查询
+Q2	usage=0 的固定值是否安全？	先按案例值 0 保底，实际报错后调整
+Q3	重复调用 monitorSerialNumberAdd 是幂等还是每次新建？	需实际测试：连续调 2 次观察 monitor_id 是否相同
