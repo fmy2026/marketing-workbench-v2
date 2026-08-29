@@ -1,5 +1,6 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import {
+  awemeAuthorizationReadinessOnly,
   assertReadonlyReadinessInvocation,
   createOrResolveReadonlyReadinessJob,
   parseReadonlyReadinessArgs,
@@ -32,6 +33,63 @@ try {
   ];
   const args = parseReadonlyReadinessArgs(baseArgv);
   assertReadonlyReadinessInvocation({ args, env: {} });
+  assert(args.scope === "", "default_scope_should_be_empty");
+
+  const awemeScopeArgs = parseReadonlyReadinessArgs([
+    ...baseArgv,
+    "--scope", "aweme_authorization"
+  ]);
+  assert(awemeScopeArgs.scope === "aweme_authorization", "aweme_scope_not_parsed");
+  assertReadonlyReadinessInvocation({ args: awemeScopeArgs, env: {} });
+  const awemeReadinessOutput = awemeAuthorizationReadinessOnly({
+    advertiser_id: "1871922346964041",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    required: true,
+    configured: true,
+    verification_status: "authorized",
+    ready: true,
+    blocker_code: "",
+    next_action: "ready_for_node5_payload_build",
+    default_aweme_id_hash: "sha256:smoke",
+    verified_at: "2026-08-29T00:00:00.000Z",
+    expires_at: null,
+    evidence_ref: "EV-SMOKE",
+    candidate_count: 1,
+    job_id: "JOB-SHOULD-NOT-LEAK"
+  });
+  assert(JSON.stringify(Object.keys(awemeReadinessOutput)) === JSON.stringify([
+    "required",
+    "configured",
+    "verification_status",
+    "ready",
+    "blocker_code",
+    "next_action",
+    "default_aweme_id_hash",
+    "verified_at",
+    "expires_at",
+    "evidence_ref"
+  ]), "aweme_readiness_output_fields_not_minimal");
+  assert(!Object.prototype.hasOwnProperty.call(awemeReadinessOutput, "job_id"), "aweme_readiness_output_leaked_job_id");
+  assert(!Object.prototype.hasOwnProperty.call(awemeReadinessOutput, "candidate_count"), "aweme_readiness_output_leaked_candidate_count");
+
+  let rejectedAwemeScopeResume = false;
+  try {
+    assertReadonlyReadinessInvocation({
+      args: parseReadonlyReadinessArgs([
+        "--scope", "aweme_authorization",
+        "--job-id", "JOB-MWBV2-SMOKE-EXISTING",
+        "--route-id", "oceanengine_3_byte_mini_game",
+        "--game-code", "JSZC",
+        "--advertiser-id", "1871922346964041",
+        "--case-id", workflowCase.case_id
+      ]),
+      env: {}
+    });
+  } catch {
+    rejectedAwemeScopeResume = true;
+  }
+  assert(rejectedAwemeScopeResume, "aweme_scope_job_id_resume_not_rejected");
 
   const created = await createOrResolveReadonlyReadinessJob({
     repo,
@@ -102,6 +160,7 @@ try {
     resumedSameJob: true,
     rejectedWriteFlag,
     rejectedConfirmEnv,
+    rejectedAwemeScopeResume,
     blockedReconcileCountedAsExecuted: blockedReconcile.executed,
     zeroPlatformWriteAudit: {
       launchConfirmations: Number(audit.launchConfirmations || 0),

@@ -94,13 +94,18 @@ assert(createNodeStatusFromSkill({ create: failedCreate, mode: "execute_once" })
 assert(workflowJobUpdateFromSkillResults({ mode: "execute_once", create: failedCreate, readback: readbackSkill("locked") }).status === "failed_waiting_manual_review", "failed create job status mismatch");
 assert(createNodeStatusFromSkill({ create: failedCreate, mode: "execute_once" }).outputSummary.retryAllowed === false, "failed create should forbid retry");
 
+const awemeReadonlyUpdate = workflowJobUpdateFromSkillResults({ mode: "aweme_auth_readonly" });
+assert(awemeReadonlyUpdate.status === "diagnosed", "aweme_auth_readonly_job_status_mismatch");
+assert(awemeReadonlyUpdate.currentNode === "4", "aweme_auth_readonly_current_node_mismatch");
+
 console.log(JSON.stringify({
   status: "passed",
   cases: [
     "blocked_before_create",
     "created_pending_readback",
     "created_and_readback_verified",
-    "create_failed_stop_for_manual_review"
+    "create_failed_stop_for_manual_review",
+    "aweme_auth_readonly_diagnosed"
   ],
   realPlatformCalled: false,
   runtimeTruthWritten: false

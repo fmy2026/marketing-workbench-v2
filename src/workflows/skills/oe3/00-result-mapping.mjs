@@ -128,6 +128,9 @@ export function readbackNodeStatusFromSkill({ readback = {}, mode = "dry_run" } 
 }
 
 export function workflowJobUpdateFromSkillResults({ mode = "dry_run", create = {}, readback = {} } = {}) {
+  if (mode === "aweme_auth_readonly") {
+    return { status: "diagnosed", currentNode: "4" };
+  }
   if (readback.status === "passed" || readback.status === "mock_passed") {
     return { status: "created", currentNode: "7" };
   }

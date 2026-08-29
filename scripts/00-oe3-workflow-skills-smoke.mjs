@@ -94,10 +94,43 @@ try {
   assert(executeBundle.draft?.payload_summary?.final_payload_manifest?.advertiserIdTransportSafe === true, "execute_mock_advertiser_id_transport_not_safe");
   assert(executeBundle.draft?.payload_summary?.final_payload_manifest?.dmpRetargetingTagsExcludeIntegerArray === true, "execute_mock_dmp_payload_not_integer_array");
 
+  const awemeReadonlyJobId = await makeTestJob(repo, `smoke:workflow-skills:aweme-auth-readonly:${new Date().toISOString()}`, cleanupJobIds);
+  const awemeReadonly = await runOe3WorkflowSkills({
+    repo,
+    jobId: awemeReadonlyJobId,
+    mode: "aweme_auth_readonly",
+    mockReady: true
+  });
+  const awemeReadonlyBundle = await repo.getLaunchJobBundle(awemeReadonlyJobId);
+  const awemeReadonlyAudit = await repo.getLaunchJobAuditCounts(awemeReadonlyJobId);
+  const awemeSkillKeys = (awemeReadonlyBundle.skillRuns || []).map((run) => run.skill_key);
+
+  assert(awemeReadonly.summary.currentNode === "4", "aweme_auth_readonly_current_node_not_4");
+  assert(awemeReadonly.summary.jobStatus === "diagnosed", "aweme_auth_readonly_job_not_diagnosed");
+  assert(JSON.stringify(awemeSkillKeys) === JSON.stringify([
+    "intake-normalize",
+    "context-resolve-account",
+    "launch-pack-resolve-game",
+    "launch-pack-resolve-defaults",
+    "aweme-authorization-readonly"
+  ]), "aweme_auth_readonly_skill_boundary_failed");
+  assert(!awemeReadonlyBundle.draft, "aweme_auth_readonly_draft_recorded");
+  assert(!awemeReadonlyBundle.executionPlan, "aweme_auth_readonly_execution_plan_recorded");
+  assert(!awemeReadonlyBundle.platformAction, "aweme_auth_readonly_platform_action_recorded");
+  assert(!awemeReadonlyBundle.createdObject, "aweme_auth_readonly_created_object_recorded");
+  assert(!awemeReadonlyBundle.readback, "aweme_auth_readonly_readback_recorded");
+  assert(Number(awemeReadonlyAudit.drafts || 0) === 0, "aweme_auth_readonly_draft_count_not_zero");
+  assert(Number(awemeReadonlyAudit.executionPlans || 0) === 0, "aweme_auth_readonly_execution_plan_count_not_zero");
+  assert(Number(awemeReadonlyAudit.readbackRecords || 0) === 0, "aweme_auth_readonly_readback_count_not_zero");
+  assert(Number(awemeReadonlyAudit.launchConfirmations || 0) === 0, "aweme_auth_readonly_confirmation_count_not_zero");
+  assert(Number(awemeReadonlyAudit.platformActions || 0) === 0, "aweme_auth_readonly_platform_action_count_not_zero");
+  assert(Number(awemeReadonlyAudit.createdObjects || 0) === 0, "aweme_auth_readonly_created_object_count_not_zero");
+
   const result = {
     status: "passed",
     dryRun: dryRun.summary,
     executeMock: execute.summary,
+    awemeAuthReadonly: awemeReadonly.summary,
     registryValidation,
     scheduleValidation,
     cleanupPlanned: cleanupJobIds.length,

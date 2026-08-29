@@ -200,6 +200,13 @@ assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("
 assert(schedule.indexOf("product-image-source-prepare") < schedule.indexOf("resource-verify-product-image"), "product_verifier_dependency_order_wrong");
 assert(schedule.indexOf("micro-app-instance-readonly") < schedule.indexOf("resource-verify-micro-app-instance"), "micro_verifier_dependency_order_wrong");
 assert(schedule.indexOf("backup-landing-page-source-prepare") < schedule.indexOf("resource-verify-backup-landing-page"), "backup_verifier_dependency_order_wrong");
+assert(JSON.stringify(workflowSkillScheduleForMode("aweme_auth_readonly")) === JSON.stringify([
+  "intake-normalize",
+  "context-resolve-account",
+  "launch-pack-resolve-game",
+  "launch-pack-resolve-defaults",
+  "aweme-authorization-readonly"
+]), "aweme_auth_readonly_schedule_not_minimal");
 assert(validateOe3WorkflowSchedules().status === "passed", "workflow_schedule_validation_failed");
 
 const product = await runProductImageSourcePrepareSkill({ repo, bundle });

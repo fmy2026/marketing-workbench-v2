@@ -59,7 +59,7 @@ import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs"
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
 
-export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only", "planned_actions"]);
+export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
 const MONITOR_SKILLS = new Set(["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]);
@@ -111,6 +111,15 @@ function resourceSkillKey(type) {
 
 function skillsForMode(mode) {
   if (mode === "readback_only") return ["readback-std-project"];
+  if (mode === "aweme_auth_readonly") {
+    return [
+      "intake-normalize",
+      "context-resolve-account",
+      "launch-pack-resolve-game",
+      "launch-pack-resolve-defaults",
+      "aweme-authorization-readonly"
+    ];
+  }
   const monitorDryRun = ["monitor-query", "monitor-plan"];
   const monitorPlannedActions = ["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"];
   if (mode === "planned_actions") {
@@ -176,8 +185,11 @@ function skillsForMode(mode) {
 }
 
 const SCHEDULE_EXTERNAL_DEPENDENCIES = Object.freeze({
-  readback_only: new Set(["create-once"])
+  readback_only: new Set(["create-once"]),
+  aweme_auth_readonly: new Set(["monitor-query", "context-resolve-platform-app"])
 });
+
+const EXECUTION_PLAN_MODES = new Set(["dry_run", "execute_once", "planned_actions"]);
 
 export function workflowSkillScheduleForMode(mode) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
@@ -707,6 +719,67 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   ];
 }
 
+function aggregateAwemeAuthorizationReadonlyNodeRuns({ bundle, skillOutputs }) {
+  const skillOutput = (key) => skillOutputs.get(key) || {};
+  const contextAccount = skillOutput("context-resolve-account");
+  const game = skillOutput("launch-pack-resolve-game");
+  const defaults = skillOutput("launch-pack-resolve-defaults");
+  const awemeAuthorization = skillOutput("aweme-authorization-readonly");
+  const contextBlocked = contextAccount.status === "blocked";
+  const packBlocked = game.status === "blocked" || defaults.status === "blocked";
+  const awemeBlocked = awemeAuthorization.status === "blocked";
+
+  return [
+    nodeStatus({
+      nodeKey: "launch_intake",
+      status: skillOutput("intake-normalize").status || "passed",
+      summary: "route_id、game_code、advertiser_id 已归一。",
+      outputSummary: skillOutput("intake-normalize").outputSummary || {}
+    }),
+    nodeStatus({
+      nodeKey: "creation_context",
+      status: contextBlocked ? "blocked" : "passed",
+      summary: contextBlocked ? "账户上下文未就绪。" : "账户上下文已由 Skill 装配。",
+      diagnosticLevel: contextBlocked ? "error" : "info",
+      outputSummary: {
+        account: contextAccount.outputSummary || {}
+      }
+    }),
+    nodeStatus({
+      nodeKey: "game_launch_pack",
+      status: packBlocked ? "blocked" : "passed",
+      summary: packBlocked ? "游戏主档或路线默认值缺失。" : "游戏主档和路线默认值已由 Skill 装配。",
+      diagnosticLevel: packBlocked ? "error" : "info",
+      outputSummary: {
+        game: game.outputSummary || {},
+        defaults: defaults.outputSummary || {}
+      }
+    }),
+    nodeStatus({
+      nodeKey: "account_resource_prepare",
+      status: awemeBlocked ? "blocked" : "passed",
+      summary: awemeBlocked ? "固定默认 aweme_id 授权只读核验未通过。" : "固定默认 aweme_id 授权只读核验已通过。",
+      diagnosticLevel: awemeBlocked ? "error" : "info",
+      outputSummary: {
+        awemeAuthorization: awemeAuthorization.outputSummary || {},
+        blockers: awemeAuthorization.blockers || [],
+        skillLayer: "src/workflows/skills/oe3"
+      },
+      evidenceRefs: awemeAuthorization.evidenceRefs || []
+    }),
+    ...WORKFLOW_NODES.slice(4).map((node) => ({
+      ...node,
+      status: "waiting",
+      summary: "aweme_auth_readonly 只执行至 Node 4。",
+      diagnosticLevel: "pending",
+      outputSummary: {},
+      evidenceRefs: [],
+      started: false,
+      finished: false
+    }))
+  ];
+}
+
 export async function runOe3WorkflowSkills({
   repo,
   jobId,
@@ -728,13 +801,16 @@ export async function runOe3WorkflowSkills({
   awemeAuthorizationClient = null
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
+  if (mode === "aweme_auth_readonly" && allowReadonlyDependency !== true && mockReady !== true) {
+    throw new Error("aweme_auth_readonly_requires_readonly_dependency");
+  }
   const numericAttemptNo = Number(createAttemptNo || 1);
   if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
     throw new Error("invalid_std_project_create_attempt_no");
   }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
-  if (mode !== "readback_only") {
+  if (EXECUTION_PLAN_MODES.has(mode)) {
     await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
@@ -778,13 +854,18 @@ export async function runOe3WorkflowSkills({
       context.bundle = bundle;
       context.touchpointVerification = await getTouchpointVerification(repo, bundle);
     }
-    const nodes = aggregateNodeRuns({
-      bundle: context.bundle,
-      mode,
-      skillOutputs: context.skillOutputs
-    });
+    const nodes = mode === "aweme_auth_readonly"
+      ? aggregateAwemeAuthorizationReadonlyNodeRuns({
+        bundle: context.bundle,
+        skillOutputs: context.skillOutputs
+      })
+      : aggregateNodeRuns({
+        bundle: context.bundle,
+        mode,
+        skillOutputs: context.skillOutputs
+      });
     await repo.upsertNodeRuns(jobId, nodes);
-    if (mode !== "readback_only") {
+    if (EXECUTION_PLAN_MODES.has(mode)) {
       await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
     }
     if (mode === "dry_run") {

@@ -3,6 +3,28 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { runMonitorProvisionCommand } from "../src/workflows/skills/oe3/02-monitor-provision.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "../src/workflows/skills/oe3/00-contracts.mjs";
+import { runOe3WorkflowSkills } from "../src/workflows/skills/oe3/00-runner.mjs";
+
+const AWEME_AUTH_READINESS_FIELDS = [
+  "required",
+  "configured",
+  "verification_status",
+  "ready",
+  "blocker_code",
+  "next_action",
+  "default_aweme_id_hash",
+  "verified_at",
+  "expires_at",
+  "evidence_ref"
+];
+
+const AWEME_AUTH_READONLY_SKILLS = [
+  "intake-normalize",
+  "context-resolve-account",
+  "launch-pack-resolve-game",
+  "launch-pack-resolve-defaults",
+  "aweme-authorization-readonly"
+];
 
 const FORBIDDEN_FLAGS = new Set([
   "execute",
@@ -51,6 +73,7 @@ function flagNames(argv) {
 
 export function parseReadonlyReadinessArgs(argv = process.argv.slice(2)) {
   return {
+    scope: argValue(argv, "scope"),
     routeId: argValue(argv, "route-id"),
     gameCode: argValue(argv, "game-code").toUpperCase(),
     advertiserId: argValue(argv, "advertiser-id"),
@@ -67,6 +90,8 @@ export function assertReadonlyReadinessInvocation({ args, env = process.env } = 
   const forbiddenFlags = args.flags.filter((name) => FORBIDDEN_FLAGS.has(name));
   const forbiddenEnv = FORBIDDEN_ENV_NAMES.filter((name) => env[name]);
   const missing = [];
+  if (args.scope && args.scope !== "aweme_authorization") throw new Error("readonly_readiness_scope_not_supported");
+  if (args.scope === "aweme_authorization" && args.jobId) throw new Error("aweme_authorization_scope_requires_fresh_job");
   if (!args.jobId && !args.routeId) missing.push("route_id");
   if (!args.jobId && !args.gameCode) missing.push("game_code");
   if (!args.jobId && !args.advertiserId) missing.push("advertiser_id");
@@ -77,6 +102,33 @@ export function assertReadonlyReadinessInvocation({ args, env = process.env } = 
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(",")}`);
   if (forbiddenFlags.length) throw new Error(`forbidden_write_or_mock_flags:${forbiddenFlags.join(",")}`);
   if (forbiddenEnv.length) throw new Error(`forbidden_confirmation_or_refresh_env:${forbiddenEnv.join(",")}`);
+}
+
+export function awemeAuthorizationReadinessOnly(row = {}) {
+  return Object.fromEntries(AWEME_AUTH_READINESS_FIELDS.map((key) => [key, row?.[key] ?? null]));
+}
+
+function assertAwemeAuthorizationReadonlyBoundary({ bundle, auditCounts }) {
+  const skillKeys = (bundle.skillRuns || []).map((run) => run.skill_key);
+  const unexpectedSkills = skillKeys.filter((key) => !AWEME_AUTH_READONLY_SKILLS.includes(key));
+  const missingSkills = AWEME_AUTH_READONLY_SKILLS.filter((key) => !skillKeys.includes(key));
+  if (unexpectedSkills.length || missingSkills.length) {
+    throw new Error(`aweme_authorization_scope_skill_boundary_failed:${[
+      ...unexpectedSkills.map((key) => `unexpected:${key}`),
+      ...missingSkills.map((key) => `missing:${key}`)
+    ].join(",")}`);
+  }
+  const forbiddenCounts = [
+    ["drafts", auditCounts.drafts],
+    ["executionPlans", auditCounts.executionPlans],
+    ["readbackRecords", auditCounts.readbackRecords],
+    ["launchConfirmations", auditCounts.launchConfirmations],
+    ["platformActions", auditCounts.platformActions],
+    ["createdObjects", auditCounts.createdObjects]
+  ].filter(([, value]) => Number(value || 0) > 0);
+  if (forbiddenCounts.length) {
+    throw new Error(`aweme_authorization_scope_forbidden_records:${forbiddenCounts.map(([key]) => key).join(",")}`);
+  }
 }
 
 function requireSame(value, expected, label) {
@@ -285,10 +337,44 @@ export async function runReadonlyReadiness({ repo = new PostgresRepository(), ar
   return summary;
 }
 
+export async function runAwemeAuthorizationReadonlyReadiness({
+  repo = new PostgresRepository(),
+  args,
+  env = process.env,
+  sourceRecordPrefix
+} = {}) {
+  assertReadonlyReadinessInvocation({ args, env });
+  if (args.scope !== "aweme_authorization") throw new Error("aweme_authorization_scope_required");
+  const job = await createOrResolveReadonlyReadinessJob({
+    repo,
+    args,
+    sourceRecordPrefix: sourceRecordPrefix || "workflow:readonly-readiness:aweme_authorization"
+  });
+  await runOe3WorkflowSkills({
+    repo,
+    jobId: job.jobId,
+    mode: "aweme_auth_readonly",
+    allowReadonlyDependency: true
+  });
+  const bundle = await repo.getLaunchJobBundle(job.jobId);
+  const auditCounts = await repo.getLaunchJobAuditCounts(job.jobId);
+  assertAwemeAuthorizationReadonlyBoundary({ bundle, auditCounts });
+  const readiness = await repo.getAdvertiserAwemeAuthorizationReadiness({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id
+  });
+  const summary = sanitizeForPublic(awemeAuthorizationReadinessOnly(readiness || {}));
+  assertNoSensitiveLeak(summary);
+  return summary;
+}
+
 async function main() {
   const args = parseReadonlyReadinessArgs();
   try {
-    const summary = await runReadonlyReadiness({ args });
+    const summary = args.scope === "aweme_authorization"
+      ? await runAwemeAuthorizationReadonlyReadiness({ args })
+      : await runReadonlyReadiness({ args });
     console.log(JSON.stringify(summary, null, 2));
   } catch (error) {
     const output = sanitizeForPublic({

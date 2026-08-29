@@ -1,0 +1,136 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-AWEME-AUTH-READONLY-FRESH-JOB",
+  "status": "completed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "Codex",
+  "user_request_ref": "current_thread:standard_project_create_correction_aweme_node4_readonly",
+  "brief": {
+    "goal": "新增固定 aweme_id Node 4 专用只读核验闭环，只输出既有 readiness 报表。",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "scope": "aweme_authorization_only"
+  },
+  "fixed_target": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "default_aweme_id": "57018827026"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AWEME-AUTH-READONLY-FRESH-JOB.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTH-READONLY-FRESH-JOB.json",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-result-mapping.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "package.json"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "case_summary": "mwb.workflow_case_summary",
+    "aweme_readiness_view": "mwb.v_advertiser_aweme_authorization_readiness",
+    "aweme_authorization_fact": "mwb.advertiser_accounts.aweme_authorization",
+    "workflow": "src/workflows/launchWorkflow.mjs",
+    "workflow_skills": "src/workflows/skills/oe3",
+    "repository": "src/repositories/postgresRepository.mjs",
+    "scripts": "scripts/"
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-AWEME-AUTH-READONLY-FRESH-JOB.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTH-READONLY-FRESH-JOB.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/00-result-mapping.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+    "scripts/00-create-result-mapping-smoke.mjs"
+  ],
+  "forbidden_changes": [
+    "db migrations",
+    "table definitions",
+    "view definitions",
+    "API routes",
+    "frontend UI",
+    "mwb.account_resources storage model"
+  ],
+  "allowed_platform_readonly_endpoints": [
+    "tools/aweme_auth_list"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "Node 5 payload or draft build",
+    "execution plan compile/save in aweme_auth_readonly mode",
+    "launch confirmation",
+    "platform action",
+    "created object",
+    "readback record",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "writing token/secret/auth_code/Cookie/full touchpoint URL/raw payload/raw response to project files or normal logs"
+  ],
+  "validation_plan": [
+    "node --check changed modules/scripts",
+    "npm run smoke:workflow-skills",
+    "npm run test:readonly-readiness-cli",
+    "npm run test:aweme-authorization",
+    "npm run test:payload-contract",
+    "git diff --check"
+  ],
+  "closed_state": {
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829095429-804E65",
+    "job_status": "diagnosed",
+    "current_node": "4",
+    "skill_run_count": 5,
+    "skill_keys": [
+      "intake-normalize",
+      "context-resolve-account",
+      "launch-pack-resolve-game",
+      "launch-pack-resolve-defaults",
+      "aweme-authorization-readonly"
+    ],
+    "drafts": 0,
+    "execution_plans": 0,
+    "readback_records": 0,
+    "launch_confirmations": 0,
+    "platform_actions": 0,
+    "created_objects": 0,
+    "readiness": {
+      "required": true,
+      "configured": true,
+      "verification_status": "probe_failed",
+      "ready": false,
+      "blocker_code": "aweme_auth_probe_failed",
+      "next_action": "fix_readonly_query_or_credentials_then_rerun_node4",
+      "default_aweme_id_hash": "sha256:6e5a979b1bb07720edf8d98ba7b065aa54bfe6bb9ba52a1b6eb3594bd42b2e0d",
+      "verified_at": "2026-08-29T09:54:30.500Z",
+      "expires_at": "",
+      "evidence_ref": "EV-JOB-MWBV2-20260829095429-804E65-AWEME-AUTHORIZATION-READONLY"
+    },
+    "validation": [
+      "npm run test:create-result-mapping",
+      "npm run test:node4-resource-prep-contracts",
+      "npm run test:readonly-readiness-cli",
+      "npm run smoke:workflow-skills",
+      "npm run test:aweme-authorization",
+      "npm run test:payload-contract",
+      "git diff --check"
+    ],
+    "no_real_platform_write": true,
+    "no_token_refresh": true
+  }
+}
