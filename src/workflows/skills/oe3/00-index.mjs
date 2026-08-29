@@ -23,6 +23,11 @@ export {
   stablePayloadHash
 } from "./05-payload-contract.mjs";
 export {
+  TITLE_MATERIAL_CONTRACT,
+  evaluateTitleMaterialPayloadList,
+  evaluateTitleMaterialSourceEntries
+} from "./05-title-materials-contract.mjs";
+export {
   OE3_WORKFLOW_MODES,
   runOe3WorkflowSkills,
   validateOe3WorkflowSchedules,

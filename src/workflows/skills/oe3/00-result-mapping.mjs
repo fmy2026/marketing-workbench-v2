@@ -140,7 +140,7 @@ export function workflowJobUpdateFromSkillResults({ mode = "dry_run", create = {
   if (create.status === "passed") {
     return { status: "created_pending_readback", currentNode: "7" };
   }
-  if (mode === "dry_run" || mode === "execute_once") {
+  if (mode === "dry_run" || mode === "draft_readiness" || mode === "execute_once") {
     return { status: "draft_ready", currentNode: "5" };
   }
   if (mode === "planned_actions") {

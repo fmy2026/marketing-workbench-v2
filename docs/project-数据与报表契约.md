@@ -115,9 +115,9 @@ B｜当前数据分层与责任边界
     ↓
   game_platform_apps ────────────────→ 游戏对应平台 App
     ↓
-  game_assets ───────────────────────→ 游戏级资产候选
+  game_assets ───────────────────────→ 游戏级资产主档：视频、图片、头像、标题等可复用素材
     ↓
-  material_packs / material_pack_items → 创建所需保底物料集合
+  material_packs / material_pack_items → 创建所需保底物料集合；把游戏素材绑定到具体路线
     ↓
   landing_page_assets ───────────────→ 备用落地页资产
     ↓
@@ -131,6 +131,23 @@ B｜当前数据分层与责任边界
   输出：Node 03 游戏保底包、Node 04 资源蓝图、Node 05 草稿默认值。
   写入者：受控 migration、种子或明确的配置维护流程。
   不可作为：账户实时状态、Job 运行事实、投放效果指标。
+
+  标题素材约定：
+    `game_assets.asset_type = 'title_material'`
+      一行一条可投放标题，`asset_name` 保存标题正文，`asset_ref` / `asset_hash`
+      保存稳定素材身份与内容 hash。
+    `material_pack_items.item_type = 'title_material'`
+      负责把标题资产装入具体路线物料包；Node 05 只消费该类型，不从视频 /
+      图片 `asset_name` 或路线默认 JSON 回退生成标题。
+    官方合同：
+      `POST /open_api/v3.0/std_project/create/` 的
+      `project_materials.title_material_list[].title`，数量 0-30，标题长度
+      5-55，2 个英文字符占 1 个字符。V2 创建前策略要求至少 1 条明确
+      标题资产。
+    未来汇总：
+      `games → game_assets(title_material) → material_pack_items → material_packs
+      → 后续效果事实`。当前不新增标题报表；接入效果事实后按 `asset_id`
+      聚合标题表现，避免迁移历史 JSON 文案。
 
 [L2 账户业务真值]
   advertiser_accounts

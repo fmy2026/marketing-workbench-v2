@@ -5,6 +5,10 @@ import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/0
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
+import {
+  TITLE_MATERIAL_CONTRACT,
+  evaluateTitleMaterialSourceEntries
+} from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -30,6 +34,16 @@ function productSellingPointPayloadDiagnostic(points) {
   }).diagnostics.find((item) => item.check_id === "contract:product_selling_points");
 }
 
+function titleMaterialPayloadDiagnostic(items) {
+  return evaluateStdProjectCreatePreflight({
+    payload: {
+      project_materials: {
+        title_material_list: items
+      }
+    }
+  }).diagnostics.find((item) => item.check_id === "contract:title_material_list");
+}
+
 function productSellingPointManifestPreflight({
   count,
   minChars,
@@ -50,6 +64,58 @@ function productSellingPointManifestPreflight({
       productSellingPointsBlockerCount: blockerCount
     }
   }).diagnostics.find((item) => item.check_id === "manifest:product_selling_points");
+}
+
+function titleMaterialManifestPreflight({
+  count,
+  minChars,
+  maxChars,
+  validated = true,
+  blockerCount = 0,
+  source = TITLE_MATERIAL_CONTRACT.source,
+  ruleVersion = TITLE_MATERIAL_CONTRACT.ruleVersion,
+  assetIds = Array.from({ length: count || 0 }, (_, index) => `TM-${index}`),
+  assetHashes = Array.from({ length: count || 0 }, (_, index) => `sha256:${String(index).padStart(64, "0")}`),
+  packId = "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+  sourceTypeMismatchCount = 0,
+  filenameLikeCount = 0
+} = {}) {
+  return evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      titleMaterialSource: source,
+      titleMaterialPackId: packId,
+      titleMaterialContractRuleVersion: ruleVersion,
+      titleMaterialAssetIds: assetIds,
+      titleMaterialAssetHashes: assetHashes,
+      titleMaterialCount: count,
+      titleMaterialMinChars: minChars,
+      titleMaterialMaxChars: maxChars,
+      titleMaterialValidated: validated,
+      titleMaterialBlockerCount: blockerCount,
+      titleMaterialSourceTypeMismatchCount: sourceTypeMismatchCount,
+      titleMaterialFilenameLikeCount: filenameLikeCount
+    }
+  }).diagnostics.find((item) => item.check_id === "manifest:title_materials");
+}
+
+function titleEntry({ title = "开局一把枪，装备全靠捡，看你能射多远！", id = "TM-1", itemType = "title_material", assetType = "title_material", required = true, status = "active", sortOrder = 101 } = {}) {
+  return {
+    item: {
+      item_type: itemType,
+      required,
+      status,
+      sort_order: sortOrder,
+      asset_id: id,
+      asset_ref: id
+    },
+    asset: {
+      asset_id: id,
+      asset_type: assetType,
+      asset_name: title,
+      asset_ref: id,
+      asset_hash: `sha256:${id.padEnd(64, "0").slice(0, 64)}`
+    }
+  };
 }
 
 async function createTestJob(sourceRecordRef) {
@@ -163,6 +229,14 @@ try {
   assert(mockManifest.productSellingPointsCount >= 1 && mockManifest.productSellingPointsCount <= 10, "mock selling_points count out of range");
   assert(mockManifest.productSellingPointsMinChars >= 6, "mock selling_points min chars out of range");
   assert(mockManifest.productSellingPointsMaxChars <= 9, "mock selling_points max chars out of range");
+  assert(mockManifest.titleMaterialSource === TITLE_MATERIAL_CONTRACT.source, "mock title_material source mismatch");
+  assert(mockManifest.titleMaterialValidated === true, "mock title_material contract not validated");
+  assert(mockManifest.titleMaterialCount >= 1 && mockManifest.titleMaterialCount <= 30, "mock title_material count out of range");
+  assert(mockManifest.titleMaterialMinChars >= 5, "mock title_material min chars out of range");
+  assert(mockManifest.titleMaterialMaxChars <= 55, "mock title_material max chars out of range");
+  assert(mockManifest.titleMaterialAssetIds?.length === mockManifest.titleMaterialCount, "mock title_material asset IDs not recorded");
+  assert(mockManifest.titleMaterialAssetHashes?.length === mockManifest.titleMaterialCount, "mock title_material asset hashes not recorded");
+  assert(!mockManifest.titleMaterialTitles, "mock manifest must not store raw title list");
   assert(mockManifest.miniProgramUrlRequired === true, "mock BYTE_GAME MICRO_GAME route should require mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkPresent === true, "mock BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
@@ -200,6 +274,30 @@ try {
   assert(productSellingPointPayloadDiagnostic(["开局装备全靠捡", 123])?.blocker_code === "product_selling_points_item_not_string:1", "non-string selling_points payload should block");
   assert(productSellingPointManifestPreflight({ count: 3, minChars: 7, maxChars: 8 })?.status === "passed", "valid selling_points manifest should pass");
   assert(productSellingPointManifestPreflight({ count: 3, minChars: 4, maxChars: 8 })?.blocker_code === "product_selling_points_contract_not_verified", "invalid selling_points manifest should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "开局一把枪，装备全靠捡，看你能射多远！" }])?.status === "passed", "valid title_material payload should pass");
+  assert(titleMaterialPayloadDiagnostic([{ title: "四字标题" }])?.blocker_code === "title_material_item_length_out_of_range:0:4", "4-char title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "a".repeat(112) }])?.blocker_code === "title_material_item_length_out_of_range:0:56", "56-char title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([])?.blocker_code === "title_material_count_out_of_range:0", "empty title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic(Array.from({ length: 31 }, () => ({ title: "开局一把枪，装备全靠捡，看你能射多远！" })))?.blocker_code === "title_material_count_out_of_range:31", "over-30 title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: 123 }])?.blocker_code === "title_material_item_not_string:0", "non-string title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "开局一把枪，装备全靠捡，看你能射多远！" }, { title: "开局一把枪，装备全靠捡，看你能射多远！" }])?.blocker_code === "title_material_item_duplicate:1", "duplicate title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "JSZC-HUNT-4GE6-14" }])?.blocker_code === "title_material_item_filename_like:0", "filename-like title_material payload should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "abcdefgh" }])?.blocker_code === "title_material_item_length_out_of_range:0:4", "English half-count below 5 should block");
+  assert(titleMaterialPayloadDiagnostic([{ title: "abcdefghi" }])?.status === "passed", "English half-count at 5 should pass");
+  assert(titleMaterialManifestPreflight({ count: 3, minChars: 12, maxChars: 25 })?.status === "passed", "valid title_material manifest should pass");
+  assert(titleMaterialManifestPreflight({ count: 3, minChars: 4, maxChars: 25 })?.blocker_code === "title_material_contract_not_verified", "invalid title_material manifest should block");
+  assert(titleMaterialManifestPreflight({ count: 3, minChars: 12, maxChars: 25, filenameLikeCount: 1 })?.blocker_code === "title_material_contract_not_verified", "filename-like manifest should block");
+  assert(evaluateTitleMaterialSourceEntries([
+    titleEntry({ id: "TM-1", sortOrder: 101 }),
+    titleEntry({ id: "TM-2", title: "3分钟上手，5分钟上头，来试试你能过多少关卡！", sortOrder: 102 }),
+    titleEntry({ id: "TM-3", title: "2026超魔性的休闲策略小游戏，无需下载，点开即玩！", sortOrder: 103 })
+  ]).status === "passed", "valid title_material source entries should pass");
+  assert(evaluateTitleMaterialSourceEntries([
+    titleEntry({ id: "VIDEO-1", itemType: "video_asset", assetType: "video_asset", title: "射击野猪+口播改MD5=荒野狙击" })
+  ]).blockers.includes("route_title_material_count_out_of_range:0"), "missing title_material source should block");
+  assert(evaluateTitleMaterialSourceEntries([
+    titleEntry({ id: "VIDEO-1", itemType: "title_material", assetType: "video_asset", title: "射击野猪+口播改MD5=荒野狙击" })
+  ]).blockers.some((item) => item.startsWith("route_title_material_asset_type_mismatch:")), "non-title asset source should block");
 
   const result = {
     dryRun: {

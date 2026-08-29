@@ -7,6 +7,7 @@ import { buildOe3StdProjectPayload } from "./05-payload.mjs";
 import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
+import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -362,6 +363,27 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       sellingPointMaxChars <= SELLING_POINTS_CONTRACT.maxChars &&
       Number(finalManifest.productSellingPointsBlockerCount || 0) === 0
     );
+  const titleMaterialCount = Number(finalManifest.titleMaterialCount || 0);
+  const titleMaterialMinChars = Number(finalManifest.titleMaterialMinChars || 0);
+  const titleMaterialMaxChars = Number(finalManifest.titleMaterialMaxChars || 0);
+  const titleMaterialAssetIds = Array.isArray(finalManifest.titleMaterialAssetIds) ? finalManifest.titleMaterialAssetIds : [];
+  const titleMaterialAssetHashes = Array.isArray(finalManifest.titleMaterialAssetHashes) ? finalManifest.titleMaterialAssetHashes : [];
+  const finalPayloadTitleMaterialsOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.titleMaterialValidated === true &&
+      finalManifest.titleMaterialContractRuleVersion === TITLE_MATERIAL_CONTRACT.ruleVersion &&
+      finalManifest.titleMaterialSource === TITLE_MATERIAL_CONTRACT.source &&
+      titleMaterialCount >= TITLE_MATERIAL_CONTRACT.minItems &&
+      titleMaterialCount <= TITLE_MATERIAL_CONTRACT.maxItems &&
+      titleMaterialMinChars >= TITLE_MATERIAL_CONTRACT.minChars &&
+      titleMaterialMaxChars <= TITLE_MATERIAL_CONTRACT.maxChars &&
+      titleMaterialAssetIds.length === titleMaterialCount &&
+      titleMaterialAssetHashes.length === titleMaterialCount &&
+      Boolean(clean(finalManifest.titleMaterialPackId)) &&
+      Number(finalManifest.titleMaterialBlockerCount || 0) === 0 &&
+      Number(finalManifest.titleMaterialSourceTypeMismatchCount || 0) === 0 &&
+      Number(finalManifest.titleMaterialFilenameLikeCount || 0) === 0
+    );
   const awemeAuthorization = finalManifest.awemeAuthorization || {};
   const awemeStatusAllowed = String(awemeAuthorization.status || "") === "authorized";
   const finalPayloadAwemeOk = !usesFinalPayloadHash ||
@@ -526,6 +548,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       summary: finalPayloadSellingPointsOk
         ? `商品卖点来自路线默认值，数量 ${sellingPointCount}，长度范围 ${sellingPointMinChars}-${sellingPointMaxChars}。`
         : "商品卖点未满足官方 1-10 项、每项 6-9 字合同。"
+    },
+    {
+      key: "title_materials",
+      status: finalPayloadTitleMaterialsOk ? "passed" : "blocked",
+      summary: finalPayloadTitleMaterialsOk
+        ? `标题素材来自 game_assets，数量 ${titleMaterialCount}，长度范围 ${titleMaterialMinChars}-${titleMaterialMaxChars}。`
+        : "标题素材未满足 game_assets 来源、官方 1-30 项、每项 5-55 字合同，或疑似使用了文件名/内部素材名。"
     },
     {
       key: "aweme_auth",

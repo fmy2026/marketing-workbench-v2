@@ -3,6 +3,10 @@ import {
   SELLING_POINTS_CONTRACT,
   evaluateSellingPointsContract
 } from "./05-selling-points-contract.mjs";
+import {
+  TITLE_MATERIAL_CONTRACT,
+  evaluateTitleMaterialPayloadList
+} from "./05-title-materials-contract.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -236,6 +240,28 @@ function checkProductSellingPoints(payload) {
     actualValue: value,
     blockerCode: result.blockers[0] || "product_selling_points_invalid",
     repairHint: "product_info.selling_points 必须来自路线默认值，且每项为 6-9 个 Unicode 字符，最多 10 项。"
+  });
+}
+
+function checkTitleMaterialList(payload) {
+  const path = "project_materials.title_material_list";
+  const value = valueAt(payload, path);
+  const result = evaluateTitleMaterialPayloadList(value, {
+    blockerPrefix: "title_material"
+  });
+  return diag({
+    checkId: "contract:title_material_list",
+    fieldPath: path,
+    status: result.status,
+    expectedTypeOrRule: `object_array_count_${TITLE_MATERIAL_CONTRACT.minItems}_${TITLE_MATERIAL_CONTRACT.maxItems}_title_chars_${TITLE_MATERIAL_CONTRACT.minChars}_${TITLE_MATERIAL_CONTRACT.maxChars}_english_letters_half`,
+    actualValue: {
+      count: result.count,
+      minChars: result.minChars,
+      maxChars: result.maxChars,
+      rawPayloadStored: false
+    },
+    blockerCode: result.blockers[0] || "title_material_invalid",
+    repairHint: "title_material_list 必须来自 game_assets 的 title_material 资产，每项 title 长度 5-55，且不得是文件名或内部素材编号。"
   });
 }
 
@@ -510,6 +536,50 @@ function checkProductSellingPointsManifest(manifest = {}) {
   });
 }
 
+function checkTitleMaterialManifest(manifest = {}) {
+  const count = Number(manifest.titleMaterialCount || 0);
+  const minChars = Number(manifest.titleMaterialMinChars || 0);
+  const maxChars = Number(manifest.titleMaterialMaxChars || 0);
+  const assetIds = Array.isArray(manifest.titleMaterialAssetIds) ? manifest.titleMaterialAssetIds : [];
+  const assetHashes = Array.isArray(manifest.titleMaterialAssetHashes) ? manifest.titleMaterialAssetHashes : [];
+  const passed = manifest.titleMaterialValidated === true &&
+    clean(manifest.titleMaterialSource) === TITLE_MATERIAL_CONTRACT.source &&
+    clean(manifest.titleMaterialContractRuleVersion) === TITLE_MATERIAL_CONTRACT.ruleVersion &&
+    count >= TITLE_MATERIAL_CONTRACT.minItems &&
+    count <= TITLE_MATERIAL_CONTRACT.maxItems &&
+    minChars >= TITLE_MATERIAL_CONTRACT.minChars &&
+    maxChars <= TITLE_MATERIAL_CONTRACT.maxChars &&
+    assetIds.length === count &&
+    assetHashes.length === count &&
+    clean(manifest.titleMaterialPackId) &&
+    Number(manifest.titleMaterialBlockerCount || 0) === 0 &&
+    Number(manifest.titleMaterialSourceTypeMismatchCount || 0) === 0 &&
+    Number(manifest.titleMaterialFilenameLikeCount || 0) === 0;
+  return diag({
+    checkId: "manifest:title_materials",
+    fieldPath: "final_payload_manifest.titleMaterials",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `game_assets_title_material_count_${TITLE_MATERIAL_CONTRACT.minItems}_${TITLE_MATERIAL_CONTRACT.maxItems}_chars_${TITLE_MATERIAL_CONTRACT.minChars}_${TITLE_MATERIAL_CONTRACT.maxChars}_source_typed`,
+    actualValue: {
+      source: manifest.titleMaterialSource || "",
+      packIdPresent: Boolean(clean(manifest.titleMaterialPackId)),
+      ruleVersion: manifest.titleMaterialContractRuleVersion || "",
+      count,
+      minChars,
+      maxChars,
+      assetIdCount: assetIds.length,
+      assetHashCount: assetHashes.length,
+      validated: manifest.titleMaterialValidated === true,
+      blockerCount: Number(manifest.titleMaterialBlockerCount || 0),
+      sourceTypeMismatchCount: Number(manifest.titleMaterialSourceTypeMismatchCount || 0),
+      filenameLikeCount: Number(manifest.titleMaterialFilenameLikeCount || 0),
+      rawPayloadStored: false
+    },
+    blockerCode: "title_material_contract_not_verified",
+    repairHint: "重新生成 Node 5 草稿；若仍失败，修正 material_pack_items 与 game_assets 中的 title_material 配置。"
+  });
+}
+
 function checkOfficialFieldEvidence(manifest = {}) {
   const evidence = manifest.officialFieldEvidence || {};
   const blockers = Array.isArray(evidence.blockerCodes) ? evidence.blockerCodes : [];
@@ -582,6 +652,7 @@ export function evaluateStdProjectCreatePreflight({
     diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude"));
     diagnostics.push(checkHttpsStringArray(payload, "project_materials.external_url_material_list"));
     diagnostics.push(checkProductSellingPoints(payload));
+    diagnostics.push(checkTitleMaterialList(payload));
     diagnostics.push(...checkAllowedFields(payload));
   } else {
     const blockers = Array.isArray(requestFieldManifest.blockers) ? requestFieldManifest.blockers : [];
@@ -660,6 +731,7 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkCreateWireBodyManifest(requestFieldManifest));
   diagnostics.push(checkAwemeAuthorizationManifest(requestFieldManifest));
   diagnostics.push(checkProductSellingPointsManifest(requestFieldManifest));
+  diagnostics.push(checkTitleMaterialManifest(requestFieldManifest));
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 

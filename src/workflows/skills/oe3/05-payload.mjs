@@ -15,6 +15,10 @@ import {
   evaluateSellingPointsContract,
   sellingPointsManifest
 } from "./05-selling-points-contract.mjs";
+import {
+  evaluateTitleMaterialSourceEntries,
+  titleMaterialsManifest
+} from "./05-title-materials-contract.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -223,21 +227,15 @@ function configSellingPoints(config = {}, dotted = "", blockers = []) {
   return result.items;
 }
 
-function titleMaterials(bundle = {}, payloadDefaults = {}) {
-  const gameName = clean(bundle.game?.game_name || bundle.game?.product_name || "产品");
+function titleMaterials(bundle = {}) {
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  const names = materialItems
-    .map((entry) => clean(entry.asset?.asset_name))
-    .filter((title) => title.length >= 5 && title.length <= 30);
-  const configured = Array.isArray(payloadDefaults.product?.title_materials)
-    ? payloadDefaults.product.title_materials
-    : [];
-  return unique([
-    ...configured,
-    `来${gameName}开荒`,
-    `${gameName}福利开局`,
-    ...names
-  ]).slice(0, 30).map((title) => ({ title }));
+  const result = evaluateTitleMaterialSourceEntries(materialItems, {
+    blockerPrefix: "route_title_material"
+  });
+  return {
+    ...result,
+    packId: clean(bundle.materialPack?.pack?.pack_id)
+  };
 }
 
 function videoMaterials(bundle = {}) {
@@ -393,7 +391,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   miniProgramLaunchLink = {},
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {},
-  awemeAuthorization = {}
+  awemeAuthorization = {},
+  titleMaterialResult = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
@@ -425,6 +424,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
     ...sellingPointsContract.blockers,
+    ...(titleMaterialResult.blockers || []),
     ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
     ...(!backupLandingPage.checks?.present ? ["backup_landing_page_default_missing"] : []),
     ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.active ? ["backup_landing_page_not_active"] : []),
@@ -462,7 +462,8 @@ function fieldManifest(payload = {}, blockers = [], {
   miniProgramLaunchLink = {},
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {},
-  awemeAuthorization = {}
+  awemeAuthorization = {},
+  titleMaterialResult = {}
 } = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
@@ -476,6 +477,7 @@ function fieldManifest(payload = {}, blockers = [], {
     source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
     blockerPrefix: "product_selling_points"
   });
+  const titleSummary = titleMaterialsManifest(titleMaterialResult);
   const instanceTransportStrategy = typeof instanceValue === "string" &&
     instanceIdCreateEvidence.longIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY
     ? INSTANCE_ID_WIRE_STRATEGY
@@ -539,11 +541,11 @@ function fieldManifest(payload = {}, blockers = [], {
       blockers: awemeAuthorization.blockers || []
     },
     ...sellingPointsSummary,
+    ...titleSummary,
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
     videoCoverReadyCount: (materials.video_material_list || []).filter((item) => item.video_cover_id).length,
-    titleMaterialCount: materials.title_material_list?.length || 0,
     backupLandingPagePresent: Boolean(materials.external_url_material_list?.length),
     backupLandingPageSiteId: backupLandingPage.siteId || "",
     backupLandingPageAssetId: backupLandingPage.assetId || "",
@@ -621,6 +623,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const instanceIdValue = platformLongIdString(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"]));
   const instanceIdCreateEvidence = getInstanceIdCreateEvidence(officialContract, { resourceId: instanceIdValue });
   const awemeAuthorization = awemeAuthorizationReadiness(bundle, { payloadDefaults, awemeIdBaseline });
+  const titleMaterialResult = titleMaterials(bundle);
 
   const requestedPayload = {
     advertiser_id: advertiserIdForTransport(advertiserIdStorageValue),
@@ -659,7 +662,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     },
     brand_info: brand,
     project_materials: {
-      title_material_list: titleMaterials(bundle, payloadDefaults),
+      title_material_list: titleMaterialResult.items || [],
       video_material_list: videoMaterials(bundle),
       image_material_list: [],
       external_url_material_list: backupLandingPage.ready ? [backupLandingPage.url] : [],
@@ -709,7 +712,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     miniProgramLaunchLink: miniProgramLink,
     officialFieldEvidence,
     instanceIdCreateEvidence,
-    awemeAuthorization
+    awemeAuthorization,
+    titleMaterialResult
   });
   const wireBody = buildStdProjectCreateWireBody(payload);
   const payloadHash = wireBody.bodyHash || hashValue(payload);
@@ -724,7 +728,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       miniProgramLaunchLink: miniProgramLink,
       officialFieldEvidence,
       instanceIdCreateEvidence,
-      awemeAuthorization
+      awemeAuthorization,
+      titleMaterialResult
     }),
     blockers
   };

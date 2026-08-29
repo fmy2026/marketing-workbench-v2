@@ -59,7 +59,7 @@ import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs"
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
 
-export const OE3_WORKFLOW_MODES = new Set(["dry_run", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
+export const OE3_WORKFLOW_MODES = new Set(["dry_run", "draft_readiness", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
 const MONITOR_SKILLS = new Set(["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]);
@@ -434,7 +434,7 @@ async function executeSkill({ repo, context, skillKey }) {
     result = await runResourceBlueprintBootstrapSkill({ repo, bundle: context.bundle });
     // The initial plan may have seen no target account resource rows. Rebuild it
     // after candidate materialization so later gates use the current local truth.
-    if (result.status === "passed") {
+    if (result.status === "passed" && EXECUTION_PLAN_MODES.has(context.mode)) {
       await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
@@ -486,7 +486,9 @@ async function executeSkill({ repo, context, skillKey }) {
         bundle: context.bundle,
         previousOutputs: context.skillOutputs
       });
-      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
+      if (EXECUTION_PLAN_MODES.has(context.mode)) {
+        await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
+      }
     }
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "video-material-bind-plan") {

@@ -1,0 +1,159 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829",
+  "task_ref": "tasks/TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829.md",
+  "status": "completed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "user_request_ref": "current_thread:implement_problem_3_title_materials_as_game_assets",
+  "solution_link": {
+    "source": "current_thread:confirmed_problem_3_title_materials_as_game_assets; docs/Solution Design.md; docs/.问题排查/3.0项目创建排查对比/v2项目创建失败原因排查-20260828.md",
+    "objective": "Store JSZC title copy as game-level title_material assets in mwb.game_assets, link them through the existing material pack, and enforce the official title_material_list contract before std_project/create.",
+    "current_truth": "PostgreSQL marketing_workbench_v2.mwb, current code/schema, this manifest, official std_project/create title_material_list contract.",
+    "stop_condition": "Stop on any platform write, std_project/create call, material update call, raw payload/response/token persistence, historical draft reuse, new report/view creation, or unresolved fresh Node 5 title blocker."
+  },
+  "brief": {
+    "goal": "Replace generated/file-name title fallback with explicit game_assets title_material rows and source plus pre-create validation.",
+    "mode": "local_code_schema_docs_and_fresh_runtime_truth_draft_validation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "scope": "node5_title_material_contract_only"
+  },
+  "fixed_target": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "material_pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/.问题排查/3.0项目创建排查对比/v2项目创建失败原因排查-20260828.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/更新项目自选素材状态.md",
+    "db/046_jszc_title_materials_game_assets.sql",
+    "src/workflows/skills/oe3/05-title-materials-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "package.json"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "title_assets": "mwb.game_assets where asset_type = 'title_material'",
+    "title_pack_links": "mwb.material_pack_items where item_type = 'title_material'",
+    "material_pack": "mwb.material_packs",
+    "case_summary": "mwb.workflow_case_summary",
+    "workflow": "src/workflows/launchWorkflow.mjs",
+    "workflow_skills": "src/workflows/skills/oe3"
+  },
+  "allowed_local_writes": [
+    "tasks/TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-TITLE-MATERIALS-GAME-ASSETS-20260829.json",
+    "project.state.json",
+    "docs/project-数据与报表契约.md",
+    "db/046_jszc_title_materials_game_assets.sql",
+    "mwb.game_assets",
+    "mwb.material_pack_items",
+    "mwb.launch_jobs",
+    "mwb.launch_node_runs",
+    "mwb.launch_skill_runs",
+    "mwb.launch_drafts",
+    "mwb.evidence_artifacts",
+    "src/workflows/skills/oe3/05-title-materials-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/05-game-route-launch-link-smoke.mjs"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "std_project/create title_material_list contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:160"
+    },
+    {
+      "purpose": "material title_material_list matching contract evidence; reference only, do not call",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/更新项目自选素材状态.md:73"
+    }
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "tools/project_material_type/update",
+    "launch confirmation",
+    "execution plan compile or save for real create",
+    "platform action",
+    "created object",
+    "real readback record",
+    "new report or view",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "writing token, secret, auth_code, Cookie, full URL, raw request, raw response, or raw payload"
+  ],
+  "validation_plan": [
+    "psql apply db/046_jszc_title_materials_game_assets.sql",
+    "npm run test:payload-contract",
+    "npm run test:aweme-authorization",
+    "npm run smoke:workflow-skills",
+    "fresh runtime-truth draft_readiness job for CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "psql readback of fresh job title material manifest and zero-write audit",
+    "git diff --check"
+  ],
+  "result": {
+    "status": "completed",
+    "summary": "Stored JSZC baseline titles as game-level title_material assets, linked them through the existing material pack, and enforced title source plus official length/count contract in Node 5 payload build, payload contract, and create preflight.",
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829131422-9CF5E6",
+    "job_status": "draft_ready",
+    "current_node": "5",
+    "title_materials": {
+      "source": "postgres:mwb.material_packs+material_pack_items+game_assets.asset_type=title_material",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_ids": [
+        "TM-JSZC-HUNT-HUNTING-BASELINE-001-001",
+        "TM-JSZC-HUNT-HUNTING-BASELINE-001-002",
+        "TM-JSZC-HUNT-HUNTING-BASELINE-001-003"
+      ],
+      "count": 3,
+      "min_chars": 19,
+      "max_chars": 26,
+      "validated": true,
+      "blocker_count": 0,
+      "filename_like_count": 0,
+      "source_type_mismatch_count": 0,
+      "raw_titles_stored_in_manifest": false
+    },
+    "validation": [
+      "psql -X -d marketing_workbench_v2 -f db/046_jszc_title_materials_game_assets.sql",
+      "npm run test:payload-contract",
+      "npm run smoke:workflow-skills",
+      "npm run test:aweme-authorization",
+      "npm run test:mini-game-launch-link",
+      "fresh runtime-truth draft_readiness job JOB-MWBV2-20260829131422-9CF5E6",
+      "git diff --check"
+    ],
+    "audit_counts": {
+      "drafts": 1,
+      "execution_plans": 0,
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "readback_records": 0
+    },
+    "no_real_platform_write": true,
+    "no_token_refresh": true,
+    "new_report_or_view_created": false
+  }
+}

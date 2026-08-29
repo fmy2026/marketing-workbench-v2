@@ -77,7 +77,7 @@ function bundle() {
           strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM" },
           schedule: { schedule_type: "SCHEDULE_START_END" },
           targeting: { district: "CITY", gender: "GENDER_UNLIMITED", age: [], converted_time_duration: "SIX_MONTH", hide_if_converted: "NO_EXCLUDE", interest_action_mode: "CUSTOM" },
-          product: { selling_points: ["真实福利"], call_to_action_buttons: ["立即下载"], anchor_related_type: "OFF", title_materials: ["巨兽战场福利开局"] }
+          product: { selling_points: ["开局装备全靠捡"], call_to_action_buttons: ["立即下载"], anchor_related_type: "OFF" }
         }
       }
     },
@@ -85,6 +85,9 @@ function bundle() {
       items: [{
         item: { item_type: "video_asset", required: true, asset_id: "VIDEO-1" },
         asset: { asset_id: "VIDEO-1", asset_name: "巨兽战场福利开局", metadata: { video_id: "v1", video_cover_id: "c1" } }
+      }, {
+        item: { item_type: "title_material", required: true, status: "active", asset_id: "TITLE-1", asset_ref: "TITLE-1" },
+        asset: { asset_id: "TITLE-1", asset_type: "title_material", asset_name: "巨兽战场福利开局", asset_ref: "TITLE-1", asset_hash: "sha256:title" }
       }]
     },
     backupLandingPage: {
