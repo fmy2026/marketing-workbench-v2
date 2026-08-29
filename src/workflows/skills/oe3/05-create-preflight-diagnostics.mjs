@@ -414,15 +414,27 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
   const authorization = manifest.awemeAuthorization || {};
   const blockers = Array.isArray(authorization.blockers) ? authorization.blockers : [];
   const required = authorization.required === true;
+  const statusAllowed = authorization.fixedDefaultPolicy === true
+    ? authorization.status === "default_authorized"
+    : ["auto_selected", "manual_selected"].includes(authorization.status);
   const passed = !required || (
     manifest.awemeIdPresent === true &&
     manifest.awemeIdValidated === true &&
     manifest.awemeIdFromAvatar === false &&
     manifest.awemeIdLooksLikeImageResource === false &&
     manifest.awemeIdValueShape === "digit_string" &&
-    authorization.status && ["auto_selected", "manual_selected"].includes(authorization.status) &&
+    statusAllowed &&
     authorization.selectedActive === true &&
     authorization.accountMatches === true &&
+    (
+      authorization.fixedDefaultPolicy !== true ||
+      (
+        authorization.defaultAwemeIdConfigured === true &&
+        authorization.defaultAwemeAuthorized === true &&
+        authorization.selectedMatchesDefault === true &&
+        Boolean(authorization.defaultAwemeIdHash)
+      )
+    ) &&
     Boolean(authorization.verifiedAt) &&
     Boolean(manifest.awemeIdHash)
   );
@@ -439,15 +451,20 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
       awemeIdFromAvatar: manifest.awemeIdFromAvatar === true,
       awemeIdLooksLikeImageResource: manifest.awemeIdLooksLikeImageResource === true,
       status: authorization.status || "missing",
+      selectionPolicy: authorization.selectionPolicy || "",
       selectedActive: authorization.selectedActive === true,
       accountMatches: authorization.accountMatches === true,
+      fixedDefaultPolicy: authorization.fixedDefaultPolicy === true,
+      defaultAwemeIdConfigured: authorization.defaultAwemeIdConfigured === true,
+      defaultAwemeAuthorized: authorization.defaultAwemeAuthorized === true,
+      selectedMatchesDefault: authorization.selectedMatchesDefault === true,
       candidateCount: Number(authorization.candidateCount || 0),
       verifiedAtPresent: Boolean(authorization.verifiedAt),
       evidenceRefPresent: Boolean(authorization.evidenceRef),
       blockers
     },
     blockerCode: blockers[0] || (manifest.awemeIdLooksLikeImageResource ? "aweme_id_avatar_image_uri_rejected" : "aweme_auth_not_verified"),
-    repairHint: "先在 Node 4 只读核验账户授权抖音号；多候选时在工作台选择后重跑 Node 4，再让 Node 5 生成 aweme_id。"
+    repairHint: "先在 Node 4 只读核验账户抖音号授权关系；固定默认策略必须确认该账户拥有默认 aweme_id 后，Node 5 才能生成 aweme_id。"
   });
 }
 

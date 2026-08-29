@@ -22,12 +22,14 @@ function makeRepo() {
   };
 }
 
-function clientWithCandidates(candidates, { status = "passed" } = {}) {
+function clientWithCandidates(candidates, { status = "passed", calls = [] } = {}) {
   return {
     credentialState() {
       return { status: "ready", blockers: [] };
     },
-    async get({ label, endpoint, summarize }) {
+    async get(args) {
+      const { label, endpoint, summarize } = args;
+      calls.push(args);
       const payload = { data: { list: candidates } };
       return {
         label,
@@ -38,7 +40,7 @@ function clientWithCandidates(candidates, { status = "passed" } = {}) {
         requestIdPresent: true,
         dataPresent: true,
         responseHash: "sha256:aweme-smoke",
-        requestFieldManifest: { fieldNames: ["advertiser_id", "filtering", "page", "page_size"], rawQueryStored: false },
+        requestFieldManifest: args.requestFieldManifest || { fieldNames: ["advertiser_id", "filtering", "page", "page_size"], rawQueryStored: false },
         summary: status === "passed" ? summarize(payload) : {},
         gap: status === "passed" ? "" : "smoke_probe_failed"
       };
@@ -46,7 +48,7 @@ function clientWithCandidates(candidates, { status = "passed" } = {}) {
   };
 }
 
-function bundle({ existingAuthorization = {} } = {}) {
+function bundle({ existingAuthorization = {}, awemeBaseline = {} } = {}) {
   return {
     job: {
       job_id: "JOB-SMOKE-AWEME-AUTHORIZATION",
@@ -104,7 +106,8 @@ function bundle({ existingAuthorization = {} } = {}) {
           accepted_auth_status: ["AUTHRIZED", "AUTHORIZED"],
           selection_policy: "single_active_auto_select_else_manual_select",
           fallback_forbidden: true,
-          contract_version: "test"
+          contract_version: "test",
+          ...awemeBaseline
         },
         official_create_field_contract: {
           field_rules: {
@@ -151,6 +154,19 @@ const activeTwo = [
     auth_status: "AUTHORIZED"
   }
 ];
+const jszcDefaultAwemeId = "57018827026";
+const fixedBaseline = {
+  selection_policy: "fixed_game_default_account_verify",
+  default_aweme_id: jszcDefaultAwemeId,
+  default_aweme_id_hash: "sha256:6e5a979b1bb07720edf8d98ba7b065aa54bfe6bb9ba52a1b6eb3594bd42b2e0d",
+  contract_version: "test-fixed"
+};
+const fixedDefaultCandidate = [{
+  aweme_id: jszcDefaultAwemeId,
+  aweme_name: "JSZC default aweme",
+  auth_type: "AWEME_ACCOUNT",
+  auth_status: "AUTHRIZED"
+}];
 
 const singleRepo = makeRepo();
 const single = await runAwemeAuthorizationReadonlySkill({
@@ -222,6 +238,74 @@ const probeFailed = await runAwemeAuthorizationReadonlySkill({
 assert(probeFailed.status === "blocked", "probe_failure_should_block");
 assert(probeFailed.blockers.includes("aweme_auth_probe_failed"), "probe_failure_blocker_missing");
 
+const fixedCalls = [];
+const fixedRepo = makeRepo();
+const fixedDefault = await runAwemeAuthorizationReadonlySkill({
+  repo: fixedRepo,
+  bundle: bundle({ awemeBaseline: fixedBaseline }),
+  client: clientWithCandidates(fixedDefaultCandidate, { calls: fixedCalls }),
+  allowReadonlyDependency: true
+});
+assert(fixedDefault.status === "passed", "fixed_default_authorized_should_pass");
+assert(fixedDefault.outputSummary.awemeAuthorizationStatus === "default_authorized", "fixed_default_status_should_be_default_authorized");
+assert(fixedRepo.writes.at(-1).authorization.selected_aweme_id === jszcDefaultAwemeId, "fixed_default_selected_id_mismatch");
+assert(fixedRepo.writes.at(-1).authorization.default_aweme_authorized === true, "fixed_default_authorized_flag_missing");
+assert(fixedCalls.length === 1, "fixed_default_should_query_once");
+const fixedFiltering = JSON.parse(fixedCalls[0].query.filtering);
+assert(Array.isArray(fixedFiltering.aweme_ids), "fixed_default_filtering_aweme_ids_missing");
+assert(fixedFiltering.aweme_ids[0] === jszcDefaultAwemeId, "fixed_default_filtering_aweme_id_mismatch");
+assert(fixedFiltering.auth_type === "AWEME_ACCOUNT", "fixed_default_filtering_auth_type_missing");
+
+const fixedOtherRepo = makeRepo();
+const fixedOther = await runAwemeAuthorizationReadonlySkill({
+  repo: fixedOtherRepo,
+  bundle: bundle({ awemeBaseline: fixedBaseline }),
+  client: clientWithCandidates(activeOne),
+  allowReadonlyDependency: true
+});
+assert(fixedOther.status === "blocked", "fixed_default_other_candidate_should_block");
+assert(fixedOther.blockers.includes("aweme_default_not_returned"), "fixed_default_not_returned_blocker_missing");
+assert(fixedOtherRepo.writes.at(-1).authorization.selection_status === "default_not_authorized", "fixed_other_status_should_be_not_authorized");
+
+const fixedInactiveRepo = makeRepo();
+const fixedInactive = await runAwemeAuthorizationReadonlySkill({
+  repo: fixedInactiveRepo,
+  bundle: bundle({ awemeBaseline: fixedBaseline }),
+  client: clientWithCandidates([{
+    ...fixedDefaultCandidate[0],
+    auth_status: "INVALID"
+  }]),
+  allowReadonlyDependency: true
+});
+assert(fixedInactive.status === "blocked", "fixed_default_inactive_should_block");
+assert(fixedInactive.blockers.includes("aweme_default_authorization_inactive"), "fixed_inactive_blocker_missing");
+
+const fixedPayload = buildOe3StdProjectPayload({
+  bundle: bundle({
+    awemeBaseline: fixedBaseline,
+    existingAuthorization: fixedRepo.writes.at(-1).authorization
+  })
+});
+assert(fixedPayload.payload.aweme_id === jszcDefaultAwemeId, "fixed_payload_should_use_default_aweme_id");
+assert(!fixedPayload.blockers.some((item) => item.includes("aweme")), "fixed_payload_should_have_no_aweme_blockers");
+
+const fixedBypass = buildOe3StdProjectPayload({
+  bundle: bundle({
+    awemeBaseline: fixedBaseline,
+    existingAuthorization: {
+      ...fixedRepo.writes.at(-1).authorization,
+      selected_aweme_id: "1000000000000000001",
+      selected_aweme_id_hash: "sha256:wrong",
+      active_candidates: activeOne,
+      default_aweme_authorized: true,
+      selection_status: "default_authorized",
+      verified_at: new Date().toISOString()
+    }
+  })
+});
+assert(fixedBypass.payload.aweme_id === undefined || fixedBypass.payload.aweme_id === "", "fixed_bypass_payload_should_omit_aweme_id");
+assert(fixedBypass.blockers.includes("aweme_default_selected_mismatch"), "fixed_bypass_should_block_default_mismatch");
+
 const payload = buildOe3StdProjectPayload({
   bundle: bundle({
     existingAuthorization: {
@@ -242,9 +326,20 @@ const preflight = evaluateStdProjectCreatePreflight({
 });
 assert(preflight.blocker_codes.includes("aweme_id_invalid_shape:web_business_image_uri"), "preflight_aweme_shape_blocker_missing");
 
+const fixedPreflight = evaluateStdProjectCreatePreflight({
+  requestFieldManifest: fixedPayload.requestFieldManifest,
+  payloadContractStatus: "blocked"
+});
+assert(!fixedPreflight.blocker_codes.some((item) => item.includes("aweme")), "fixed_preflight_should_accept_default_authorized_manifest");
+
 const result = {
   status: "passed",
   singleStatus: single.outputSummary.awemeAuthorizationStatus,
+  fixedDefaultStatus: fixedDefault.outputSummary.awemeAuthorizationStatus,
+  fixedDefaultQueryCount: fixedCalls.length,
+  fixedDefaultBlockers: fixedOther.blockers,
+  fixedInactiveBlockers: fixedInactive.blockers,
+  fixedPayloadAwemeIdHash: fixedPayload.requestFieldManifest.awemeIdHash,
   multipleBlockers: multiple.blockers,
   noActiveBlockers: none.blockers,
   inactiveBlockers: inactive.blockers,

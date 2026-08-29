@@ -1,4 +1,4 @@
-import { OE3_RESOURCE_LABELS } from "./00-contracts.mjs";
+import { OE3_RESOURCE_LABELS, hashValue } from "./00-contracts.mjs";
 import { backupLandingPageReadiness as node3BackupLandingPageReadiness } from "./03-landing-page-readiness.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 
@@ -118,6 +118,14 @@ export function mockReadyBundle(bundle = {}) {
     fallback_forbidden: true,
     contract_version: "test_fixture:aweme-id-account-auth-v1"
   };
+  const awemeBaseline = defaults.raw_defaults.aweme_id_baseline;
+  const fixedDefaultAweme = clean(awemeBaseline.selection_policy) === "fixed_game_default_account_verify";
+  const mockAwemeId = fixedDefaultAweme && clean(awemeBaseline.default_aweme_id)
+    ? clean(awemeBaseline.default_aweme_id)
+    : "1000000000000000001";
+  const mockAwemeIdHash = fixedDefaultAweme && clean(awemeBaseline.default_aweme_id_hash)
+    ? clean(awemeBaseline.default_aweme_id_hash)
+    : hashValue(mockAwemeId);
   const instanceEvidence = defaults.raw_defaults?.official_create_field_contract?.instance_id_create_evidence;
   if (instanceEvidence) {
     Object.assign(instanceEvidence, {
@@ -164,12 +172,16 @@ export function mockReadyBundle(bundle = {}) {
         advertiser_id: bundle.job?.advertiser_id || "",
         route_id: bundle.job?.route_id || "",
         game_code: bundle.job?.game_code || "",
-        selected_aweme_id: "1000000000000000001",
-        selected_aweme_id_hash: "sha256:84ae849973d7a133b1367b72eabb9f174ef327f05ef380c31d1fc3ceb38ea482",
+        selection_policy: fixedDefaultAweme ? "fixed_game_default_account_verify" : "single_active_auto_select_else_manual_select",
+        default_aweme_id_configured: fixedDefaultAweme,
+        default_aweme_id_hash: fixedDefaultAweme ? mockAwemeIdHash : "",
+        default_aweme_authorized: fixedDefaultAweme,
+        selected_aweme_id: mockAwemeId,
+        selected_aweme_id_hash: mockAwemeIdHash,
         selected_display_name_summary: "mock aweme",
         active_candidates: [{
-          aweme_id: "1000000000000000001",
-          aweme_id_hash: "sha256:84ae849973d7a133b1367b72eabb9f174ef327f05ef380c31d1fc3ceb38ea482",
+          aweme_id: mockAwemeId,
+          aweme_id_hash: mockAwemeIdHash,
           display_name_summary: "mock aweme",
           auth_type: "AWEME_ACCOUNT",
           auth_status: "AUTHRIZED",
@@ -179,7 +191,7 @@ export function mockReadyBundle(bundle = {}) {
           expires_at: ""
         }],
         active_candidate_count: 1,
-        selection_status: "auto_selected",
+        selection_status: fixedDefaultAweme ? "default_authorized" : "auto_selected",
         verified_at: new Date().toISOString(),
         evidence_artifact_id: "",
         response_body_stored: false

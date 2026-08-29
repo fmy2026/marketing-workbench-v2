@@ -145,23 +145,37 @@ function awemeIdShape(value) {
 function awemeAuthorizationReadiness(bundle = {}, { payloadDefaults = {}, awemeIdBaseline = {} } = {}) {
   const authorization = bundle.account?.aweme_authorization || {};
   const required = awemeRequired({ payloadDefaults, awemeIdBaseline });
+  const selectionPolicy = clean(awemeIdBaseline.selection_policy || authorization.selection_policy || "single_active_auto_select_else_manual_select");
+  const fixedDefaultPolicy = selectionPolicy === "fixed_game_default_account_verify";
+  const defaultAwemeId = clean(awemeIdBaseline.default_aweme_id || authorization.default_aweme_id);
+  const defaultAwemeIdHash = defaultAwemeId ? hashValue(defaultAwemeId) : clean(awemeIdBaseline.default_aweme_id_hash || authorization.default_aweme_id_hash);
   const selectedAwemeId = clean(authorization.selected_aweme_id);
   const candidates = Array.isArray(authorization.active_candidates) ? authorization.active_candidates : [];
   const selectedActive = Boolean(selectedAwemeId && candidates.some((candidate) => clean(candidate.aweme_id) === selectedAwemeId));
   const selectionStatus = clean(authorization.selection_status || "not_verified");
-  const statusAllowed = ["auto_selected", "manual_selected"].includes(selectionStatus);
+  const statusAllowed = fixedDefaultPolicy
+    ? selectionStatus === "default_authorized"
+    : ["auto_selected", "manual_selected"].includes(selectionStatus);
   const accountMatches = (!authorization.advertiser_id || clean(authorization.advertiser_id) === clean(bundle.job?.advertiser_id)) &&
     (!authorization.route_id || clean(authorization.route_id) === clean(bundle.job?.route_id)) &&
     (!authorization.game_code || clean(authorization.game_code) === clean(bundle.job?.game_code));
   const shape = awemeIdShape(selectedAwemeId);
+  const defaultShape = awemeIdShape(defaultAwemeId);
+  const selectedMatchesDefault = !fixedDefaultPolicy || Boolean(selectedAwemeId && defaultAwemeId && selectedAwemeId === defaultAwemeId);
+  const defaultHashMatches = !fixedDefaultPolicy ||
+    Boolean(defaultAwemeIdHash && clean(authorization.selected_aweme_id_hash || hashValue(selectedAwemeId)) === defaultAwemeIdHash);
   const blockers = required ? [
     ...(!awemeIdBaseline.source || awemeIdBaseline.fallback_forbidden !== true ? ["aweme_id_baseline_missing_or_incomplete"] : []),
+    ...(fixedDefaultPolicy && defaultShape !== "digit_string" ? [`aweme_default_aweme_id_invalid_shape:${defaultShape}`] : []),
     ...(!authorization.verified_at ? ["aweme_auth_not_verified"] : []),
     ...(!statusAllowed ? [`aweme_auth_${selectionStatus || "not_verified"}`] : []),
     ...(!selectedAwemeId ? ["aweme_auth_selected_aweme_id_missing"] : []),
     ...(shape !== "digit_string" ? [`aweme_id_invalid_shape:${shape}`] : []),
     ...(!selectedActive ? ["aweme_auth_selected_not_in_active_candidates"] : []),
     ...(!accountMatches ? ["aweme_auth_account_scope_mismatch"] : []),
+    ...(fixedDefaultPolicy && !selectedMatchesDefault ? ["aweme_default_selected_mismatch"] : []),
+    ...(fixedDefaultPolicy && !defaultHashMatches ? ["aweme_default_hash_mismatch"] : []),
+    ...(fixedDefaultPolicy && authorization.default_aweme_authorized !== true ? ["aweme_default_not_authorized"] : []),
     ...(authorization.fallback_forbidden === false ? ["aweme_auth_fallback_not_forbidden"] : [])
   ] : [];
   return {
@@ -172,6 +186,12 @@ function awemeAuthorizationReadiness(bundle = {}, { payloadDefaults = {}, awemeI
     selectedActive,
     accountMatches,
     selectionStatus,
+    selectionPolicy,
+    fixedDefaultPolicy,
+    defaultAwemeIdConfigured: Boolean(defaultAwemeId),
+    defaultAwemeIdHash,
+    defaultAwemeAuthorized: authorization.default_aweme_authorized === true,
+    selectedMatchesDefault,
     verifiedAt: clean(authorization.verified_at),
     expiresAt: clean(authorization.expires_at),
     responseHashPresent: Boolean(clean(authorization.response_hash)),
@@ -496,9 +516,15 @@ function fieldManifest(payload = {}, blockers = [], {
     awemeAuthorization: {
       required: awemeAuthorization.required === true,
       status: awemeAuthorization.selectionStatus || "not_verified",
+      selectionPolicy: awemeAuthorization.selectionPolicy || "",
       ready: awemeAuthorization.ready === true,
       selectedActive: awemeAuthorization.selectedActive === true,
       accountMatches: awemeAuthorization.accountMatches === true,
+      fixedDefaultPolicy: awemeAuthorization.fixedDefaultPolicy === true,
+      defaultAwemeIdConfigured: awemeAuthorization.defaultAwemeIdConfigured === true,
+      defaultAwemeIdHash: awemeAuthorization.defaultAwemeIdHash || "",
+      defaultAwemeAuthorized: awemeAuthorization.defaultAwemeAuthorized === true,
+      selectedMatchesDefault: awemeAuthorization.selectedMatchesDefault === true,
       candidateCount: awemeAuthorization.candidateCount || 0,
       verifiedAt: awemeAuthorization.verifiedAt || "",
       expiresAt: awemeAuthorization.expiresAt || "",

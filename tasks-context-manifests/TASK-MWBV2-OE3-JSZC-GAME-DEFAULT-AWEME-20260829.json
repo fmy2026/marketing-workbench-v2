@@ -1,0 +1,90 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829.md",
+  "status": "completed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Implement JSZC fixed game-route default aweme_id 57018827026 with advertiser-account readonly authorization verification before Node 5 payload generation.",
+    "mode": "local_code_and_schema_implementation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "default_aweme_id": "57018827026",
+    "runtime_write_scope": "schema_and_sanitized_runtime_records_only",
+    "source_record_ref": "user_confirmed_jszc_fixed_default_aweme_requirement_20260829"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829.json",
+    "tasks/TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828.json",
+    "docs/.问题排查/3.0项目创建排查对比/v2项目创建失败原因排查-20260828.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "schemas/postgres-minimal-truth.md",
+    "package.json"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "aweme_id std_project/create field contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/创建标准项目.md"
+    },
+    {
+      "purpose": "tools/aweme_auth_list readonly authorization relationship source",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/08-工具.md"
+    }
+  ],
+  "boundaries": {
+    "allowed_actions": [
+      "local_code_change",
+      "local_migration_file",
+      "local_tests",
+      "readonly_authorization_probe_when_explicitly_run",
+      "record:sanitized_evidence_and_hash_only"
+    ],
+    "forbidden": [
+      "std_project/create",
+      "launch confirmation",
+      "token refresh",
+      "monitor create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "raw payload storage",
+      "raw response storage",
+      "full URL storage"
+    ]
+  },
+  "validation_plan": [
+    "npm run test:aweme-authorization",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run validate:schemas",
+    "git diff --check"
+  ],
+  "result": {
+    "status": "completed",
+    "summary": "Implemented JSZC fixed game-route default aweme_id 57018827026. Node 4 readonly verification now probes only the fixed default ID for each advertiser account; Node 5, payload contract and preflight require the verified selected ID to match the game default. Workbench displays fixed default readiness and blocks manual candidate selection for fixed policy routes.",
+    "no_real_platform_write": true,
+    "no_token_refresh": true,
+    "runtime_truth_note": "57018827026 is configured as a JSZC game-route default only. The four JSZC advertiser accounts remain not_verified / aweme_auth_not_verified until Node 4 readonly authorization probing succeeds for each target account."
+  }
+}

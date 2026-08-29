@@ -77,9 +77,12 @@
 
     const meta = el("div", "aweme-meta");
     [
+      ["策略", auth.fixedDefaultPolicy ? "固定默认" : "候选选择"],
+      ["默认", auth.defaultAwemeIdConfigured ? "已配置" : "未配置"],
       ["候选", String(auth.activeCandidateCount || 0)],
       ["已选", auth.selectedAwemeIdPresent ? "是" : "否"],
-      ["核验", auth.verifiedAt ? "已核验" : "未核验"]
+      ["核验", auth.verifiedAt ? "已核验" : "未核验"],
+      ["默认授权", auth.fixedDefaultPolicy ? (auth.defaultAwemeAuthorized ? "有效" : "未通过") : "不适用"]
     ].forEach(([label, value]) => {
       const item = el("span", "aweme-meta-item");
       item.append(el("em", "", label));
@@ -89,7 +92,15 @@
     panel.append(meta);
 
     const candidates = auth.candidates || [];
-    if (candidates.length > 1) {
+    if (auth.fixedDefaultPolicy && auth.defaultAwemeIdHash) {
+      const item = el("span", "aweme-meta-item");
+      item.title = auth.defaultAwemeIdHash;
+      item.append(el("em", "", "默认ID"));
+      item.append(el("b", "", auth.defaultAwemeIdHash.slice(0, 18)));
+      meta.append(item);
+    }
+
+    if (!auth.fixedDefaultPolicy && candidates.length > 1) {
       const list = el("div", "aweme-candidate-list");
       candidates.forEach((candidate) => {
         const button = el("button", "aweme-candidate", candidate.displayNameSummary || candidate.awemeIdHash || "未命名抖音号");

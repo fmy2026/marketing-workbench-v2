@@ -149,8 +149,8 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "account_resource_prepare",
     dependsOn: ["launch-pack-resolve-defaults", "context-resolve-account"],
     inputContract: ["route_id", "game_code", "advertiser_id", "aweme_id_baseline", "advertiser_accounts.aweme_authorization"],
-    outputContract: ["selection_status", "active_candidate_count", "selected_aweme_id_hash", "verified_at", "evidence_ref"],
-    stopConditions: ["aweme_id_baseline_missing_or_incomplete", "aweme_auth_no_active", "aweme_auth_manual_selection_required", "aweme_auth_selected_inactive", "aweme_auth_probe_failed"],
+    outputContract: ["selection_status", "selection_policy", "default_aweme_id_hash", "active_candidate_count", "selected_aweme_id_hash", "verified_at", "evidence_ref"],
+    stopConditions: ["aweme_id_baseline_missing_or_incomplete", "aweme_default_aweme_id_missing_or_invalid", "aweme_default_not_authorized", "aweme_default_not_returned", "aweme_default_authorization_inactive", "aweme_auth_no_active", "aweme_auth_manual_selection_required", "aweme_auth_selected_inactive", "aweme_auth_probe_failed"],
     writeScope: "launch_skill_runs_advertiser_accounts_evidence_artifacts",
     moduleRef: "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs"
   },

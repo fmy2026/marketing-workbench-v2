@@ -1655,6 +1655,16 @@ export class PostgresRepository {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     const awemeId = assertId("selected_aweme_id", selectedAwemeId, /^[0-9]+$/);
+    const baseline = await queryJson(`
+      SELECT to_jsonb(coalesce(d.raw_defaults->'aweme_id_baseline', '{}'::jsonb))::text
+      FROM mwb.game_route_defaults d
+      WHERE d.route_id = ${sqlLiteral(routeId)}
+        AND d.game_code = ${sqlLiteral(gameCode)}
+      LIMIT 1;
+    `, this.database);
+    if (baseline?.selection_policy === "fixed_game_default_account_verify") {
+      throw new Error("aweme_selection_forbidden_fixed_default_policy");
+    }
     const displayName = String(selectedDisplayName || "").replace(/https?:\/\/\S+/gi, "[link]").trim().slice(0, 80);
     const existing = await queryJson(`
       SELECT to_jsonb(a.aweme_authorization)::text

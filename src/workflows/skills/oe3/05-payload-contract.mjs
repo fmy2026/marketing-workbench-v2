@@ -348,6 +348,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
   const awemeAuthorization = finalManifest.awemeAuthorization || {};
+  const awemeStatusAllowed = awemeAuthorization.fixedDefaultPolicy === true
+    ? String(awemeAuthorization.status || "") === "default_authorized"
+    : ["auto_selected", "manual_selected"].includes(String(awemeAuthorization.status || ""));
   const finalPayloadAwemeOk = !usesFinalPayloadHash ||
     awemeAuthorization.required !== true ||
     (
@@ -356,9 +359,18 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.awemeIdFromAvatar === false &&
       finalManifest.awemeIdLooksLikeImageResource === false &&
       finalManifest.awemeIdValueShape === "digit_string" &&
-      ["auto_selected", "manual_selected"].includes(String(awemeAuthorization.status || "")) &&
+      awemeStatusAllowed &&
       awemeAuthorization.selectedActive === true &&
       awemeAuthorization.accountMatches === true &&
+      (
+        awemeAuthorization.fixedDefaultPolicy !== true ||
+        (
+          awemeAuthorization.defaultAwemeIdConfigured === true &&
+          awemeAuthorization.defaultAwemeAuthorized === true &&
+          awemeAuthorization.selectedMatchesDefault === true &&
+          Boolean(awemeAuthorization.defaultAwemeIdHash)
+        )
+      ) &&
       Boolean(awemeAuthorization.verifiedAt) &&
       Boolean(finalManifest.awemeIdHash)
     );

@@ -298,7 +298,8 @@ p {
 }
 
 .status-chip.status-auto_selected,
-.status-chip.status-manual_selected {
+.status-chip.status-manual_selected,
+.status-chip.status-default_authorized {
   background: var(--green-soft);
   color: var(--green);
 }
