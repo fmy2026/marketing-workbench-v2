@@ -9,6 +9,11 @@ import {
   TITLE_MATERIAL_CONTRACT,
   evaluateTitleMaterialSourceEntries
 } from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
+import {
+  NESTED_FIELD_CONTRACT,
+  evaluateNestedFieldContract,
+  nestedFieldContractManifest
+} from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -98,6 +103,193 @@ function titleMaterialManifestPreflight({
   }).diagnostics.find((item) => item.check_id === "manifest:title_materials");
 }
 
+function createFieldContractManifestPreflight({
+  deliveryEvidence = { fieldPath: "delivery_type", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
+  layerEvidence = { fieldPath: "layer_roi_switch", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
+  omittedFieldPaths = ["micro_promotion_type"],
+  extraFields = []
+} = {}) {
+  return evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      officialFieldEvidence: {
+        status: "passed",
+        blockerCodes: [],
+        omittedFieldPaths,
+        fields: [deliveryEvidence, layerEvidence, ...extraFields].filter(Boolean)
+      }
+    }
+  }).diagnostics.find((item) => item.check_id === "manifest:create_field_contract_delivery_layer_micro");
+}
+
+function createFieldPayloadPreflight(payloadPatch = {}) {
+  return evaluateStdProjectCreatePreflight({
+    payload: {
+      advertiser_id: 123,
+      name: "245791_N_JSZC_TEST_TEST_DEMO_P01_20260829",
+      asset_id: 456,
+      delivery_type: "NORMAL",
+      layer_roi_switch: "OFF",
+      brand_info: { brand_name_id: 1, cdp_brand_id: 2, yuntu_category_id: 3 },
+      audience: {
+        gender: "GENDER_UNLIMITED",
+        hide_if_converted: "NO_EXCLUDE",
+        retargeting_tags_exclude: [123]
+      },
+      project_materials: {
+        external_url_material_list: ["https://example.invalid/backup"],
+        product_info: { selling_points: ["开局装备全靠捡"] },
+        title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }]
+      },
+      ...payloadPatch
+    }
+  });
+}
+
+function nestedFieldManifestPreflight({
+  status = "passed",
+  ruleVersion = NESTED_FIELD_CONTRACT.ruleVersion,
+  source = NESTED_FIELD_CONTRACT.source,
+  checkedPathCount = 16,
+  blockerCount = 0,
+  blockers = [],
+  checkedGroups = ["video_materials", "product_info", "mini_program_info", "track_url_setting", "audience"],
+  rawPayloadStored = false
+} = {}) {
+  return evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      nestedFieldContract: {
+        status,
+        ruleVersion,
+        source,
+        checkedPathCount,
+        blockerCount,
+        blockers,
+        checkedGroups,
+        rawPayloadStored
+      }
+    }
+  }).diagnostics.find((item) => item.check_id === "manifest:nested_field_contract");
+}
+
+function nestedRules() {
+  return {
+    version: NESTED_FIELD_CONTRACT.ruleVersion,
+    source: NESTED_FIELD_CONTRACT.source,
+    groups: {
+      "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
+      "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
+      "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
+      "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
+      "project_materials.anchor_related_type": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:168" },
+      "project_materials.mini_program_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184" },
+      "track_url_setting": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
+      "audience": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
+      "brand_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189" }
+    }
+  };
+}
+
+function nestedContractCase(mutator = () => {}) {
+  const payload = {
+    landing_type: "MICRO_GAME",
+    delivery_medium: "BYTE_GAME",
+    external_action: "AD_CONVERT_TYPE_PAY",
+    audience: {
+      gender: "GENDER_UNLIMITED",
+      hide_if_converted: "NO_EXCLUDE",
+      filter_event: ["AD_CONVERT_TYPE_PAY"],
+      retargeting_tags_exclude: [123]
+    },
+    brand_info: {
+      brand_name_id: 1,
+      cdp_brand_id: 2,
+      cdp_brand_name: "巨兽战场",
+      yuntu_category_id: 3
+    },
+    project_materials: {
+      title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }],
+      video_material_list: [{
+        image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
+        video_id: "v1",
+        video_cover_id: "c1"
+      }],
+      product_info: {
+        titles: ["巨兽战场"],
+        image_ids: ["789"],
+        selling_points: ["开局装备全靠捡"]
+      },
+      call_to_action_buttons: ["立即试玩"],
+      source: "巨兽战场",
+      anchor_related_type: "OFF",
+      mini_program_info: {
+        url: "sslocal://microgame?app_id=tte95a9fe77665844607"
+      }
+    },
+    track_url_setting: {
+      send_type: "SERVER_SEND",
+      action_track_url: ["https://example.invalid/touchpoint"]
+    }
+  };
+  const bundle = {
+    game: { game_name: "巨兽战场", product_name: "巨兽战场", brand_name: "巨兽战场" },
+    defaults: {
+      raw_defaults: {
+        official_create_field_contract: { nested_rules: nestedRules() },
+        payload_defaults: {
+          product: { call_to_action_buttons: ["立即试玩"] }
+        }
+      }
+    },
+    materialPack: {
+      items: [{
+        item: { item_type: "video_asset", required: true, asset_id: "VIDEO-1" },
+        asset: {
+          asset_id: "VIDEO-1",
+          metadata: { video_id: "v1", video_cover_id: "c1" }
+        }
+      }]
+    },
+    resources: [{
+      resource_type: "video_asset",
+      source_asset_id: "VIDEO-1",
+      visibility_status: "visible",
+      readback_status: "readback_verified",
+      metadata: {
+        readonly_check: {
+          status: "passed",
+          video_id_present: true,
+          cover_mode: "explicit_cover_verified",
+          evidence_refs: ["EVIDENCE-VIDEO-1"]
+        }
+      }
+    }, {
+      resource_type: "product_image",
+      platform_resource_id: "789",
+      visibility_status: "visible",
+      readback_status: "readback_verified",
+      metadata: {
+        product_image_target_upload_readback: {
+          status: "passed",
+          image_id_present: true,
+          material_id_present: true
+        }
+      }
+    }]
+  };
+  const miniProgramLaunchLink = {
+    ready: true,
+    checks: { hashMatch: true, appIdMatch: true }
+  };
+  mutator({ payload, bundle, miniProgramLaunchLink });
+  return evaluateNestedFieldContract({
+    payload,
+    bundle,
+    materialReadiness: { status: "passed" },
+    backupLandingPage: { ready: true },
+    miniProgramLaunchLink
+  });
+}
+
 function titleEntry({ title = "开局一把枪，装备全靠捡，看你能射多远！", id = "TM-1", itemType = "title_material", assetType = "title_material", required = true, status = "active", sortOrder = 101 } = {}) {
   return {
     item: {
@@ -176,9 +368,10 @@ try {
   assert(dryManifest.miniProgramLaunchLinkHashMatch === true, "mini_program_info.url hash should match controlled DB hash");
   assert(dryManifest.miniProgramLaunchLinkAppIdMatch === true, "mini_program_info.url should be bound to the active app_id");
   assert(!dryManifest.blockers?.includes("mini_game_launch_url_not_ready"), "ready BYTE_GAME MICRO_GAME route should not emit mini_game_launch_url_not_ready");
-  ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
-    assert(dryFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted without direct create evidence`);
-  });
+  assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "delivery_type" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "delivery_type should be sent with direct create evidence");
+  assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "layer_roi_switch" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "layer_roi_switch should be sent with direct create evidence");
+  assert(dryFieldEvidence.omittedFieldPaths?.includes("micro_promotion_type"), "micro_promotion_type should be omitted from create payload");
+  assert(!dryFieldEvidence.fields?.some((field) => field.fieldPath === "micro_promotion_type"), "micro_promotion_type should not be a sent field");
   assert(dry.bundle.draft.payload_summary.payload_hash_source === "final_controlled_payload", "dry payload hash source is not final payload");
   assert(dry.contract.expectedPayloadHash === dry.bundle.draft.payload_hash, "dry payload hash is not stable");
   assert(typeof dry.bundle.draft.payload_summary.advertiser_id === "string", "dry advertiser_id storage summary is not string");
@@ -215,9 +408,10 @@ try {
   assert(mockInstanceEvidence.status === "passed", "complete test instance evidence should pass");
   assert(mockManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY, "mock instance should use controlled wire number strategy");
   assert(mockManifest.microAppInstanceIdWireNumberTokenPresent === true, "mock instance should be encoded as JSON number token for create");
-  ["delivery_type", "micro_promotion_type", "layer_roi_switch"].forEach((fieldPath) => {
-    assert(mockFieldEvidence.omittedFieldPaths?.includes(fieldPath), `${fieldPath} should be omitted in complete-evidence fixture`);
-  });
+  assert(mockFieldEvidence.fields?.some((field) => field.fieldPath === "delivery_type" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "mock delivery_type should be sent with direct create evidence");
+  assert(mockFieldEvidence.fields?.some((field) => field.fieldPath === "layer_roi_switch" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "mock layer_roi_switch should be sent with direct create evidence");
+  assert(mockFieldEvidence.omittedFieldPaths?.includes("micro_promotion_type"), "mock micro_promotion_type should be omitted from create payload");
+  assert(!mockFieldEvidence.fields?.some((field) => field.fieldPath === "micro_promotion_type"), "mock micro_promotion_type should not be a sent field");
   assert(mock.contract.expectedPayloadHash === mock.bundle.draft.payload_hash, "mock payload hash is not stable");
   assert(mockManifest.advertiserIdStorageType === "string", "mock advertiser_id storage type not string");
   assert(mockManifest.advertiserIdTransportType === "number", "mock advertiser_id transport type not number");
@@ -237,6 +431,10 @@ try {
   assert(mockManifest.titleMaterialAssetIds?.length === mockManifest.titleMaterialCount, "mock title_material asset IDs not recorded");
   assert(mockManifest.titleMaterialAssetHashes?.length === mockManifest.titleMaterialCount, "mock title_material asset hashes not recorded");
   assert(!mockManifest.titleMaterialTitles, "mock manifest must not store raw title list");
+  assert(mockManifest.nestedFieldContract?.status === "passed", "mock nested field contract should pass");
+  assert(mockManifest.nestedFieldContract?.ruleVersion === NESTED_FIELD_CONTRACT.ruleVersion, "mock nested field contract version mismatch");
+  assert(mockManifest.nestedFieldContract?.blockerCount === 0, "mock nested field contract should have no blockers");
+  assert(mockManifest.nestedFieldContract?.rawPayloadStored === false, "mock nested field contract must not store raw payload");
   assert(mockManifest.miniProgramUrlRequired === true, "mock BYTE_GAME MICRO_GAME route should require mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkPresent === true, "mock BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
@@ -274,6 +472,36 @@ try {
   assert(productSellingPointPayloadDiagnostic(["开局装备全靠捡", 123])?.blocker_code === "product_selling_points_item_not_string:1", "non-string selling_points payload should block");
   assert(productSellingPointManifestPreflight({ count: 3, minChars: 7, maxChars: 8 })?.status === "passed", "valid selling_points manifest should pass");
   assert(productSellingPointManifestPreflight({ count: 3, minChars: 4, maxChars: 8 })?.blocker_code === "product_selling_points_contract_not_verified", "invalid selling_points manifest should block");
+  assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "enum:delivery_type")?.status === "passed", "valid delivery_type enum should pass");
+  assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "enum:layer_roi_switch")?.status === "passed", "valid layer_roi_switch enum should pass");
+  assert(createFieldPayloadPreflight({ delivery_type: "BAD" }).blocker_codes.includes("invalid_enum:delivery_type"), "invalid delivery_type enum should block");
+  assert(createFieldPayloadPreflight({ layer_roi_switch: "BAD" }).blocker_codes.includes("invalid_enum:layer_roi_switch"), "invalid layer_roi_switch enum should block");
+  assert(createFieldPayloadPreflight({ micro_promotion_type: "BYTE_GAME" }).blocker_codes.includes("forbidden_field:micro_promotion_type"), "micro_promotion_type should be forbidden in create preflight");
+  assert(createFieldContractManifestPreflight()?.status === "passed", "valid delivery/layer/micro manifest should pass");
+  assert(createFieldContractManifestPreflight({ deliveryEvidence: null })?.blocker_code === "create_field_contract_not_direct_send:delivery_type", "missing delivery_type direct evidence should block");
+  assert(createFieldContractManifestPreflight({ layerEvidence: { fieldPath: "layer_roi_switch", evidenceLevel: "unverified", sendPolicy: "omit", status: "blocked" } })?.blocker_code === "create_field_contract_not_direct_send:layer_roi_switch", "downgraded layer_roi_switch evidence should block");
+  assert(createFieldContractManifestPreflight({ omittedFieldPaths: [] })?.blocker_code === "micro_promotion_type_not_omitted_from_create_payload", "micro_promotion_type omitted evidence should be required");
+  assert(createFieldContractManifestPreflight({ extraFields: [{ fieldPath: "micro_promotion_type", evidenceLevel: "official_related_endpoint", sendPolicy: "send", status: "blocked" }] })?.blocker_code === "micro_promotion_type_not_omitted_from_create_payload", "sent micro_promotion_type evidence should block");
+  assert(nestedFieldManifestPreflight()?.status === "passed", "valid nested field manifest should pass");
+  assert(nestedFieldManifestPreflight({ status: "blocked", blockerCount: 1, blockers: ["nested_video_image_mode_invalid:0"] })?.blocker_code === "nested_video_image_mode_invalid:0", "nested field manifest blockers should surface");
+  assert(nestedFieldManifestPreflight({ ruleVersion: "old" })?.blocker_code === "nested_field_contract_not_verified", "nested field manifest version mismatch should block");
+  assert(nestedContractCase().status === "passed", "valid nested payload should pass");
+  assert(nestedFieldContractManifest(nestedContractCase()).rawPayloadStored === false, "nested manifest must not store raw payload");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.video_material_list[0].image_mode = "BAD"; }).blockers.includes("nested_video_image_mode_invalid:0"), "invalid video image_mode should block");
+  assert(nestedContractCase(({ payload }) => { delete payload.project_materials.video_material_list[0].video_cover_id; }).blockers.includes("nested_video_cover_contract_invalid:0"), "missing explicit video cover should block");
+  assert(nestedContractCase(({ payload, bundle }) => {
+    delete payload.project_materials.video_material_list[0].video_cover_id;
+    bundle.resources[0].metadata.readonly_check.cover_mode = "platform_default_cover_allowed";
+  }).status === "passed", "platform default video cover should pass when cover is omitted");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.product_info.image_ids = ["999"]; }).blockers.includes("nested_product_image_ids_source_not_verified"), "wrong product image source should block");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.product_info.titles = ["超长产品名称超长产品名称超长产品名称"]; }).blockers.includes("nested_product_titles_contract_invalid"), "overlong product title should block");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.call_to_action_buttons = ["马上立刻现在试玩"]; }).blockers.includes("nested_call_to_action_contract_invalid"), "invalid CTA length should block");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.anchor_related_type = "SELECT"; }).blockers.includes("nested_anchor_select_requires_readonly_contract"), "SELECT anchor should require separate readonly contract");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.mini_program_info.app_id = "tte95a9fe77665844607"; }).blockers.includes("nested_mini_program_info_contract_invalid"), "mini_program_info url and app_id together should block");
+  assert(nestedContractCase(({ payload }) => { payload.track_url_setting.action_track_url = []; }).blockers.includes("nested_track_url_setting_contract_invalid"), "missing controlled touchpoint should block");
+  assert(nestedContractCase(({ payload }) => { payload.audience.filter_event = []; }).blockers.includes("nested_audience_contract_invalid"), "audience filter_event missing primary event should block");
+  assert(nestedContractCase(({ payload }) => { payload.brand_info.brand_name_id = "1"; }).blockers.includes("nested_brand_info_contract_invalid"), "non-integer brand ID should block");
+  assert(nestedContractCase(({ bundle }) => { delete bundle.defaults.raw_defaults.official_create_field_contract.nested_rules; }).blockers.includes("nested_field_contract_rules_missing_or_version_mismatch"), "missing nested_rules should block");
   assert(titleMaterialPayloadDiagnostic([{ title: "开局一把枪，装备全靠捡，看你能射多远！" }])?.status === "passed", "valid title_material payload should pass");
   assert(titleMaterialPayloadDiagnostic([{ title: "四字标题" }])?.blocker_code === "title_material_item_length_out_of_range:0:4", "4-char title_material payload should block");
   assert(titleMaterialPayloadDiagnostic([{ title: "a".repeat(112) }])?.blocker_code === "title_material_item_length_out_of_range:0:56", "56-char title_material payload should block");

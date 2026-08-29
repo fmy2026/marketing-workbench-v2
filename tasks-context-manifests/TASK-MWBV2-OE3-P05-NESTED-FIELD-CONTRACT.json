@@ -1,0 +1,153 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT",
+  "task_ref": "tasks/TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT.md",
+  "owner_agent": "codex",
+  "status": "closed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "brief": {
+    "goal": "Add a shared path-level semantic contract for currently sent OE3 JSZC Node 5 nested std_project/create fields.",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT.json",
+    "docs/Solution Design.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/05-game-route-launch-link-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P05-NESTED-FIELD-CONTRACT.json",
+    "project.state.json",
+    "db/048_jszc_nested_create_field_contract.sql",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-official-create-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/05-game-route-launch-link-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_database_changes": [
+    "Update mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules for route_id=oceanengine_3_byte_mini_game and game_code=JSZC"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "tools/project_material_type/update call",
+    "material upload",
+    "anchor or component write",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "creating new tables, views, dashboards, or reports",
+    "writing token/secret/auth_code/Cookie/full URL/raw request/raw response/raw payload"
+  ],
+  "validation_plan": [
+    "node --check changed modules",
+    "psql -X -d marketing_workbench_v2 -f db/048_jszc_nested_create_field_contract.sql",
+    "npm run test:payload-contract",
+    "npm run test:mini-game-launch-link",
+    "npm run smoke:workflow-skills",
+    "Create a fresh runtime_truth Job under CASE-LEGACY-2E4217E20C9E26BFB648772C and run draft_readiness only",
+    "Audit fresh Job counts for execution_plans, confirmations, platform_actions, created_objects, readbacks"
+  ],
+  "official_references": [
+    {
+      "field": "project_materials.video_material_list",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143"
+    },
+    {
+      "field": "project_materials.title_material_list",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:160"
+    },
+    {
+      "field": "project_materials.product_info",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163"
+    },
+    {
+      "field": "project_materials.anchor_related_type",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:168"
+    },
+    {
+      "field": "project_materials.mini_program_info",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184"
+    },
+    {
+      "field": "brand_info",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189"
+    }
+  ],
+  "result": {
+    "status": "closed",
+    "migration": "db/048_jszc_nested_create_field_contract.sql",
+    "database_rows_updated": 1,
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829135558-B4DCB0",
+    "fresh_runtime_status": {
+      "job_status": "draft_ready",
+      "current_node": "5",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "blockers": []
+    },
+    "nested_field_contract": {
+      "status": "passed",
+      "rule_version": "2026-08-29.oe3-std-project-create-nested-fields-v1",
+      "checked_path_count": 19,
+      "blocker_count": 0,
+      "raw_payload_stored": false
+    },
+    "audit_counts": {
+      "drafts": 1,
+      "executionPlans": 0,
+      "launchConfirmations": 0,
+      "platformActions": 0,
+      "createdObjects": 0,
+      "readbackRecords": 0
+    },
+    "validation": [
+      {
+        "command": "node --check changed modules",
+        "status": "passed"
+      },
+      {
+        "command": "psql -X -d marketing_workbench_v2 -f db/048_jszc_nested_create_field_contract.sql",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:payload-contract",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:mini-game-launch-link",
+        "status": "passed"
+      },
+      {
+        "command": "npm run smoke:workflow-skills",
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      }
+    ],
+    "platform_write_executed": false,
+    "token_refresh_executed": false,
+    "new_reports_or_views_created": false
+  }
+}

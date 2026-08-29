@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
+import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -58,6 +59,21 @@ function bundle() {
           optimized_goal_query_app_field: "mini_program_id"
         },
         official_create_field_contract: {
+          nested_rules: {
+            version: NESTED_FIELD_CONTRACT.ruleVersion,
+            source: NESTED_FIELD_CONTRACT.source,
+            groups: {
+              "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
+              "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
+              "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
+              "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
+              "project_materials.anchor_related_type": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:168" },
+              "project_materials.mini_program_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184" },
+              "track_url_setting": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
+              "audience": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
+              "brand_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189" }
+            }
+          },
           instance_id_create_evidence: {
             status: "passed",
             candidate_create_field: "instance_id",
@@ -69,7 +85,10 @@ function bundle() {
             long_id_transport_strategy: "decimal_bigint_json_number"
           },
           field_rules: {
-            instance_id: { evidence_level: "official_direct", send_policy: "send" }
+            instance_id: { evidence_level: "official_direct", send_policy: "send" },
+            delivery_type: { evidence_level: "official_direct", send_policy: "send" },
+            layer_roi_switch: { evidence_level: "official_direct", send_policy: "send" },
+            micro_promotion_type: { evidence_level: "official_related_endpoint", send_policy: "omit" }
           }
         },
         payload_defaults: {
@@ -154,10 +173,12 @@ const ready = buildWith({
 assert(ready.requestFieldManifest.miniProgramUrlRequired === true, "mini game route must require launch link");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkPresent === true, "ready launch link should enter final payload only");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkHashMatch === true, "ready launch link should hash-match");
+assert(ready.requestFieldManifest.nestedFieldContract?.status === "passed", "ready payload nested field contract should pass");
 assert(!ready.blockers.includes("mini_game_launch_url_not_ready"), "ready launch link should not block");
 
 const missing = buildWith({});
 assert(missing.blockers.includes("mini_game_launch_url_not_ready"), "missing launch link must block");
+assert(missing.blockers.includes("nested_mini_program_info_contract_invalid"), "missing launch link must block nested mini_program_info contract");
 assert(missing.requestFieldManifest.miniProgramLaunchLinkPresent === false, "missing launch link must not enter payload");
 
 const wrongApp = buildWith({
@@ -171,6 +192,7 @@ const wrongApp = buildWith({
   launch_url: launchUrl
 });
 assert(wrongApp.blockers.includes("mini_game_launch_url_not_ready"), "app_id mismatch must block");
+assert(wrongApp.blockers.includes("nested_mini_program_info_contract_invalid"), "app_id mismatch must block nested mini_program_info contract");
 assert(wrongApp.requestFieldManifest.miniProgramLaunchLinkAppIdMatch === false, "app_id mismatch should be visible in manifest");
 
 const publicSummary = {

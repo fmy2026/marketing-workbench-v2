@@ -1,0 +1,148 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION",
+  "task_ref": "tasks/TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION.md",
+  "owner_agent": "codex",
+  "status": "closed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "brief": {
+    "goal": "Correct OE3 JSZC std_project/create field contract handling for delivery_type and layer_roi_switch while keeping micro_promotion_type out of create payload.",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION.json",
+    "docs/Solution Design.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-official-create-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-P04-CREATE-FIELD-CONTRACT-CORRECTION.json",
+    "project.state.json",
+    "db/047_jszc_create_field_contract_delivery_and_layer_roi.sql",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/05-game-route-launch-link-smoke.mjs"
+  ],
+  "allowed_database_changes": [
+    "Update mwb.game_route_defaults.raw_defaults.official_create_field_contract for route_id=oceanengine_3_byte_mini_game and game_code=JSZC"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "tools/project_material_type/update call",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "creating new tables, views, dashboards, or reports",
+    "writing token/secret/auth_code/Cookie/full URL/raw request/raw response/raw payload"
+  ],
+  "validation_plan": [
+    "psql -X -d marketing_workbench_v2 -f db/047_jszc_create_field_contract_delivery_and_layer_roi.sql",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run test:mini-game-launch-link",
+    "Create a fresh runtime_truth Job under CASE-LEGACY-2E4217E20C9E26BFB648772C and run Node 1-5 only",
+    "Audit fresh Job counts for execution_plans, confirmations, platform_actions, created_objects, readbacks"
+  ],
+  "official_references": [
+    {
+      "field": "delivery_type",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:197",
+      "allowed_values": [
+        "NORMAL",
+        "UBX_INTELLIGENT"
+      ]
+    },
+    {
+      "field": "layer_roi_switch",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:203",
+      "allowed_values": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "field": "micro_promotion_type",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/调控任务/标准项目下获取可用优化目标.md",
+      "create_send_policy": "omit"
+    }
+  ],
+  "result": {
+    "status": "closed",
+    "migration": "db/047_jszc_create_field_contract_delivery_and_layer_roi.sql",
+    "database_rows_updated": 1,
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829133430-20A33B",
+    "fresh_runtime_status": {
+      "job_status": "draft_ready",
+      "current_node": "5",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "blockers": []
+    },
+    "field_contract": {
+      "delivery_type": {
+        "value": "NORMAL",
+        "evidence_level": "official_direct",
+        "send_policy": "send"
+      },
+      "layer_roi_switch": {
+        "value": "OFF",
+        "evidence_level": "official_direct",
+        "send_policy": "send"
+      },
+      "micro_promotion_type": {
+        "create_payload_present": false,
+        "omitted_field_path_recorded": true
+      }
+    },
+    "audit_counts": {
+      "drafts": 1,
+      "executionPlans": 0,
+      "launchConfirmations": 0,
+      "platformActions": 0,
+      "createdObjects": 0,
+      "readbackRecords": 0
+    },
+    "validation": [
+      {
+        "command": "node --check changed modules",
+        "status": "passed"
+      },
+      {
+        "command": "psql -X -d marketing_workbench_v2 -f db/047_jszc_create_field_contract_delivery_and_layer_roi.sql",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:payload-contract",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:mini-game-launch-link",
+        "status": "passed"
+      },
+      {
+        "command": "npm run smoke:workflow-skills",
+        "status": "passed"
+      }
+    ],
+    "platform_write_executed": false,
+    "token_refresh_executed": false,
+    "new_reports_or_views_created": false
+  }
+}

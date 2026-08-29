@@ -7,6 +7,7 @@ import {
   TITLE_MATERIAL_CONTRACT,
   evaluateTitleMaterialPayloadList
 } from "./05-title-materials-contract.mjs";
+import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -35,7 +36,6 @@ export const OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS = new Set([
   "delivery_mode",
   "delivery_type",
   "delivery_medium",
-  "micro_promotion_type",
   "instance_id",
   "asset_id",
   "schedule_type",
@@ -103,6 +103,7 @@ const FORBIDDEN_PAYLOAD_PATHS = new Set([
   "delivery_range",
   "delivery_setting",
   "inventory_catalog",
+  "micro_promotion_type",
   "micro_app_instance_id",
   "product_info",
   "app_id",
@@ -275,6 +276,37 @@ function checkEnum(payload, path, allowedValues) {
     actualValue: value,
     blockerCode: `invalid_enum:${path}`,
     repairHint: `${path} 必须使用平台枚举值。`
+  });
+}
+
+function checkOfficialDirectCreateFields(manifest = {}) {
+  const evidence = manifest.officialFieldEvidence || {};
+  const fields = Array.isArray(evidence.fields) ? evidence.fields : [];
+  const omitted = Array.isArray(evidence.omittedFieldPaths) ? evidence.omittedFieldPaths : [];
+  const byPath = new Map(fields.map((field) => [clean(field.fieldPath), field]));
+  const required = [
+    ["delivery_type", "official_direct", "send"],
+    ["layer_roi_switch", "official_direct", "send"]
+  ];
+  const failures = required.filter(([fieldPath, evidenceLevel, sendPolicy]) => {
+    const field = byPath.get(fieldPath) || {};
+    return field.evidenceLevel !== evidenceLevel || field.sendPolicy !== sendPolicy || field.status !== "passed";
+  });
+  const microOmitted = omitted.includes("micro_promotion_type") && !byPath.has("micro_promotion_type");
+  const blocked = failures.length > 0 || !microOmitted;
+  return diag({
+    checkId: "manifest:create_field_contract_delivery_layer_micro",
+    fieldPath: "final_payload_manifest.officialFieldEvidence",
+    status: blocked ? "blocked" : "passed",
+    expectedTypeOrRule: "delivery_type+layer_roi_switch:official_direct/send;micro_promotion_type:omitted_not_sent",
+    actualValue: {
+      failedRequiredFields: failures.map(([fieldPath]) => fieldPath),
+      microPromotionTypeOmitted: microOmitted
+    },
+    blockerCode: failures.length
+      ? `create_field_contract_not_direct_send:${failures[0][0]}`
+      : "micro_promotion_type_not_omitted_from_create_payload",
+    repairHint: "修正路线 official_create_field_contract，并重新生成 Node 5 草稿。"
   });
 }
 
@@ -600,6 +632,39 @@ function checkOfficialFieldEvidence(manifest = {}) {
   });
 }
 
+function checkNestedFieldContractManifest(manifest = {}) {
+  const nested = manifest.nestedFieldContract || {};
+  const blockers = Array.isArray(nested.blockers) ? nested.blockers : [];
+  const groups = Array.isArray(nested.checkedGroups) ? nested.checkedGroups : [];
+  const passed = nested.status === "passed" &&
+    clean(nested.ruleVersion) === NESTED_FIELD_CONTRACT.ruleVersion &&
+    clean(nested.source) === NESTED_FIELD_CONTRACT.source &&
+    Number(nested.checkedPathCount || 0) > 0 &&
+    Number(nested.blockerCount || 0) === 0 &&
+    groups.includes("video_materials") &&
+    groups.includes("product_info") &&
+    groups.includes("mini_program_info") &&
+    groups.includes("track_url_setting") &&
+    groups.includes("audience") &&
+    nested.rawPayloadStored === false;
+  return diag({
+    checkId: "manifest:nested_field_contract",
+    fieldPath: "final_payload_manifest.nestedFieldContract",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `same_module_nested_contract:${NESTED_FIELD_CONTRACT.ruleVersion}`,
+    actualValue: {
+      status: nested.status || "missing",
+      ruleVersion: nested.ruleVersion || "",
+      checkedPathCount: Number(nested.checkedPathCount || 0),
+      blockerCount: Number(nested.blockerCount || 0),
+      checkedGroups: groups,
+      rawPayloadStored: nested.rawPayloadStored === true
+    },
+    blockerCode: blockers[0] || "nested_field_contract_not_verified",
+    repairHint: "重新生成 Node 5 草稿；所有已发送嵌套路径必须通过同一合同模块的来源、枚举、数量、长度和互斥关系校验。"
+  });
+}
+
 export function evaluateStdProjectCreatePreflight({
   payload = null,
   requestFieldManifest = {},
@@ -631,6 +696,10 @@ export function evaluateStdProjectCreatePreflight({
     }));
     diagnostics.push(checkType(payload, "name", "string"));
     diagnostics.push(checkInteger(payload, "asset_id"));
+    diagnostics.push(checkRequired(payload, "delivery_type"));
+    diagnostics.push(checkRequired(payload, "layer_roi_switch"));
+    diagnostics.push(checkEnum(payload, "delivery_type", ["NORMAL", "UBX_INTELLIGENT"]));
+    diagnostics.push(checkEnum(payload, "layer_roi_switch", ["OFF", "ON"]));
     if (Object.hasOwn(payload, "instance_id")) {
       diagnostics.push(checkIntegerOrDigitString(payload, "instance_id", {
         blockerCode: "invalid_lossless_platform_id:instance_id"
@@ -733,6 +802,8 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkProductSellingPointsManifest(requestFieldManifest));
   diagnostics.push(checkTitleMaterialManifest(requestFieldManifest));
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
+  diagnostics.push(checkOfficialDirectCreateFields(requestFieldManifest));
+  diagnostics.push(checkNestedFieldContractManifest(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 
   const blocked = diagnostics.filter((item) => item.status === "blocked");

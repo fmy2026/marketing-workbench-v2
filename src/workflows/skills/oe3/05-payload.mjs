@@ -19,6 +19,10 @@ import {
   evaluateTitleMaterialSourceEntries,
   titleMaterialsManifest
 } from "./05-title-materials-contract.mjs";
+import {
+  evaluateNestedFieldContract,
+  nestedFieldContractManifest
+} from "./05-nested-field-contract.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -392,7 +396,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {},
   awemeAuthorization = {},
-  titleMaterialResult = {}
+  titleMaterialResult = {},
+  nestedFieldContract = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
@@ -445,6 +450,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!(payload.audience?.filter_event || []).includes(clean(payload.external_action)) ? ["filter_event_missing_primary_conversion_event"] : []),
     ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
+    ...(nestedFieldContract.blockers || []),
     ...(officialFieldEvidence.blockerCodes || [])
   ];
   return [...new Set([
@@ -463,7 +469,8 @@ function fieldManifest(payload = {}, blockers = [], {
   officialFieldEvidence = {},
   instanceIdCreateEvidence = {},
   awemeAuthorization = {},
-  titleMaterialResult = {}
+  titleMaterialResult = {},
+  nestedFieldContract = {}
 } = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
@@ -590,6 +597,7 @@ function fieldManifest(payload = {}, blockers = [], {
       cdpBrandNamePresent: Boolean(brand.cdp_brand_name),
       yuntuCategoryIdPresent: Boolean(brand.yuntu_category_id)
     },
+    nestedFieldContract: nestedFieldContractManifest(nestedFieldContract),
     officialFieldEvidence: officialFieldEvidenceSummary(officialFieldEvidence),
     instanceIdCreateEvidence: instanceIdCreateEvidenceSummary(instanceIdCreateEvidence),
     forbiddenFieldsPresent: false,
@@ -638,7 +646,6 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     delivery_mode: clean(requiredConfigValue(payloadDefaults, "project.delivery_mode", configBlockers)),
     delivery_type: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_type", configBlockers)),
     delivery_medium: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_medium", configBlockers)),
-    micro_promotion_type: clean(requiredConfigValue(payloadDefaults, "strategy.micro_promotion_type", configBlockers)),
     ...(instanceIdCreateEvidence.canSend ? { [instanceCandidateField]: instanceIdValue } : {}),
     asset_id: intOrNull(eventAsset.platform_resource_id),
     schedule_type: clean(requiredConfigValue(payloadDefaults, "schedule.schedule_type", configBlockers)),
@@ -696,6 +703,13 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     contract: officialContract,
     omittedFieldPaths: policyApplied.omittedFieldPaths
   });
+  const nestedFieldContract = evaluateNestedFieldContract({
+    payload,
+    bundle,
+    materialReadiness,
+    backupLandingPage,
+    miniProgramLaunchLink: miniProgramLink
+  });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
     businessDefaultsPresent: configBlockers.length === 0,
@@ -713,7 +727,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     officialFieldEvidence,
     instanceIdCreateEvidence,
     awemeAuthorization,
-    titleMaterialResult
+    titleMaterialResult,
+    nestedFieldContract
   });
   const wireBody = buildStdProjectCreateWireBody(payload);
   const payloadHash = wireBody.bodyHash || hashValue(payload);
@@ -729,7 +744,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       officialFieldEvidence,
       instanceIdCreateEvidence,
       awemeAuthorization,
-      titleMaterialResult
+      titleMaterialResult,
+      nestedFieldContract
     }),
     blockers
   };

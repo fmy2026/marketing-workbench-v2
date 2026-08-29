@@ -8,6 +8,7 @@ import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
+import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -437,6 +438,39 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       contractMapping.optimizedGoalQueryInstanceFieldName === "micro_app_instance_id" &&
       contractMapping.optimizedGoalQueryAppFieldName === "mini_program_id"
     );
+  const officialFieldEvidence = finalManifest.officialFieldEvidence || {};
+  const officialFields = Array.isArray(officialFieldEvidence.fields) ? officialFieldEvidence.fields : [];
+  const officialFieldByPath = new Map(officialFields.map((field) => [clean(field.fieldPath), field]));
+  const omittedFieldPaths = Array.isArray(officialFieldEvidence.omittedFieldPaths) ? officialFieldEvidence.omittedFieldPaths : [];
+  const deliveryTypeEvidence = officialFieldByPath.get("delivery_type") || {};
+  const layerRoiSwitchEvidence = officialFieldByPath.get("layer_roi_switch") || {};
+  const finalCreateFieldContractOk = !usesFinalPayloadHash ||
+    (
+      officialFieldEvidence.status === "passed" &&
+      deliveryTypeEvidence.evidenceLevel === "official_direct" &&
+      deliveryTypeEvidence.sendPolicy === "send" &&
+      deliveryTypeEvidence.status === "passed" &&
+      layerRoiSwitchEvidence.evidenceLevel === "official_direct" &&
+      layerRoiSwitchEvidence.sendPolicy === "send" &&
+      layerRoiSwitchEvidence.status === "passed" &&
+      omittedFieldPaths.includes("micro_promotion_type") &&
+      !officialFieldByPath.has("micro_promotion_type")
+    );
+  const nestedFieldContract = finalManifest.nestedFieldContract || {};
+  const finalNestedFieldContractOk = !usesFinalPayloadHash ||
+    (
+      nestedFieldContract.status === "passed" &&
+      nestedFieldContract.ruleVersion === NESTED_FIELD_CONTRACT.ruleVersion &&
+      nestedFieldContract.source === NESTED_FIELD_CONTRACT.source &&
+      Number(nestedFieldContract.checkedPathCount || 0) > 0 &&
+      Number(nestedFieldContract.blockerCount || 0) === 0 &&
+      Array.isArray(nestedFieldContract.checkedGroups) &&
+      nestedFieldContract.checkedGroups.includes("video_materials") &&
+      nestedFieldContract.checkedGroups.includes("product_info") &&
+      nestedFieldContract.checkedGroups.includes("mini_program_info") &&
+      nestedFieldContract.checkedGroups.includes("audience") &&
+      nestedFieldContract.rawPayloadStored === false
+    );
   const businessDefaultsReady = !usesFinalPayloadHash || finalManifest.businessDefaultsPresent === true;
   const finalPayloadWireBodyReady = !usesFinalPayloadHash ||
     (
@@ -581,6 +615,20 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       summary: finalMaterialReady
         ? `最终视频素材逐条回查通过：${materialReadiness.verifiedVideoCount}/${materialReadiness.selectedRequiredVideoCount}。`
         : "最终视频素材或封面策略逐条回查未完成。"
+    },
+    {
+      key: "create_field_contract_delivery_layer_micro",
+      status: finalCreateFieldContractOk ? "passed" : "blocked",
+      summary: finalCreateFieldContractOk
+        ? "delivery_type 与 layer_roi_switch 具备官方 create 直接依据并发送；micro_promotion_type 未进入 create payload。"
+        : "delivery_type/layer_roi_switch 未按官方 create 直接字段发送，或 micro_promotion_type 仍进入了 create payload。"
+    },
+    {
+      key: "nested_field_contract",
+      status: finalNestedFieldContractOk ? "passed" : "blocked",
+      summary: finalNestedFieldContractOk
+        ? `已发送嵌套字段通过同一合同模块校验，检查 ${nestedFieldContract.checkedPathCount} 条路径。`
+        : "已发送嵌套字段缺少路径级语义合同，或存在来源、枚举、数量、互斥关系 blocker。"
     },
     {
       key: "route_payload_defaults",

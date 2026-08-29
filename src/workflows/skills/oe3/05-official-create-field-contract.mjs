@@ -33,10 +33,14 @@ export function getOfficialCreateFieldContract(bundle = {}) {
   const fieldRules = contract.field_rules && typeof contract.field_rules === "object"
     ? contract.field_rules
     : {};
+  const nestedRules = contract.nested_rules && typeof contract.nested_rules === "object" && !Array.isArray(contract.nested_rules)
+    ? contract.nested_rules
+    : {};
   return {
     version: clean(contract.version),
     source: clean(contract.source),
     instanceIdCreateEvidence: contract.instance_id_create_evidence || {},
+    nestedRules,
     rules: Object.fromEntries(
       Object.entries(fieldRules).map(([path, rule]) => [path, normalizeRule(path, rule)])
     )
@@ -119,6 +123,11 @@ export function applyOfficialCreateFieldSendPolicy({ payload = {}, contract = {}
   for (const fieldPath of Object.keys(nextPayload)) {
     if (ruleFor(contract, fieldPath).sendPolicy === "omit") {
       delete nextPayload[fieldPath];
+      omittedFieldPaths.push(fieldPath);
+    }
+  }
+  for (const [fieldPath, rule] of Object.entries(contract.rules || {})) {
+    if (rule.sendPolicy === "omit" && !Object.hasOwn(nextPayload, fieldPath) && !omittedFieldPaths.includes(fieldPath)) {
       omittedFieldPaths.push(fieldPath);
     }
   }
