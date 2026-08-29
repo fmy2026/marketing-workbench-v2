@@ -26,7 +26,7 @@ function compactAction(action) {
   };
 }
 
-function stablePlanInput({ job, draft, plannedActions, blockerCodes }) {
+function stablePlanInput({ job, draft, plannedActions, blockerCodes, verificationSeries = {} }) {
   return {
     job_id: job.job_id,
     route_id: job.route_id,
@@ -35,6 +35,7 @@ function stablePlanInput({ job, draft, plannedActions, blockerCodes }) {
     object_type: job.object_type,
     draft_id: draft?.draft_id || "",
     payload_hash: draft?.payload_hash || "",
+    verification_series: verificationSeries,
     planned_actions: plannedActions.map(compactAction),
     blocker_codes: blockerCodes
   };
@@ -165,17 +166,38 @@ function compilePlannedActions(bundle = {}, { planVersion = EXECUTION_PLAN_VERSI
   };
 }
 
-export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUTION_PLAN_VERSION } = {}) {
+export function buildExecutionPlanFromBundle(bundle = {}, {
+  planVersion = EXECUTION_PLAN_VERSION,
+  createAttemptNo = planVersion,
+  verificationSeriesId = "",
+  verificationTaskRef = "",
+  maximumCreateAttempts = 3
+} = {}) {
   const job = bundle.job || {};
   if (!job.job_id) throw new Error("job_id_required");
 
   const { plannedActions, blockerCodes, rootBlockerCodes } = compilePlannedActions(bundle, { planVersion });
   const draft = bundle.draft || null;
+  const numericAttemptNo = Number(createAttemptNo || 1);
+  const numericMaximumAttempts = Number(maximumCreateAttempts || 3);
+  if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
+    throw new Error("invalid_std_project_create_attempt_no");
+  }
+  if (!Number.isInteger(numericMaximumAttempts) || numericMaximumAttempts < 1 || numericMaximumAttempts > 3) {
+    throw new Error("invalid_std_project_create_maximum_attempts");
+  }
+  const verificationSeries = verificationSeriesId ? {
+    verification_series_id: verificationSeriesId,
+    task_ref: verificationTaskRef || "",
+    maximum_create_attempts: numericMaximumAttempts,
+    create_attempt_no: numericAttemptNo
+  } : {};
   const planHash = hashValue(stablePlanInput({
     job,
     draft,
     plannedActions,
-    blockerCodes
+    blockerCodes,
+    verificationSeries
   }));
   const hasCreateAction = plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
   const createActionReady = plannedActions.some((action) =>
@@ -203,16 +225,18 @@ export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUT
       game_code: job.game_code,
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs",
-      create_attempt_no: Number(planVersion),
-      maximum_create_attempts: 3,
+      create_attempt_no: numericAttemptNo,
+      maximum_create_attempts: numericMaximumAttempts,
+      ...verificationSeries,
       execution_scope: {
         target_job_id: job.job_id,
         target_draft_id: draft?.draft_id || "",
         target_payload_hash: draft?.payload_hash || "",
         target_plan_id: planId(job.job_id, planVersion),
         target_plan_hash: planHash,
-        target_attempt_no: Number(planVersion),
-        maximum_total_attempts: 3,
+        target_attempt_no: numericAttemptNo,
+        maximum_total_attempts: numericMaximumAttempts,
+        ...verificationSeries,
         allowed_actions: ["oceanengine_std_project_create"],
         allowed_plan_actions: plannedActions.map((action) => action.action_type),
         maximum_actions: 1,
@@ -226,12 +250,27 @@ export function buildExecutionPlanFromBundle(bundle = {}, { planVersion = EXECUT
   return plan;
 }
 
-export async function compileAndSaveExecutionPlan({ repo, jobId, bundleOverride, planVersion = EXECUTION_PLAN_VERSION } = {}) {
+export async function compileAndSaveExecutionPlan({
+  repo,
+  jobId,
+  bundleOverride,
+  planVersion = EXECUTION_PLAN_VERSION,
+  createAttemptNo = planVersion,
+  verificationSeriesId = "",
+  verificationTaskRef = "",
+  maximumCreateAttempts = 3
+} = {}) {
   if (!repo) throw new Error("repo_required");
   if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
   const bundle = bundleOverride || await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
-  const plan = buildExecutionPlanFromBundle(bundle, { planVersion });
+  const plan = buildExecutionPlanFromBundle(bundle, {
+    planVersion,
+    createAttemptNo,
+    verificationSeriesId,
+    verificationTaskRef,
+    maximumCreateAttempts
+  });
   await repo.upsertLaunchExecutionPlan(plan);
   const stored = await repo.getLaunchExecutionPlan(plan.planId);
   assertNoSensitiveLeak(stored || plan);

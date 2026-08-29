@@ -919,7 +919,10 @@ export async function runJob(repo, jobId, options = {}) {
     allowedPlanActions: options.allowedPlanActions || [],
     mockMonitorEnsure: options.mockMonitorEnsure === true,
     qiankunOwnerKey: options.qiankunOwnerKey || "",
-    createAttemptNo: options.createAttemptNo || 1
+    createAttemptNo: options.createAttemptNo || 1,
+    verificationSeriesId: options.verificationSeriesId || "",
+    verificationTaskRef: options.verificationTaskRef || "",
+    maximumCreateAttempts: options.maximumCreateAttempts || 3
   });
   return buildPublicJobView(repo, result.bundle, options);
 }

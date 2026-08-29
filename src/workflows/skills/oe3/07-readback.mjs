@@ -93,7 +93,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
       repo,
       jobId: latestBundle.job.job_id,
       target: { grantSource },
-      fetchImpl
+      fetchImpl,
+      readbackDelaysMs: grantSource === "test_fake_transport" ? [0] : undefined
     });
     const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
     const recoveredByReadback = readback.status === "readback_verified" && !responseConfirmed;
@@ -120,6 +121,7 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         objectNameMatchesDraft: Boolean(readback.objectNameMatches),
         realPlatformReadbackCalled: true,
         realObjectIdPresent: Boolean(readback.objectId),
+        readbackAttemptCount: Array.isArray(readback.readbackAttempts) ? readback.readbackAttempts.length : 0,
         createResponseConfirmed: responseConfirmed,
         recoveredByReadback,
         responseAnomalyPreserved: !responseConfirmed,

@@ -46,7 +46,11 @@ try {
     jobId,
     mode,
     mockReady: hasFlag("mock-ready"),
-    mockExecute: hasFlag("mock-execute")
+    mockExecute: hasFlag("mock-execute"),
+    createAttemptNo: Number(arg("create-attempt-no", "1")),
+    verificationSeriesId: arg("verification-series-id"),
+    verificationTaskRef: arg("verification-task-ref"),
+    maximumCreateAttempts: Number(arg("maximum-create-attempts", "3"))
   });
   const summary = { ...result.summary, cleanupPlanned: cleanupAfterRun };
   assertNoSensitiveLeak(summary);

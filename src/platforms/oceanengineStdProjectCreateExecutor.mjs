@@ -195,7 +195,9 @@ function targetFromBundle(bundle = {}) {
     projectName: bundle.draft?.project_name || "",
     payloadHash: bundle.draft?.payload_hash || "",
     createAttemptNo: Number(executionPlan.metadata?.create_attempt_no || executionPlan.plan_version || 1),
-    maximumCreateAttempts: Number(executionPlan.metadata?.maximum_create_attempts || 3)
+    maximumCreateAttempts: Number(executionPlan.metadata?.maximum_create_attempts || 3),
+    verificationSeriesId: clean(executionPlan.metadata?.verification_series_id || ""),
+    verificationTaskRef: clean(executionPlan.metadata?.task_ref || "")
   };
 }
 
@@ -310,14 +312,24 @@ export async function createStdProjectForTargetOnce({
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
   const readiness = readinessOverride || latestCreateReadiness(bundle);
   const attemptState = await createAttemptState(repo, runtimeTarget.jobId);
+  const verificationSeriesState = runtimeTarget.verificationSeriesId
+    ? await repo.getCaseCreateVerificationSeriesState({
+      caseId: bundle.job.case_id,
+      verificationSeriesId: runtimeTarget.verificationSeriesId,
+      maximumCreateAttempts: runtimeTarget.maximumCreateAttempts
+    })
+    : null;
+  const effectiveAttemptState = verificationSeriesState || attemptState;
   const blockers = [
     ...(confirmationIntent !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirmation_intent_missing_or_invalid"] : []),
     ...(confirmVariableValue !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirm_variable_missing_or_invalid"] : []),
     ...(!fakeTransport && !credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
     ...(bundle.job.source_usage !== "runtime_truth" && !fakeTransport ? ["job_not_runtime_truth"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
-    ...(Number(runtimeTarget.createAttemptNo) !== Number(attemptState.nextCreateAttemptNo) ? ["create_attempt_number_not_next"] : []),
-    ...(Number(runtimeTarget.createAttemptNo) > Number(runtimeTarget.maximumCreateAttempts) ? ["create_attempt_limit_reached"] : []),
+    ...(verificationSeriesState && Number(verificationSeriesState.createdObjectCount || 0) > 0 ? ["verification_series_created_object_already_recorded"] : []),
+    ...(verificationSeriesState && Number(verificationSeriesState.readbackVerifiedCount || 0) > 0 ? ["verification_series_readback_already_verified"] : []),
+    ...(Number(runtimeTarget.createAttemptNo) !== Number(effectiveAttemptState.nextCreateAttemptNo) ? ["create_attempt_number_not_next"] : []),
+    ...(Number(runtimeTarget.createAttemptNo) > Number(effectiveAttemptState.maximumCreateAttempts) ? ["create_attempt_limit_reached"] : []),
     ...(readiness.status !== "ready_for_user_create_confirmation" ? [`readiness_not_ready:${readiness.status || "missing"}`] : []),
     ...(!fakeTransport && readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
     ...(!fakeTransport && readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
@@ -367,6 +379,8 @@ export async function createStdProjectForTargetOnce({
         attempt_no: runtimeTarget.createAttemptNo,
         maximum_total_attempts: runtimeTarget.maximumCreateAttempts,
         retry_allowed: false,
+        verification_series_id: runtimeTarget.verificationSeriesId || "",
+        verification_task_ref: runtimeTarget.verificationTaskRef || "",
         raw_payload_stored: false,
         raw_response_stored: false,
         create_wire_body_hash: requestHash,
@@ -384,7 +398,16 @@ export async function createStdProjectForTargetOnce({
       attemptNo: runtimeTarget.createAttemptNo,
       requestHash,
       idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
-      metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false, attempt_no: runtimeTarget.createAttemptNo, create_wire_body_hash: requestHash }
+      metadata: {
+        target_project_name: runtimeTarget.projectName,
+        raw_payload_stored: false,
+        raw_response_stored: false,
+        retry_allowed: false,
+        attempt_no: runtimeTarget.createAttemptNo,
+        create_wire_body_hash: requestHash,
+        verification_series_id: runtimeTarget.verificationSeriesId || "",
+        verification_task_ref: runtimeTarget.verificationTaskRef || ""
+      }
     }
   });
   if (!claim.claimed) {
@@ -445,7 +468,15 @@ export async function createStdProjectForTargetOnce({
       response_hash_present: true
     },
     finishedAt: new Date().toISOString(),
-    metadata: { target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false, retry_allowed: false, attempt_no: runtimeTarget.createAttemptNo }
+    metadata: {
+      target_project_name: runtimeTarget.projectName,
+      raw_payload_stored: false,
+      raw_response_stored: false,
+      retry_allowed: false,
+      attempt_no: runtimeTarget.createAttemptNo,
+      verification_series_id: runtimeTarget.verificationSeriesId || "",
+      verification_task_ref: runtimeTarget.verificationTaskRef || ""
+    }
   });
   await repo.upsertEvidence({
     artifactId: evidenceRef,
@@ -484,7 +515,13 @@ export async function createStdProjectForTargetOnce({
     objectStatus: "created_pending_readback",
     readbackStatus: "pending",
     evidenceRef,
-    metadata: { create_response_id_present: true, raw_payload_stored: false, raw_response_stored: false }
+    metadata: {
+      create_response_id_present: true,
+      raw_payload_stored: false,
+      raw_response_stored: false,
+      verification_series_id: runtimeTarget.verificationSeriesId || "",
+      verification_task_ref: runtimeTarget.verificationTaskRef || ""
+    }
   });
   return {
     status: "created_pending_readback",
@@ -498,7 +535,25 @@ export async function createStdProjectForTargetOnce({
   };
 }
 
-export async function readbackStdProjectOnce({ repo, jobId, target = null, fetchImpl = globalThis.fetch } = {}) {
+const DEFAULT_STD_PROJECT_READBACK_DELAYS_MS = Object.freeze([0, 10000, 30000]);
+
+function sleep(delayMs) {
+  return delayMs > 0 ? new Promise((resolve) => setTimeout(resolve, delayMs)) : Promise.resolve();
+}
+
+function safeReadbackDelays(delays = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS) {
+  const values = Array.isArray(delays) ? delays : DEFAULT_STD_PROJECT_READBACK_DELAYS_MS;
+  const normalized = values.map(Number).filter((value) => Number.isInteger(value) && value >= 0 && value <= 30000);
+  return normalized.length ? normalized.slice(0, 3) : [...DEFAULT_STD_PROJECT_READBACK_DELAYS_MS];
+}
+
+export async function readbackStdProjectOnce({
+  repo,
+  jobId,
+  target = null,
+  fetchImpl = globalThis.fetch,
+  readbackDelaysMs = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS
+} = {}) {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("target_job_not_found");
@@ -514,25 +569,42 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
   url.searchParams.set("filtering", JSON.stringify({ name: runtimeTarget.projectName }));
   url.searchParams.set("page", "1");
   url.searchParams.set("page_size", "20");
-  const response = await fetchImpl(url, {
-    method: "GET",
-    headers: { Accept: "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN }
-  });
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    payload = {};
+  const attempts = [];
+  let response = null;
+  let text = "";
+  let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
+  for (const delayMs of safeReadbackDelays(readbackDelaysMs)) {
+    await sleep(delayMs);
+    response = await fetchImpl(url, {
+      method: "GET",
+      headers: { Accept: "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN }
+    });
+    text = await response.text();
+    let payload = {};
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = {};
+    }
+    summary = summarizeListPayload(payload, runtimeTarget.projectName);
+    attempts.push({
+      delay_ms: delayMs,
+      http_status: response.status,
+      api_code: summary.apiCode || "",
+      request_id_present: summary.requestIdPresent === true,
+      object_id_present: Boolean(summary.objectId),
+      object_name_matches: summary.objectNameMatches === true,
+      response_hash: `sha256:${sha256(text)}`
+    });
+    if (summary.objectId && summary.objectNameMatches) break;
   }
-  const summary = summarizeListPayload(payload, runtimeTarget.projectName);
   const evidenceRef = `EV-${jobId}-STD-PROJECT-READBACK-ONCE`;
   await repo.upsertEvidence({
     artifactId: evidenceRef,
     jobId,
     artifactType: "std_project_readback_once",
     title: "std_project readback once",
-    summary: `endpoint=std_project/list http=${response.status} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches}`,
+    summary: `endpoint=std_project/list attempts=${attempts.length} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches}`,
     contentHash: `sha256:${sha256(text)}`,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${LIST_ENDPOINT}`,
@@ -560,7 +632,12 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
       readbackStatus: "readback_verified",
       evidenceRef,
       readbackAt: new Date().toISOString(),
-      metadata: { readback_source: "oceanengine_std_project_list", object_name_matches_draft: true }
+      metadata: {
+        readback_source: "oceanengine_std_project_list",
+        object_name_matches_draft: true,
+        readback_attempt_count: attempts.length,
+        raw_response_stored: false
+      }
     });
     await repo.upsertReadbackRecord({
       readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
@@ -569,7 +646,14 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
       objectId: summary.objectId,
       objectName: summary.objectName,
       readbackStatus: "readback_verified",
-      fieldDiffSummary: { object_name_matches_draft: true, object_status: summary.objectStatus || "readable", source: "oceanengine_std_project_list" },
+      fieldDiffSummary: {
+        object_name_matches_draft: true,
+        object_status: summary.objectStatus || "readable",
+        source: "oceanengine_std_project_list",
+        readback_attempts: attempts,
+        create_field_ledger_status: "manual_console_verification_required",
+        raw_response_stored: false
+      },
       evidenceRef
     });
   } else {
@@ -587,6 +671,7 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
         request_id_present: summary.requestIdPresent === true,
         api_code: summary.apiCode || "",
         create_response_confirmed: responseConfirmedByCreate,
+        readback_attempts: attempts,
         raw_response_stored: false
       },
       evidenceRef
@@ -594,13 +679,14 @@ export async function readbackStdProjectOnce({ repo, jobId, target = null, fetch
   }
   return {
     status: summary.objectId && summary.objectNameMatches ? "readback_verified" : "not_found_or_mismatch",
-    httpStatus: response.status,
+    httpStatus: response?.status || null,
     apiCode: summary.apiCode,
     requestIdPresent: summary.requestIdPresent,
     objectId: summary.objectId,
     objectName: summary.objectName,
     objectStatus: summary.objectStatus,
     objectNameMatches: summary.objectNameMatches,
+    readbackAttempts: attempts,
     evidenceRef
   };
 }

@@ -9,6 +9,7 @@ import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
+import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -491,6 +492,18 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       nestedExternalUrlContractOk &&
       nestedFieldContract.rawPayloadStored === false
     );
+  const createFieldLedger = finalManifest.createFieldLedger || {};
+  const finalCreateFieldLedgerOk = !usesFinalPayloadHash ||
+    (
+      createFieldLedger.status === "passed" &&
+      createFieldLedger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
+      Number(createFieldLedger.checkedPathCount || 0) > 0 &&
+      Number(createFieldLedger.blockedPathCount || 0) === 0 &&
+      Array.isArray(createFieldLedger.entries) &&
+      createFieldLedger.entries.length === Number(createFieldLedger.checkedPathCount || 0) &&
+      createFieldLedger.entries.every((entry) => entry.preCreateStatus === "passed" && entry.rawValueStored === false) &&
+      createFieldLedger.rawPayloadStored === false
+    );
   const businessDefaultsReady = !usesFinalPayloadHash || finalManifest.businessDefaultsPresent === true;
   const finalPayloadWireBodyReady = !usesFinalPayloadHash ||
     (
@@ -651,6 +664,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       summary: finalNestedFieldContractOk
         ? `已发送嵌套字段通过同一合同模块校验，检查 ${nestedFieldContract.checkedPathCount} 条路径。`
         : "已发送嵌套字段缺少路径级语义合同，或存在来源、枚举、数量、互斥关系 blocker。"
+    },
+    {
+      key: "create_field_ledger",
+      status: finalCreateFieldLedgerOk ? "passed" : "blocked",
+      summary: finalCreateFieldLedgerOk
+        ? "发送与受控省略字段均已进入脱敏核验账本。"
+        : "创建字段核验账本缺失、路径不完整或包含未通过项。"
     },
     {
       key: "route_payload_defaults",

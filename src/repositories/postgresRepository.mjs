@@ -2834,6 +2834,61 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async attestCreateFieldLedger({ jobId, operator = "local_operator", allMatched = false } = {}) {
+    assertId("job_id", jobId);
+    if (allMatched !== true) throw new Error("create_field_ledger_all_matched_required");
+    const bundle = await this.getLaunchJobBundle(jobId);
+    if (!bundle?.draft || bundle.readback?.readback_status !== "readback_verified") {
+      throw new Error("create_field_ledger_requires_verified_platform_readback");
+    }
+    const ledger = bundle.draft.payload_summary?.final_payload_manifest?.createFieldLedger || {};
+    const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+    if (ledger.status !== "passed" || !entries.length || entries.some((entry) => entry.preCreateStatus !== "passed")) {
+      throw new Error("create_field_ledger_not_ready_for_attestation");
+    }
+    const evidenceRef = `EV-${jobId}-STD-PROJECT-CONSOLE-FIELD-LEDGER`;
+    const fieldLedger = {
+      status: "manual_console_verified",
+      rule_version: ledger.ruleVersion || "",
+      checked_path_count: entries.length,
+      matched_path_count: entries.length,
+      mismatched_path_count: 0,
+      operator,
+      values_stored: false,
+      entries: entries.map((entry) => ({
+        path: entry.path || "",
+        send_policy: entry.sendPolicy || "",
+        observed_status: "matched",
+        value_hash: entry.valueHash || ""
+      }))
+    };
+    await this.upsertEvidence({
+      artifactId: evidenceRef,
+      jobId,
+      artifactType: "std_project_console_field_ledger",
+      title: "std project console field ledger",
+      summary: `manual_console_verified=true checked_path_count=${entries.length} mismatched_path_count=0 values_stored=false`,
+      contentHash: `sha256:${sha256Hex(JSON.stringify(fieldLedger))}`,
+      storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+      sourceRef: "manual:std_project_console_field_check",
+      sourceUsage: bundle.job.source_usage || "runtime_truth"
+    });
+    await this.upsertReadbackRecord({
+      readbackId: bundle.readback.readback_id,
+      jobId,
+      objectType: bundle.readback.object_type,
+      objectId: bundle.readback.object_id,
+      objectName: bundle.readback.object_name,
+      readbackStatus: bundle.readback.readback_status,
+      fieldDiffSummary: {
+        ...(bundle.readback.field_diff_summary || {}),
+        create_field_ledger: fieldLedger
+      },
+      evidenceRef
+    });
+    return { evidenceRef, checkedPathCount: entries.length, status: "manual_console_verified" };
+  }
+
   async upsertLaunchConfirmation(confirmation) {
     assertId("confirmation_id", confirmation.confirmationId);
     assertId("job_id", confirmation.jobId);
@@ -3301,6 +3356,50 @@ export class PostgresRepository {
             AND action_type = 'oceanengine_std_project_create'
         ), 1),
         'maximumCreateAttempts', 3
+      )::text;
+    `, this.database);
+  }
+
+  async getCaseCreateVerificationSeriesState({ caseId, verificationSeriesId, maximumCreateAttempts = 3 } = {}) {
+    assertId("case_id", caseId);
+    assertId("verification_series_id", verificationSeriesId);
+    const maximum = Number(maximumCreateAttempts || 3);
+    if (!Number.isInteger(maximum) || maximum < 1 || maximum > 3) {
+      throw new Error("invalid_verification_series_maximum_create_attempts");
+    }
+    return queryJson(`
+      WITH series_actions AS (
+        SELECT pa.action_id, pa.job_id, pa.attempt_no, pa.action_status
+        FROM mwb.platform_actions pa
+        JOIN mwb.launch_jobs j ON j.job_id = pa.job_id
+        WHERE j.case_id = ${sqlLiteral(caseId)}
+          AND pa.action_type = 'oceanengine_std_project_create'
+          AND pa.metadata->>'verification_series_id' = ${sqlLiteral(verificationSeriesId)}
+      )
+      SELECT jsonb_build_object(
+        'caseId', ${sqlLiteral(caseId)},
+        'verificationSeriesId', ${sqlLiteral(verificationSeriesId)},
+        'createActionCount', (SELECT count(*) FROM series_actions),
+        'maxCreateAttemptNo', coalesce((SELECT max(attempt_no) FROM series_actions), 0),
+        'nextCreateAttemptNo', coalesce((SELECT count(*) + 1 FROM series_actions), 1),
+        'maximumCreateAttempts', ${maximum},
+        'createdObjectCount', (
+          SELECT count(*)
+          FROM mwb.created_objects co
+          JOIN series_actions sa ON sa.action_id = co.action_id
+          WHERE co.object_type = 'std_project'
+        ),
+        'readbackVerifiedCount', (
+          SELECT count(*)
+          FROM mwb.readback_records rb
+          WHERE rb.job_id IN (SELECT DISTINCT job_id FROM series_actions)
+            AND rb.object_type = 'std_project'
+            AND rb.readback_status = 'readback_verified'
+        ),
+        'successfulActionCount', (
+          SELECT count(*) FROM series_actions
+          WHERE action_status = 'succeeded'
+        )
       )::text;
     `, this.database);
   }

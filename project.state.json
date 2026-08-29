@@ -9,26 +9,39 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": null,
+  "active_task": {
+    "task_id": "TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+    "status": "failed_waiting_manual_review",
+    "read_order": [
+      "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+      "docs/Solution Design.md"
+    ],
+    "updated_at": "2026-08-29 CST"
+  },
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "single_oceanengine_std_project_create",
-      "target_job_id": "JOB-MWBV2-20260828133507-78C36B",
-      "target_draft_id": "DRAFT-JOB-MWBV2-20260828133507-78C36B-V2",
-      "target_payload_hash": "sha256:c823aea73d20948477d2a41f790aab2d163f050dfa3e244826dda7cab3de240f",
-      "target_plan_id": "PLAN-JOB-MWBV2-20260828133507-78C36B-V2",
-      "target_plan_hash": "sha256:3539ecb9bbcf427acdfe3df795a7961ee908a7f6fd51d2f21cc415bb81b2a2ba",
-      "target_attempt_no": 2,
+      "mode": "verification_series_single_std_project_create",
+      "verification_series_id": "SERIES-MWBV2-JSZC-REAL-CREATE-20260829",
+      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+      "target_job_id": "JOB-MWBV2-20260829151802-CB8550",
+      "target_draft_id": "DRAFT-JOB-MWBV2-20260829151802-CB8550",
+      "target_payload_hash": "sha256:84b9867717babc81c957b2ed9eab0f0883df175a0fd04ce46c419dce4bdf3040",
+      "target_plan_id": "PLAN-JOB-MWBV2-20260829151802-CB8550-V1",
+      "target_plan_hash": "sha256:b0b4749a09fc74974987a7647919f2e3ec447c4875f73378247c1ca98936af3a",
       "maximum_total_attempts": 3,
+      "target_attempt_no": 1,
       "allowed_actions": [],
       "allowed_plan_actions": [
         "std_project_create"
       ],
       "maximum_actions": 0,
       "retry_allowed": false,
-      "granted_by": "user_confirmed_mini_game_launch_link_fresh_create_once",
-      "granted_at": "2026-08-28 CST"
+      "granted_by": "user_confirmed_attempt_1_single_create_2026-08-29",
+      "granted_at": "2026-08-29 CST"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

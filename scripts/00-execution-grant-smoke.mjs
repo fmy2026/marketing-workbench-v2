@@ -112,23 +112,25 @@ function fakeFetchFactory({
 const repo = new PostgresRepository();
 const createdJobIds = [];
 const tempDirs = [];
+const testRunRef = `run-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
-async function createTestJob(sourceRecordRef) {
+async function createTestJob(sourceRecordRef, { caseId = "" } = {}) {
   const view = await createJob(repo, {
     user_intent: "oceanengine_3_byte_mini_game JSZC 1871922175825993",
     route_id: "oceanengine_3_byte_mini_game",
     game_code: "JSZC",
     advertiser_id: "1871922175825993",
     source_usage: "test_run",
-    source_record_ref: sourceRecordRef
+    source_record_ref: `${sourceRecordRef}:${testRunRef}`,
+    ...(caseId ? { case_id: caseId } : {})
   });
   createdJobIds.push(view.jobId);
   return view;
 }
 
-async function createReadyTestJob(sourceRecordRef) {
-  const view = await createTestJob(sourceRecordRef);
-  await runJob(repo, view.jobId, { mode: "dry_run", mockReady: true });
+async function createReadyTestJob(sourceRecordRef, { caseId = "", workflowOptions = {} } = {}) {
+  const view = await createTestJob(sourceRecordRef, { caseId });
+  await runJob(repo, view.jobId, { mode: "dry_run", mockReady: true, ...workflowOptions });
   return getBundleView(view.jobId);
 }
 
@@ -450,6 +452,102 @@ try {
   assert(second.executionGrant.status === "blocked", "second create attempt should be blocked");
   assert(second.executionGrant.createCalled === false, "second grant should not create");
 
+  const verificationSeriesId = "TEST-OE3-CREATE-SERIES-20260829";
+  const verificationTaskRef = "tasks/test-execution-grant-series.md";
+  const seriesFirst = await createReadyTestJob("execution-grant-smoke:series-attempt-1", {
+    workflowOptions: {
+      createAttemptNo: 1,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts: 3
+    }
+  });
+  const seriesCaseId = (await repo.getLaunchJobBundle(seriesFirst.jobId)).job.case_id;
+  const seriesFirstState = await writeProjectStateForScope(seriesFirst);
+  const seriesFirstFetch = fakeFetchFactory({
+    projectId: "999900010",
+    createApiCode: "40000",
+    createObjectIdPresent: false,
+    listMatch: false,
+    createMessage: "opaque platform condition"
+  });
+  const seriesFirstResult = await executeConfirmedLaunch({
+    repo,
+    jobId: seriesFirst.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: seriesFirstFetch,
+    projectStatePath: seriesFirstState
+  });
+  assertOneCreateOneReadback(seriesFirstFetch);
+  assert(seriesFirstResult.executionGrant.createCalled === true, "series attempt 1 should make exactly one create call");
+
+  const seriesSecond = await createReadyTestJob("execution-grant-smoke:series-attempt-2", {
+    caseId: seriesCaseId,
+    workflowOptions: {
+      createAttemptNo: 2,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts: 3
+    }
+  });
+  const seriesSecondState = await writeProjectStateForScope(seriesSecond);
+  const seriesSecondFetch = fakeFetchFactory({ projectId: "999900011" });
+  const seriesSecondResult = await executeConfirmedLaunch({
+    repo,
+    jobId: seriesSecond.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: seriesSecondFetch,
+    projectStatePath: seriesSecondState
+  });
+  assertOneCreateOneReadback(seriesSecondFetch);
+  assert(seriesSecondResult.headline.status === "created", "series attempt 2 readback should create the object");
+  const seriesStateAfterSuccess = await repo.getCaseCreateVerificationSeriesState({
+    caseId: seriesCaseId,
+    verificationSeriesId,
+    maximumCreateAttempts: 3
+  });
+  assert(Number(seriesStateAfterSuccess.createActionCount) === 2, "series should count actions across fresh jobs");
+  assert(Number(seriesStateAfterSuccess.createdObjectCount) === 1, "series should retain its created object");
+  assert(Number(seriesStateAfterSuccess.readbackVerifiedCount) === 1, "series should retain its verified readback");
+  const fieldLedgerAttestation = await repo.attestCreateFieldLedger({
+    jobId: seriesSecond.jobId,
+    operator: "test_operator",
+    allMatched: true
+  });
+  assert(fieldLedgerAttestation.status === "manual_console_verified", "field ledger should require explicit post-create attestation");
+  assert(Number(fieldLedgerAttestation.checkedPathCount) > 0, "field ledger should contain checked paths");
+  const attestedBundle = await repo.getLaunchJobBundle(seriesSecond.jobId);
+  assert(
+    attestedBundle.readback?.field_diff_summary?.create_field_ledger?.status === "manual_console_verified",
+    "manual field ledger result should be stored on the existing readback record"
+  );
+  assertNoSensitiveLeak(attestedBundle.readback?.field_diff_summary || {});
+
+  const seriesThird = await createReadyTestJob("execution-grant-smoke:series-attempt-3-blocked-after-success", {
+    caseId: seriesCaseId,
+    workflowOptions: {
+      createAttemptNo: 3,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts: 3
+    }
+  });
+  const seriesThirdState = await writeProjectStateForScope(seriesThird);
+  const seriesThirdFetch = fakeFetchFactory({ projectId: "999900012" });
+  const seriesThirdResult = await executeConfirmedLaunch({
+    repo,
+    jobId: seriesThird.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: seriesThirdFetch,
+    projectStatePath: seriesThirdState
+  });
+  assert(seriesThirdResult.executionGrant.status === "blocked", "series must lock after any created object");
+  assert(seriesThirdResult.executionGrant.blockers.includes("verification_series_created_object_already_recorded"), "series lock blocker should be explicit");
+  assert(callCount(seriesThirdFetch, "/std_project/create/") === 0, "locked series must not call create again");
+
   console.log(JSON.stringify({
     status: "passed",
     invalidGrantBlocked: true,
@@ -465,6 +563,9 @@ try {
     invalidShapePreflightBlocked: true,
     atomicClaimAllowedOneCreate: true,
     preCreateGateBlockedWithoutCalls: true,
+    verificationSeriesCountedAcrossFreshJobs: true,
+    verificationSeriesLockedAfterSuccess: true,
+    createFieldLedgerAttested: true,
     node6Status: statuses.std_project_create_executor,
     node7Status: statuses.readback_closer,
     retryBlocked: true,

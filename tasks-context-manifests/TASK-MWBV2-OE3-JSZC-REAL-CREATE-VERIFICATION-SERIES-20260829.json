@@ -1,0 +1,156 @@
+{
+  "schema_version": "2026-08-29.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+  "status": "failed_waiting_manual_review",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Run at most three independently confirmed JSZC std_project create validations; stop the series immediately after any confirmed creation.",
+    "mode": "implementation_then_manual_single_create",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+    "docs/Solution Design.md",
+    "docs/.问题排查/3.0项目创建排查对比/巨量营销3.0-标准项目-7675218401040220179-创建字段参数.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/06-create-verification-series-prepare.mjs",
+    "scripts/07-create-field-ledger-attest.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "verification_series_id": "SERIES-MWBV2-JSZC-REAL-CREATE-20260829",
+    "maximum_new_create_attempts": 3,
+    "project_name_slots": ["P10", "P11", "P12"],
+    "schedule_type": "SCHEDULE_FROM_NOW"
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/06-create-verification-series-prepare.mjs",
+    "scripts/07-create-field-ledger-attest.mjs",
+    "existing Postgres runtime records for the scoped Case and fresh Jobs"
+  ],
+  "forbidden_actions": [
+    "automatic std_project/create",
+    "a fourth std_project/create in this verification series",
+    "reuse of a prior job, draft, plan, confirmation, or payload",
+    "promotion/create",
+    "material, anchor, component, event asset, DMP, budget, bid, or pause write",
+    "token refresh",
+    "new table, view, dashboard, or report",
+    "storing token, secret, Cookie, full URL, raw request, raw payload, or raw response"
+  ],
+  "human_gate": {
+    "before_each_create": [
+      "fresh runtime-truth Job has Node 1–5 ready with no blocker",
+      "exact Job, Draft, Plan, payload hash, series attempt number, and generated project name have been shown to the user",
+      "user separately confirms exactly one create and accepts SCHEDULE_FROM_NOW risk"
+    ],
+    "after_list_hit": [
+      "operator compares the console field-by-field against the redacted ledger",
+      "operator invokes launch:attest-field-ledger with all fields matched only when true"
+    ]
+  },
+  "validation_plan": [
+    "node --check changed modules",
+    "npm run test:payload-contract",
+    "npm run test:execution-plan",
+    "npm run test:execution-grant",
+    "npm run smoke:workflow-skills",
+    "fresh runtime_truth Node 1–5 with the declared verification series metadata",
+    "audit zero platform actions before user confirmation"
+  ],
+  "readback_policy": {
+    "endpoint": "GET /open_api/v3.0/std_project/list/",
+    "delays_ms": [0, 10000, 30000],
+    "match_fields": ["project_id", "name", "status"],
+    "full_field_api_readback_available": false,
+    "full_field_verification": "manual_console_attestation_against_redacted_ledger"
+  },
+  "attempt_1_preparation": {
+    "status": "executed_failed_or_unconfirmed",
+    "job_id": "JOB-MWBV2-20260829151802-CB8550",
+    "draft_id": "DRAFT-JOB-MWBV2-20260829151802-CB8550",
+    "plan_id": "PLAN-JOB-MWBV2-20260829151802-CB8550-V1",
+    "payload_hash": "sha256:84b9867717babc81c957b2ed9eab0f0883df175a0fd04ce46c419dce4bdf3040",
+    "plan_hash": "sha256:b0b4749a09fc74974987a7647919f2e3ec447c4875f73378247c1ca98936af3a",
+    "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P10_20260829",
+    "node_1_to_5": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "needs_confirmation"
+    },
+    "create_readiness": {
+      "status": "ready_for_user_create_confirmation",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "duplicate_status": "platform_not_duplicate",
+      "blockers": []
+    },
+    "audit": {
+      "execution_plans": 1,
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "readback_records": 0
+    },
+    "series_state": {
+      "create_action_count": 1,
+      "created_object_count": 0,
+      "readback_verified_count": 0,
+      "next_create_attempt_no": 2
+    },
+    "execution_result": {
+      "create_called": true,
+      "http_status": 200,
+      "api_code": "40000",
+      "request_id_present": true,
+      "object_id_present": false,
+      "error_category": "resource_not_eligible",
+      "offending_field_path": "",
+      "readback_attempt_count": 3,
+      "readback_status": "not_found_after_create",
+      "readback_object_name_matches": false,
+      "raw_payload_stored": false,
+      "raw_response_stored": false
+    }
+  },
+  "completion_gate": "Any returned project ID or name-matched list record closes the whole series. If all three attempts fail without a verified object, close the series and require a new approved remediation task before any further create."
+}

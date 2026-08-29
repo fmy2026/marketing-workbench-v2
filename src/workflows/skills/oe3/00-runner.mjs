@@ -341,10 +341,22 @@ async function executeCreateReadiness({ repo, context }) {
   });
   const skillBlockers = [...context.skillOutputs.values()].flatMap((item) => item.blockers || []);
   const attemptState = await repo.getCreateAttemptState(latestBundle.job.job_id);
-  const platformActions = Number(attemptState.createActionCount || 0);
-  const createdObjects = latestBundle.createdObject ? 1 : 0;
-  const correctiveAttemptReady = Number(context.createAttemptNo) === Number(attemptState.nextCreateAttemptNo) &&
-    Number(context.createAttemptNo) <= Number(attemptState.maximumCreateAttempts || 3);
+  const verificationSeriesState = context.verificationSeriesId
+    ? await repo.getCaseCreateVerificationSeriesState({
+      caseId: latestBundle.job.case_id,
+      verificationSeriesId: context.verificationSeriesId,
+      maximumCreateAttempts: context.maximumCreateAttempts
+    })
+    : null;
+  const effectiveAttemptState = verificationSeriesState || attemptState;
+  const platformActions = Number(effectiveAttemptState.createActionCount || 0);
+  const createdObjects = verificationSeriesState
+    ? Number(verificationSeriesState.createdObjectCount || 0)
+    : (latestBundle.createdObject ? 1 : 0);
+  const alreadyReadbackVerified = verificationSeriesState && Number(verificationSeriesState.readbackVerifiedCount || 0) > 0;
+  const correctiveAttemptReady = Number(context.createAttemptNo) === Number(effectiveAttemptState.nextCreateAttemptNo) &&
+    Number(context.createAttemptNo) <= Number(effectiveAttemptState.maximumCreateAttempts || 3) &&
+    !alreadyReadbackVerified;
   const blockers = [...new Set([
     ...skillBlockers,
     ...createPreflight.blocker_codes,
@@ -371,8 +383,12 @@ async function executeCreateReadiness({ repo, context }) {
         canCreateCurrentJob: ready,
         retryAllowed: false,
         createAttemptNo: context.createAttemptNo,
-        maximumCreateAttempts: Number(attemptState.maximumCreateAttempts || 3),
-        nextCreateAttemptNo: Number(attemptState.nextCreateAttemptNo || 1),
+        maximumCreateAttempts: Number(effectiveAttemptState.maximumCreateAttempts || 3),
+        nextCreateAttemptNo: Number(effectiveAttemptState.nextCreateAttemptNo || 1),
+        verificationSeriesId: context.verificationSeriesId || "",
+        verificationSeriesTaskRef: context.verificationTaskRef || "",
+        verificationSeriesActionCount: verificationSeriesState ? Number(verificationSeriesState.createActionCount || 0) : 0,
+        verificationSeriesReadbackVerifiedCount: verificationSeriesState ? Number(verificationSeriesState.readbackVerifiedCount || 0) : 0,
         nextConfirmationRequired: ready && context.mode === "execute_once",
         platformActions,
         createdObjects,
@@ -435,7 +451,15 @@ async function executeSkill({ repo, context, skillKey }) {
     // The initial plan may have seen no target account resource rows. Rebuild it
     // after candidate materialization so later gates use the current local truth.
     if (result.status === "passed" && EXECUTION_PLAN_MODES.has(context.mode)) {
-      await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
+      await compileAndSaveExecutionPlan({
+        repo,
+        jobId: context.bundle.job.job_id,
+        planVersion: context.planVersion,
+        createAttemptNo: context.createAttemptNo,
+        verificationSeriesId: context.verificationSeriesId,
+        verificationTaskRef: context.verificationTaskRef,
+        maximumCreateAttempts: context.maximumCreateAttempts
+      });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "aweme-authorization-readonly") {
@@ -487,7 +511,15 @@ async function executeSkill({ repo, context, skillKey }) {
         previousOutputs: context.skillOutputs
       });
       if (EXECUTION_PLAN_MODES.has(context.mode)) {
-        await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
+        await compileAndSaveExecutionPlan({
+          repo,
+          jobId: context.bundle.job.job_id,
+          planVersion: context.planVersion,
+          createAttemptNo: context.createAttemptNo,
+          verificationSeriesId: context.verificationSeriesId,
+          verificationTaskRef: context.verificationTaskRef,
+          maximumCreateAttempts: context.maximumCreateAttempts
+        });
       }
     }
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
@@ -800,6 +832,9 @@ export async function runOe3WorkflowSkills({
   mockMonitorEnsure = false,
   qiankunOwnerKey = "",
   createAttemptNo = 1,
+  verificationSeriesId = "",
+  verificationTaskRef = "",
+  maximumCreateAttempts = 3,
   awemeAuthorizationClient = null
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
@@ -810,10 +845,25 @@ export async function runOe3WorkflowSkills({
   if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
     throw new Error("invalid_std_project_create_attempt_no");
   }
+  const numericMaximumCreateAttempts = Number(maximumCreateAttempts || 3);
+  if (!Number.isInteger(numericMaximumCreateAttempts) || numericMaximumCreateAttempts < 1 || numericMaximumCreateAttempts > 3) {
+    throw new Error("invalid_std_project_create_maximum_attempts");
+  }
+  if (verificationSeriesId && !/^[A-Za-z0-9_.-]{1,160}$/.test(verificationSeriesId)) {
+    throw new Error("invalid_verification_series_id");
+  }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
   if (EXECUTION_PLAN_MODES.has(mode)) {
-    await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
+    await compileAndSaveExecutionPlan({
+      repo,
+      jobId,
+      planVersion: numericAttemptNo,
+      createAttemptNo: numericAttemptNo,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts: numericMaximumCreateAttempts
+    });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
   const restoreMockAwemeAuthorization = mockReady === true &&
@@ -845,6 +895,9 @@ export async function runOe3WorkflowSkills({
     awemeAuthorizationClient,
     createAttemptNo: numericAttemptNo,
     planVersion: numericAttemptNo,
+    verificationSeriesId,
+    verificationTaskRef,
+    maximumCreateAttempts: numericMaximumCreateAttempts,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
@@ -868,7 +921,15 @@ export async function runOe3WorkflowSkills({
       });
     await repo.upsertNodeRuns(jobId, nodes);
     if (EXECUTION_PLAN_MODES.has(mode)) {
-      await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
+      await compileAndSaveExecutionPlan({
+        repo,
+        jobId,
+        planVersion: numericAttemptNo,
+        createAttemptNo: numericAttemptNo,
+        verificationSeriesId,
+        verificationTaskRef,
+        maximumCreateAttempts: numericMaximumCreateAttempts
+      });
     }
     if (mode === "dry_run") {
       const latestDraftBundle = await repo.getLaunchJobBundle(jobId);

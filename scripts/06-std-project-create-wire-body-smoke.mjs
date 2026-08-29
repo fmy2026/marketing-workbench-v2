@@ -5,6 +5,83 @@ import {
   INT64_MAX_DECIMAL
 } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
+import { CREATE_FIELD_LEDGER_VERSION } from "../src/workflows/skills/oe3/05-create-field-ledger.mjs";
+import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
+import { TITLE_MATERIAL_CONTRACT } from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
+import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
+
+function passedCreateFieldLedger() {
+  return {
+    status: "passed",
+    ruleVersion: CREATE_FIELD_LEDGER_VERSION,
+    checkedPathCount: 1,
+    blockedPathCount: 0,
+    entries: [{
+      path: "landing_type",
+      sendPolicy: "send",
+      preCreateStatus: "passed",
+      rawValueStored: false
+    }],
+    rawPayloadStored: false
+  };
+}
+
+function passedCurrentRouteManifest() {
+  return {
+    externalUrlMaterialListPolicy: "omit",
+    externalUrlMaterialListPresent: false,
+    externalUrlMaterialListOmittedByContract: true,
+    productSellingPointsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
+    productSellingPointsContractRuleVersion: SELLING_POINTS_CONTRACT.ruleVersion,
+    productSellingPointsCount: 1,
+    productSellingPointsMinChars: 6,
+    productSellingPointsMaxChars: 6,
+    productSellingPointsValidated: true,
+    productSellingPointsBlockerCount: 0,
+    titleMaterialSource: TITLE_MATERIAL_CONTRACT.source,
+    titleMaterialContractRuleVersion: TITLE_MATERIAL_CONTRACT.ruleVersion,
+    titleMaterialPackId: "PACK-WIRE-SMOKE",
+    titleMaterialCount: 1,
+    titleMaterialMinChars: 5,
+    titleMaterialMaxChars: 5,
+    titleMaterialAssetIds: ["ASSET-WIRE-SMOKE"],
+    titleMaterialAssetHashes: ["sha256:wire-smoke"],
+    titleMaterialValidated: true,
+    titleMaterialBlockerCount: 0,
+    titleMaterialSourceTypeMismatchCount: 0,
+    titleMaterialFilenameLikeCount: 0,
+    officialFieldEvidence: {
+      status: "passed",
+      blockerCodes: [],
+      fields: [
+        { fieldPath: "delivery_type", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
+        { fieldPath: "layer_roi_switch", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" }
+      ],
+      omittedFieldPaths: ["micro_promotion_type"]
+    },
+    nestedFieldContract: {
+      status: "passed",
+      ruleVersion: NESTED_FIELD_CONTRACT.ruleVersion,
+      source: NESTED_FIELD_CONTRACT.source,
+      checkedPathCount: 7,
+      blockerCount: 0,
+      blockers: [],
+      checkedGroups: [
+        "video_materials",
+        "product_info",
+        "image_material_list",
+        "external_url_material_list",
+        "mini_program_info",
+        "track_url_setting",
+        "audience"
+      ],
+      externalUrlMaterialListPolicy: "omit",
+      externalUrlMaterialListPresent: false,
+      externalUrlMaterialListOmittedByContract: true,
+      rawPayloadStored: false
+    }
+  };
+}
 
 function basePayload(instanceId = "7434750138926546994") {
   return {
@@ -122,7 +199,7 @@ const manifestPreflight = evaluateStdProjectCreatePreflight({
     createWireBodyEncodingStatus: "passed",
     createWireBodyHash: wire.requestHash,
     createRequestHash: wire.requestHash,
-    officialFieldEvidence: { status: "passed", blockerCodes: [], fields: [] },
+    createFieldLedger: passedCreateFieldLedger(),
     finalMaterialReadiness: {
       selectedRequiredVideoCount: 1,
       verifiedVideoCount: 1,
@@ -132,11 +209,12 @@ const manifestPreflight = evaluateStdProjectCreatePreflight({
     backupLandingPageHttps: true,
     backupLandingPageTargetVisible: true,
     backupLandingPageReadbackVerified: true,
-    backupLandingPageHashMatch: true
+    backupLandingPageHashMatch: true,
+    ...passedCurrentRouteManifest()
   },
   payloadContractStatus: "passed"
 });
-assert.equal(manifestPreflight.status, "passed");
+assert.equal(manifestPreflight.status, "passed", JSON.stringify(manifestPreflight.blocker_codes));
 
 const unverifiedPreflight = evaluateStdProjectCreatePreflight({
   requestFieldManifest: {
@@ -145,6 +223,7 @@ const unverifiedPreflight = evaluateStdProjectCreatePreflight({
     advertiserIdStorageType: "string",
     advertiserIdTransportType: "number",
     advertiserIdTransportSafe: true,
+    createFieldLedger: passedCreateFieldLedger(),
     instanceIdCreateEvidence: {
       status: "blocked",
       candidateField: "instance_id",

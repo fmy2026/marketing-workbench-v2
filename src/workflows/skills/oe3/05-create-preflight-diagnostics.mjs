@@ -8,6 +8,7 @@ import {
   evaluateTitleMaterialPayloadList
 } from "./05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
+import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -711,6 +712,34 @@ function checkNestedFieldContractManifest(manifest = {}) {
   });
 }
 
+function checkCreateFieldLedger(manifest = {}) {
+  const ledger = manifest.createFieldLedger || {};
+  const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+  const passed = ledger.status === "passed" &&
+    ledger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
+    Number(ledger.checkedPathCount || 0) > 0 &&
+    Number(ledger.blockedPathCount || 0) === 0 &&
+    entries.length === Number(ledger.checkedPathCount || 0) &&
+    entries.every((entry) => entry.rawValueStored === false && entry.preCreateStatus === "passed") &&
+    ledger.rawPayloadStored === false;
+  return diag({
+    checkId: "manifest:create_field_ledger",
+    fieldPath: "final_payload_manifest.createFieldLedger",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `all_sent_and_controlled_omitted_paths_redacted:${CREATE_FIELD_LEDGER_VERSION}`,
+    actualValue: {
+      status: ledger.status || "missing",
+      ruleVersion: ledger.ruleVersion || "",
+      checkedPathCount: Number(ledger.checkedPathCount || 0),
+      blockedPathCount: Number(ledger.blockedPathCount || 0),
+      entriesPresent: entries.length,
+      rawPayloadStored: ledger.rawPayloadStored === true
+    },
+    blockerCode: "create_field_ledger_not_verified",
+    repairHint: "重新生成最终 payload ledger；只记录路径、合同、类型、数量与 hash，不保存原始 payload。"
+  });
+}
+
 export function evaluateStdProjectCreatePreflight({
   payload = null,
   requestFieldManifest = {},
@@ -867,6 +896,7 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkOfficialDirectCreateFields(requestFieldManifest));
   diagnostics.push(checkNestedFieldContractManifest(requestFieldManifest));
+  diagnostics.push(checkCreateFieldLedger(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 
   const blocked = diagnostics.filter((item) => item.status === "blocked");

@@ -23,6 +23,10 @@ import {
   evaluateNestedFieldContract,
   nestedFieldContractManifest
 } from "./05-nested-field-contract.mjs";
+import {
+  createFieldLedgerManifest,
+  evaluateCreateFieldLedger
+} from "./05-create-field-ledger.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -412,7 +416,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   instanceIdCreateEvidence = {},
   awemeAuthorization = {},
   titleMaterialResult = {},
-  nestedFieldContract = {}
+  nestedFieldContract = {},
+  createFieldLedger = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
@@ -476,6 +481,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
+    ...(createFieldLedger.status === "passed" ? [] : ["create_field_ledger_blocked"]),
     ...(officialFieldEvidence.blockerCodes || [])
   ];
   return [...new Set([
@@ -495,7 +501,8 @@ function fieldManifest(payload = {}, blockers = [], {
   instanceIdCreateEvidence = {},
   awemeAuthorization = {},
   titleMaterialResult = {},
-  nestedFieldContract = {}
+  nestedFieldContract = {},
+  createFieldLedger = {}
 } = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
@@ -631,6 +638,7 @@ function fieldManifest(payload = {}, blockers = [], {
       yuntuCategoryIdPresent: Boolean(brand.yuntu_category_id)
     },
     nestedFieldContract: nestedFieldContractManifest(nestedFieldContract),
+    createFieldLedger: createFieldLedgerManifest(createFieldLedger),
     officialFieldEvidence: officialFieldEvidenceSummary(officialFieldEvidence),
     instanceIdCreateEvidence: instanceIdCreateEvidenceSummary(instanceIdCreateEvidence),
     forbiddenFieldsPresent: false,
@@ -747,6 +755,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     backupLandingPage,
     miniProgramLaunchLink: miniProgramLink
   });
+  const createFieldLedger = evaluateCreateFieldLedger(payload);
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
     businessDefaultsPresent: configBlockers.length === 0,
@@ -765,7 +774,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     instanceIdCreateEvidence,
     awemeAuthorization,
     titleMaterialResult,
-    nestedFieldContract
+    nestedFieldContract,
+    createFieldLedger
   });
   const wireBody = buildStdProjectCreateWireBody(payload);
   const payloadHash = wireBody.bodyHash || hashValue(payload);
@@ -782,7 +792,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       instanceIdCreateEvidence,
       awemeAuthorization,
       titleMaterialResult,
-      nestedFieldContract
+      nestedFieldContract,
+      createFieldLedger
     }),
     blockers
   };

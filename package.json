@@ -50,6 +50,8 @@
     "test:node4-resource-prep-contracts": "node scripts/04-node4-resource-prep-contracts-smoke.mjs",
     "test:backup-landing-page-material-inventory": "node scripts/04-backup-landing-page-material-inventory-smoke.mjs",
     "launch:execute-once": "node scripts/06-launch-execute-once.mjs",
+    "launch:prepare-verification-series": "node scripts/06-create-verification-series-prepare.mjs",
+    "launch:attest-field-ledger": "node scripts/07-create-field-ledger-attest.mjs",
     "monitor:status": "node scripts/02-monitor-provision-cli.mjs --mode status",
     "monitor:account-preflight": "node scripts/02-monitor-provision-cli.mjs --mode account_preflight",
     "monitor:plan": "node scripts/02-monitor-provision-cli.mjs --mode plan",

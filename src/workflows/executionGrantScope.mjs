@@ -60,6 +60,17 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
     ...defaultScope,
     ...(Object.keys(testCompatibilityScope).length ? testCompatibilityScope : {})
   };
+  const verificationSeriesId = scope.verification_series_id || "";
+  const verificationSeriesState = verificationSeriesId
+    ? await repo.getCaseCreateVerificationSeriesState({
+      caseId: bundle.job.case_id,
+      verificationSeriesId,
+      maximumCreateAttempts: Number(scope.maximum_total_attempts || 3)
+    })
+    : null;
+  const effectiveAttemptState = verificationSeriesState || attemptState;
+  const planSeriesId = planScope.verification_series_id || "";
+  const planSeriesTaskRef = planScope.task_ref || "";
   const planScopeBlockers = optionalPlanScopeBlockers(scope, plan);
   const blockers = [
     ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
@@ -70,8 +81,12 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
     ...(actionScopeAllowsOnlyCreate(scope.allowed_actions) ? [] : ["platform_write_scope_allowed_actions_invalid"]),
     ...(Number(scope.maximum_actions) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
     ...(Number(scope.maximum_total_attempts) === 3 ? [] : ["platform_write_scope_maximum_total_attempts_invalid"]),
-    ...(Number(scope.target_attempt_no) === Number(attemptState.nextCreateAttemptNo) ? [] : ["platform_write_scope_attempt_number_mismatch"]),
-    ...(Number(scope.target_attempt_no) <= Number(attemptState.maximumCreateAttempts) ? [] : ["platform_write_scope_attempt_limit_reached"]),
+    ...(verificationSeriesId === planSeriesId ? [] : ["platform_write_scope_verification_series_mismatch"]),
+    ...(verificationSeriesId && !planSeriesTaskRef ? ["platform_write_scope_verification_task_ref_missing"] : []),
+    ...(Number(scope.target_attempt_no) === Number(effectiveAttemptState.nextCreateAttemptNo) ? [] : ["platform_write_scope_attempt_number_mismatch"]),
+    ...(Number(scope.target_attempt_no) <= Number(effectiveAttemptState.maximumCreateAttempts) ? [] : ["platform_write_scope_attempt_limit_reached"]),
+    ...(verificationSeriesState && Number(verificationSeriesState.createdObjectCount || 0) > 0 ? ["verification_series_created_object_already_recorded"] : []),
+    ...(verificationSeriesState && Number(verificationSeriesState.readbackVerifiedCount || 0) > 0 ? ["verification_series_readback_already_verified"] : []),
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
     ...planScopeBlockers
@@ -93,7 +108,12 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
       maximumActions: Number(scope.maximum_actions || 0),
       targetAttemptNo: Number(scope.target_attempt_no || 0),
       maximumTotalAttempts: Number(scope.maximum_total_attempts || 0),
-      retryAllowed: scope.retry_allowed === true
+      retryAllowed: scope.retry_allowed === true,
+      verificationSeriesId,
+      verificationSeriesTaskRef: planSeriesTaskRef,
+      verificationSeriesActionCount: verificationSeriesState ? Number(verificationSeriesState.createActionCount || 0) : 0,
+      verificationSeriesCreatedObjectCount: verificationSeriesState ? Number(verificationSeriesState.createdObjectCount || 0) : 0,
+      verificationSeriesReadbackVerifiedCount: verificationSeriesState ? Number(verificationSeriesState.readbackVerifiedCount || 0) : 0
     }
   };
 }
