@@ -89,31 +89,6 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 201, await createWorkflowCase(repo, body));
   }
 
-  const awemeAuthorizationMatch = pathname.match(/^\/api\/advertisers\/([^/]+)\/aweme-authorization$/);
-  if (awemeAuthorizationMatch) {
-    const advertiserId = decodeURIComponent(awemeAuthorizationMatch[1]);
-    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-    if (req.method === "GET") {
-      const routeId = url.searchParams.get("route_id") || "";
-      const gameCode = url.searchParams.get("game_code") || "";
-      return sendJson(res, 200, {
-        readiness: await repo.getAdvertiserAwemeAuthorizationReadiness({ routeId, gameCode, advertiserId })
-      });
-    }
-    if (req.method === "POST") {
-      const body = await readBody(req);
-      return sendJson(res, 200, {
-        readiness: await repo.selectAdvertiserAwemeAuthorization({
-          advertiserId,
-          routeId: body.route_id || body.routeId || "",
-          gameCode: body.game_code || body.gameCode || "",
-          selectedAwemeId: body.selected_aweme_id || body.selectedAwemeId || "",
-          selectedDisplayName: body.selected_display_name || body.selectedDisplayName || ""
-        })
-      });
-    }
-  }
-
   const workflowCaseMatch = pathname.match(/^\/api\/workflow-cases\/([^/]+)$/);
   if (req.method === "GET" && workflowCaseMatch) {
     const caseId = decodeURIComponent(workflowCaseMatch[1]);

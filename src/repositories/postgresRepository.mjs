@@ -1644,58 +1644,6 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async selectAdvertiserAwemeAuthorization({
-    advertiserId,
-    routeId,
-    gameCode,
-    selectedAwemeId,
-    selectedDisplayName = ""
-  }) {
-    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
-    assertId("route_id", routeId);
-    assertId("game_code", gameCode);
-    const awemeId = assertId("selected_aweme_id", selectedAwemeId, /^[0-9]+$/);
-    const baseline = await queryJson(`
-      SELECT to_jsonb(coalesce(d.raw_defaults->'aweme_id_baseline', '{}'::jsonb))::text
-      FROM mwb.game_route_defaults d
-      WHERE d.route_id = ${sqlLiteral(routeId)}
-        AND d.game_code = ${sqlLiteral(gameCode)}
-      LIMIT 1;
-    `, this.database);
-    if (baseline?.selection_policy === "fixed_game_default_account_verify") {
-      throw new Error("aweme_selection_forbidden_fixed_default_policy");
-    }
-    const displayName = String(selectedDisplayName || "").replace(/https?:\/\/\S+/gi, "[link]").trim().slice(0, 80);
-    const existing = await queryJson(`
-      SELECT to_jsonb(a.aweme_authorization)::text
-      FROM mwb.advertiser_accounts a
-      WHERE a.advertiser_id = ${sqlLiteral(advertiserId)}
-        AND a.route_id = ${sqlLiteral(routeId)}
-        AND a.game_code = ${sqlLiteral(gameCode)}
-      LIMIT 1;
-    `, this.database);
-    const authorization = existing && typeof existing === "object" && !Array.isArray(existing) ? existing : {};
-    const candidates = Array.isArray(authorization.active_candidates) ? authorization.active_candidates : [];
-    const selected = candidates.find((candidate) => String(candidate?.aweme_id || "") === awemeId);
-    if (!selected) throw new Error("aweme_selection_candidate_not_active");
-    const updated = {
-      ...authorization,
-      selected_aweme_id: awemeId,
-      selected_aweme_id_hash: `sha256:${sha256Hex(awemeId)}`,
-      selected_display_name_summary: displayName || selected.display_name_summary || "",
-      selection_status: "manual_selected",
-      selection_source: "workbench_user_choice",
-      selected_at: new Date().toISOString()
-    };
-    await this.updateAdvertiserAwemeAuthorization({
-      advertiserId,
-      routeId,
-      gameCode,
-      authorization: updated
-    });
-    return this.getAdvertiserAwemeAuthorizationReadiness({ routeId, gameCode, advertiserId });
-  }
-
   async getAdvertiserAwemeAuthorizationReadiness({ routeId, gameCode, advertiserId }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);

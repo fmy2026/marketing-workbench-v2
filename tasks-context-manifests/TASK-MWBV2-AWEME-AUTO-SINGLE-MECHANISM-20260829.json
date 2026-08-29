@@ -1,0 +1,107 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829",
+  "task_ref": "tasks/TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829.md",
+  "status": "completed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Collapse aweme_id handling into a fully automatic game default plus advertiser-account readonly verification mechanism, with no candidate selection or mid-workbench user action.",
+    "mode": "local_code_schema_frontend_implementation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "default_aweme_id": "57018827026",
+    "future_aweme_policy": "fixed_game_default_account_verify_only",
+    "runtime_write_scope": "local_schema_code_tests_and_sanitized_runtime_records_only",
+    "source_record_ref": "user_requested_aweme_auto_single_mechanism_20260829"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-GAME-DEFAULT-AWEME-20260829.json",
+    "db/041_add_aweme_authorization_direct_storage.sql",
+    "db/042_add_jszc_fixed_default_aweme_policy.sql",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/index.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/04-aweme-authorization-readonly-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "schemas/postgres-minimal-truth.md",
+    "package.json"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "aweme_id std_project/create field contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/创建标准项目.md"
+    },
+    {
+      "purpose": "tools/aweme_auth_list readonly authorization relationship source",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/08-工具.md"
+    }
+  ],
+  "allowed_writes": [
+    "db/",
+    "src/workflows/",
+    "src/repositories/",
+    "src/server/",
+    "frontend/",
+    "scripts/",
+    "schemas/",
+    "tasks/TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTO-SINGLE-MECHANISM-20260829.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "launch confirmation",
+    "token refresh",
+    "monitor create",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "raw payload storage",
+    "raw response storage",
+    "full URL storage"
+  ],
+  "validation_plan": [
+    "npm run test:aweme-authorization",
+    "npm run test:payload-contract",
+    "npm run validate:schemas",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:api",
+    "git diff --check"
+  ],
+  "result": {
+    "status": "completed",
+    "summary": "Collapsed aweme_id handling into a single automatic game-route default plus advertiser-account readonly verification mechanism. Removed candidate querying, auto/manual selection, selection API, and frontend candidate controls.",
+    "migration_applied": "db/043_aweme_auto_single_mechanism.sql",
+    "jszc_default_aweme_id": "57018827026",
+    "current_jszc_account_verification_status": "not_verified",
+    "no_real_platform_write": true,
+    "no_token_refresh": true,
+    "validation": [
+      "npm run test:aweme-authorization",
+      "npm run test:payload-contract",
+      "npm run validate:schemas",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:api",
+      "git diff --check"
+    ]
+  }
+}

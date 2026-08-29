@@ -348,9 +348,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
   const awemeAuthorization = finalManifest.awemeAuthorization || {};
-  const awemeStatusAllowed = awemeAuthorization.fixedDefaultPolicy === true
-    ? String(awemeAuthorization.status || "") === "default_authorized"
-    : ["auto_selected", "manual_selected"].includes(String(awemeAuthorization.status || ""));
+  const awemeStatusAllowed = String(awemeAuthorization.status || "") === "authorized";
   const finalPayloadAwemeOk = !usesFinalPayloadHash ||
     awemeAuthorization.required !== true ||
     (
@@ -360,17 +358,12 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.awemeIdLooksLikeImageResource === false &&
       finalManifest.awemeIdValueShape === "digit_string" &&
       awemeStatusAllowed &&
-      awemeAuthorization.selectedActive === true &&
       awemeAuthorization.accountMatches === true &&
-      (
-        awemeAuthorization.fixedDefaultPolicy !== true ||
-        (
-          awemeAuthorization.defaultAwemeIdConfigured === true &&
-          awemeAuthorization.defaultAwemeAuthorized === true &&
-          awemeAuthorization.selectedMatchesDefault === true &&
-          Boolean(awemeAuthorization.defaultAwemeIdHash)
-        )
-      ) &&
+      awemeAuthorization.jobMatches === true &&
+      awemeAuthorization.fixedDefaultPolicy === true &&
+      awemeAuthorization.defaultAwemeIdConfigured === true &&
+      awemeAuthorization.defaultHashMatches === true &&
+      Boolean(awemeAuthorization.defaultAwemeIdHash) &&
       Boolean(awemeAuthorization.verifiedAt) &&
       Boolean(finalManifest.awemeIdHash)
     );
@@ -515,7 +508,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     {
       key: "aweme_auth",
       status: finalPayloadAwemeOk ? "passed" : "blocked",
-      summary: finalPayloadAwemeOk ? "aweme_id 来自账户直存的已验证抖音号授权关系。" : "aweme_id 未通过账户授权关系校验，或疑似来自头像/图片资源。"
+      summary: finalPayloadAwemeOk ? "aweme_id 来自游戏默认值，且目标账户本 job 只读核验通过。" : "aweme_id 未通过默认抖音号账户授权核验，或疑似来自头像/图片资源。"
     },
     {
       key: "backup_landing_page",

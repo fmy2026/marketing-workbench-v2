@@ -544,7 +544,7 @@ function primaryActionView(bundle = {}, createReadiness = {}, executionAvailabil
   };
 }
 
-export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}) {
+export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null) {
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
     const row = dbNodes.get(node.nodeKey) || {};
@@ -625,32 +625,19 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       status: bundle.touchpoint?.status || "missing"
     },
     awemeAuthorization: {
-      routeId: bundle.job.route_id,
-      gameCode: bundle.job.game_code,
-      advertiserId: bundle.job.advertiser_id,
-      selectionPolicy: bundle.defaults?.raw_defaults?.aweme_id_baseline?.selection_policy || bundle.account?.aweme_authorization?.selection_policy || "",
-      fixedDefaultPolicy: bundle.defaults?.raw_defaults?.aweme_id_baseline?.selection_policy === "fixed_game_default_account_verify",
-      defaultAwemeIdConfigured: Boolean(bundle.defaults?.raw_defaults?.aweme_id_baseline?.default_aweme_id),
-      defaultAwemeIdHash: bundle.defaults?.raw_defaults?.aweme_id_baseline?.default_aweme_id_hash || bundle.account?.aweme_authorization?.default_aweme_id_hash || "",
-      defaultAwemeAuthorized: bundle.account?.aweme_authorization?.default_aweme_authorized === true,
-      selectionStatus: bundle.account?.aweme_authorization?.selection_status || "not_verified",
-      activeCandidateCount: Number(bundle.account?.aweme_authorization?.active_candidate_count || (bundle.account?.aweme_authorization?.active_candidates || []).length || 0),
-      selectedAwemeIdPresent: Boolean(bundle.account?.aweme_authorization?.selected_aweme_id),
-      selectedAwemeIdHash: bundle.account?.aweme_authorization?.selected_aweme_id_hash || "",
-      verifiedAt: bundle.account?.aweme_authorization?.verified_at || "",
-      expiresAt: bundle.account?.aweme_authorization?.expires_at || "",
-      evidenceArtifactId: bundle.account?.aweme_authorization?.evidence_artifact_id || "",
-      candidates: (bundle.account?.aweme_authorization?.active_candidates || []).map((candidate) => ({
-        awemeId: candidate.aweme_id || "",
-        awemeIdHash: candidate.aweme_id_hash || "",
-        displayNameSummary: candidate.display_name_summary || "",
-        authType: candidate.auth_type || "",
-        authStatus: candidate.auth_status || "",
-        subStatus: candidate.sub_status || "",
-        authScenarios: candidate.auth_scenarios || [],
-        authorizedAt: candidate.authorized_at || "",
-        expiresAt: candidate.expires_at || ""
-      }))
+      routeId: awemeReadiness?.route_id || bundle.job.route_id,
+      gameCode: awemeReadiness?.game_code || bundle.job.game_code,
+      advertiserId: awemeReadiness?.advertiser_id || bundle.job.advertiser_id,
+      required: awemeReadiness?.required === true,
+      configured: awemeReadiness?.configured === true,
+      verificationStatus: awemeReadiness?.verification_status || "not_verified",
+      ready: awemeReadiness?.ready === true,
+      blockerCode: awemeReadiness?.blocker_code || "",
+      nextAction: awemeReadiness?.next_action || "run_node4_aweme_authorization_readonly_for_default_aweme",
+      defaultAwemeIdHash: awemeReadiness?.default_aweme_id_hash || "",
+      verifiedAt: awemeReadiness?.verified_at || "",
+      expiresAt: awemeReadiness?.expires_at || "",
+      evidenceRef: awemeReadiness?.evidence_ref || ""
     },
     backupLandingPage: {
       landingPageAssetId: bundle.draft?.payload_summary?.backup_landing_page?.landing_page_asset_id || bundle.backupLandingPage?.landing_page_asset_id || "",
@@ -732,11 +719,16 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
 }
 
 async function buildPublicJobView(repo, bundle, { projectStatePath } = {}) {
-  const [runtimeChecks, executionAvailability] = await Promise.all([
+  const [runtimeChecks, executionAvailability, awemeReadiness] = await Promise.all([
     buildRuntimeChecks(repo, bundle),
-    getExecutionGrantAvailability({ repo, bundle, projectStatePath })
+    getExecutionGrantAvailability({ repo, bundle, projectStatePath }),
+    repo.getAdvertiserAwemeAuthorizationReadiness({
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id
+    })
   ]);
-  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability);
+  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability, awemeReadiness);
 }
 
 export async function getJobView(repo, jobId, options = {}) {

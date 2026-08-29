@@ -72,17 +72,16 @@
     const auth = job.awemeAuthorization;
     const header = el("div", "aweme-panel-header");
     header.append(el("strong", "", "抖音号授权关系"));
-    header.append(el("span", `status-chip status-${auth.selectionStatus || "waiting"}`, auth.selectionStatus || "not_verified"));
+    header.append(el("span", `status-chip status-${auth.verificationStatus || "waiting"}`, auth.verificationStatus || "not_verified"));
     panel.append(header);
 
     const meta = el("div", "aweme-meta");
     [
-      ["策略", auth.fixedDefaultPolicy ? "固定默认" : "候选选择"],
-      ["默认", auth.defaultAwemeIdConfigured ? "已配置" : "未配置"],
-      ["候选", String(auth.activeCandidateCount || 0)],
-      ["已选", auth.selectedAwemeIdPresent ? "是" : "否"],
-      ["核验", auth.verifiedAt ? "已核验" : "未核验"],
-      ["默认授权", auth.fixedDefaultPolicy ? (auth.defaultAwemeAuthorized ? "有效" : "未通过") : "不适用"]
+      ["要求", auth.required ? "需要" : "不需要"],
+      ["默认", auth.configured ? "已配置" : "未配置"],
+      ["核验", auth.ready ? "通过" : (auth.verifiedAt ? "未通过" : "未核验")],
+      ["阻断", auth.blockerCode || "无"],
+      ["下一步", auth.nextAction || "等待"]
     ].forEach(([label, value]) => {
       const item = el("span", "aweme-meta-item");
       item.append(el("em", "", label));
@@ -91,45 +90,12 @@
     });
     panel.append(meta);
 
-    const candidates = auth.candidates || [];
-    if (auth.fixedDefaultPolicy && auth.defaultAwemeIdHash) {
+    if (auth.defaultAwemeIdHash) {
       const item = el("span", "aweme-meta-item");
       item.title = auth.defaultAwemeIdHash;
       item.append(el("em", "", "默认ID"));
       item.append(el("b", "", auth.defaultAwemeIdHash.slice(0, 18)));
       meta.append(item);
-    }
-
-    if (!auth.fixedDefaultPolicy && candidates.length > 1) {
-      const list = el("div", "aweme-candidate-list");
-      candidates.forEach((candidate) => {
-        const button = el("button", "aweme-candidate", candidate.displayNameSummary || candidate.awemeIdHash || "未命名抖音号");
-        button.type = "button";
-        button.disabled = busy;
-        button.title = candidate.awemeIdHash || "";
-        button.addEventListener("click", async () => {
-          if (busy) return;
-          setBusy(true);
-          try {
-            await api(`/api/advertisers/${encodeURIComponent(auth.advertiserId)}/aweme-authorization`, {
-              method: "POST",
-              body: JSON.stringify({
-                route_id: auth.routeId,
-                game_code: auth.gameCode,
-                selected_aweme_id: candidate.awemeId,
-                selected_display_name: candidate.displayNameSummary
-              })
-            });
-            await refreshJob();
-          } catch (error) {
-            showError(error);
-          } finally {
-            setBusy(false);
-          }
-        });
-        list.append(button);
-      });
-      panel.append(list);
     }
   }
 
@@ -201,11 +167,7 @@
   function renderCommand() {
     const nodes = allNodes();
     document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length || 7}`;
-    const button = document.getElementById("primaryAction");
-    const label = document.getElementById("primaryActionText");
-    const primaryAction = job?.primaryAction || { kind: "disabled", label: "开始执行", enabled: false };
-    button.disabled = busy || !job?.jobId || viewOnly || primaryAction.enabled !== true;
-    label.textContent = busy ? "执行中" : (viewOnly ? "查看记录" : primaryAction.label);
+    document.getElementById("runModeText").textContent = busy ? "自动执行中" : (viewOnly ? "查看记录" : "提交后自动执行");
     document.getElementById("chatInput").disabled = viewOnly;
     document.querySelector(".send-button").disabled = viewOnly;
     refreshIcons();
@@ -235,23 +197,14 @@
     }
   }
 
-  async function runWorkflow() {
-    if (!job?.jobId || busy || viewOnly) return;
-    const primaryAction = job.primaryAction || {};
-    if (primaryAction.enabled !== true) return;
-    setBusy(true);
-    const jobId = job.jobId;
+  async function runWorkflow(jobId) {
     const refreshTimer = window.setInterval(() => {
       refreshJob().catch(() => {});
     }, 1200);
     try {
-      const endpoint = primaryAction.kind === "execute_once" ? "execute-once" : "run";
-      const body = primaryAction.kind === "execute_once"
-        ? { execution_intent: "EXECUTE_ONE_LAUNCH" }
-        : { mode: "dry_run" };
-      job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/${endpoint}`, {
+      job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
         method: "POST",
-        body: JSON.stringify(body)
+        body: JSON.stringify({ mode: "dry_run" })
       });
       renderAll();
     } catch (error) {
@@ -263,8 +216,6 @@
   }
 
   function bindInteractions() {
-    document.getElementById("primaryAction").addEventListener("click", runWorkflow);
-
     document.getElementById("chatForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const input = document.getElementById("chatInput");
@@ -292,6 +243,7 @@
           })
         });
         renderAll();
+        await runWorkflow(job.jobId);
       } catch (error) {
         showError(error);
       } finally {

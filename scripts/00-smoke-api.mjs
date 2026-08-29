@@ -62,6 +62,7 @@ function assertWorkflowShape(view) {
 
 function assertInitialWorkflow(view) {
   assertWorkflowShape(view);
+  assertAwemeReadinessShape(view);
   const intake = nodeById(view, "launch_intake");
   assert(intake.status === "passed", "initial intake node must be passed");
   assert(intake.children.every((child) => child.status === "passed"), "initial intake children must be passed");
@@ -81,6 +82,7 @@ function expectedMonitorStatus(monitorChild) {
 
 function assertDryRunWorkflow(view) {
   assertWorkflowShape(view);
+  assertAwemeReadinessShape(view);
   const monitor = nodeById(view, "creation_context").children.find((child) => child.id === "monitor");
   assert(monitor?.status === expectedMonitorStatus(monitor), "monitor child did not use readback/ensure/plan/query priority");
   const node4 = nodeById(view, "account_resource_prepare");
@@ -90,6 +92,23 @@ function assertDryRunWorkflow(view) {
     assert(child?.status === (skill?.status || node4.status), `node4 child status mismatch: ${resourceType}`);
   }
   assert(view.primaryAction?.kind !== "execute_once", "dry-run must not expose execute-once without a server grant");
+}
+
+function assertAwemeReadinessShape(view) {
+  const auth = view.awemeAuthorization || {};
+  ["required", "configured", "verificationStatus", "ready", "blockerCode", "nextAction", "defaultAwemeIdHash"].forEach((key) => {
+    assert(Object.prototype.hasOwnProperty.call(auth, key), `aweme readiness missing ${key}`);
+  });
+  [
+    "selectionStatus",
+    "selectionPolicy",
+    "activeCandidateCount",
+    "selectedAwemeIdPresent",
+    "selectedAwemeIdHash",
+    "candidates"
+  ].forEach((key) => {
+    assert(!Object.prototype.hasOwnProperty.call(auth, key), `legacy aweme API field present ${key}`);
+  });
 }
 
 function projectSeq(projectName) {

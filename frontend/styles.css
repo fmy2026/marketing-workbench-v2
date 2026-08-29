@@ -86,7 +86,6 @@ p {
 .workflow-title,
 .node-row,
 .command-bar,
-.primary-action,
 .icon-button,
 .send-button {
   display: flex;
@@ -224,8 +223,7 @@ p {
 }
 
 .icon-button svg,
-.send-button svg,
-.primary-action svg {
+.send-button svg {
   width: 17px;
   height: 17px;
 }
@@ -274,8 +272,7 @@ p {
 }
 
 .aweme-panel-header,
-.aweme-meta,
-.aweme-candidate-list {
+.aweme-meta {
   display: flex;
   align-items: center;
 }
@@ -297,9 +294,7 @@ p {
   overflow-wrap: anywhere;
 }
 
-.status-chip.status-auto_selected,
-.status-chip.status-manual_selected,
-.status-chip.status-default_authorized {
+.status-chip.status-authorized {
   background: var(--green-soft);
   color: var(--green);
 }
@@ -322,24 +317,6 @@ p {
 .aweme-meta-item em {
   color: var(--muted);
   font-style: normal;
-}
-
-.aweme-candidate-list {
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.aweme-candidate {
-  min-height: 28px;
-  max-width: 100%;
-  padding: 4px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: #ffffff;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
 }
 
 .identity-item {
@@ -633,24 +610,17 @@ p {
   font-weight: 700;
 }
 
-.primary-action {
-  justify-content: center;
-  gap: 8px;
-  min-width: 138px;
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid var(--blue);
+.run-mode {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--blue);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.primary-action:disabled {
-  border-color: var(--line-strong);
-  background: var(--disabled);
+  background: #ffffff;
   color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .sr-only {
@@ -747,7 +717,4 @@ p {
     padding: 10px 12px;
   }
 
-  .primary-action {
-    min-width: 118px;
-  }
 }

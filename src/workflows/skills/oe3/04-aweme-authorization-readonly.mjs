@@ -3,9 +3,9 @@ import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contra
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 
 export const AWEME_AUTHORIZATION_SKILL_KEY = "aweme-authorization-readonly";
-export const AWEME_AUTHORIZATION_RULE_VERSION = "2026-08-29.aweme-id-account-auth-v1";
+export const AWEME_AUTHORIZATION_RULE_VERSION = "2026-08-29.aweme-id-fixed-default-account-verify-v2";
 export const AWEME_AUTHORIZATION_ACCEPTED_STATUSES = new Set(["AUTHRIZED", "AUTHORIZED"]);
-export const AWEME_FIXED_DEFAULT_SELECTION_POLICY = "fixed_game_default_account_verify";
+export const AWEME_FIXED_DEFAULT_VERIFICATION_STRATEGY = "fixed_game_default_account_verify";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -23,14 +23,6 @@ function awemeBaseline(bundle = {}) {
   return bundle.defaults?.raw_defaults?.aweme_id_baseline || {};
 }
 
-function selectionPolicy(baseline = {}) {
-  return clean(baseline.selection_policy || "single_active_auto_select_else_manual_select");
-}
-
-function isFixedDefaultPolicy(baseline = {}) {
-  return selectionPolicy(baseline) === AWEME_FIXED_DEFAULT_SELECTION_POLICY;
-}
-
 function defaultAwemeId(baseline = {}) {
   return clean(baseline.default_aweme_id);
 }
@@ -40,9 +32,9 @@ function payloadNativeType(bundle = {}) {
 }
 
 function baselineRequiresAweme(bundle = {}) {
-  const baseline = awemeBaseline(bundle);
-  const requiredNativeType = clean(baseline.required_when?.native_type);
-  return Boolean(requiredNativeType && payloadNativeType(bundle) === requiredNativeType);
+  const nativeType = payloadNativeType(bundle);
+  const requiredNativeType = clean(awemeBaseline(bundle).required_when?.native_type || "AWEME");
+  return nativeType === "AWEME" || Boolean(requiredNativeType && nativeType === requiredNativeType);
 }
 
 function awemeList(payload = {}) {
@@ -56,102 +48,104 @@ function awemeList(payload = {}) {
   ].find((item) => Array.isArray(item)) || [];
 }
 
-function normalizeCandidate(item = {}) {
+function normalizeAuthRow(item = {}) {
   const awemeId = clean(item.aweme_id || item.id || item.awemeId);
-  const authStatus = clean(item.auth_status || item.authStatus || item.status);
-  const authType = clean(item.auth_type || item.authType || "");
   return {
     advertiser_id: clean(item.advertiser_id || item.advertiserId),
     aweme_id: awemeId,
     aweme_id_hash: awemeId ? hashValue(awemeId) : "",
     display_name_summary: safeDisplayName(item.aweme_name || item.name || item.nickname || item.display_name),
-    auth_type: authType,
-    auth_status: authStatus,
-    sub_status: clean(item.sub_status || item.subStatus),
-    auth_scenarios: arrayFrom(item.auth_scenarios || item.authScenarios).map(clean).filter(Boolean).slice(0, 20),
-    authorized_at: clean(item.auth_time || item.authorized_at || item.start_time || item.start_at),
+    auth_type: clean(item.auth_type || item.authType || ""),
+    auth_status: clean(item.auth_status || item.authStatus || item.status),
     expires_at: clean(item.end_time || item.expire_time || item.expires_at || item.expire_at)
   };
 }
 
 function summarizeAwemeAuthList(payload = {}) {
-  const candidates = awemeList(payload).map(normalizeCandidate).filter((item) => item.aweme_id);
+  const rows = awemeList(payload).map(normalizeAuthRow).filter((item) => item.aweme_id);
   return {
-    totalCandidateCount: candidates.length,
-    candidates
+    resultCount: rows.length,
+    rows
   };
 }
 
-function activeCandidates({ candidates = [], baseline = {} } = {}) {
-  const acceptedStatuses = new Set(arrayFrom(baseline.accepted_auth_status).map(clean).filter(Boolean));
-  if (!acceptedStatuses.size) {
-    AWEME_AUTHORIZATION_ACCEPTED_STATUSES.forEach((status) => acceptedStatuses.add(status));
-  }
-  const expectedAuthType = clean(baseline.auth_type || "AWEME_ACCOUNT");
-  return candidates.filter((candidate) =>
-    /^\d+$/.test(candidate.aweme_id) &&
-    acceptedStatuses.has(clean(candidate.auth_status)) &&
-    (!expectedAuthType || clean(candidate.auth_type) === expectedAuthType || !clean(candidate.auth_type))
-  );
+function acceptedStatuses(baseline = {}) {
+  const configured = arrayFrom(baseline.accepted_auth_status).map(clean).filter(Boolean);
+  return configured.length ? configured : [...AWEME_AUTHORIZATION_ACCEPTED_STATUSES];
 }
 
-function selectedStillActive({ previousSelectedAwemeId = "", candidates = [] } = {}) {
-  return Boolean(previousSelectedAwemeId && candidates.some((candidate) => candidate.aweme_id === previousSelectedAwemeId));
+function authorizationExpired(row = {}) {
+  const expiresAt = clean(row.expires_at);
+  if (!expiresAt) return false;
+  const timestamp = Date.parse(expiresAt);
+  return Number.isFinite(timestamp) && timestamp <= Date.now();
+}
+
+function blockerForStatus(status) {
+  const blockers = {
+    authorized: "",
+    not_authorized: "aweme_default_not_authorized",
+    inactive: "aweme_default_authorization_inactive",
+    scope_mismatch: "aweme_auth_account_scope_mismatch",
+    default_mismatch: "aweme_default_not_returned",
+    probe_failed: "aweme_auth_probe_failed",
+    baseline_incomplete: "aweme_id_baseline_missing_or_incomplete",
+    not_verified: "aweme_auth_not_verified"
+  };
+  return Object.prototype.hasOwnProperty.call(blockers, status) ? blockers[status] : "aweme_auth_not_verified";
+}
+
+function nextActionForStatus(status) {
+  return {
+    authorized: "ready_for_node5_payload_build",
+    not_authorized: "authorize_default_aweme_id_for_advertiser_then_rerun_node4",
+    inactive: "restore_default_aweme_id_authorization_then_rerun_node4",
+    scope_mismatch: "check_advertiser_scope_and_default_aweme_authorization_then_rerun_node4",
+    default_mismatch: "verify_platform_auth_query_filters_then_rerun_node4",
+    probe_failed: "fix_readonly_query_or_credentials_then_rerun_node4",
+    baseline_incomplete: "record_game_route_default_aweme_id",
+    not_verified: "run_node4_aweme_authorization_readonly_for_default_aweme"
+  }[status] || "run_node4_aweme_authorization_readonly_for_default_aweme";
 }
 
 function buildAuthorizationRecord({
   bundle,
   baseline,
   probe,
-  active,
-  selectionStatus,
-  selectedAwemeId = "",
-  selectedDisplayName = "",
+  verificationStatus,
+  matchedRow = {},
   evidenceArtifactId = "",
-  blockers = []
+  blockerCode = ""
 }) {
-  const selected = clean(selectedAwemeId);
-  const expiresAt = active.find((candidate) => candidate.aweme_id === selected)?.expires_at || "";
   const defaultId = defaultAwemeId(baseline);
   return sanitizeForPublic({
     rule_version: AWEME_AUTHORIZATION_RULE_VERSION,
-    advertiser_id: bundle.job.advertiser_id,
-    route_id: bundle.job.route_id,
-    game_code: bundle.job.game_code,
-    payload_path: baseline.payload_path || "aweme_id",
-    source: baseline.source || "tools/aweme_auth_list",
-    auth_type: baseline.auth_type || "AWEME_ACCOUNT",
-    accepted_auth_status: arrayFrom(baseline.accepted_auth_status).length ? baseline.accepted_auth_status : ["AUTHRIZED", "AUTHORIZED"],
-    selection_policy: selectionPolicy(baseline),
+    advertiser_id: clean(bundle.job?.advertiser_id),
+    route_id: clean(bundle.job?.route_id),
+    game_code: clean(bundle.job?.game_code),
+    payload_path: clean(baseline.payload_path || "aweme_id"),
+    source: clean(baseline.source || "tools/aweme_auth_list"),
+    auth_type: clean(baseline.auth_type || "AWEME_ACCOUNT"),
+    accepted_auth_status: acceptedStatuses(baseline),
+    verification_strategy: AWEME_FIXED_DEFAULT_VERIFICATION_STRATEGY,
     default_aweme_id_configured: Boolean(defaultId),
-    default_aweme_id_hash: defaultId ? hashValue(defaultId) : "",
-    default_aweme_authorized: selectionStatus === "default_authorized",
+    default_aweme_id_hash: defaultId ? hashValue(defaultId) : clean(baseline.default_aweme_id_hash),
     fallback_forbidden: baseline.fallback_forbidden !== false,
-    selected_aweme_id: selected,
-    selected_aweme_id_hash: selected ? hashValue(selected) : "",
-    selected_display_name_summary: selectedDisplayName,
-    active_candidates: active,
-    active_candidate_count: active.length,
-    selection_status: selectionStatus,
+    verification_status: verificationStatus,
+    verified_by_job_id: clean(bundle.job?.job_id),
     verified_at: new Date().toISOString(),
-    expires_at: expiresAt,
+    expires_at: clean(matchedRow.expires_at),
     response_hash: clean(probe?.responseHash),
     evidence_artifact_id: evidenceArtifactId,
-    blockers,
+    blocker_code: blockerCode,
+    next_action: nextActionForStatus(verificationStatus),
     response_body_stored: false
   });
 }
 
 async function recordEvidence({ repo, bundle, authorization, probeSummary }) {
   const artifactId = `EV-${bundle.job.job_id}-AWEME-AUTHORIZATION-READONLY`;
-  const safeAuthorization = sanitizeForPublic({
-    ...authorization,
-    selected_aweme_id: authorization.selected_aweme_id ? "[stored_on_account]" : "",
-    active_candidates: (authorization.active_candidates || []).map((candidate) => ({
-      ...candidate,
-      aweme_id: "[candidate_id_stored_on_account]"
-    }))
-  });
+  const safeAuthorization = sanitizeForPublic(authorization);
   assertNoSensitiveLeak({ safeAuthorization, probeSummary });
   await repo.upsertEvidence({
     artifactId,
@@ -159,9 +153,8 @@ async function recordEvidence({ repo, bundle, authorization, probeSummary }) {
     artifactType: "aweme_authorization_readonly",
     title: "Node 4 抖音号授权关系只读核验",
     summary: [
-      `status=${authorization.selection_status || "not_verified"}`,
-      `candidate_count=${authorization.active_candidate_count || 0}`,
-      `selected_present=${Boolean(authorization.selected_aweme_id)}`,
+      `status=${authorization.verification_status || "not_verified"}`,
+      `default_hash_present=${Boolean(authorization.default_aweme_id_hash)}`,
       `response_hash_present=${Boolean(authorization.response_hash)}`,
       "raw_response_stored=false"
     ].join("; "),
@@ -175,8 +168,7 @@ async function recordEvidence({ repo, bundle, authorization, probeSummary }) {
 
 function mockAuthorization(bundle = {}) {
   const baseline = awemeBaseline(bundle);
-  const fixed = isFixedDefaultPolicy(baseline);
-  const awemeId = fixed ? defaultAwemeId(baseline) : "1000000000000000001";
+  const awemeId = defaultAwemeId(baseline) || "57018827026";
   return {
     rule_version: AWEME_AUTHORIZATION_RULE_VERSION,
     advertiser_id: bundle.job?.advertiser_id || "",
@@ -185,177 +177,52 @@ function mockAuthorization(bundle = {}) {
     payload_path: "aweme_id",
     source: "test_fixture:tools/aweme_auth_list",
     auth_type: "AWEME_ACCOUNT",
-    accepted_auth_status: ["AUTHRIZED", "AUTHORIZED"],
-    selection_policy: fixed ? AWEME_FIXED_DEFAULT_SELECTION_POLICY : "single_active_auto_select_else_manual_select",
-    default_aweme_id_configured: fixed,
-    default_aweme_id_hash: fixed ? hashValue(awemeId) : "",
-    default_aweme_authorized: fixed,
+    accepted_auth_status: acceptedStatuses(baseline),
+    verification_strategy: AWEME_FIXED_DEFAULT_VERIFICATION_STRATEGY,
+    default_aweme_id_configured: true,
+    default_aweme_id_hash: hashValue(awemeId),
     fallback_forbidden: true,
-    selected_aweme_id: awemeId,
-    selected_aweme_id_hash: hashValue(awemeId),
-    selected_display_name_summary: "mock aweme",
-    active_candidates: [{
-      aweme_id: awemeId,
-      aweme_id_hash: hashValue(awemeId),
-      display_name_summary: "mock aweme",
-      auth_type: "AWEME_ACCOUNT",
-      auth_status: "AUTHRIZED",
-      sub_status: "",
-      auth_scenarios: [],
-      authorized_at: "",
-      expires_at: ""
-    }],
-    active_candidate_count: 1,
-    selection_status: fixed ? "default_authorized" : "auto_selected",
+    verification_status: "authorized",
+    verified_by_job_id: bundle.job?.job_id || "",
     verified_at: new Date().toISOString(),
     expires_at: "",
     response_hash: "sha256:mock-aweme-authorization",
     evidence_artifact_id: "",
-    blockers: [],
+    blocker_code: "",
+    next_action: "ready_for_node5_payload_build",
     response_body_stored: false
   };
 }
 
-async function runFixedDefaultAuthorization({
-  repo,
-  bundle,
-  client,
-  baseline
-}) {
+function evaluateProbeRows({ rows = [], baseline = {}, bundle = {} }) {
   const expectedAwemeId = defaultAwemeId(baseline);
-  if (!/^\d+$/.test(expectedAwemeId)) {
-    return {
-      status: "blocked",
-      blockers: ["aweme_default_aweme_id_missing_or_invalid"],
-      outputSummary: {
-        awemeAuthorizationStatus: "baseline_incomplete",
-        required: true,
-        selectionPolicy: AWEME_FIXED_DEFAULT_SELECTION_POLICY,
-        defaultAwemeIdConfigured: Boolean(expectedAwemeId),
-        payloadPath: baseline.payload_path || "aweme_id",
-        nextAction: "补齐 JSZC game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id。"
-      }
-    };
-  }
+  const expectedAdvertiserId = clean(bundle.job?.advertiser_id);
+  const expectedAuthType = clean(baseline.auth_type || "AWEME_ACCOUNT");
+  const accepted = new Set(acceptedStatuses(baseline));
+  const matchingDefault = rows.filter((row) => clean(row.aweme_id) === expectedAwemeId);
+  const scoped = matchingDefault.filter((row) => !row.advertiser_id || row.advertiser_id === expectedAdvertiserId);
+  const authTypeMatched = scoped.filter((row) => !row.auth_type || row.auth_type === expectedAuthType);
+  const active = authTypeMatched.filter((row) => accepted.has(row.auth_status) && !authorizationExpired(row));
 
-  const acceptedStatus = arrayFrom(baseline.accepted_auth_status).length
-    ? arrayFrom(baseline.accepted_auth_status).map(clean).filter(Boolean)
-    : ["AUTHRIZED", "AUTHORIZED"];
-  const filtering = {
-    auth_type: baseline.auth_type || "AWEME_ACCOUNT",
-    auth_status: acceptedStatus,
-    aweme_ids: [expectedAwemeId]
-  };
-  const probe = await client.get({
-    label: "aweme_authorization_fixed_default",
-    endpoint: "tools/aweme_auth_list",
-    query: {
-      advertiser_id: bundle.job.advertiser_id,
-      filtering: JSON.stringify(filtering),
-      page: "1",
-      page_size: "10"
-    },
-    requestFieldManifest: {
-      fieldNames: ["advertiser_id", "filtering", "page", "page_size"],
-      filteringFieldNames: ["auth_type", "auth_status", "aweme_ids"],
-      endpointId: "tools/aweme_auth_list",
-      defaultAwemeIdHash: hashValue(expectedAwemeId),
-      rawQueryStored: false
-    },
-    summarize: summarizeAwemeAuthList
-  });
+  if (active.length) return { verificationStatus: "authorized", matchedRow: active[0] };
+  if (matchingDefault.length && !scoped.length) return { verificationStatus: "scope_mismatch", matchedRow: matchingDefault[0] };
+  if (matchingDefault.length && !active.length) return { verificationStatus: "inactive", matchedRow: authTypeMatched[0] || scoped[0] || matchingDefault[0] };
+  if (rows.length) return { verificationStatus: "default_mismatch", matchedRow: rows[0] };
+  return { verificationStatus: "not_authorized", matchedRow: {} };
+}
 
-  if (probe.status !== "passed") {
-    const blockers = [probe.status === "credential_required" ? "credential_required" : "aweme_auth_probe_failed"];
-    const authorization = buildAuthorizationRecord({
-      bundle,
-      baseline,
-      probe,
-      active: [],
-      selectionStatus: "probe_failed",
-      evidenceArtifactId: "",
-      blockers
-    });
-    const artifactId = await recordEvidence({ repo, bundle, authorization, probeSummary: sanitizeForPublic(probe) });
-    authorization.evidence_artifact_id = artifactId;
-    await repo.updateAdvertiserAwemeAuthorization({
-      advertiserId: bundle.job.advertiser_id,
-      routeId: bundle.job.route_id,
-      gameCode: bundle.job.game_code,
-      authorization
-    });
-    return {
-      status: "blocked",
-      blockers,
-      evidenceRefs: [artifactId],
-      outputSummary: {
-        awemeAuthorizationStatus: authorization.selection_status,
-        required: true,
-        selectionPolicy: AWEME_FIXED_DEFAULT_SELECTION_POLICY,
-        defaultAwemeIdConfigured: true,
-        defaultAwemeIdHash: hashValue(expectedAwemeId),
-        defaultAwemeAuthorized: false,
-        activeCandidateCount: 0,
-        selectedAwemeIdPresent: false,
-        responseHashPresent: Boolean(probe.responseHash),
-        evidenceRef: artifactId,
-        rawResponseStored: false
-      }
-    };
-  }
-
-  const candidates = arrayFrom(probe.summary?.candidates);
-  const matchingCandidates = candidates.filter((candidate) => clean(candidate.aweme_id) === expectedAwemeId);
-  const scopeMatched = matchingCandidates.every((candidate) => !candidate.advertiser_id || clean(candidate.advertiser_id) === clean(bundle.job.advertiser_id));
-  const active = activeCandidates({ candidates: matchingCandidates, baseline }).filter((candidate) =>
-    clean(candidate.aweme_id) === expectedAwemeId &&
-    (!candidate.advertiser_id || clean(candidate.advertiser_id) === clean(bundle.job.advertiser_id))
-  );
-  const blockers = [];
-  let selectionStatus = "default_not_authorized";
-  let selectedAwemeId = "";
-  let selectedDisplayName = "";
-  if (active.length > 0) {
-    selectionStatus = "default_authorized";
-    selectedAwemeId = expectedAwemeId;
-    selectedDisplayName = active[0].display_name_summary || "";
-  } else if (!scopeMatched) {
-    selectionStatus = "default_scope_mismatch";
-    blockers.push("aweme_auth_account_scope_mismatch");
-  } else if (matchingCandidates.length > 0) {
-    selectionStatus = "default_inactive";
-    blockers.push("aweme_default_authorization_inactive");
-  } else if (candidates.length > 0) {
-    blockers.push("aweme_default_not_returned");
-  } else {
-    blockers.push("aweme_default_not_authorized");
-  }
-
+async function persistAuthorization({ repo, bundle, baseline, probe = {}, verificationStatus, matchedRow = {}, probeSummary = {} }) {
+  const blockerCode = blockerForStatus(verificationStatus);
   const authorization = buildAuthorizationRecord({
     bundle,
     baseline,
     probe,
-    active,
-    selectionStatus,
-    selectedAwemeId,
-    selectedDisplayName,
+    verificationStatus,
+    matchedRow,
     evidenceArtifactId: "",
-    blockers
+    blockerCode
   });
-  authorization.default_aweme_candidate_seen = matchingCandidates.length > 0;
-  authorization.default_aweme_authorized = selectionStatus === "default_authorized";
-  const artifactId = await recordEvidence({
-    repo,
-    bundle,
-    authorization,
-    probeSummary: {
-      status: probe.status,
-      responseHashPresent: Boolean(probe.responseHash),
-      totalCandidateCount: candidates.length,
-      defaultCandidateSeen: matchingCandidates.length > 0,
-      defaultAwemeIdHash: hashValue(expectedAwemeId)
-    }
-  });
+  const artifactId = await recordEvidence({ repo, bundle, authorization, probeSummary });
   authorization.evidence_artifact_id = artifactId;
   await repo.updateAdvertiserAwemeAuthorization({
     advertiserId: bundle.job.advertiser_id,
@@ -363,31 +230,7 @@ async function runFixedDefaultAuthorization({
     gameCode: bundle.job.game_code,
     authorization
   });
-  const passed = blockers.length === 0;
-  const output = {
-    status: passed ? "passed" : "blocked",
-    blockers,
-    evidenceRefs: [artifactId],
-    outputSummary: {
-      awemeAuthorizationStatus: selectionStatus,
-      required: true,
-      selectionPolicy: AWEME_FIXED_DEFAULT_SELECTION_POLICY,
-      defaultAwemeIdConfigured: true,
-      defaultAwemeIdHash: hashValue(expectedAwemeId),
-      defaultAwemeAuthorized: passed,
-      activeCandidateCount: active.length,
-      selectedAwemeIdPresent: Boolean(selectedAwemeId),
-      selectedAwemeIdHash: selectedAwemeId ? hashValue(selectedAwemeId) : "",
-      verifiedAt: authorization.verified_at,
-      expiresAt: authorization.expires_at,
-      responseHashPresent: Boolean(authorization.response_hash),
-      evidenceRef: artifactId,
-      rawResponseStored: false,
-      nextAction: passed ? "Node 5 可使用 JSZC 默认 aweme_id。" : blockers[0]
-    }
-  };
-  assertNoSensitiveLeak(output);
-  return output;
+  return { authorization, artifactId };
 }
 
 export async function runAwemeAuthorizationReadonlySkill({
@@ -405,21 +248,44 @@ export async function runAwemeAuthorizationReadonlySkill({
       blockers: [],
       outputSummary: {
         awemeAuthorizationStatus: "not_required",
+        verificationStatus: "not_required",
         required: false,
         payloadPath: baseline.payload_path || "aweme_id",
         nextAction: "当前路线 native_type 不需要 aweme_id。"
       }
     };
   }
-  if (!baseline.source || baseline.fallback_forbidden !== true) {
+
+  const expectedAwemeId = defaultAwemeId(baseline);
+  const baselineComplete = baseline.source === "tools/aweme_auth_list" &&
+    baseline.fallback_forbidden === true &&
+    /^\d+$/.test(expectedAwemeId);
+  if (!baselineComplete) {
+    const authorization = buildAuthorizationRecord({
+      bundle,
+      baseline,
+      probe: {},
+      verificationStatus: "baseline_incomplete",
+      blockerCode: "aweme_id_baseline_missing_or_incomplete"
+    });
+    await repo.updateAdvertiserAwemeAuthorization({
+      advertiserId: bundle.job.advertiser_id,
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      authorization
+    });
     return {
       status: "blocked",
       blockers: ["aweme_id_baseline_missing_or_incomplete"],
       outputSummary: {
         awemeAuthorizationStatus: "baseline_incomplete",
+        verificationStatus: "baseline_incomplete",
         required: true,
+        configured: false,
+        defaultAwemeIdConfigured: Boolean(expectedAwemeId),
+        defaultAwemeIdHash: expectedAwemeId ? hashValue(expectedAwemeId) : "",
         payloadPath: baseline.payload_path || "aweme_id",
-        nextAction: "补齐 game_route_defaults.raw_defaults.aweme_id_baseline。"
+        nextAction: "补齐 game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id。"
       }
     };
   }
@@ -436,18 +302,15 @@ export async function runAwemeAuthorizationReadonlySkill({
       status: "passed",
       blockers: [],
       outputSummary: {
-        awemeAuthorizationStatus: authorization.selection_status,
+        awemeAuthorizationStatus: authorization.verification_status,
+        verificationStatus: authorization.verification_status,
         required: true,
-        selectionPolicy: authorization.selection_policy,
-        defaultAwemeIdConfigured: authorization.default_aweme_id_configured === true,
+        configured: true,
         defaultAwemeIdHash: authorization.default_aweme_id_hash || "",
-        defaultAwemeAuthorized: authorization.default_aweme_authorized === true,
-        activeCandidateCount: 1,
-        selectedAwemeIdPresent: true,
-        selectedAwemeIdHash: authorization.selected_aweme_id_hash,
         verifiedAt: authorization.verified_at,
         evidenceRef: "",
-        rawResponseStored: false
+        rawResponseStored: false,
+        nextAction: "ready_for_node5_payload_build"
       }
     };
   }
@@ -458,10 +321,11 @@ export async function runAwemeAuthorizationReadonlySkill({
       blockers: [],
       outputSummary: {
         awemeAuthorizationStatus: "not_run_test_scope",
+        verificationStatus: "not_run_test_scope",
         required: true,
-        activeCandidateCount: 0,
-        selectedAwemeIdPresent: Boolean(bundle.account?.aweme_authorization?.selected_aweme_id),
-        nextAction: "测试运行不调用平台；Node 5 会基于账户授权关系状态决定是否阻断。"
+        configured: true,
+        defaultAwemeIdHash: hashValue(expectedAwemeId),
+        nextAction: "测试运行不调用平台；Node 5 会基于账户授权核验状态决定是否阻断。"
       }
     };
   }
@@ -473,146 +337,101 @@ export async function runAwemeAuthorizationReadonlySkill({
       blockers: [],
       outputSummary: {
         awemeAuthorizationStatus: "not_run",
+        verificationStatus: "not_run",
         required: true,
+        configured: true,
         permissionStatus: permission.status,
+        defaultAwemeIdHash: hashValue(expectedAwemeId),
         nextAction: "等待显式真实只读授权。"
       }
     };
   }
 
-  if (isFixedDefaultPolicy(baseline)) {
-    return runFixedDefaultAuthorization({ repo, bundle, client, baseline });
-  }
+  const probe = await client.get({
+    label: "aweme_authorization_default_verify",
+    endpoint: "tools/aweme_auth_list",
+    query: {
+      advertiser_id: bundle.job.advertiser_id,
+      filtering: JSON.stringify({
+        auth_type: baseline.auth_type || "AWEME_ACCOUNT",
+        auth_status: acceptedStatuses(baseline),
+        aweme_ids: [expectedAwemeId]
+      }),
+      page: "1",
+      page_size: "10"
+    },
+    requestFieldManifest: {
+      fieldNames: ["advertiser_id", "filtering", "page", "page_size"],
+      filteringFieldNames: ["auth_type", "auth_status", "aweme_ids"],
+      endpointId: "tools/aweme_auth_list",
+      defaultAwemeIdHash: hashValue(expectedAwemeId),
+      rawQueryStored: false
+    },
+    summarize: summarizeAwemeAuthList
+  });
 
-  let allCandidates = [];
-  let responseHashes = [];
-  let lastProbe = null;
-  const pageSize = 100;
-  for (let page = 1; page <= 20; page += 1) {
-    const probe = await client.get({
-      label: `aweme_authorization_page_${page}`,
-      endpoint: "tools/aweme_auth_list",
-      query: {
-        advertiser_id: bundle.job.advertiser_id,
-        filtering: JSON.stringify({
-          auth_type: baseline.auth_type || "AWEME_ACCOUNT"
-        }),
-        page: String(page),
-        page_size: String(pageSize)
-      },
-      requestFieldManifest: {
-        fieldNames: ["advertiser_id", "filtering", "page", "page_size"],
-        filteringFieldNames: ["auth_type"],
-        endpointId: "tools/aweme_auth_list",
-        rawQueryStored: false
-      },
-      summarize: summarizeAwemeAuthList
+  if (probe.status !== "passed") {
+    const blockers = [probe.status === "credential_required" ? "credential_required" : "aweme_auth_probe_failed"];
+    const { authorization, artifactId } = await persistAuthorization({
+      repo,
+      bundle,
+      baseline,
+      probe,
+      verificationStatus: "probe_failed",
+      probeSummary: sanitizeForPublic(probe)
     });
-    lastProbe = probe;
-    if (probe.status !== "passed") {
-      const authorization = buildAuthorizationRecord({
-        bundle,
-        baseline,
-        probe,
-        active: [],
-        selectionStatus: "probe_failed",
-        evidenceArtifactId: "",
-        blockers: [probe.status === "credential_required" ? "credential_required" : "aweme_auth_probe_failed"]
-      });
-      const artifactId = await recordEvidence({ repo, bundle, authorization, probeSummary: sanitizeForPublic(probe) });
-      authorization.evidence_artifact_id = artifactId;
-      await repo.updateAdvertiserAwemeAuthorization({
-        advertiserId: bundle.job.advertiser_id,
-        routeId: bundle.job.route_id,
-        gameCode: bundle.job.game_code,
-        authorization
-      });
-      return {
-        status: "blocked",
-        blockers: authorization.blockers,
-        evidenceRefs: [artifactId],
-        outputSummary: {
-          awemeAuthorizationStatus: authorization.selection_status,
-          required: true,
-          activeCandidateCount: 0,
-          selectedAwemeIdPresent: false,
-          responseHashPresent: Boolean(probe.responseHash),
-          evidenceRef: artifactId,
-          rawResponseStored: false
-        }
-      };
-    }
-    const candidates = arrayFrom(probe.summary?.candidates);
-    allCandidates = [...allCandidates, ...candidates];
-    if (probe.responseHash) responseHashes.push(probe.responseHash);
-    if (candidates.length < pageSize) break;
+    return {
+      status: "blocked",
+      blockers,
+      evidenceRefs: [artifactId],
+      outputSummary: {
+        awemeAuthorizationStatus: authorization.verification_status,
+        verificationStatus: authorization.verification_status,
+        required: true,
+        configured: true,
+        defaultAwemeIdHash: hashValue(expectedAwemeId),
+        responseHashPresent: Boolean(probe.responseHash),
+        evidenceRef: artifactId,
+        rawResponseStored: false,
+        nextAction: authorization.next_action
+      }
+    };
   }
 
-  const active = activeCandidates({ candidates: allCandidates, baseline });
-  const previousSelectedAwemeId = clean(bundle.account?.aweme_authorization?.selected_aweme_id);
-  let selectionStatus = "selection_required";
-  let selectedAwemeId = "";
-  let selectedDisplayName = "";
-  const blockers = [];
-  if (active.length === 0) {
-    selectionStatus = "no_active_authorization";
-    blockers.push("aweme_auth_no_active");
-  } else if (active.length === 1) {
-    selectionStatus = "auto_selected";
-    selectedAwemeId = active[0].aweme_id;
-    selectedDisplayName = active[0].display_name_summary;
-  } else if (selectedStillActive({ previousSelectedAwemeId, candidates: active })) {
-    selectionStatus = clean(bundle.account?.aweme_authorization?.selection_status) === "manual_selected"
-      ? "manual_selected"
-      : "auto_selected";
-    selectedAwemeId = previousSelectedAwemeId;
-    selectedDisplayName = active.find((candidate) => candidate.aweme_id === selectedAwemeId)?.display_name_summary || "";
-  } else if (previousSelectedAwemeId) {
-    selectionStatus = "selected_inactive";
-    blockers.push("aweme_auth_selected_inactive");
-  } else {
-    selectionStatus = "selection_required";
-    blockers.push("aweme_auth_manual_selection_required");
-  }
-
-  const authorization = buildAuthorizationRecord({
+  const rows = arrayFrom(probe.summary?.rows);
+  const { verificationStatus, matchedRow } = evaluateProbeRows({ rows, baseline, bundle });
+  const { authorization, artifactId } = await persistAuthorization({
+    repo,
     bundle,
     baseline,
-    probe: {
-      responseHash: responseHashes.length === 1 ? responseHashes[0] : hashValue(responseHashes)
-    },
-    active,
-    selectionStatus,
-    selectedAwemeId,
-    selectedDisplayName,
-    evidenceArtifactId: "",
-    blockers
+    probe,
+    verificationStatus,
+    matchedRow,
+    probeSummary: {
+      status: probe.status,
+      responseHashPresent: Boolean(probe.responseHash),
+      returnedRowCount: rows.length,
+      defaultAwemeIdHash: hashValue(expectedAwemeId)
+    }
   });
-  const artifactId = await recordEvidence({ repo, bundle, authorization, probeSummary: { pageCount: responseHashes.length, lastProbeStatus: lastProbe?.status || "" } });
-  authorization.evidence_artifact_id = artifactId;
-  await repo.updateAdvertiserAwemeAuthorization({
-    advertiserId: bundle.job.advertiser_id,
-    routeId: bundle.job.route_id,
-    gameCode: bundle.job.game_code,
-    authorization
-  });
-  const passed = blockers.length === 0;
+  const passed = verificationStatus === "authorized";
+  const blockers = passed ? [] : [authorization.blocker_code || blockerForStatus(verificationStatus)];
   const output = {
     status: passed ? "passed" : "blocked",
     blockers,
     evidenceRefs: [artifactId],
     outputSummary: {
-      awemeAuthorizationStatus: selectionStatus,
+      awemeAuthorizationStatus: verificationStatus,
+      verificationStatus,
       required: true,
-      activeCandidateCount: active.length,
-      selectedAwemeIdPresent: Boolean(selectedAwemeId),
-      selectedAwemeIdHash: selectedAwemeId ? hashValue(selectedAwemeId) : "",
+      configured: true,
+      defaultAwemeIdHash: hashValue(expectedAwemeId),
       verifiedAt: authorization.verified_at,
       expiresAt: authorization.expires_at,
       responseHashPresent: Boolean(authorization.response_hash),
       evidenceRef: artifactId,
       rawResponseStored: false,
-      nextAction: passed ? "Node 5 可从账户授权关系生成 aweme_id。" : blockers[0]
+      nextAction: passed ? "ready_for_node5_payload_build" : authorization.next_action
     }
   };
   assertNoSensitiveLeak(output);

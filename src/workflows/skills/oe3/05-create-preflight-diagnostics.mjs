@@ -403,10 +403,10 @@ function checkPayloadAwemeId(payload = {}) {
     checkId: "payload:aweme_id",
     fieldPath: "aweme_id",
     status: !required || shape === "digit_string" ? "passed" : "blocked",
-    expectedTypeOrRule: "required_when_native_type_AWEME_and_decimal_string_from_account_authorization",
+    expectedTypeOrRule: "required_when_native_type_AWEME_and_decimal_string_from_game_route_default_after_account_verification",
     actualValue: { required, shape },
     blockerCode: shape === "web_business_image_uri" ? "aweme_id_avatar_image_uri_rejected" : `aweme_id_invalid_shape:${shape}`,
-    repairHint: "aweme_id 必须来自账户授权关系，不得来自头像、图片 URI 或任意 avatar 字段。"
+    repairHint: "aweme_id 必须来自游戏路线默认值，且通过目标账户只读授权核验；不得来自头像、图片 URI 或任意 avatar 字段。"
   });
 }
 
@@ -414,9 +414,7 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
   const authorization = manifest.awemeAuthorization || {};
   const blockers = Array.isArray(authorization.blockers) ? authorization.blockers : [];
   const required = authorization.required === true;
-  const statusAllowed = authorization.fixedDefaultPolicy === true
-    ? authorization.status === "default_authorized"
-    : ["auto_selected", "manual_selected"].includes(authorization.status);
+  const statusAllowed = authorization.status === "authorized";
   const passed = !required || (
     manifest.awemeIdPresent === true &&
     manifest.awemeIdValidated === true &&
@@ -424,17 +422,12 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
     manifest.awemeIdLooksLikeImageResource === false &&
     manifest.awemeIdValueShape === "digit_string" &&
     statusAllowed &&
-    authorization.selectedActive === true &&
     authorization.accountMatches === true &&
-    (
-      authorization.fixedDefaultPolicy !== true ||
-      (
-        authorization.defaultAwemeIdConfigured === true &&
-        authorization.defaultAwemeAuthorized === true &&
-        authorization.selectedMatchesDefault === true &&
-        Boolean(authorization.defaultAwemeIdHash)
-      )
-    ) &&
+    authorization.jobMatches === true &&
+    authorization.fixedDefaultPolicy === true &&
+    authorization.defaultAwemeIdConfigured === true &&
+    authorization.defaultHashMatches === true &&
+    Boolean(authorization.defaultAwemeIdHash) &&
     Boolean(authorization.verifiedAt) &&
     Boolean(manifest.awemeIdHash)
   );
@@ -442,7 +435,7 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
     checkId: "manifest:aweme_authorization",
     fieldPath: "final_payload_manifest.awemeAuthorization",
     status: passed ? "passed" : "blocked",
-    expectedTypeOrRule: "selected_aweme_id_from_verified_advertiser_account_authorization",
+    expectedTypeOrRule: "game_route_default_aweme_id_with_current_job_advertiser_authorization_verification",
     actualValue: {
       required,
       awemeIdPresent: manifest.awemeIdPresent === true,
@@ -451,20 +444,17 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
       awemeIdFromAvatar: manifest.awemeIdFromAvatar === true,
       awemeIdLooksLikeImageResource: manifest.awemeIdLooksLikeImageResource === true,
       status: authorization.status || "missing",
-      selectionPolicy: authorization.selectionPolicy || "",
-      selectedActive: authorization.selectedActive === true,
       accountMatches: authorization.accountMatches === true,
+      jobMatches: authorization.jobMatches === true,
       fixedDefaultPolicy: authorization.fixedDefaultPolicy === true,
       defaultAwemeIdConfigured: authorization.defaultAwemeIdConfigured === true,
-      defaultAwemeAuthorized: authorization.defaultAwemeAuthorized === true,
-      selectedMatchesDefault: authorization.selectedMatchesDefault === true,
-      candidateCount: Number(authorization.candidateCount || 0),
+      defaultHashMatches: authorization.defaultHashMatches === true,
       verifiedAtPresent: Boolean(authorization.verifiedAt),
       evidenceRefPresent: Boolean(authorization.evidenceRef),
       blockers
     },
     blockerCode: blockers[0] || (manifest.awemeIdLooksLikeImageResource ? "aweme_id_avatar_image_uri_rejected" : "aweme_auth_not_verified"),
-    repairHint: "先在 Node 4 只读核验账户抖音号授权关系；固定默认策略必须确认该账户拥有默认 aweme_id 后，Node 5 才能生成 aweme_id。"
+    repairHint: "先在 Node 4 只读核验目标账户是否有效授权游戏默认 aweme_id；通过后 Node 5 才能生成 aweme_id。"
   });
 }
 

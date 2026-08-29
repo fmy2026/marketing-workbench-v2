@@ -114,18 +114,15 @@ export function mockReadyBundle(bundle = {}) {
     source: "tools/aweme_auth_list",
     auth_type: "AWEME_ACCOUNT",
     accepted_auth_status: ["AUTHRIZED", "AUTHORIZED"],
-    selection_policy: "single_active_auto_select_else_manual_select",
+    verification_strategy: "fixed_game_default_account_verify",
+    default_aweme_id: "57018827026",
+    default_aweme_id_hash: hashValue("57018827026"),
     fallback_forbidden: true,
-    contract_version: "test_fixture:aweme-id-account-auth-v1"
+    contract_version: "test_fixture:aweme-id-fixed-default-account-verify-v2"
   };
   const awemeBaseline = defaults.raw_defaults.aweme_id_baseline;
-  const fixedDefaultAweme = clean(awemeBaseline.selection_policy) === "fixed_game_default_account_verify";
-  const mockAwemeId = fixedDefaultAweme && clean(awemeBaseline.default_aweme_id)
-    ? clean(awemeBaseline.default_aweme_id)
-    : "1000000000000000001";
-  const mockAwemeIdHash = fixedDefaultAweme && clean(awemeBaseline.default_aweme_id_hash)
-    ? clean(awemeBaseline.default_aweme_id_hash)
-    : hashValue(mockAwemeId);
+  const mockAwemeId = clean(awemeBaseline.default_aweme_id) || "57018827026";
+  const mockAwemeIdHash = clean(awemeBaseline.default_aweme_id_hash) || hashValue(mockAwemeId);
   const instanceEvidence = defaults.raw_defaults?.official_create_field_contract?.instance_id_create_evidence;
   if (instanceEvidence) {
     Object.assign(instanceEvidence, {
@@ -168,32 +165,20 @@ export function mockReadyBundle(bundle = {}) {
     account: {
       ...(bundle.account || {}),
       aweme_authorization: {
-        rule_version: "test_fixture:aweme-id-account-auth-v1",
+        rule_version: "test_fixture:aweme-id-fixed-default-account-verify-v2",
         advertiser_id: bundle.job?.advertiser_id || "",
         route_id: bundle.job?.route_id || "",
         game_code: bundle.job?.game_code || "",
-        selection_policy: fixedDefaultAweme ? "fixed_game_default_account_verify" : "single_active_auto_select_else_manual_select",
-        default_aweme_id_configured: fixedDefaultAweme,
-        default_aweme_id_hash: fixedDefaultAweme ? mockAwemeIdHash : "",
-        default_aweme_authorized: fixedDefaultAweme,
-        selected_aweme_id: mockAwemeId,
-        selected_aweme_id_hash: mockAwemeIdHash,
-        selected_display_name_summary: "mock aweme",
-        active_candidates: [{
-          aweme_id: mockAwemeId,
-          aweme_id_hash: mockAwemeIdHash,
-          display_name_summary: "mock aweme",
-          auth_type: "AWEME_ACCOUNT",
-          auth_status: "AUTHRIZED",
-          sub_status: "",
-          auth_scenarios: [],
-          authorized_at: "",
-          expires_at: ""
-        }],
-        active_candidate_count: 1,
-        selection_status: fixedDefaultAweme ? "default_authorized" : "auto_selected",
+        verification_strategy: "fixed_game_default_account_verify",
+        default_aweme_id_configured: true,
+        default_aweme_id_hash: mockAwemeIdHash,
+        verification_status: "authorized",
+        verified_by_job_id: bundle.job?.job_id || "",
         verified_at: new Date().toISOString(),
+        expires_at: "",
         evidence_artifact_id: "",
+        blocker_code: "",
+        next_action: "ready_for_node5_payload_build",
         response_body_stored: false
       }
     },
