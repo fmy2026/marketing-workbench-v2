@@ -1,99 +1,97 @@
 # AGENTS
 
-定位：Codex 和协作者的项目级启动协议，也是 v2 唯一的长期文件机制说明。这里只保留稳定规则；`project.state.json` 只管理项目协调和全局权限，所有 case/job/Node/资源运行事实只看 Postgres。
+定位：Codex 和协作者的项目启动协议。这里只保留每次任务必须遵守的规则；动态业务事实只看 Postgres。
 
 ## 启动
 
-1. 先读 `AGENTS.md`。
-2. 再读 `project.state.json`。
-3. 若 `active_task` 为对象，按其 `read_order` 读取任务卡和 context manifest。
-4. 若 `active_task = null`，只报告项目生命周期；若需要判断业务下一步，查询 `mwb.workflow_case_summary`，不从项目文件推断账户或 job 状态。
+1. 读取 `AGENTS.md`。
+2. 读取 `project.state.json`。
+3. 有 `active_task` 时，按其 `read_order` 读取 Task 和 Context Manifest。
+4. 没有 `active_task` 时，只报告项目生命周期；需要业务下一步时查询 `mwb.workflow_case_summary`。
 
-`docs/.开发方案/` 仅为本机旧开发方案留存，禁止作为启动必读、任务 manifest `read_order`、运行真值或需求依据；`.archive/` 仅供历史复盘，二者均不是启动必读或运行真值。
+`docs/.开发方案/` 与 `.archive/` 只供历史参考；不得作为启动必读、任务依据、运行真值或 runtime 依赖。
+
+涉及方案判断、OE3 接口、平台读写、资源准备、授权、回查、数据库或报表变更时，按需读取 `docs/Solution Design.md`；再由当前 manifest 指定精确代码、数据库和参考资料。
 
 ## 工作台
 
-| 项 | 固定值 |
-| --- | --- |
-| 启动命令 | `npm run dev` |
-| 工作台地址 | `http://127.0.0.1:3000/` |
-| API 根路径 | `http://127.0.0.1:3000/api/` |
-| 默认状态 | `idle`；不自动加载最后一次 job |
-
-默认只使用上述地址。历史 job 仅允许显式 `?job_id=` 只读查看；端口冲突只能临时排障，不能改写项目入口。
-
-## 真值与知识入口
-
-项目协调与全局权限优先级：`project.state.json` -> active task / manifest -> 代码与 schema。业务运行事实优先级：Postgres `marketing_workbench_v2.mwb`（`workflow_cases`、`launch_jobs`、Node/Skill/资源/action/evidence）-> active task / manifest -> 代码与 schema -> 已验证官方资料。Markdown 只解释规则，不保存动态运行状态；冲突时按对应真值链路提出最小修正。
-
-OE3 问题优先查看本机官方资料：
-
-| 类型 | 路径 |
-| --- | --- |
-| 官方文档 3.0 主库，优先 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0` |
-| 外部给定官方资料 3.0，优先 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
-| 官方文档 2.0 主库，补充 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
-| 官方文档 2.0 copy，补充 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
-| 乾坤当前接口参考 | `docs/.参考文档/乾坤系统/api-docs-20260827.md` |
-
-巨量营销接口资料仍优先查 3.0 知识库；只有 3.0 主库和 3.0 外部给定资料信息不足、缺页或不能定位接口合同时，才补查 2.0 知识库。若 2.0 与 3.0 冲突，必须暂停并记录冲突，不得直接把旧版字段当作 3.0 真值。
-
-历史经验只读参考：
-
-| 参考源 | 用途与边界 |
-| --- | --- |
-| `/Users/hys/Projects/marketing-workbench` | 借鉴已验证的脚本、回查节奏、失败状态与测试思路；禁止作为 v2 runtime 依赖。 |
-| PostgreSQL `marketing_workbench` | 借鉴历史资源、审计与状态建模；禁止作为 v2 目标账户的实时真值。 |
-
-旧项目经验必须在 v2 重新实现、测试，并通过当前官方接口合同验证；v2 运行事实优先级不变。
-
-## 项目经验
-
-可复用、已验证的经验统一记录在 `docs/project-lessons.md`；它只辅助问题定位，运行真值仍以 Postgres、active task / manifest 和当前代码为准；`project.state.json` 只提供全局协调和权限基线。
-
-## 运行链路与归属
-
 ```text
-frontend/API
--> src/workflows/launchWorkflow.mjs
--> src/workflows/skills/oe3/00-workflow-node-registry.mjs
--> src/workflows/skills/oe3/00-runner.mjs
--> src/workflows/skills/oe3/01-07 Node Skill
--> src/platforms + src/repositories
--> Postgres marketing_workbench_v2.mwb
+启动：npm run dev
+地址：http://127.0.0.1:3000/
+API：http://127.0.0.1:3000/api/
+默认：idle；不自动加载最后一次 job。
 ```
 
-- 3 阶段 7 节点的编号、名称、阶段和输出元数据唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`；禁止第二份节点定义数组。
-- 新 OE3 Skill 先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验；Node 4 prepare capability 只由 `04-resource-action-registry.mjs` 登记。
-- `00-` 归属跨节点编排、公共合同和共享 CLI / smoke；`01-07-` 归属对应节点；`src/platforms/`、`src/repositories/`、`src/server/` 是无编号基础设施。
-- `package.json` 命令名是长期入口；`scripts/` 只放长期 CLI、smoke、check。一次性脚本完成后移入 `.archive/` 并移除入口。
+历史 Job 只能显式 `?job_id=` 只读查看。
 
-| 目录 | 职责 |
-| --- | --- |
-| `frontend/` | 工作台页面 |
-| `src/server/` | 本地 API |
-| `src/workflows/` | 工作流编排与 OE3 Skill |
-| `src/platforms/`、`src/repositories/` | 平台适配与 Postgres 读写 |
-| `db/`、`schemas/` | migration/seed 与结构合同 |
-| `mwb.workflow_cases`、`mwb.workflow_case_summary` | 账户投放闭环总控与只读当前 Gate 投影 |
-| `tasks/`、`tasks-context-manifests/` | 单任务合同与必读上下文 |
-| `docs/project-lessons.md` | 已验证、可复用的项目经验；不是运行真值 |
-| `.local/`、`.archive/` | 私密本机配置、历史参考 |
+## 真值
 
-`.archive/` 禁止被 runtime import、API route、package script 或 shell 调用；旧项目 `/Users/hys/Projects/marketing-workbench` 只能人工借鉴，不能成为 v2 运行依赖或真值。
+```text
+项目协调与全局权限：
+project.state.json → active task / manifest → 代码与 schema
 
-## 记录与权限
+业务运行事实：
+Postgres marketing_workbench_v2.mwb
+→ active task / manifest
+→ 代码与 schema
+→ 已验证官方资料
 
-- Workflow 固定 3 阶段 7 节点：节点结果写 `launch_node_runs`，细粒度 Skill 结果写 `launch_skill_runs`；草稿、证据、回查和平台动作仅保存脱敏摘要、hash、状态和必要 ID。
-- Node 2 monitor lifecycle 以 `monitor_provision_runs.cycle_id` 为周期真值；同一 provision 可显式 reissue 多个 cycle，每个 cycle 最多两次 attempt，停止后不自动重试。
-- `executionPlan.mjs` 只为 `prepare_supported=true` 的资源生成 `ensure_resource:*`；其他未就绪资源写 `resource_prepare_unsupported:<resource_type>` blocker。
-- `source_usage`：`runtime_truth` 为真实用户轮次，`test_run` 必须由 smoke/CLI 清理，`seed_source` 仅作初始化；项目名占用只写 `mwb.project_name_reservations`。
-- `workflow_cases` 是业务闭环唯一总控层。新 runtime job 必须显式带 `case_id`；不得仅因账户相同而自动合并。一个 case 可保留多个 fresh job、只读复核和回查 job。
-- `mwb.workflow_case_summary` 由最新 job、Node/Skill、资源、monitor、action/readback 事实生成当前 Gate、blocker 与建议下一动作；UI、CLI 和任务卡引用它，不手写或复制 `next_gate`。
-- `project.state.json.guardrails` 只提供项目全局权限基线；单次真实写入必须同时满足全局允许与当前 job 的 execution plan/confirmation/platform action 授权。任务可收紧，不得自行放宽。
+Markdown：
+只保存规则、方案、任务合同和经验；
+不保存动态账户、Case、Job、Node、Skill 或平台动作状态。
+```
 
-禁止把 token、secret、auth_code、Cookie、完整 callback/点击监测 URL、raw payload 或 raw response 写入项目文件、普通日志、API 或前端。平台长数字 ID 按字符串处理，除非平台合同明确要求且通过安全范围校验。
+冲突时按对应真值链路提出最小修正。
+
+涉及项目流程、数据报表时，按需读取：
+
+```text
+docs/project-现状逻辑图.md
+docs/project-现状数据与报表契约.md
+```
+
+可复用、已验证的经验只记录在 `docs/project-lessons.md`；它辅助诊断，不替代 Postgres、当前代码或任务合同。
+
+## 运行机制
+
+```text
+frontend / API
+→ launchWorkflow
+→ workflow-node-registry
+→ runner
+→ Node 01-07 Skills
+→ platforms / repositories
+→ Postgres
+→ mwb.workflow_case_summary
+→ UI / API / CLI / 任务卡
+```
+
+- 3 阶段 7 节点的唯一来源：`src/workflows/skills/oe3/00-workflow-node-registry.mjs`；禁止第二份节点定义。
+- 新 Skill 先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
+- `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应节点。
+- `package.json` 是长期命令入口；一次性脚本完成后移入 `.archive/` 并移除入口。
+- `workflow_cases` 是业务闭环总控；新 runtime Job 必须显式带 `case_id`。
+- `mwb.workflow_case_summary` 是当前 Gate、blocker、next_action 的唯一只读投影；UI、CLI 和任务卡不得手写或复制 `next_gate`。
+
+## 权限与安全
+
+- Node 结果写 `launch_node_runs`；Skill 结果写 `launch_skill_runs`；运行记录仅保存脱敏摘要、hash、状态、必要 ID 与证据引用。
+- `project.state.json.guardrails` 只提供全局权限；真实写入还必须满足当前 Job 的 execution plan、confirmation 与 platform action 授权。
+- 仅 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其余未就绪资源只写 blocker，不自动补写。
+- `runtime_truth` 是真实用户轮次；`test_run` 必须由 smoke/CLI 清理；`seed_source` 仅作初始化。
+- 禁止把 token、secret、auth_code、Cookie、完整 URL、raw payload 或 raw response 写入项目文件、普通日志、API 或前端。
+- 平台长数字 ID 默认按字符串处理。
 
 ## 闭环
 
-新需求先归一为 brief，明确目标、范围、非目标、权限、验收和缺口；执行只推进当前任务。关闭任务时更新任务卡、manifest 和 `project.state.json`，只设 `active_task=null` 并保留项目协调信息；业务下一 gate 由 case summary 投影取得。同一任务只允许一个 `owner_agent`，协同 Agent 只补证据、风险和校验。
+```text
+卡点 / 需求
+→ Solution Design
+→ 人工确认关键选择
+→ Task + Context Manifest
+→ 执行 / 验证
+→ Postgres 运行事实
+→ 任务关闭 / project.state.json / project-lessons
+```
+
+重要方案批准后才能创建 Task；执行只推进当前 Task。关闭后更新 Task、Manifest 与 `project.state.json`，业务下一步始终读取 `workflow_case_summary`。
