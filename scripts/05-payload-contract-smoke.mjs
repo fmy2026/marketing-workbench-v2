@@ -136,7 +136,7 @@ function createFieldPayloadPreflight(payloadPatch = {}) {
         retargeting_tags_exclude: [123]
       },
       project_materials: {
-        external_url_material_list: ["https://example.invalid/backup"],
+        image_material_list: [],
         product_info: { selling_points: ["开局装备全靠捡"] },
         title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }]
       },
@@ -149,10 +149,13 @@ function nestedFieldManifestPreflight({
   status = "passed",
   ruleVersion = NESTED_FIELD_CONTRACT.ruleVersion,
   source = NESTED_FIELD_CONTRACT.source,
-  checkedPathCount = 16,
+  checkedPathCount = 18,
   blockerCount = 0,
   blockers = [],
-  checkedGroups = ["video_materials", "product_info", "mini_program_info", "track_url_setting", "audience"],
+  checkedGroups = ["video_materials", "product_info", "image_material_list", "external_url_material_list", "mini_program_info", "track_url_setting", "audience"],
+  externalUrlMaterialListPolicy = "omit",
+  externalUrlMaterialListPresent = false,
+  externalUrlMaterialListOmittedByContract = true,
   rawPayloadStored = false
 } = {}) {
   return evaluateStdProjectCreatePreflight({
@@ -165,6 +168,9 @@ function nestedFieldManifestPreflight({
         blockerCount,
         blockers,
         checkedGroups,
+        externalUrlMaterialListPolicy,
+        externalUrlMaterialListPresent,
+        externalUrlMaterialListOmittedByContract,
         rawPayloadStored
       }
     }
@@ -177,6 +183,8 @@ function nestedRules() {
     source: NESTED_FIELD_CONTRACT.source,
     groups: {
       "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
+      "project_materials.image_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149", send_policy: "send_empty_array" },
+      "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: "omit" },
       "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
       "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
       "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
@@ -213,6 +221,7 @@ function nestedContractCase(mutator = () => {}) {
         video_id: "v1",
         video_cover_id: "c1"
       }],
+      image_material_list: [],
       product_info: {
         titles: ["巨兽战场"],
         image_ids: ["789"],
@@ -368,6 +377,10 @@ try {
   assert(dryManifest.miniProgramLaunchLinkHashMatch === true, "mini_program_info.url hash should match controlled DB hash");
   assert(dryManifest.miniProgramLaunchLinkAppIdMatch === true, "mini_program_info.url should be bound to the active app_id");
   assert(!dryManifest.blockers?.includes("mini_game_launch_url_not_ready"), "ready BYTE_GAME MICRO_GAME route should not emit mini_game_launch_url_not_ready");
+  assert(dryManifest.externalUrlMaterialListPolicy === "omit", "dry JSZC route should omit external_url_material_list by contract");
+  assert(dryManifest.externalUrlMaterialListPresent === false, "dry payload should not include external_url_material_list");
+  assert(dryManifest.externalUrlMaterialListOmittedByContract === true, "dry external_url_material_list omission should be recorded");
+  assert(dryManifest.imageMaterialListEmpty === true, "dry image_material_list should be empty");
   assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "delivery_type" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "delivery_type should be sent with direct create evidence");
   assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "layer_roi_switch" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "layer_roi_switch should be sent with direct create evidence");
   assert(dryFieldEvidence.omittedFieldPaths?.includes("micro_promotion_type"), "micro_promotion_type should be omitted from create payload");
@@ -438,6 +451,10 @@ try {
   assert(mockManifest.miniProgramUrlRequired === true, "mock BYTE_GAME MICRO_GAME route should require mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkPresent === true, "mock BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
+  assert(mockManifest.externalUrlMaterialListPolicy === "omit", "mock JSZC route should omit external_url_material_list by contract");
+  assert(mockManifest.externalUrlMaterialListPresent === false, "mock payload should not include external_url_material_list");
+  assert(mockManifest.externalUrlMaterialListOmittedByContract === true, "mock external_url_material_list omission should be recorded");
+  assert(mockManifest.imageMaterialListEmpty === true, "mock image_material_list should be empty");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
 
@@ -477,6 +494,9 @@ try {
   assert(createFieldPayloadPreflight({ delivery_type: "BAD" }).blocker_codes.includes("invalid_enum:delivery_type"), "invalid delivery_type enum should block");
   assert(createFieldPayloadPreflight({ layer_roi_switch: "BAD" }).blocker_codes.includes("invalid_enum:layer_roi_switch"), "invalid layer_roi_switch enum should block");
   assert(createFieldPayloadPreflight({ micro_promotion_type: "BYTE_GAME" }).blocker_codes.includes("forbidden_field:micro_promotion_type"), "micro_promotion_type should be forbidden in create preflight");
+  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [] } }).diagnostics.find((item) => item.check_id === "empty_array:project_materials.image_material_list")?.status === "passed", "empty image_material_list should pass current route preflight");
+  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [{ material_id: 1 }] } }).blocker_codes.includes("image_material_list_must_be_empty_for_current_route"), "nonempty image_material_list should block current route preflight");
+  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [], external_url_material_list: ["https://example.invalid/backup"] } }).blocker_codes.includes("external_url_material_list_must_be_omitted_for_current_route"), "external_url_material_list should be omitted for current route preflight");
   assert(createFieldContractManifestPreflight()?.status === "passed", "valid delivery/layer/micro manifest should pass");
   assert(createFieldContractManifestPreflight({ deliveryEvidence: null })?.blocker_code === "create_field_contract_not_direct_send:delivery_type", "missing delivery_type direct evidence should block");
   assert(createFieldContractManifestPreflight({ layerEvidence: { fieldPath: "layer_roi_switch", evidenceLevel: "unverified", sendPolicy: "omit", status: "blocked" } })?.blocker_code === "create_field_contract_not_direct_send:layer_roi_switch", "downgraded layer_roi_switch evidence should block");
@@ -485,9 +505,12 @@ try {
   assert(nestedFieldManifestPreflight()?.status === "passed", "valid nested field manifest should pass");
   assert(nestedFieldManifestPreflight({ status: "blocked", blockerCount: 1, blockers: ["nested_video_image_mode_invalid:0"] })?.blocker_code === "nested_video_image_mode_invalid:0", "nested field manifest blockers should surface");
   assert(nestedFieldManifestPreflight({ ruleVersion: "old" })?.blocker_code === "nested_field_contract_not_verified", "nested field manifest version mismatch should block");
+  assert(nestedFieldManifestPreflight({ externalUrlMaterialListPresent: true, externalUrlMaterialListOmittedByContract: false })?.blocker_code === "nested_field_contract_not_verified", "sent external_url_material_list manifest should block current route");
   assert(nestedContractCase().status === "passed", "valid nested payload should pass");
   assert(nestedFieldContractManifest(nestedContractCase()).rawPayloadStored === false, "nested manifest must not store raw payload");
   assert(nestedContractCase(({ payload }) => { payload.project_materials.video_material_list[0].image_mode = "BAD"; }).blockers.includes("nested_video_image_mode_invalid:0"), "invalid video image_mode should block");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.image_material_list = [{ image_id: "IMG-1" }]; }).blockers.includes("nested_image_material_list_must_be_empty_for_current_route"), "nonempty image_material_list should block");
+  assert(nestedContractCase(({ payload }) => { payload.project_materials.external_url_material_list = ["https://example.invalid/backup"]; }).blockers.includes("nested_external_url_material_list_must_be_omitted_for_current_route"), "external_url_material_list should block when route policy is omit");
   assert(nestedContractCase(({ payload }) => { delete payload.project_materials.video_material_list[0].video_cover_id; }).blockers.includes("nested_video_cover_contract_invalid:0"), "missing explicit video cover should block");
   assert(nestedContractCase(({ payload, bundle }) => {
     delete payload.project_materials.video_material_list[0].video_cover_id;

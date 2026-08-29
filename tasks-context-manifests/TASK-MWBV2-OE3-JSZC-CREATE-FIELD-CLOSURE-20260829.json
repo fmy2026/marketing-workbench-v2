@@ -1,0 +1,191 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829.md",
+  "owner_agent": "codex",
+  "status": "closed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "brief": {
+    "goal": "Close the JSZC std_project/create field contract by omitting unproven backup landing page payload fields and moving static switches to route defaults.",
+    "mode": "implementation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829.json",
+    "docs/Solution Design.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CREATE-FIELD-CLOSURE-20260829.json",
+    "project.state.json",
+    "db/049_jszc_create_field_closure.sql",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "docs/project-lessons.md"
+  ],
+  "allowed_database_changes": [
+    "Update mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules for route_id=oceanengine_3_byte_mini_game and game_code=JSZC",
+    "Update mwb.game_route_defaults.raw_defaults.payload_defaults for current JSZC static create switches"
+  ],
+  "forbidden_actions": [
+    "std_project/create real call",
+    "tools/project_material_type/update call",
+    "material upload",
+    "anchor or component write",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "token refresh",
+    "creating new tables, views, dashboards, or reports",
+    "writing token/secret/auth_code/Cookie/full URL/raw request/raw response/raw payload"
+  ],
+  "validation_plan": [
+    "node --check changed modules",
+    "psql -X -d marketing_workbench_v2 -f db/049_jszc_create_field_closure.sql",
+    "npm run test:payload-contract",
+    "npm run test:mini-game-launch-link",
+    "npm run smoke:workflow-skills",
+    "Create a fresh runtime_truth Job under CASE-LEGACY-2E4217E20C9E26BFB648772C and run draft_readiness only",
+    "Audit fresh Job counts for execution_plans, confirmations, platform_actions, created_objects, readbacks"
+  ],
+  "official_references": [
+    {
+      "field": "project_materials.external_url_material_list",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174",
+      "current_policy": "omit for JSZC MICRO_GAME + BYTE_GAME + mini_program_info.url until route-required evidence exists"
+    },
+    {
+      "field": "project_materials.image_material_list",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149",
+      "current_policy": "empty array for current JSZC video-first route"
+    },
+    {
+      "field": "project_materials.mini_program_info",
+      "reference": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184",
+      "current_policy": "send controlled url only"
+    }
+  ],
+  "result": {
+    "status": "closed",
+    "migration": "db/049_jszc_create_field_closure.sql",
+    "database_rows_updated": 1,
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829143207-D208AE",
+    "fresh_runtime_status": {
+      "job_status": "draft_ready",
+      "current_node": "5",
+      "payload_contract_status": "passed",
+      "create_preflight_status": "passed",
+      "blockers": []
+    },
+    "nested_field_contract": {
+      "status": "passed",
+      "rule_version": "2026-08-29.oe3-std-project-create-nested-fields-v2",
+      "checked_path_count": 21,
+      "blocker_count": 0,
+      "external_url_material_list_policy": "omit",
+      "external_url_material_list_present": false,
+      "external_url_material_list_omitted_by_contract": true,
+      "image_material_list_empty": true,
+      "raw_payload_stored": false
+    },
+    "traceability": [
+      {
+        "change": "omit_project_materials_external_url_material_list_for_current_jszc_route",
+        "basis": "std_project_create marks the field as conditional, but current MICRO_GAME + BYTE_GAME + mini_program_info.url route has no direct required evidence; historical success omitted it; user confirmed default omit",
+        "verification_level": [
+          "local_verified",
+          "fresh_readiness_verified",
+          "not_real_create_verified"
+        ],
+        "rollback_hint": "If a future real create response proves this field is required, update the same nested rule to send and re-enable backup_landing_page readiness as a Node 5 blocker."
+      },
+      {
+        "change": "keep_project_materials_image_material_list_empty",
+        "basis": "current route uses video materials, title materials, and verified product image; no current route evidence requires ordinary image materials",
+        "verification_level": [
+          "local_verified",
+          "fresh_readiness_verified",
+          "not_real_create_verified"
+        ],
+        "rollback_hint": "If real create requires omission instead of empty array, update the same nested rule and Node 5 builder policy without adding a new report."
+      },
+      {
+        "change": "move_static_switches_to_route_defaults",
+        "basis": "route defaults are the single source for JSZC create business defaults; Node 5 should not own a second hardcoded source",
+        "verification_level": [
+          "local_verified",
+          "fresh_readiness_verified",
+          "not_real_create_verified"
+        ],
+        "rollback_hint": "If platform enum or applicability changes, update mwb.game_route_defaults.raw_defaults.payload_defaults and official_create_field_contract, not Node 5 literals."
+      },
+      {
+        "change": "bump_nested_contract_to_v2",
+        "basis": "newly checked omitted/empty nested paths must be distinguishable from older v1 manifests",
+        "verification_level": [
+          "local_verified",
+          "fresh_readiness_verified"
+        ],
+        "rollback_hint": "Do not treat v1 manifests as passing this closure task; regenerate a fresh Node 1-5 job."
+      }
+    ],
+    "audit_counts": {
+      "drafts": 1,
+      "executionPlans": 0,
+      "launchConfirmations": 0,
+      "platformActions": 0,
+      "createdObjects": 0,
+      "readbackRecords": 0
+    },
+    "validation": [
+      {
+        "command": "node --check changed modules",
+        "status": "passed"
+      },
+      {
+        "command": "psql -X -d marketing_workbench_v2 -f db/049_jszc_create_field_closure.sql",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:payload-contract",
+        "status": "passed"
+      },
+      {
+        "command": "npm run test:mini-game-launch-link",
+        "status": "passed"
+      },
+      {
+        "command": "npm run smoke:workflow-skills",
+        "status": "passed"
+      },
+      {
+        "command": "fresh draft_readiness job audit",
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      }
+    ],
+    "platform_write_executed": false,
+    "token_refresh_executed": false,
+    "new_reports_or_views_created": false
+  }
+}

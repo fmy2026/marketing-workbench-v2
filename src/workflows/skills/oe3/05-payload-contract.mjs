@@ -405,8 +405,15 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Boolean(awemeAuthorization.verifiedAt) &&
       Boolean(finalManifest.awemeIdHash)
     );
+  const externalUrlMaterialListPolicy = String(finalManifest.externalUrlMaterialListPolicy || "");
   const finalPayloadBackupLandingPageOk = !usesFinalPayloadHash ||
     (
+      externalUrlMaterialListPolicy === "omit" &&
+      finalManifest.externalUrlMaterialListPresent === false &&
+      finalManifest.externalUrlMaterialListOmittedByContract === true
+    ) ||
+    (
+      externalUrlMaterialListPolicy === "send" &&
       finalManifest.backupLandingPagePresent === true &&
       finalManifest.backupLandingPageHttps === true &&
       finalManifest.backupLandingPageTargetVisible === true &&
@@ -457,6 +464,16 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       !officialFieldByPath.has("micro_promotion_type")
     );
   const nestedFieldContract = finalManifest.nestedFieldContract || {};
+  const nestedExternalUrlPolicy = nestedFieldContract.externalUrlMaterialListPolicy || "";
+  const nestedExternalUrlContractOk = (
+    nestedExternalUrlPolicy === "omit" &&
+    nestedFieldContract.externalUrlMaterialListPresent === false &&
+    nestedFieldContract.externalUrlMaterialListOmittedByContract === true
+  ) || (
+    nestedExternalUrlPolicy === "send" &&
+    nestedFieldContract.externalUrlMaterialListPresent === true &&
+    nestedFieldContract.externalUrlMaterialListOmittedByContract === false
+  );
   const finalNestedFieldContractOk = !usesFinalPayloadHash ||
     (
       nestedFieldContract.status === "passed" &&
@@ -467,8 +484,11 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Array.isArray(nestedFieldContract.checkedGroups) &&
       nestedFieldContract.checkedGroups.includes("video_materials") &&
       nestedFieldContract.checkedGroups.includes("product_info") &&
+      nestedFieldContract.checkedGroups.includes("image_material_list") &&
+      nestedFieldContract.checkedGroups.includes("external_url_material_list") &&
       nestedFieldContract.checkedGroups.includes("mini_program_info") &&
       nestedFieldContract.checkedGroups.includes("audience") &&
+      nestedExternalUrlContractOk &&
       nestedFieldContract.rawPayloadStored === false
     );
   const businessDefaultsReady = !usesFinalPayloadHash || finalManifest.businessDefaultsPresent === true;
@@ -599,8 +619,10 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "backup_landing_page",
       status: finalPayloadBackupLandingPageOk ? "passed" : "blocked",
       summary: finalPayloadBackupLandingPageOk
-        ? "备用网页链接已通过 HTTPS、目标账户可见性和 hash 一致性检查。"
-        : "备用网页链接未通过 HTTPS、目标账户可见性或 hash 一致性检查。"
+        ? (externalUrlMaterialListPolicy === "omit"
+          ? "当前 JSZC 路线按合同省略备用网页链接。"
+          : "备用网页链接已通过 HTTPS、目标账户可见性和 hash 一致性检查。")
+        : "备用网页链接策略未通过：当前路线应省略，或发送路线缺少 HTTPS、目标账户可见性、hash 一致性证据。"
     },
     {
       key: "mini_game_launch_link",

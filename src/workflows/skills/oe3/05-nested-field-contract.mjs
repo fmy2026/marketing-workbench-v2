@@ -2,13 +2,15 @@ import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-sel
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
 
 export const NESTED_FIELD_CONTRACT = Object.freeze({
-  ruleVersion: "2026-08-29.oe3-std-project-create-nested-fields-v1",
+  ruleVersion: "2026-08-29.oe3-std-project-create-nested-fields-v2",
   source: "postgres:mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules",
   officialCreateRef: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:142"
 });
 
 const REQUIRED_NESTED_RULE_GROUPS = Object.freeze([
   "project_materials.video_material_list",
+  "project_materials.image_material_list",
+  "project_materials.external_url_material_list",
   "project_materials.product_info",
   "project_materials.call_to_action_buttons",
   "project_materials.source",
@@ -80,6 +82,18 @@ function nestedRuleVersion(rules = {}) {
 
 function nestedRuleSource(rules = {}) {
   return clean(rules.source || NESTED_FIELD_CONTRACT.source);
+}
+
+function nestedGroupRule(rules = {}, group) {
+  const groups = rules.groups && typeof rules.groups === "object" && !Array.isArray(rules.groups)
+    ? rules.groups
+    : {};
+  const rule = groups[group];
+  return rule && typeof rule === "object" && !Array.isArray(rule) ? rule : {};
+}
+
+function nestedSendPolicy(rules = {}, group, fallback = "send") {
+  return clean(nestedGroupRule(rules, group).send_policy || fallback);
 }
 
 function addCheck(checks, {
@@ -239,6 +253,44 @@ export function evaluateNestedFieldContract({
         platformDefaultCoverAllowed: coverShouldOmit
       }
     });
+  });
+
+  const imageMaterialList = materials.image_material_list;
+  addCheck(checks, {
+    group: "image_material_list",
+    path: "project_materials.image_material_list",
+    passed: Array.isArray(imageMaterialList) && imageMaterialList.length === 0,
+    rule: "current_jszc_route_sends_empty_image_material_list",
+    blockerCode: "nested_image_material_list_must_be_empty_for_current_route",
+    actual: {
+      present: Object.hasOwn(materials, "image_material_list"),
+      count: Array.isArray(imageMaterialList) ? imageMaterialList.length : 0,
+      source: "route_nested_contract"
+    }
+  });
+
+  const externalUrlPolicy = nestedSendPolicy(rules, "project_materials.external_url_material_list", "send");
+  const externalUrlListPresent = Object.hasOwn(materials, "external_url_material_list");
+  const externalUrlList = materials.external_url_material_list;
+  addCheck(checks, {
+    group: "external_url_material_list",
+    path: "project_materials.external_url_material_list",
+    passed: externalUrlPolicy === "omit"
+      ? !externalUrlListPresent
+      : Array.isArray(externalUrlList) && externalUrlList.length === 1 && backupLandingPage.ready === true,
+    rule: externalUrlPolicy === "omit"
+      ? "current_jszc_route_omits_external_url_material_list"
+      : "send_only_when_backup_landing_page_ready",
+    blockerCode: externalUrlPolicy === "omit"
+      ? "nested_external_url_material_list_must_be_omitted_for_current_route"
+      : "nested_external_url_material_list_contract_invalid",
+    actual: {
+      sendPolicy: externalUrlPolicy || "missing",
+      present: externalUrlListPresent,
+      count: Array.isArray(externalUrlList) ? externalUrlList.length : 0,
+      backupLandingPageReady: backupLandingPage.ready === true,
+      rawUrlStoredInManifest: false
+    }
   });
 
   const productInfo = materials.product_info || {};
@@ -444,6 +496,8 @@ export function evaluateNestedFieldContract({
       videoMaterialCount: videoList.length,
       productImageCount: Array.isArray(imageIds) ? imageIds.length : 0,
       titleMaterialCount: title.count,
+      imageMaterialCount: Array.isArray(imageMaterialList) ? imageMaterialList.length : 0,
+      externalUrlMaterialCount: Array.isArray(externalUrlList) ? externalUrlList.length : 0,
       sellingPointCount: selling.count,
       ctaCount: Array.isArray(cta) ? cta.length : 0
     },
@@ -462,6 +516,9 @@ export function evaluateNestedFieldContract({
     },
     enumResults: {
       videoImageMode: videoList.every((item) => clean(item.image_mode) === "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL"),
+      imageMaterialListEmpty: Array.isArray(imageMaterialList) && imageMaterialList.length === 0,
+      externalUrlMaterialListPolicy: externalUrlPolicy || "missing",
+      externalUrlMaterialListOmitted: !externalUrlListPresent,
       anchorRelatedType: clean(materials.anchor_related_type),
       miniProgramUrlOnly: miniKeys.length === 1 && miniKeys[0] === "url",
       trackSendType: clean(payload.track_url_setting?.send_type),
@@ -472,6 +529,9 @@ export function evaluateNestedFieldContract({
     videoEvidenceRefCount: requiredVideos.filter((item) => item.evidenceRefPresent).length,
     materialReadinessStatus: clean(materialReadiness.status || "not_checked"),
     backupLandingPageReady: backupLandingPage.ready === true,
+    externalUrlMaterialListPolicy: externalUrlPolicy || "missing",
+    externalUrlMaterialListPresent: externalUrlListPresent,
+    externalUrlMaterialListOmittedByContract: externalUrlPolicy === "omit" && !externalUrlListPresent,
     miniProgramLaunchLinkReady: miniProgramLaunchLink.ready === true,
     rawPayloadStored: false
   };
@@ -495,6 +555,9 @@ export function nestedFieldContractManifest(result = {}) {
     videoEvidenceRefCount: Number(result.videoEvidenceRefCount || 0),
     materialReadinessStatus: result.materialReadinessStatus || "not_checked",
     backupLandingPageReady: result.backupLandingPageReady === true,
+    externalUrlMaterialListPolicy: result.externalUrlMaterialListPolicy || "",
+    externalUrlMaterialListPresent: result.externalUrlMaterialListPresent === true,
+    externalUrlMaterialListOmittedByContract: result.externalUrlMaterialListOmittedByContract === true,
     miniProgramLaunchLinkReady: result.miniProgramLaunchLinkReady === true,
     rawPayloadStored: false
   };

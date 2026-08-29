@@ -140,6 +140,21 @@ function routePayloadConfig(bundle = {}) {
   };
 }
 
+function routeNestedRules(bundle = {}) {
+  const rules = bundle.defaults?.raw_defaults?.official_create_field_contract?.nested_rules;
+  return rules && typeof rules === "object" && !Array.isArray(rules) ? rules : {};
+}
+
+function routeNestedGroup(bundle = {}, group) {
+  const groups = routeNestedRules(bundle).groups;
+  const rule = groups && typeof groups === "object" && !Array.isArray(groups) ? groups[group] : null;
+  return rule && typeof rule === "object" && !Array.isArray(rule) ? rule : {};
+}
+
+function routeNestedSendPolicy(bundle = {}, group, fallback = "send") {
+  return clean(routeNestedGroup(bundle, group).send_policy || fallback);
+}
+
 function awemeRequired({ payloadDefaults = {}, awemeIdBaseline = {} } = {}) {
   const nativeType = clean(payloadDefaults.project?.native_type);
   const requiredNativeType = clean(awemeIdBaseline.required_when?.native_type || "AWEME");
@@ -401,12 +416,22 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
+  const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
+  const externalUrlMaterialListRequired = externalUrlMaterialListPolicy === "send";
   const wireBody = instanceIdCreateEvidence.canSend ? buildStdProjectCreateWireBody(payload) : { status: "not_required", blockers: [] };
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
     return value === "" || value === null || value === undefined || (Array.isArray(value) && !value.length);
   });
-  const resources = ["avatar", "dmp_audience_package", "event_asset", "product_image", "brand_info", "micro_app_instance", "backup_landing_page"]
+  const resources = [
+    "avatar",
+    "dmp_audience_package",
+    "event_asset",
+    "product_image",
+    "brand_info",
+    "micro_app_instance",
+    ...(externalUrlMaterialListRequired ? ["backup_landing_page"] : [])
+  ]
     .map((type) => [type, resource(bundle, type)])
     .filter(([, item]) => !resourceReady(item))
     .map(([type]) => `resource_${type}_not_ready`);
@@ -430,13 +455,13 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
     ...sellingPointsContract.blockers,
     ...(titleMaterialResult.blockers || []),
-    ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
-    ...(!backupLandingPage.checks?.present ? ["backup_landing_page_default_missing"] : []),
-    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.active ? ["backup_landing_page_not_active"] : []),
-    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.https ? ["backup_landing_page_url_missing_or_not_https"] : []),
-    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.targetVisible ? ["backup_landing_page_target_not_visible"] : []),
-    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.readbackVerified ? ["backup_landing_page_readback_not_verified"] : []),
-    ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.hashMatch ? ["backup_landing_page_hash_mismatch"] : []),
+    ...(externalUrlMaterialListRequired && !payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
+    ...(externalUrlMaterialListRequired && !backupLandingPage.checks?.present ? ["backup_landing_page_default_missing"] : []),
+    ...(externalUrlMaterialListRequired && backupLandingPage.checks?.present && !backupLandingPage.checks?.active ? ["backup_landing_page_not_active"] : []),
+    ...(externalUrlMaterialListRequired && backupLandingPage.checks?.present && !backupLandingPage.checks?.https ? ["backup_landing_page_url_missing_or_not_https"] : []),
+    ...(externalUrlMaterialListRequired && backupLandingPage.checks?.present && !backupLandingPage.checks?.targetVisible ? ["backup_landing_page_target_not_visible"] : []),
+    ...(externalUrlMaterialListRequired && backupLandingPage.checks?.present && !backupLandingPage.checks?.readbackVerified ? ["backup_landing_page_readback_not_verified"] : []),
+    ...(externalUrlMaterialListRequired && backupLandingPage.checks?.present && !backupLandingPage.checks?.hashMatch ? ["backup_landing_page_hash_mismatch"] : []),
     ...(!payload.project_materials?.video_material_list?.length ? ["video_material_list_missing"] : []),
     ...((payload.project_materials?.video_material_list || []).some((item) => !item.video_id) ? ["video_id_missing"] : []),
     ...(selectedRequiredVideoCount !== payload.project_materials?.video_material_list?.length ? ["selected_required_video_count_mismatch"] : []),
@@ -479,6 +504,9 @@ function fieldManifest(payload = {}, blockers = [], {
   const instanceField = instanceIdCreateEvidence.candidateField || "instance_id";
   const instanceValue = payload[instanceField];
   const wireBody = buildStdProjectCreateWireBody(payload);
+  const externalUrlMaterialListPresent = Object.hasOwn(materials, "external_url_material_list");
+  const externalUrlMaterialListPolicy = nestedFieldContract.externalUrlMaterialListPolicy ||
+    (externalUrlMaterialListPresent ? "send" : "omit");
   const sellingPoints = materials.product_info?.selling_points;
   const sellingPointsSummary = sellingPointsManifest(sellingPoints, {
     source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
@@ -553,6 +581,11 @@ function fieldManifest(payload = {}, blockers = [], {
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
     videoCoverReadyCount: (materials.video_material_list || []).filter((item) => item.video_cover_id).length,
+    imageMaterialListCount: Array.isArray(materials.image_material_list) ? materials.image_material_list.length : 0,
+    imageMaterialListEmpty: Array.isArray(materials.image_material_list) && materials.image_material_list.length === 0,
+    externalUrlMaterialListPolicy,
+    externalUrlMaterialListPresent,
+    externalUrlMaterialListOmittedByContract: externalUrlMaterialListPolicy === "omit" && !externalUrlMaterialListPresent,
     backupLandingPagePresent: Boolean(materials.external_url_material_list?.length),
     backupLandingPageSiteId: backupLandingPage.siteId || "",
     backupLandingPageAssetId: backupLandingPage.assetId || "",
@@ -617,6 +650,10 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const brand = brandInfo(bundle);
   const backupLandingPage = backupLandingPageReadiness(bundle, backupLandingPageUrl);
   const miniProgramLink = miniProgramLaunchLinkReadiness(bundle, miniProgramLaunchLink);
+  const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
+  const externalUrlMaterialList = externalUrlMaterialListPolicy === "send" && backupLandingPage.ready
+    ? { external_url_material_list: [backupLandingPage.url] }
+    : {};
   const objective = clean(summary.objective || bundle.defaults?.objective);
   const deepObjective = clean(summary.deep_objective || bundle.defaults?.deep_objective);
   const instanceCandidateField = clean(
@@ -672,7 +709,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       title_material_list: titleMaterialResult.items || [],
       video_material_list: videoMaterials(bundle),
       image_material_list: [],
-      external_url_material_list: backupLandingPage.ready ? [backupLandingPage.url] : [],
+      ...externalUrlMaterialList,
       source: clean(bundle.game?.brand_name || bundle.game?.game_name || "产品").slice(0, 10),
       // Official 3.0 contract: with url, app_id/start_path/params are omitted.
       // app_id remains a controlled database binding used before payload creation.
@@ -686,12 +723,12 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       anchor_related_type: clean(requiredConfigValue(payloadDefaults, "product.anchor_related_type", configBlockers))
     },
     track_url_setting: {
-      send_type: "SERVER_SEND",
+      send_type: clean(requiredConfigValue(payloadDefaults, "track_url_setting.send_type", configBlockers)),
       action_track_url: [clean(touchpointUrl)].filter(Boolean)
     },
-    aigc_dynamic_creative_switch: "OFF",
-    layer_roi_switch: "OFF",
-    is_comment_disable: "OFF"
+    aigc_dynamic_creative_switch: clean(requiredConfigValue(payloadDefaults, "strategy.aigc_dynamic_creative_switch", configBlockers)),
+    layer_roi_switch: clean(requiredConfigValue(payloadDefaults, "strategy.layer_roi_switch", configBlockers)),
+    is_comment_disable: clean(requiredConfigValue(payloadDefaults, "strategy.is_comment_disable", configBlockers))
   };
   const policyApplied = applyOfficialCreateFieldSendPolicy({
     payload: requestedPayload,

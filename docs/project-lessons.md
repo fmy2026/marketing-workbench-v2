@@ -54,11 +54,14 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | --- | --- |
 | 合同来源 | 顶层字段和已发送嵌套字段均记录在 `game_route_defaults.raw_defaults.official_create_field_contract`；顶层用 `field_rules`，嵌套路径用 `nested_rules`，不新增第二套表或报表。 |
 | 官方接口 | 创建字段唯一依据为 `POST /open_api/v3.0/std_project/create/`；`tools/project_material_type/update` 只能作为同素材结构旁证，本流程不调用素材更新接口。 |
-| 已发送嵌套路径 | 当前 JSZC 路线只校验实际发送的 `video_material_list`、`title_material_list`、`product_info`、`call_to_action_buttons`、`source`、`anchor_related_type`、`mini_program_info`、`track_url_setting`、`audience`、`brand_info`。 |
+| 已发送与受控省略路径 | 当前 JSZC 路线校验实际发送的 `video_material_list`、`image_material_list`、`title_material_list`、`product_info`、`call_to_action_buttons`、`source`、`anchor_related_type`、`mini_program_info`、`track_url_setting`、`audience`、`brand_info`；同时校验当前路线按合同省略 `external_url_material_list`。 |
 | 共同 Gate | Node 5、payload contract 与 create preflight 必须复用同一个嵌套字段合同模块；不得在三处各写一套规则。 |
 | 视频素材 | 视频必须来自当前物料包 required `video_asset`，目标账户只读证据通过；竖版视频使用 `CREATIVE_IMAGE_MODE_VIDEO_VERTICAL`；只有显式封面已验证时才发送 `video_cover_id`，否则省略并记录平台默认封面模式。 |
 | 商品与标题 | 标题素材来自 `game_assets.asset_type=title_material` 经物料包关联；商品名来自游戏身份，商品图来自目标账户已核验产品图，卖点来自路线默认值并满足 6-9 字合同。 |
+| 备用网页链接 | 当前 JSZC 为 `MICRO_GAME + BYTE_GAME + mini_program_info.url` 主链路；官方 create 文档仅说明 `external_url_material_list` 为条件必填，未证明当前路线必须发送，因此路线合同默认省略。未来路线若要发送，必须先补官方条件依据、只读证据和测试。 |
+| 图片素材列表 | 当前 JSZC 走视频素材和产品图，普通 `image_material_list` 固定为空数组；非空图片列表必须被 Node 5 / preflight 阻断。 |
 | 小游戏链接 | `MICRO_GAME + BYTE_GAME` 使用受控 `mini_program_info.url`；传 `url` 时禁止同时传 `app_id`、`start_path`、`params`。 |
+| 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 从 `payload_defaults` 读取，不在 Node 5 硬编码第二来源。 |
 | 锚点边界 | 当前 JSZC 路线固定 `anchor_related_type=OFF`，不得携带 `anchor_material_list` 或 `component_material_list`；未来启用 `SELECT` 前必须先新增独立只读准备和官方取值证据。 |
 | 审计摘要 | 最终 manifest 只保存 `nestedFieldContract` 的版本、来源、检查路径数、数量/长度范围、枚举结果、封面模式、证据计数和 blocker 数；不保存完整 payload、URL、token、raw request 或 raw response。 |
 | 扩展规则 | 未来新增 create 嵌套字段，必须先补官方合同、路线 `nested_rules`、共享校验模块和正反例测试；未启用条件字段不得为了兼容性而提前发送。 |
@@ -175,7 +178,8 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 通过标准 | `account_resources.backup_landing_page` 写为 `visible + readback_verified`；evidence 只留状态、ID、hash、request id/response hash 是否存在。 |
 | 失败分流 | 源户缺失/不可用直接 blocked；目标未命中、目标状态不可用或源/目标实时 hash 不一致时保持 blocker，不补写、不猜 URL。 |
 | 验证状态 | 已闭环；人工共享后，目标 `share_type=SHARE` 库存可命中默认页，源户实时 hash 与目标共享 hash 一致即可通过。 |
-| 不适用边界 | 不在文档、日志、API 或前端保存完整落地页 URL；不把落地页通过替代产品图或小程序实例 Gate。 |
+| 创建字段边界 | 备用落地页资源可作为未来路线的候选准备事实，但当前 JSZC 创建 payload 默认不发送 `external_url_material_list`；是否发送由 `official_create_field_contract.nested_rules` 决定。 |
+| 不适用边界 | 不在文档、日志、API 或前端保存完整落地页 URL；不把落地页通过替代产品图或小程序实例 Gate，也不因资源存在就默认进入创建字段。 |
 
 ## 新案例模板
 

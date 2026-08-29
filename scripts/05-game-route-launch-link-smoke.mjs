@@ -64,6 +64,8 @@ function bundle() {
             source: NESTED_FIELD_CONTRACT.source,
             groups: {
               "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
+              "project_materials.image_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149", send_policy: "send_empty_array" },
+              "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: "omit" },
               "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
               "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
               "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
@@ -93,7 +95,8 @@ function bundle() {
         },
         payload_defaults: {
           project: { ad_type: "ALL", landing_type: "MICRO_GAME", marketing_goal: "VIDEO_AND_IMAGE", native_type: "AWEME", delivery_mode: "MANUAL" },
-          strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM" },
+          strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM", layer_roi_switch: "OFF", aigc_dynamic_creative_switch: "OFF", is_comment_disable: "OFF" },
+          track_url_setting: { send_type: "SERVER_SEND" },
           schedule: { schedule_type: "SCHEDULE_START_END" },
           targeting: { district: "CITY", gender: "GENDER_UNLIMITED", age: [], converted_time_duration: "SIX_MONTH", hide_if_converted: "NO_EXCLUDE", interest_action_mode: "CUSTOM" },
           product: { selling_points: ["开局装备全靠捡"], call_to_action_buttons: ["立即下载"], anchor_related_type: "OFF" }
@@ -174,6 +177,8 @@ assert(ready.requestFieldManifest.miniProgramUrlRequired === true, "mini game ro
 assert(ready.requestFieldManifest.miniProgramLaunchLinkPresent === true, "ready launch link should enter final payload only");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkHashMatch === true, "ready launch link should hash-match");
 assert(ready.requestFieldManifest.nestedFieldContract?.status === "passed", "ready payload nested field contract should pass");
+assert(ready.requestFieldManifest.externalUrlMaterialListPolicy === "omit", "ready payload should omit external_url_material_list by current route contract");
+assert(ready.requestFieldManifest.externalUrlMaterialListPresent === false, "ready payload must not include external_url_material_list");
 assert(!ready.blockers.includes("mini_game_launch_url_not_ready"), "ready launch link should not block");
 
 const missing = buildWith({});
