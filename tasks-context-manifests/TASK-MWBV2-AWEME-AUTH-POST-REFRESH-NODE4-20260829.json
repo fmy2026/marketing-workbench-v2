@@ -1,0 +1,156 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829",
+  "task_ref": "tasks/TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829.md",
+  "status": "completed",
+  "created_at": "2026-08-29 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "user_request_ref": "current_thread:implement_aweme_auth_shared_default_node4_fix",
+  "solution_link": {
+    "source": "current_thread:confirmed_node4_shared_aweme_authorization_fix_plan; docs/Solution Design.md",
+    "objective": "Fix Node 4 readonly verification for the shared default aweme_id and verify it with a fresh runtime-truth job.",
+    "current_truth": "PostgreSQL marketing_workbench_v2.mwb, current code/schema, this manifest, official tools/aweme_auth_list contract.",
+    "stop_condition": "Stop on any platform write, raw payload/response/token persistence, non-aweme_auth_list endpoint, Node 5-7 generation, or unresolved Node 4 authorization blocker."
+  },
+  "brief": {
+    "goal": "Replace the old auth_status-filtered Node 4 probe with minimal precise query plus controlled active-auth discovery fallback.",
+    "mode": "aweme_authorization_node4_readonly_mechanism_fix_and_fresh_verify",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "scope": "aweme_authorization_only"
+  },
+  "fixed_target": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "default_aweme_id": "57018827026"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829.json",
+    "docs/Solution Design.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/08-工具.md",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/04-aweme-authorization-readonly-smoke.mjs",
+    "db/044_aweme_authorization_readonly_diagnostics.sql",
+    "package.json"
+  ],
+  "source_of_truth": {
+    "database": "marketing_workbench_v2",
+    "schema": "mwb",
+    "case_summary": "mwb.workflow_case_summary",
+    "aweme_readiness_view": "mwb.v_advertiser_aweme_authorization_readiness",
+    "aweme_authorization_fact": "mwb.advertiser_accounts.aweme_authorization",
+    "workflow": "src/workflows/launchWorkflow.mjs",
+    "workflow_skills": "src/workflows/skills/oe3",
+    "repository": "src/repositories/postgresRepository.mjs",
+    "script": "scripts/00-oe3-readonly-readiness-cli.mjs"
+  },
+  "allowed_local_writes": [
+    "tasks/TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829.md",
+    "tasks-context-manifests/TASK-MWBV2-AWEME-AUTH-POST-REFRESH-NODE4-20260829.json",
+    "project.state.json",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+    "scripts/04-aweme-authorization-readonly-smoke.mjs",
+    "db/044_aweme_authorization_readonly_diagnostics.sql",
+    "mwb.launch_jobs",
+    "mwb.launch_node_runs",
+    "mwb.launch_skill_runs",
+    "mwb.advertiser_accounts.aweme_authorization",
+    "mwb.evidence_artifacts"
+  ],
+  "allowed_platform_readonly_endpoints": [
+    "GET /open_api/2/tools/aweme_auth_list/"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "std_project/list for this task",
+    "Node 5 payload or draft build",
+    "execution plan compile or save",
+    "launch confirmation",
+    "platform action",
+    "created object",
+    "readback record",
+    "token refresh",
+    "material upload",
+    "event asset create",
+    "DMP push",
+    "budget or bid update",
+    "writing token, secret, auth_code, Cookie, full URL, raw request, raw response, or raw payload to project files, ordinary logs, frontend, or API output"
+  ],
+  "implementation_plan": [
+    "Use only official tools/aweme_auth_list for Node 4.",
+    "Remove auth_status from the primary fixed-aweme probe.",
+    "If the primary probe passes but misses the default ID, run controlled active-auth discovery under the same advertiser and auth_type.",
+    "Persist only sanitized diagnostic fields and expose them through the readiness view.",
+    "Run smoke tests and apply the view migration.",
+    "Create one fresh runtime-truth job with scope aweme_authorization and audit zero writes."
+  ],
+  "validation_plan": [
+    "npm run test:aweme-authorization",
+    "npm run test:readonly-readiness-cli",
+    "npm run test:payload-contract",
+    "psql apply db/044_aweme_authorization_readonly_diagnostics.sql",
+    "npm run workflow:readonly-readiness -- --scope aweme_authorization --route-id oceanengine_3_byte_mini_game --game-code JSZC --advertiser-id 1871922346964041 --case-id CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "psql readback of fresh job audit counts and readiness view",
+    "git diff --check"
+  ],
+  "result": {
+    "status": "completed",
+    "root_cause": "Node 4 used a string for filtering.auth_type, while the official aweme_auth_list contract defines string[]. The previous auth_status compatibility filter was also unnecessary for the default active-authorization check.",
+    "fresh_runtime_job_id": "JOB-MWBV2-20260829110932-B5FB75",
+    "job_status": "diagnosed",
+    "current_node": "4",
+    "readiness": {
+      "required": true,
+      "configured": true,
+      "verification_status": "authorized",
+      "ready": true,
+      "blocker_code": "",
+      "next_action": "ready_for_node5_payload_build",
+      "default_aweme_id_hash": "sha256:6e5a979b1bb07720edf8d98ba7b065aa54bfe6bb9ba52a1b6eb3594bd42b2e0d",
+      "probe_profile": "primary_precise",
+      "http_status": 200,
+      "platform_code": "0",
+      "request_id_present": true,
+      "returned_row_count": 1,
+      "default_aweme_id_hit": true,
+      "shared_relation_seen": true,
+      "evidence_ref": "EV-JOB-MWBV2-20260829110932-B5FB75-AWEME-AUTHORIZATION-READONLY"
+    },
+    "audit_counts": {
+      "drafts": 0,
+      "execution_plans": 0,
+      "confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "readbacks": 0
+    },
+    "validation": [
+      "npm run token:status",
+      "psql -X -d marketing_workbench_v2 -f db/044_aweme_authorization_readonly_diagnostics.sql",
+      "npm run workflow:readonly-readiness -- --scope aweme_authorization --route-id oceanengine_3_byte_mini_game --game-code JSZC --advertiser-id 1871922346964041 --case-id CASE-LEGACY-2E4217E20C9E26BFB648772C",
+      "Postgres readiness and zero-write readbacks",
+      "npm run test:aweme-authorization",
+      "npm run test:readonly-readiness-cli",
+      "npm run test:payload-contract",
+      "git diff --check"
+    ],
+    "no_real_platform_write": true,
+    "no_token_refresh": true
+  }
+}

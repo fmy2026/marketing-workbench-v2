@@ -55,6 +55,19 @@ try {
     verified_at: "2026-08-29T00:00:00.000Z",
     expires_at: null,
     evidence_ref: "EV-SMOKE",
+    probe_profile: "primary_precise",
+    http_status: 200,
+    platform_code: "0",
+    request_id_present: true,
+    message_hash: "",
+    response_hash: "sha256:smoke",
+    returned_row_count: 1,
+    primary_returned_row_count: 1,
+    discovery_returned_row_count: 0,
+    discovery_page_count: 0,
+    default_aweme_id_hit: true,
+    shared_relation_seen: true,
+    warning_code: "",
     candidate_count: 1,
     job_id: "JOB-SHOULD-NOT-LEAK"
   });
@@ -68,8 +81,21 @@ try {
     "default_aweme_id_hash",
     "verified_at",
     "expires_at",
-    "evidence_ref"
-  ]), "aweme_readiness_output_fields_not_minimal");
+    "evidence_ref",
+    "probe_profile",
+    "http_status",
+    "platform_code",
+    "request_id_present",
+    "message_hash",
+    "response_hash",
+    "returned_row_count",
+    "primary_returned_row_count",
+    "discovery_returned_row_count",
+    "discovery_page_count",
+    "default_aweme_id_hit",
+    "shared_relation_seen",
+    "warning_code"
+  ]), "aweme_readiness_output_fields_not_expected");
   assert(!Object.prototype.hasOwnProperty.call(awemeReadinessOutput, "job_id"), "aweme_readiness_output_leaked_job_id");
   assert(!Object.prototype.hasOwnProperty.call(awemeReadinessOutput, "candidate_count"), "aweme_readiness_output_leaked_candidate_count");
 

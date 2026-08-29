@@ -149,8 +149,8 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "account_resource_prepare",
     dependsOn: ["launch-pack-resolve-defaults", "context-resolve-account"],
     inputContract: ["route_id", "game_code", "advertiser_id", "aweme_id_baseline", "advertiser_accounts.aweme_authorization"],
-    outputContract: ["verification_status", "default_aweme_id_hash", "verified_by_job_id", "verified_at", "expires_at", "evidence_ref", "next_action"],
-    stopConditions: ["aweme_id_baseline_missing_or_incomplete", "aweme_default_aweme_id_missing_or_invalid", "aweme_default_not_authorized", "aweme_default_not_returned", "aweme_default_authorization_inactive", "aweme_auth_account_scope_mismatch", "aweme_auth_probe_failed"],
+    outputContract: ["verification_status", "default_aweme_id_hash", "verified_by_job_id", "verified_at", "expires_at", "evidence_ref", "probe_profile", "default_aweme_id_hit", "shared_relation_seen", "next_action"],
+    stopConditions: ["aweme_id_baseline_missing_or_incomplete", "aweme_default_aweme_id_missing_or_invalid", "aweme_default_not_authorized", "aweme_default_not_returned", "aweme_default_authorization_inactive", "aweme_auth_account_scope_mismatch", "credential_required", "readonly_transport_failed", "aweme_auth_credential_or_account_scope_failed", "aweme_auth_request_parameter_rejected", "aweme_auth_platform_api_failed"],
     writeScope: "launch_skill_runs_advertiser_accounts_evidence_artifacts",
     moduleRef: "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs"
   },

@@ -61,6 +61,11 @@ function dataPresent(payload = {}) {
   return Boolean(payload && typeof payload === "object" && payload.data);
 }
 
+function messageHash(payload = {}) {
+  const message = clean(payload.message || payload.msg || payload.error_message || payload.error?.message || "");
+  return message ? `sha256:${sha256(message)}` : "";
+}
+
 export class OceanEngineReadonlyClient {
   constructor({
     envPath = process.env.OCEANENGINE_ENV_PATH,
@@ -112,6 +117,7 @@ export class OceanEngineReadonlyClient {
         apiCode: "",
         requestIdPresent: false,
         dataPresent: false,
+        messageHash: "",
         responseHash: "",
         requestFieldManifest,
         summary: {},
@@ -165,6 +171,7 @@ export class OceanEngineReadonlyClient {
         apiCode: code,
         requestIdPresent: requestIdPresent(payload),
         dataPresent: dataPresent(payload),
+        messageHash: messageHash(payload),
         responseHash: `sha256:${sha256(text)}`,
         requestFieldManifest,
         summary,
@@ -193,6 +200,7 @@ export class OceanEngineReadonlyClient {
         apiCode: "",
         requestIdPresent: false,
         dataPresent: false,
+        messageHash: "",
         responseHash: "",
         requestFieldManifest,
         summary: {},

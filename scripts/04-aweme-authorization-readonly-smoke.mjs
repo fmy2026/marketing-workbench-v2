@@ -41,22 +41,40 @@ function assertNoLegacySelectionState(record = {}) {
 }
 
 function clientWithRows(rows, { status = "passed", calls = [] } = {}) {
+  return clientWithProbeResponses([{ rows, status }], { calls });
+}
+
+function clientWithProbeResponses(responses, { calls = [] } = {}) {
+  let index = 0;
   return {
     credentialState() {
       return { status: "ready", blockers: [] };
     },
     async get(args) {
+      const responseConfig = responses[Math.min(index, responses.length - 1)] || {};
+      index += 1;
+      const rows = responseConfig.rows || [];
+      const status = responseConfig.status || "passed";
       const { label, endpoint, summarize } = args;
       calls.push(args);
-      const payload = { data: { list: rows } };
+      const payload = {
+        code: status === "passed" ? 0 : responseConfig.apiCode || 50000,
+        message: responseConfig.message || "",
+        request_id: "smoke-request-id",
+        data: {
+          list: rows,
+          page_info: responseConfig.pageInfo || { page: 1, total_page: 1 }
+        }
+      };
       return {
         label,
         endpoint,
         status,
-        httpStatus: status === "passed" ? 200 : 500,
-        apiCode: status === "passed" ? "0" : "50000",
+        httpStatus: status === "passed" ? 200 : responseConfig.httpStatus || 500,
+        apiCode: status === "passed" ? "0" : String(responseConfig.apiCode || "50000"),
         requestIdPresent: true,
         dataPresent: true,
+        messageHash: responseConfig.message ? "sha256:smoke-message" : "",
         responseHash: "sha256:aweme-smoke",
         requestFieldManifest: args.requestFieldManifest || { fieldNames: ["advertiser_id", "filtering", "page", "page_size"], rawQueryStored: false },
         summary: status === "passed" ? summarize(payload) : {},
@@ -77,7 +95,7 @@ function fixedBaseline(overrides = {}) {
     payload_path: "aweme_id",
     source: "tools/aweme_auth_list",
     auth_type: "AWEME_ACCOUNT",
-    accepted_auth_status: ["AUTHRIZED", "AUTHORIZED"],
+    accepted_auth_status: ["AUTHRIZED"],
     verification_strategy: "fixed_game_default_account_verify",
     default_aweme_id: jszcDefaultAwemeId,
     default_aweme_id_hash: jszcDefaultAwemeIdHash,
@@ -192,11 +210,13 @@ async function runCase(name, rows, expectedStatus, expectedBlocker = "") {
   assert(result.outputSummary.verificationStatus === expectedStatus, `${name}_summary_status_mismatch`);
   assert(record.verification_status === expectedStatus, `${name}_record_status_mismatch`);
   assertNoLegacySelectionState(record);
-  assert(calls.length === 1, `${name}_should_query_once`);
+  assert(calls.length === (rows.some((row) => String(row.aweme_id) === jszcDefaultAwemeId) ? 1 : 2), `${name}_query_count_mismatch`);
   const filtering = JSON.parse(calls[0].query.filtering);
   assert(Array.isArray(filtering.aweme_ids), `${name}_filtering_aweme_ids_missing`);
   assert(filtering.aweme_ids[0] === jszcDefaultAwemeId, `${name}_filtering_default_id_mismatch`);
-  assert(filtering.auth_type === "AWEME_ACCOUNT", `${name}_filtering_auth_type_missing`);
+  assert(Array.isArray(filtering.auth_type), `${name}_filtering_auth_type_should_be_array`);
+  assert(filtering.auth_type[0] === "AWEME_ACCOUNT", `${name}_filtering_auth_type_missing`);
+  assert(!Object.prototype.hasOwnProperty.call(filtering, "auth_status"), `${name}_primary_filtering_auth_status_should_not_be_sent`);
   if (expectedBlocker) assert(result.blockers.includes(expectedBlocker), `${name}_blocker_missing`);
   return { result, record, calls };
 }
@@ -206,8 +226,10 @@ const authorized = await runCase("authorized", [{
   aweme_id: jszcDefaultAwemeId,
   aweme_name: "JSZC default aweme",
   auth_type: "AWEME_ACCOUNT",
-  auth_status: "AUTHRIZED"
+  auth_status: "AUTHRIZED",
+  share_type: "ENTERPRISE"
 }], "authorized");
+assert(authorized.record.shared_relation_seen === true, "authorized_shared_relation_not_recorded");
 
 await runCase("not_authorized", [], "not_authorized", "aweme_default_not_authorized");
 
@@ -224,7 +246,7 @@ await runCase("scope_mismatch", [{
   aweme_id: jszcDefaultAwemeId,
   aweme_name: "JSZC default aweme",
   auth_type: "AWEME_ACCOUNT",
-  auth_status: "AUTHORIZED"
+  auth_status: "AUTHRIZED"
 }], "scope_mismatch", "aweme_auth_account_scope_mismatch");
 
 await runCase("default_mismatch", [{
@@ -235,16 +257,44 @@ await runCase("default_mismatch", [{
   auth_status: "AUTHORIZED"
 }], "default_mismatch", "aweme_default_not_returned");
 
+const fallbackRepo = makeRepo();
+const fallbackCalls = [];
+const fallback = await runAwemeAuthorizationReadonlySkill({
+  repo: fallbackRepo,
+  bundle: bundle(),
+  client: clientWithProbeResponses([
+    { rows: [] },
+    { rows: [{
+      advertiser_id: advertiserId,
+      aweme_id: jszcDefaultAwemeId,
+      aweme_name: "JSZC default aweme",
+      auth_type: "AWEME_ACCOUNT",
+      auth_status: "AUTHRIZED",
+      share_type: "ENTERPRISE"
+    }] }
+  ], { calls: fallbackCalls }),
+  allowReadonlyDependency: true
+});
+const fallbackRecord = fallbackRepo.writes.at(-1).authorization;
+assert(fallback.status === "passed", "fallback_discovery_hit_should_pass");
+assert(fallbackRecord.probe_profile === "discovery_fallback_authorized", "fallback_probe_profile_mismatch");
+assert(fallbackRecord.warning_code === "aweme_auth_precise_filter_contract_mismatch", "fallback_warning_missing");
+assert(fallbackRecord.shared_relation_seen === true, "fallback_shared_relation_not_recorded");
+assert(fallbackCalls.length === 2, "fallback_should_query_twice");
+assert(!Object.prototype.hasOwnProperty.call(JSON.parse(fallbackCalls[0].query.filtering), "auth_status"), "fallback_primary_auth_status_should_not_be_sent");
+assert(!Object.prototype.hasOwnProperty.call(JSON.parse(fallbackCalls[1].query.filtering), "aweme_ids"), "fallback_discovery_aweme_ids_should_not_be_sent");
+
 const failedRepo = makeRepo();
 const failed = await runAwemeAuthorizationReadonlySkill({
   repo: failedRepo,
   bundle: bundle(),
-  client: clientWithRows([], { status: "blocked" }),
+  client: clientWithProbeResponses([{ rows: [], status: "blocked", message: "smoke failure" }]),
   allowReadonlyDependency: true
 });
 assert(failed.status === "blocked", "probe_failure_should_block");
-assert(failed.blockers.includes("aweme_auth_probe_failed"), "probe_failure_blocker_missing");
+assert(failed.blockers.includes("aweme_auth_platform_api_failed"), "probe_failure_blocker_missing");
 assert(failedRepo.writes.at(-1).authorization.verification_status === "probe_failed", "probe_failure_status_mismatch");
+assert(failedRepo.writes.at(-1).authorization.message_hash === "sha256:smoke-message", "probe_failure_message_hash_missing");
 assertNoLegacySelectionState(failedRepo.writes.at(-1).authorization);
 
 const missingBaselineRepo = makeRepo();

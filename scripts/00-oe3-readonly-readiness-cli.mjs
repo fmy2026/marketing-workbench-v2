@@ -15,7 +15,20 @@ const AWEME_AUTH_READINESS_FIELDS = [
   "default_aweme_id_hash",
   "verified_at",
   "expires_at",
-  "evidence_ref"
+  "evidence_ref",
+  "probe_profile",
+  "http_status",
+  "platform_code",
+  "request_id_present",
+  "message_hash",
+  "response_hash",
+  "returned_row_count",
+  "primary_returned_row_count",
+  "discovery_returned_row_count",
+  "discovery_page_count",
+  "default_aweme_id_hit",
+  "shared_relation_seen",
+  "warning_code"
 ];
 
 const AWEME_AUTH_READONLY_SKILLS = [
