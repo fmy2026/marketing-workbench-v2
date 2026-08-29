@@ -4,6 +4,7 @@ import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-paylo
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
+import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -15,6 +16,40 @@ const TARGET = Object.freeze({
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function productSellingPointPayloadDiagnostic(points) {
+  return evaluateStdProjectCreatePreflight({
+    payload: {
+      project_materials: {
+        product_info: {
+          selling_points: points
+        }
+      }
+    }
+  }).diagnostics.find((item) => item.check_id === "contract:product_selling_points");
+}
+
+function productSellingPointManifestPreflight({
+  count,
+  minChars,
+  maxChars,
+  validated = true,
+  blockerCount = 0,
+  source = "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
+  ruleVersion = SELLING_POINTS_CONTRACT.ruleVersion
+} = {}) {
+  return evaluateStdProjectCreatePreflight({
+    requestFieldManifest: {
+      productSellingPointsSource: source,
+      productSellingPointsContractRuleVersion: ruleVersion,
+      productSellingPointsCount: count,
+      productSellingPointsMinChars: minChars,
+      productSellingPointsMaxChars: maxChars,
+      productSellingPointsValidated: validated,
+      productSellingPointsBlockerCount: blockerCount
+    }
+  }).diagnostics.find((item) => item.check_id === "manifest:product_selling_points");
 }
 
 async function createTestJob(sourceRecordRef) {
@@ -123,6 +158,11 @@ try {
   assert(mockManifest.advertiserIdTransportSafe === true, "mock advertiser_id transport not safe");
   assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
+  assert(mockManifest.productSellingPointsSource === "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points", "mock selling_points source mismatch");
+  assert(mockManifest.productSellingPointsValidated === true, "mock selling_points contract not validated");
+  assert(mockManifest.productSellingPointsCount >= 1 && mockManifest.productSellingPointsCount <= 10, "mock selling_points count out of range");
+  assert(mockManifest.productSellingPointsMinChars >= 6, "mock selling_points min chars out of range");
+  assert(mockManifest.productSellingPointsMaxChars <= 9, "mock selling_points max chars out of range");
   assert(mockManifest.miniProgramUrlRequired === true, "mock BYTE_GAME MICRO_GAME route should require mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkPresent === true, "mock BYTE_GAME MICRO_GAME route should include controlled mini_program_info.url");
   assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
@@ -150,6 +190,16 @@ try {
     }
   });
   assert(longIdTransportPreflight.blocker_codes.includes("instance_id_long_id_transport_not_verified"), "19-digit instance transport must remain blocked without verified wire transport");
+
+  assert(productSellingPointPayloadDiagnostic(["开局装备全靠捡"])?.status === "passed", "valid selling_points payload should pass");
+  assert(productSellingPointPayloadDiagnostic(["策略开荒"])?.blocker_code === "product_selling_points_item_length_out_of_range:0:4", "4-char selling_points payload should block");
+  assert(productSellingPointPayloadDiagnostic(["五字卖点好"])?.blocker_code === "product_selling_points_item_length_out_of_range:0:5", "5-char selling_points payload should block");
+  assert(productSellingPointPayloadDiagnostic(["十字卖点刚好超过限制"])?.blocker_code === "product_selling_points_item_length_out_of_range:0:10", "10-char selling_points payload should block");
+  assert(productSellingPointPayloadDiagnostic([])?.blocker_code === "product_selling_points_count_out_of_range:0", "empty selling_points payload should block");
+  assert(productSellingPointPayloadDiagnostic(Array.from({ length: 11 }, () => "开局装备全靠捡"))?.blocker_code === "product_selling_points_count_out_of_range:11", "over-10 selling_points payload should block");
+  assert(productSellingPointPayloadDiagnostic(["开局装备全靠捡", 123])?.blocker_code === "product_selling_points_item_not_string:1", "non-string selling_points payload should block");
+  assert(productSellingPointManifestPreflight({ count: 3, minChars: 7, maxChars: 8 })?.status === "passed", "valid selling_points manifest should pass");
+  assert(productSellingPointManifestPreflight({ count: 3, minChars: 4, maxChars: 8 })?.blocker_code === "product_selling_points_contract_not_verified", "invalid selling_points manifest should block");
 
   const result = {
     dryRun: {

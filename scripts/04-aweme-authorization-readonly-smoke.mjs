@@ -157,7 +157,7 @@ function bundle({ existingAuthorization = {}, awemeBaseline = fixedBaseline() } 
             interest_action_mode: "UNLIMITED"
           },
           product: {
-            selling_points: ["快速开荒"],
+            selling_points: ["开局装备全靠捡"],
             call_to_action_buttons: ["立即试玩"],
             anchor_related_type: "AUTO"
           },

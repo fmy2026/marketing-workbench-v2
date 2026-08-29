@@ -1,4 +1,8 @@
 import { INSTANCE_ID_WIRE_STRATEGY, buildStdProjectCreateWireBody } from "./05-std-project-create-wire-body.mjs";
+import {
+  SELLING_POINTS_CONTRACT,
+  evaluateSellingPointsContract
+} from "./05-selling-points-contract.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -215,6 +219,23 @@ function checkHttpsStringArray(payload, path) {
     actualValue: value,
     blockerCode: `invalid_https_string_array:${path}`,
     repairHint: `${path} 必须且只能包含一个已验证 HTTPS 备用网页链接。`
+  });
+}
+
+function checkProductSellingPoints(payload) {
+  const path = "project_materials.product_info.selling_points";
+  const value = valueAt(payload, path);
+  const result = evaluateSellingPointsContract(value, {
+    blockerPrefix: "product_selling_points"
+  });
+  return diag({
+    checkId: "contract:product_selling_points",
+    fieldPath: path,
+    status: result.status,
+    expectedTypeOrRule: `string_array_count_${SELLING_POINTS_CONTRACT.minItems}_${SELLING_POINTS_CONTRACT.maxItems}_unicode_chars_${SELLING_POINTS_CONTRACT.minChars}_${SELLING_POINTS_CONTRACT.maxChars}`,
+    actualValue: value,
+    blockerCode: result.blockers[0] || "product_selling_points_invalid",
+    repairHint: "product_info.selling_points 必须来自路线默认值，且每项为 6-9 个 Unicode 字符，最多 10 项。"
   });
 }
 
@@ -458,6 +479,37 @@ function checkAwemeAuthorizationManifest(manifest = {}) {
   });
 }
 
+function checkProductSellingPointsManifest(manifest = {}) {
+  const count = Number(manifest.productSellingPointsCount || 0);
+  const minChars = Number(manifest.productSellingPointsMinChars || 0);
+  const maxChars = Number(manifest.productSellingPointsMaxChars || 0);
+  const passed = manifest.productSellingPointsValidated === true &&
+    count >= SELLING_POINTS_CONTRACT.minItems &&
+    count <= SELLING_POINTS_CONTRACT.maxItems &&
+    minChars >= SELLING_POINTS_CONTRACT.minChars &&
+    maxChars <= SELLING_POINTS_CONTRACT.maxChars &&
+    clean(manifest.productSellingPointsSource) === "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points" &&
+    clean(manifest.productSellingPointsContractRuleVersion) === SELLING_POINTS_CONTRACT.ruleVersion &&
+    Number(manifest.productSellingPointsBlockerCount || 0) === 0;
+  return diag({
+    checkId: "manifest:product_selling_points",
+    fieldPath: "final_payload_manifest.productSellingPoints",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `route_defaults_string_array_count_${SELLING_POINTS_CONTRACT.minItems}_${SELLING_POINTS_CONTRACT.maxItems}_unicode_chars_${SELLING_POINTS_CONTRACT.minChars}_${SELLING_POINTS_CONTRACT.maxChars}`,
+    actualValue: {
+      source: manifest.productSellingPointsSource || "",
+      ruleVersion: manifest.productSellingPointsContractRuleVersion || "",
+      count,
+      minChars,
+      maxChars,
+      validated: manifest.productSellingPointsValidated === true,
+      blockerCount: Number(manifest.productSellingPointsBlockerCount || 0)
+    },
+    blockerCode: "product_selling_points_contract_not_verified",
+    repairHint: "重新生成 Node 5 草稿；若仍失败，修正路线默认 selling_points 后再进入 create preflight。"
+  });
+}
+
 function checkOfficialFieldEvidence(manifest = {}) {
   const evidence = manifest.officialFieldEvidence || {};
   const blockers = Array.isArray(evidence.blockerCodes) ? evidence.blockerCodes : [];
@@ -529,6 +581,7 @@ export function evaluateStdProjectCreatePreflight({
     ]));
     diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude"));
     diagnostics.push(checkHttpsStringArray(payload, "project_materials.external_url_material_list"));
+    diagnostics.push(checkProductSellingPoints(payload));
     diagnostics.push(...checkAllowedFields(payload));
   } else {
     const blockers = Array.isArray(requestFieldManifest.blockers) ? requestFieldManifest.blockers : [];
@@ -606,6 +659,7 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkInstanceIdCreateEvidence(requestFieldManifest));
   diagnostics.push(checkCreateWireBodyManifest(requestFieldManifest));
   diagnostics.push(checkAwemeAuthorizationManifest(requestFieldManifest));
+  diagnostics.push(checkProductSellingPointsManifest(requestFieldManifest));
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 

@@ -6,6 +6,7 @@ import {
 import { buildOe3StdProjectPayload } from "./05-payload.mjs";
 import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
+import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -347,6 +348,20 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
+  const sellingPointCount = Number(finalManifest.productSellingPointsCount || 0);
+  const sellingPointMinChars = Number(finalManifest.productSellingPointsMinChars || 0);
+  const sellingPointMaxChars = Number(finalManifest.productSellingPointsMaxChars || 0);
+  const finalPayloadSellingPointsOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.productSellingPointsValidated === true &&
+      finalManifest.productSellingPointsContractRuleVersion === SELLING_POINTS_CONTRACT.ruleVersion &&
+      finalManifest.productSellingPointsSource === "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points" &&
+      sellingPointCount >= SELLING_POINTS_CONTRACT.minItems &&
+      sellingPointCount <= SELLING_POINTS_CONTRACT.maxItems &&
+      sellingPointMinChars >= SELLING_POINTS_CONTRACT.minChars &&
+      sellingPointMaxChars <= SELLING_POINTS_CONTRACT.maxChars &&
+      Number(finalManifest.productSellingPointsBlockerCount || 0) === 0
+    );
   const awemeAuthorization = finalManifest.awemeAuthorization || {};
   const awemeStatusAllowed = String(awemeAuthorization.status || "") === "authorized";
   const finalPayloadAwemeOk = !usesFinalPayloadHash ||
@@ -504,6 +519,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "dmp_custom_audience_ids",
       status: finalPayloadDmpOk ? "passed" : "blocked",
       summary: finalPayloadDmpOk ? "DMP custom_audience_id[] 已作为 audience.retargeting_tags_exclude integer[] 写入最终 payload。" : "DMP 缺少只读验证后的 custom_audience_id[]，或未写入 retargeting_tags_exclude integer[]。"
+    },
+    {
+      key: "product_selling_points",
+      status: finalPayloadSellingPointsOk ? "passed" : "blocked",
+      summary: finalPayloadSellingPointsOk
+        ? `商品卖点来自路线默认值，数量 ${sellingPointCount}，长度范围 ${sellingPointMinChars}-${sellingPointMaxChars}。`
+        : "商品卖点未满足官方 1-10 项、每项 6-9 字合同。"
     },
     {
       key: "aweme_auth",

@@ -11,6 +11,10 @@ import {
   buildStdProjectCreateWireBody,
   INSTANCE_ID_WIRE_STRATEGY
 } from "./05-std-project-create-wire-body.mjs";
+import {
+  evaluateSellingPointsContract,
+  sellingPointsManifest
+} from "./05-selling-points-contract.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -210,6 +214,15 @@ function configArrayAllowEmpty(config = {}, dotted = "", blockers = []) {
   return Array.isArray(value) ? value.map(clean).filter(Boolean) : [];
 }
 
+function configSellingPoints(config = {}, dotted = "", blockers = []) {
+  const value = requiredConfigValue(config, dotted, blockers);
+  const result = evaluateSellingPointsContract(value, {
+    blockerPrefix: "route_product_selling_points"
+  });
+  blockers.push(...result.blockers);
+  return result.items;
+}
+
 function titleMaterials(bundle = {}, payloadDefaults = {}) {
   const gameName = clean(bundle.game?.game_name || bundle.game?.product_name || "产品");
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
@@ -396,6 +409,10 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const selectedRequiredVideoCount = Number(materialReadiness.selectedRequiredVideoCount || 0);
   const verifiedVideoCount = Number(materialReadiness.verifiedVideoCount || 0);
   const coverVerifiedCount = Number(materialReadiness.coverVerifiedCount || 0);
+  const sellingPoints = payload.project_materials?.product_info?.selling_points;
+  const sellingPointsContract = evaluateSellingPointsContract(sellingPoints, {
+    blockerPrefix: "product_selling_points"
+  });
   const semantic = [
     ...configBlockers,
     ...(!Number.isSafeInteger(payload.advertiser_id) ? ["advertiser_id_not_safe_integer_for_platform_payload"] : []),
@@ -407,6 +424,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(miniProgramUrlRequired && !miniProgramLaunchLink.ready ? ["mini_game_launch_url_not_ready"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
+    ...sellingPointsContract.blockers,
     ...(!payload.project_materials?.external_url_material_list?.length ? ["backup_landing_page_missing"] : []),
     ...(!backupLandingPage.checks?.present ? ["backup_landing_page_default_missing"] : []),
     ...(backupLandingPage.checks?.present && !backupLandingPage.checks?.active ? ["backup_landing_page_not_active"] : []),
@@ -453,6 +471,11 @@ function fieldManifest(payload = {}, blockers = [], {
   const instanceField = instanceIdCreateEvidence.candidateField || "instance_id";
   const instanceValue = payload[instanceField];
   const wireBody = buildStdProjectCreateWireBody(payload);
+  const sellingPoints = materials.product_info?.selling_points;
+  const sellingPointsSummary = sellingPointsManifest(sellingPoints, {
+    source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
+    blockerPrefix: "product_selling_points"
+  });
   const instanceTransportStrategy = typeof instanceValue === "string" &&
     instanceIdCreateEvidence.longIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY
     ? INSTANCE_ID_WIRE_STRATEGY
@@ -515,6 +538,7 @@ function fieldManifest(payload = {}, blockers = [], {
       ruleVersion: awemeAuthorization.ruleVersion || "",
       blockers: awemeAuthorization.blockers || []
     },
+    ...sellingPointsSummary,
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
@@ -646,7 +670,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       product_info: {
         titles: [clean(bundle.game?.product_name || bundle.game?.game_name || "产品")],
         image_ids: [clean(productImage.platform_resource_id)].filter(Boolean),
-        selling_points: configArray(payloadDefaults, "product.selling_points", configBlockers)
+        selling_points: configSellingPoints(payloadDefaults, "product.selling_points", configBlockers)
       },
       call_to_action_buttons: configArray(payloadDefaults, "product.call_to_action_buttons", configBlockers),
       anchor_related_type: clean(requiredConfigValue(payloadDefaults, "product.anchor_related_type", configBlockers))
