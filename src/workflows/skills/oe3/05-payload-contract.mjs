@@ -347,6 +347,21 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
       finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
     );
+  const awemeAuthorization = finalManifest.awemeAuthorization || {};
+  const finalPayloadAwemeOk = !usesFinalPayloadHash ||
+    awemeAuthorization.required !== true ||
+    (
+      finalManifest.awemeIdPresent === true &&
+      finalManifest.awemeIdValidated === true &&
+      finalManifest.awemeIdFromAvatar === false &&
+      finalManifest.awemeIdLooksLikeImageResource === false &&
+      finalManifest.awemeIdValueShape === "digit_string" &&
+      ["auto_selected", "manual_selected"].includes(String(awemeAuthorization.status || "")) &&
+      awemeAuthorization.selectedActive === true &&
+      awemeAuthorization.accountMatches === true &&
+      Boolean(awemeAuthorization.verifiedAt) &&
+      Boolean(finalManifest.awemeIdHash)
+    );
   const finalPayloadBackupLandingPageOk = !usesFinalPayloadHash ||
     (
       finalManifest.backupLandingPagePresent === true &&
@@ -484,6 +499,11 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "dmp_custom_audience_ids",
       status: finalPayloadDmpOk ? "passed" : "blocked",
       summary: finalPayloadDmpOk ? "DMP custom_audience_id[] 已作为 audience.retargeting_tags_exclude integer[] 写入最终 payload。" : "DMP 缺少只读验证后的 custom_audience_id[]，或未写入 retargeting_tags_exclude integer[]。"
+    },
+    {
+      key: "aweme_auth",
+      status: finalPayloadAwemeOk ? "passed" : "blocked",
+      summary: finalPayloadAwemeOk ? "aweme_id 来自账户直存的已验证抖音号授权关系。" : "aweme_id 未通过账户授权关系校验，或疑似来自头像/图片资源。"
     },
     {
       key: "backup_landing_page",

@@ -24,13 +24,14 @@
 | --- | --- |
 | `mwb.platform_routes` | 路线、平台、营销产品、对象类型、写入策略 |
 | `mwb.games` | 游戏主档、产品名、品类、品牌名和产品身份摘要；不保存平台 appid |
-| `mwb.advertiser_accounts` | 广告账户、授权状态、平台状态、监测序号 |
+| `mwb.advertiser_accounts` | 广告账户、授权状态、平台状态、监测序号、账户直存抖音号授权关系 |
 | `mwb.account_touchpoints` | 触点 ref、URL hash、状态；`touchpoint_url` 仅作本地受控存储和 hash 校验，不作为普通 API/前端展示字段 |
 | `mwb.monitor_provision_runs` | 乾坤技术侧监测序号初始化运行记录；以 `cycle_id` 表达 provision 下的创建周期，只保存账户、owner、固定参数摘要、monitor_id、hash、状态和脱敏错误，不保存 token、header、raw request/response 或完整触点 URL |
 | `mwb.monitor_provision_attempts` | 乾坤监测序号真实创建调用审计；按 `cycle_id` 约束每个 cycle 最多 2 行，只存 job/plan 关联、幂等键、hash、状态、受控错误摘要和证据引用 |
 | `mwb.v_monitor_provision_status_report` | 乾坤监测序号初始化状态报表 view；暴露 owner、monitor_id、触点 hash/状态、attempt 计数和最近错误，不暴露完整 URL 或敏感凭据 |
 | `mwb.v_monitor_provision_blocker_report` | 乾坤监测序号初始化 blocker 明细 view；一行一个 blocker，关联最近 attempt，便于排查下一 gate |
-| `mwb.game_route_defaults` | 游戏 x 路线默认优化、预算、定向、排期和 DMP 摘要 |
+| `mwb.v_advertiser_aweme_authorization_readiness` | 账户抖音号授权关系 readiness view；一行一个账户，关联游戏/路线保底策略，只输出候选数、选择状态、hash、证据和下一动作 |
+| `mwb.game_route_defaults` | 游戏 x 路线默认优化、预算、定向、排期、DMP 摘要和 `aweme_id` 保底字段策略 |
 | `mwb.game_assets` | 游戏素材、产品身份、方向包引用 |
 | `mwb.game_platform_apps` | 游戏在不同平台/形态下的 appid 唯一读取入口 |
 | `mwb.game_route_launch_links` | 游戏 x 路线小游戏调起深链；完整 `sslocal` 仅允许进入受控列，普通摘要只输出 ref/hash/status/存在性 |
@@ -77,6 +78,7 @@
 | `db/028_add_monitor_attempt_idempotency.sql` | 新增 monitor provision attempt 的 planned-action 幂等键 |
 | `db/029_monitor_provision_cycles.sql` | 将 monitor provision 从单行生命周期升级为 provision 下多 cycle；历史数据迁移为 Cycle 01，attempt 唯一约束改为 `(cycle_id, attempt_no)`，并新增显式 reissue 字段 |
 | `db/038_add_game_route_launch_links.sql` | 新增游戏 x 路线小游戏调起深链受控表；普通摘要不暴露完整 `sslocal` |
+| `db/041_add_aweme_authorization_direct_storage.sql` | 新增 `aweme_id` 游戏保底策略、账户直存授权关系 JSONB 和账户 readiness view；不新增身份主表或 `account_resources` 类型 |
 
 ## 读取约定
 
@@ -91,8 +93,11 @@
 | 监测序号初始化状态 | `mwb.monitor_provision_runs` 的 `cycle_id/cycle_no/cycle_status` 周期真值 + `mwb.monitor_provision_attempts` 每次真实调用审计；固定参数从 `mwb.game_route_defaults.raw_defaults.monitor_provision` 读取 |
 | 监测序号初始化报表 | `mwb.v_monitor_provision_status_report` 和 `mwb.v_monitor_provision_blocker_report` |
 | 统一执行计划 | `mwb.launch_execution_plans` 按 `job_id + plan_version` 读取；`plan_hash` 由 job、draft、planned_actions 和 blocker_codes 的脱敏稳定输入生成 |
+| `aweme_id` 保底策略 | `mwb.game_route_defaults.raw_defaults.aweme_id_baseline`，只记录字段来源、适用条件、选择策略、合同版本和规则 hash，不保存某个账户的实际抖音号 ID |
+| 账户抖音号授权关系 | `mwb.advertiser_accounts.aweme_authorization`，保存当前账户已验证候选摘要、选中 ID、选中 ID hash、选择状态、核验时间、response hash 和证据引用；Node 5 只能从这里生成 `aweme_id` |
+| 账户抖音号 readiness 报表 | `mwb.v_advertiser_aweme_authorization_readiness` 仅供工作台和排查读取，不作为新的运行真值 |
 | Node 2 monitor planned action | `planned_actions` mock 模式调度 `monitor-query/monitor-plan/monitor-ensure/monitor-readback`；`monitor:plan` 做真实只读 preflight，`monitor:reissue-plan` 只允许 stopped/failed cycle 显式开新周期；真实乾坤写入仍需另行单次授权 |
-| Node 3/4 resource readiness | `planned_actions` mock 模式可调度 Node 3 备用落地页 readiness 与 Node 4 八项资源 verify；`prepare_capability` 写入 `launch_skill_runs.output_summary` |
+| Node 3/4 resource readiness | `planned_actions` mock 模式可调度 Node 3 备用落地页 readiness、Node 4 抖音号授权关系只读核验与八项资源 verify；`prepare_capability` 写入 `launch_skill_runs.output_summary` |
 | 资源动作能力注册表 | `src/workflows/skills/oe3/04-resource-action-registry.mjs` 是唯一来源；未登记 `prepare_supported=true` 的资源不生成 `ensure_resource:*`，只写 `resource_prepare_unsupported:<resource_type>` |
 | plan 外动作拦截 | 单次真实写入 guardrail 可绑定 `target_plan_id`、`target_plan_hash` 和 `allowed_plan_actions`；未出现在 plan 中的动作不得进入 grant |
 | Skill 卡点定位 | `mwb.launch_skill_runs.execution_cycle/blocker_codes/error_code/module_ref` |

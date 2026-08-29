@@ -28,7 +28,8 @@ export function runLaunchPackSkill({ bundle, skillKey }) {
         deepObjective: bundle.defaults?.deep_objective || "",
         deepBidType: bundle.defaults?.deep_bid_type || "",
         budget: Number(bundle.defaults?.budget || 0),
-        bid: Number(bundle.defaults?.bid || 0)
+        bid: Number(bundle.defaults?.bid || 0),
+        awemeIdBaseline: bundle.defaults?.raw_defaults?.aweme_id_baseline || {}
       }
     };
   }

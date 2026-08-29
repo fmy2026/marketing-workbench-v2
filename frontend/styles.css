@@ -259,6 +259,88 @@ p {
   padding: 12px 0;
 }
 
+.aweme-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.aweme-panel:empty {
+  display: none;
+}
+
+.aweme-panel-header,
+.aweme-meta,
+.aweme-candidate-list {
+  display: flex;
+  align-items: center;
+}
+
+.aweme-panel-header {
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.status-chip {
+  max-width: 140px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.status-chip.status-auto_selected,
+.status-chip.status-manual_selected {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.aweme-meta {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aweme-meta-item {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 11px;
+}
+
+.aweme-meta-item em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.aweme-candidate-list {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aweme-candidate {
+  min-height: 28px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .identity-item {
   min-width: 0;
   padding: 8px 10px;

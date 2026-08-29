@@ -395,6 +395,62 @@ function checkCreateWireBodyManifest(manifest = {}) {
   });
 }
 
+function checkPayloadAwemeId(payload = {}) {
+  const value = clean(payload.aweme_id);
+  const required = clean(payload.native_type) === "AWEME";
+  const shape = !value ? "missing" : /^https?:\/\//i.test(value) ? "url" : /^web\.business\.image\//i.test(value) ? "web_business_image_uri" : /^\d+$/.test(value) ? "digit_string" : "unknown_string";
+  return diag({
+    checkId: "payload:aweme_id",
+    fieldPath: "aweme_id",
+    status: !required || shape === "digit_string" ? "passed" : "blocked",
+    expectedTypeOrRule: "required_when_native_type_AWEME_and_decimal_string_from_account_authorization",
+    actualValue: { required, shape },
+    blockerCode: shape === "web_business_image_uri" ? "aweme_id_avatar_image_uri_rejected" : `aweme_id_invalid_shape:${shape}`,
+    repairHint: "aweme_id 必须来自账户授权关系，不得来自头像、图片 URI 或任意 avatar 字段。"
+  });
+}
+
+function checkAwemeAuthorizationManifest(manifest = {}) {
+  const authorization = manifest.awemeAuthorization || {};
+  const blockers = Array.isArray(authorization.blockers) ? authorization.blockers : [];
+  const required = authorization.required === true;
+  const passed = !required || (
+    manifest.awemeIdPresent === true &&
+    manifest.awemeIdValidated === true &&
+    manifest.awemeIdFromAvatar === false &&
+    manifest.awemeIdLooksLikeImageResource === false &&
+    manifest.awemeIdValueShape === "digit_string" &&
+    authorization.status && ["auto_selected", "manual_selected"].includes(authorization.status) &&
+    authorization.selectedActive === true &&
+    authorization.accountMatches === true &&
+    Boolean(authorization.verifiedAt) &&
+    Boolean(manifest.awemeIdHash)
+  );
+  return diag({
+    checkId: "manifest:aweme_authorization",
+    fieldPath: "final_payload_manifest.awemeAuthorization",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: "selected_aweme_id_from_verified_advertiser_account_authorization",
+    actualValue: {
+      required,
+      awemeIdPresent: manifest.awemeIdPresent === true,
+      awemeIdValidated: manifest.awemeIdValidated === true,
+      awemeIdValueShape: manifest.awemeIdValueShape || "",
+      awemeIdFromAvatar: manifest.awemeIdFromAvatar === true,
+      awemeIdLooksLikeImageResource: manifest.awemeIdLooksLikeImageResource === true,
+      status: authorization.status || "missing",
+      selectedActive: authorization.selectedActive === true,
+      accountMatches: authorization.accountMatches === true,
+      candidateCount: Number(authorization.candidateCount || 0),
+      verifiedAtPresent: Boolean(authorization.verifiedAt),
+      evidenceRefPresent: Boolean(authorization.evidenceRef),
+      blockers
+    },
+    blockerCode: blockers[0] || (manifest.awemeIdLooksLikeImageResource ? "aweme_id_avatar_image_uri_rejected" : "aweme_auth_not_verified"),
+    repairHint: "先在 Node 4 只读核验账户授权抖音号；多候选时在工作台选择后重跑 Node 4，再让 Node 5 生成 aweme_id。"
+  });
+}
+
 function checkOfficialFieldEvidence(manifest = {}) {
   const evidence = manifest.officialFieldEvidence || {};
   const blockers = Array.isArray(evidence.blockerCodes) ? evidence.blockerCodes : [];
@@ -452,6 +508,7 @@ export function evaluateStdProjectCreatePreflight({
       }));
     }
     diagnostics.push(checkCreateWireBody(payload));
+    diagnostics.push(checkPayloadAwemeId(payload));
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
     diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
     diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
@@ -541,6 +598,7 @@ export function evaluateStdProjectCreatePreflight({
   diagnostics.push(checkContractMapping(requestFieldManifest));
   diagnostics.push(checkInstanceIdCreateEvidence(requestFieldManifest));
   diagnostics.push(checkCreateWireBodyManifest(requestFieldManifest));
+  diagnostics.push(checkAwemeAuthorizationManifest(requestFieldManifest));
   diagnostics.push(checkOfficialFieldEvidence(requestFieldManifest));
   diagnostics.push(checkFinalMaterialReadiness(requestFieldManifest));
 

@@ -123,7 +123,63 @@ function routePayloadConfig(bundle = {}) {
   const payloadDefaults = raw.payload_defaults || {};
   return {
     payloadDefaults,
+    awemeIdBaseline: raw.aweme_id_baseline || {},
     contractMapping: payloadDefaults.contract_mapping || raw.contract_mapping || {}
+  };
+}
+
+function awemeRequired({ payloadDefaults = {}, awemeIdBaseline = {} } = {}) {
+  const requiredNativeType = clean(awemeIdBaseline.required_when?.native_type);
+  return Boolean(requiredNativeType && clean(payloadDefaults.project?.native_type) === requiredNativeType);
+}
+
+function awemeIdShape(value) {
+  const text = clean(value);
+  if (!text) return "missing";
+  if (/^https?:\/\//i.test(text)) return "url";
+  if (/^web\.business\.image\//i.test(text)) return "web_business_image_uri";
+  if (/^\d+$/.test(text)) return "digit_string";
+  return "unknown_string";
+}
+
+function awemeAuthorizationReadiness(bundle = {}, { payloadDefaults = {}, awemeIdBaseline = {} } = {}) {
+  const authorization = bundle.account?.aweme_authorization || {};
+  const required = awemeRequired({ payloadDefaults, awemeIdBaseline });
+  const selectedAwemeId = clean(authorization.selected_aweme_id);
+  const candidates = Array.isArray(authorization.active_candidates) ? authorization.active_candidates : [];
+  const selectedActive = Boolean(selectedAwemeId && candidates.some((candidate) => clean(candidate.aweme_id) === selectedAwemeId));
+  const selectionStatus = clean(authorization.selection_status || "not_verified");
+  const statusAllowed = ["auto_selected", "manual_selected"].includes(selectionStatus);
+  const accountMatches = (!authorization.advertiser_id || clean(authorization.advertiser_id) === clean(bundle.job?.advertiser_id)) &&
+    (!authorization.route_id || clean(authorization.route_id) === clean(bundle.job?.route_id)) &&
+    (!authorization.game_code || clean(authorization.game_code) === clean(bundle.job?.game_code));
+  const shape = awemeIdShape(selectedAwemeId);
+  const blockers = required ? [
+    ...(!awemeIdBaseline.source || awemeIdBaseline.fallback_forbidden !== true ? ["aweme_id_baseline_missing_or_incomplete"] : []),
+    ...(!authorization.verified_at ? ["aweme_auth_not_verified"] : []),
+    ...(!statusAllowed ? [`aweme_auth_${selectionStatus || "not_verified"}`] : []),
+    ...(!selectedAwemeId ? ["aweme_auth_selected_aweme_id_missing"] : []),
+    ...(shape !== "digit_string" ? [`aweme_id_invalid_shape:${shape}`] : []),
+    ...(!selectedActive ? ["aweme_auth_selected_not_in_active_candidates"] : []),
+    ...(!accountMatches ? ["aweme_auth_account_scope_mismatch"] : []),
+    ...(authorization.fallback_forbidden === false ? ["aweme_auth_fallback_not_forbidden"] : [])
+  ] : [];
+  return {
+    required,
+    ready: required ? blockers.length === 0 : true,
+    selectedAwemeId: required && blockers.length === 0 ? selectedAwemeId : "",
+    selectedAwemeIdHash: selectedAwemeId ? hashValue(selectedAwemeId) : "",
+    selectedActive,
+    accountMatches,
+    selectionStatus,
+    verifiedAt: clean(authorization.verified_at),
+    expiresAt: clean(authorization.expires_at),
+    responseHashPresent: Boolean(clean(authorization.response_hash)),
+    evidenceRef: clean(authorization.evidence_artifact_id),
+    ruleVersion: clean(authorization.rule_version || awemeIdBaseline.contract_version),
+    candidateCount: candidates.length,
+    valueShape: shape,
+    blockers: [...new Set(blockers)]
   };
 }
 
@@ -318,7 +374,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   backupLandingPage = {},
   miniProgramLaunchLink = {},
   officialFieldEvidence = {},
-  instanceIdCreateEvidence = {}
+  instanceIdCreateEvidence = {},
+  awemeAuthorization = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
@@ -340,7 +397,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(!payload.asset_id ? ["asset_id_missing_or_not_integer"] : []),
     ...(instanceIdCreateEvidence.blockers || []),
     ...(wireBody.status === "blocked" ? wireBody.blockers : []),
-    ...(!payload.aweme_id ? ["aweme_id_missing"] : []),
+    ...(awemeAuthorization.blockers || []),
+    ...(awemeAuthorization.required && !payload.aweme_id ? ["aweme_id_missing"] : []),
     ...(miniProgramUrlRequired && !miniProgramLaunchLink.ready ? ["mini_game_launch_url_not_ready"] : []),
     ...(!payload.track_url_setting?.action_track_url?.length ? ["controlled_touchpoint_missing"] : []),
     ...(!payload.project_materials?.product_info?.image_ids?.length ? ["product_image_id_missing"] : []),
@@ -380,7 +438,8 @@ function fieldManifest(payload = {}, blockers = [], {
   backupLandingPage = {},
   miniProgramLaunchLink = {},
   officialFieldEvidence = {},
-  instanceIdCreateEvidence = {}
+  instanceIdCreateEvidence = {},
+  awemeAuthorization = {}
 } = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
@@ -428,6 +487,26 @@ function fieldManifest(payload = {}, blockers = [], {
     createRequestHash: wireBody.requestHash || "",
     createWireBodyBlockers: wireBody.blockers || [],
     awemeIdPresent: Boolean(payload.aweme_id),
+    awemeIdSource: awemeAuthorization.required ? "postgres:mwb.advertiser_accounts.aweme_authorization.selected_aweme_id" : "not_required",
+    awemeIdHash: awemeAuthorization.selectedAwemeIdHash || "",
+    awemeIdValueShape: awemeAuthorization.valueShape || "missing",
+    awemeIdValidated: awemeAuthorization.ready === true,
+    awemeIdFromAvatar: false,
+    awemeIdLooksLikeImageResource: ["url", "web_business_image_uri"].includes(awemeAuthorization.valueShape),
+    awemeAuthorization: {
+      required: awemeAuthorization.required === true,
+      status: awemeAuthorization.selectionStatus || "not_verified",
+      ready: awemeAuthorization.ready === true,
+      selectedActive: awemeAuthorization.selectedActive === true,
+      accountMatches: awemeAuthorization.accountMatches === true,
+      candidateCount: awemeAuthorization.candidateCount || 0,
+      verifiedAt: awemeAuthorization.verifiedAt || "",
+      expiresAt: awemeAuthorization.expiresAt || "",
+      responseHashPresent: awemeAuthorization.responseHashPresent === true,
+      evidenceRef: awemeAuthorization.evidenceRef || "",
+      ruleVersion: awemeAuthorization.ruleVersion || "",
+      blockers: awemeAuthorization.blockers || []
+    },
     productImageCount: materials.product_info?.image_ids?.length || 0,
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
@@ -486,10 +565,9 @@ function fieldManifest(payload = {}, blockers = [], {
 
 export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLandingPageUrl = {}, miniProgramLaunchLink = {} } = {}) {
   const summary = bundle.draft?.payload_summary || {};
-  const { payloadDefaults, contractMapping } = routePayloadConfig(bundle);
+  const { payloadDefaults, awemeIdBaseline, contractMapping } = routePayloadConfig(bundle);
   const configBlockers = [];
   const advertiserIdStorageValue = summary.advertiser_id || bundle.job?.advertiser_id;
-  const avatar = resource(bundle, "avatar");
   const eventAsset = resource(bundle, "event_asset");
   const microApp = resource(bundle, "micro_app_instance");
   const productImage = resource(bundle, "product_image");
@@ -510,6 +588,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const officialContract = getOfficialCreateFieldContract(bundle);
   const instanceIdValue = platformLongIdString(metadataValue(microApp, ["metadata.micro_app_instance_id", "metadata.instance_id", "platform_resource_id"]));
   const instanceIdCreateEvidence = getInstanceIdCreateEvidence(officialContract, { resourceId: instanceIdValue });
+  const awemeAuthorization = awemeAuthorizationReadiness(bundle, { payloadDefaults, awemeIdBaseline });
 
   const requestedPayload = {
     advertiser_id: advertiserIdForTransport(advertiserIdStorageValue),
@@ -520,7 +599,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     external_action: objective,
     deep_external_action: deepObjective,
     native_type: clean(requiredConfigValue(payloadDefaults, "project.native_type", configBlockers)),
-    aweme_id: clean(metadataValue(avatar, ["metadata.default_aweme_id", "metadata.aweme_id", "platform_resource_id"])),
+    aweme_id: awemeAuthorization.selectedAwemeId,
     delivery_mode: clean(requiredConfigValue(payloadDefaults, "project.delivery_mode", configBlockers)),
     delivery_type: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_type", configBlockers)),
     delivery_medium: clean(requiredConfigValue(payloadDefaults, "strategy.delivery_medium", configBlockers)),
@@ -597,7 +676,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     backupLandingPage,
     miniProgramLaunchLink: miniProgramLink,
     officialFieldEvidence,
-    instanceIdCreateEvidence
+    instanceIdCreateEvidence,
+    awemeAuthorization
   });
   const wireBody = buildStdProjectCreateWireBody(payload);
   const payloadHash = wireBody.bodyHash || hashValue(payload);
@@ -611,7 +691,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       backupLandingPage,
       miniProgramLaunchLink: miniProgramLink,
       officialFieldEvidence,
-      instanceIdCreateEvidence
+      instanceIdCreateEvidence,
+      awemeAuthorization
     }),
     blockers
   };

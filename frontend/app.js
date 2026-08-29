@@ -65,6 +65,63 @@
     });
   }
 
+  function renderAwemeAuthorization() {
+    const panel = document.getElementById("awemePanel");
+    panel.innerHTML = "";
+    if (!job?.awemeAuthorization) return;
+    const auth = job.awemeAuthorization;
+    const header = el("div", "aweme-panel-header");
+    header.append(el("strong", "", "抖音号授权关系"));
+    header.append(el("span", `status-chip status-${auth.selectionStatus || "waiting"}`, auth.selectionStatus || "not_verified"));
+    panel.append(header);
+
+    const meta = el("div", "aweme-meta");
+    [
+      ["候选", String(auth.activeCandidateCount || 0)],
+      ["已选", auth.selectedAwemeIdPresent ? "是" : "否"],
+      ["核验", auth.verifiedAt ? "已核验" : "未核验"]
+    ].forEach(([label, value]) => {
+      const item = el("span", "aweme-meta-item");
+      item.append(el("em", "", label));
+      item.append(el("b", "", value));
+      meta.append(item);
+    });
+    panel.append(meta);
+
+    const candidates = auth.candidates || [];
+    if (candidates.length > 1) {
+      const list = el("div", "aweme-candidate-list");
+      candidates.forEach((candidate) => {
+        const button = el("button", "aweme-candidate", candidate.displayNameSummary || candidate.awemeIdHash || "未命名抖音号");
+        button.type = "button";
+        button.disabled = busy;
+        button.title = candidate.awemeIdHash || "";
+        button.addEventListener("click", async () => {
+          if (busy) return;
+          setBusy(true);
+          try {
+            await api(`/api/advertisers/${encodeURIComponent(auth.advertiserId)}/aweme-authorization`, {
+              method: "POST",
+              body: JSON.stringify({
+                route_id: auth.routeId,
+                game_code: auth.gameCode,
+                selected_aweme_id: candidate.awemeId,
+                selected_display_name: candidate.displayNameSummary
+              })
+            });
+            await refreshJob();
+          } catch (error) {
+            showError(error);
+          } finally {
+            setBusy(false);
+          }
+        });
+        list.append(button);
+      });
+      panel.append(list);
+    }
+  }
+
   function renderIntake() {
     document.getElementById("agentStatus").textContent = job?.headline?.statusLabel || job?.agent?.statusText || "等待需求";
 
@@ -145,6 +202,7 @@
 
   function renderAll() {
     renderIntake();
+    renderAwemeAuthorization();
     renderChat();
     renderWorkflow();
     renderCommand();

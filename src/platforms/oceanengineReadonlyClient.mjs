@@ -22,6 +22,7 @@ const ALLOWED_ENDPOINTS = new Set([
   "file/image/get",
   "dmp/custom_audience/read",
   "dmp/custom_audience/select",
+  "tools/aweme_auth_list",
   "/open_api/v3.0/dpa/brand/adv_auth/fuzzy/get/",
   "/open_api/v3.0/dpa/brand/adv_auth/industry/get/",
   "https://ad.oceanengine.com/open_api/2/advertiser/avatar/get/"

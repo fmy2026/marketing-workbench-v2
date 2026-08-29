@@ -1,0 +1,88 @@
+{
+  "schema_version": "2026-08-23.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828",
+  "task_ref": "tasks/TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828.md",
+  "status": "completed",
+  "created_at": "2026-08-28 CST",
+  "updated_at": "2026-08-29 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Implement V2 aweme_id game-route baseline policy plus direct advertiser account authorization storage, with Node 4 readonly verification and Node 5 payload blockers.",
+    "mode": "local_code_and_schema_implementation",
+    "platform_write_allowed": false,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "runtime_write_scope": "schema_and_sanitized_runtime_records_only",
+    "source_record_ref": "TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-AWEME-AUTHORIZATION-DIRECT-STORAGE-20260828.json",
+    "docs/.问题排查/3.0项目创建排查对比/v2项目创建失败原因排查-20260828.md",
+    "docs/project-lessons.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "schemas/postgres-minimal-truth.md",
+    "package.json"
+  ],
+  "official_local_docs": [
+    {
+      "purpose": "aweme_id std_project/create field contract",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/创建标准项目.md"
+    },
+    {
+      "purpose": "tools/aweme_auth_list readonly authorization relationship source",
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/08-工具.md"
+    }
+  ],
+  "boundaries": {
+    "allowed_actions": [
+      "local_code_change",
+      "local_migration_file",
+      "local_tests",
+      "record:sanitized_evidence_and_hash_only"
+    ],
+    "forbidden": [
+      "std_project/create",
+      "launch confirmation",
+      "token refresh",
+      "monitor create",
+      "material upload",
+      "event asset create",
+      "DMP push",
+      "budget or bid update",
+      "raw payload storage",
+      "raw response storage",
+      "full URL storage"
+    ]
+  },
+  "validation_plan": [
+    "npm run smoke:api",
+    "npm run test:execution-plan",
+    "npm run test:aweme-authorization",
+    "npm run test:payload-contract",
+    "npm run smoke:workflow-skills",
+    "npm run test:node4-resource-prep-contracts",
+    "npm run validate:schemas",
+    "git diff --check"
+  ],
+  "result": {
+    "status": "completed",
+    "summary": "Implemented aweme_id game-route baseline policy plus direct advertiser account authorization storage. Node 4 performs readonly authorization probing/selection state persistence; Node 5 only emits aweme_id from verified account authorization and blocks avatar/image URI fallback. Workbench/API expose local candidate readiness and selection. Mock test runs restore account aweme_authorization after execution.",
+    "no_real_platform_write": true,
+    "no_token_refresh": true,
+    "runtime_truth_note": "Current seed advertiser readiness remains not_verified / aweme_auth_not_verified until a real readonly authorization probe succeeds or the user selects a verified candidate and reruns Node 4."
+  }
+}

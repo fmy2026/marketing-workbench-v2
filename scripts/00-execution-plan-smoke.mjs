@@ -109,7 +109,10 @@ try {
           ...(node.output_summary?.createReadiness || {}),
           status: "blocked",
           canCreateCurrentJob: false,
-          blockers: ["instance_id_long_id_transport_not_verified", "final_payload_blockers"]
+          blockers: ["instance_id_long_id_transport_not_verified", "final_payload_blockers"],
+          requestFieldManifest: {
+            blockers: []
+          }
         }
       }
     } : node)

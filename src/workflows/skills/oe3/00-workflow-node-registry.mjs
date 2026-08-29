@@ -108,6 +108,7 @@ const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((res
 const node4Children = Object.freeze([
   child("baseline-resource-bootstrap", "保底候选装配", { kind: "latest_skill", skillKeys: ["resource-bootstrap-from-blueprints"] }),
   child("target-resource-readonly", "目标账户只读核验", { kind: "latest_skill", skillKeys: ["resource-live-readonly-reconcile"] }),
+  child("aweme-authorization", "抖音号授权关系", { kind: "latest_skill", skillKeys: ["aweme-authorization-readonly"] }),
   ...node4ResourceChildren
 ]);
 

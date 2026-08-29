@@ -70,16 +70,19 @@ function assertInitialWorkflow(view) {
   assert(view.primaryAction?.kind === "run" && view.primaryAction?.enabled === true, "initial action must be safe dry-run");
 }
 
-function expectedMonitorStatus(view) {
+function expectedMonitorStatus(monitorChild) {
   const priority = ["monitor-readback", "monitor-ensure", "monitor-plan", "monitor-query"];
-  const statuses = new Map((view.skills?.latest || []).map((skill) => [skill.skillKey, skill.status]));
+  const statuses = new Map((monitorChild?.trace?.skills || []).map((skill) => [
+    skill.skillKey,
+    skill.latestRun?.status
+  ]));
   return priority.map((key) => statuses.get(key)).find(Boolean) || "waiting";
 }
 
 function assertDryRunWorkflow(view) {
   assertWorkflowShape(view);
   const monitor = nodeById(view, "creation_context").children.find((child) => child.id === "monitor");
-  assert(monitor?.status === expectedMonitorStatus(view), "monitor child did not use readback/ensure/plan/query priority");
+  assert(monitor?.status === expectedMonitorStatus(monitor), "monitor child did not use readback/ensure/plan/query priority");
   const node4 = nodeById(view, "account_resource_prepare");
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
     const child = node4.children.find((item) => item.id === `resource-${resourceType}`);

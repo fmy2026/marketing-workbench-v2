@@ -45,6 +45,9 @@ export {
   runMicroAppInstanceReadonlySkill
 } from "./04-micro-app-instance-readiness.mjs";
 export {
+  runAwemeAuthorizationReadonlySkill
+} from "./04-aweme-authorization-readonly.mjs";
+export {
   runBackupLandingPageSourcePrepareSkill
 } from "./04-backup-landing-page-source-prepare.mjs";
 export {

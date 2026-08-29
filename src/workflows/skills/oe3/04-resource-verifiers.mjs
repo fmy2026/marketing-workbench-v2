@@ -106,6 +106,18 @@ export function mockReadyBundle(bundle = {}) {
       reason: ""
     };
   }
+  defaults.raw_defaults = defaults.raw_defaults || {};
+  defaults.raw_defaults.aweme_id_baseline = defaults.raw_defaults.aweme_id_baseline || {
+    version: "test_fixture:aweme-id-baseline",
+    required_when: { native_type: "AWEME" },
+    payload_path: "aweme_id",
+    source: "tools/aweme_auth_list",
+    auth_type: "AWEME_ACCOUNT",
+    accepted_auth_status: ["AUTHRIZED", "AUTHORIZED"],
+    selection_policy: "single_active_auto_select_else_manual_select",
+    fallback_forbidden: true,
+    contract_version: "test_fixture:aweme-id-account-auth-v1"
+  };
   const instanceEvidence = defaults.raw_defaults?.official_create_field_contract?.instance_id_create_evidence;
   if (instanceEvidence) {
     Object.assign(instanceEvidence, {
@@ -145,6 +157,34 @@ export function mockReadyBundle(bundle = {}) {
   return {
     ...bundle,
     defaults,
+    account: {
+      ...(bundle.account || {}),
+      aweme_authorization: {
+        rule_version: "test_fixture:aweme-id-account-auth-v1",
+        advertiser_id: bundle.job?.advertiser_id || "",
+        route_id: bundle.job?.route_id || "",
+        game_code: bundle.job?.game_code || "",
+        selected_aweme_id: "1000000000000000001",
+        selected_aweme_id_hash: "sha256:84ae849973d7a133b1367b72eabb9f174ef327f05ef380c31d1fc3ceb38ea482",
+        selected_display_name_summary: "mock aweme",
+        active_candidates: [{
+          aweme_id: "1000000000000000001",
+          aweme_id_hash: "sha256:84ae849973d7a133b1367b72eabb9f174ef327f05ef380c31d1fc3ceb38ea482",
+          display_name_summary: "mock aweme",
+          auth_type: "AWEME_ACCOUNT",
+          auth_status: "AUTHRIZED",
+          sub_status: "",
+          auth_scenarios: [],
+          authorized_at: "",
+          expires_at: ""
+        }],
+        active_candidate_count: 1,
+        selection_status: "auto_selected",
+        verified_at: new Date().toISOString(),
+        evidence_artifact_id: "",
+        response_body_stored: false
+      }
+    },
     backupLandingPage: {
       ...(bundle.backupLandingPage || {}),
       landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",

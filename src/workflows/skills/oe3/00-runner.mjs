@@ -51,6 +51,7 @@ import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconc
 import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
 import { runAvatarSourcePrepareSkill } from "./04-avatar-source-prepare.mjs";
 import { runAvatarSubmitPlanSkill } from "./04-avatar-submit-plan.mjs";
+import { runAwemeAuthorizationReadonlySkill } from "./04-aweme-authorization-readonly.mjs";
 import { runBackupLandingPageSourcePrepareSkill } from "./04-backup-landing-page-source-prepare.mjs";
 import { runProductImageSourcePrepareSkill } from "./04-product-image-source-prepare.mjs";
 import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs";
@@ -125,6 +126,7 @@ function skillsForMode(mode) {
       "launch-pack-resolve-backup-landing-page",
       "launch-pack-resolve-resource-blueprints",
       "resource-bootstrap-from-blueprints",
+      "aweme-authorization-readonly",
       "avatar-source-prepare",
       "resource-live-readonly-reconcile",
       "avatar-submit-plan",
@@ -151,6 +153,7 @@ function skillsForMode(mode) {
     "launch-pack-resolve-backup-landing-page",
     "launch-pack-resolve-resource-blueprints",
     "resource-bootstrap-from-blueprints",
+    "aweme-authorization-readonly",
     "avatar-source-prepare",
     "resource-live-readonly-reconcile",
     "avatar-submit-plan",
@@ -423,6 +426,15 @@ async function executeSkill({ repo, context, skillKey }) {
       await compileAndSaveExecutionPlan({ repo, jobId: context.bundle.job.job_id, planVersion: context.planVersion });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
+  } else if (skillKey === "aweme-authorization-readonly") {
+    result = await runAwemeAuthorizationReadonlySkill({
+      repo,
+      bundle: context.bundle,
+      allowReadonlyDependency: context.allowReadonlyDependency === true,
+      mockReady: context.mockReady === true,
+      client: context.awemeAuthorizationClient || undefined
+    });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "avatar-source-prepare") {
     result = await runAvatarSourcePrepareSkill({ repo, bundle: context.bundle });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
@@ -573,7 +585,11 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const cachedReadonly = cachedReadonlyFromBundle(bundle);
   const skillOutput = (key) => skillOutputs.get(key) || {};
   const resourceOutputs = OE3_REQUIRED_RESOURCE_TYPES.map((type) => skillOutput(resourceSkillKey(type)));
-  const resourceBlockers = resourceOutputs.flatMap((item) => item.blockers || []);
+  const awemeAuthorization = skillOutput("aweme-authorization-readonly");
+  const resourceBlockers = [
+    ...(awemeAuthorization.blockers || []),
+    ...resourceOutputs.flatMap((item) => item.blockers || [])
+  ];
   const payloadContract = skillOutput("payload-contract");
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
   const create = skillOutput("create-once");
@@ -643,6 +659,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
           .filter(Boolean),
         checks: resourceOutputs.map((item) => item.outputSummary).filter(Boolean),
         bootstrap: skillOutput("resource-bootstrap-from-blueprints").outputSummary || {},
+        awemeAuthorization: awemeAuthorization.outputSummary || {},
         baselineReadonly: skillOutput("resource-live-readonly-reconcile").outputSummary || {},
         platformReadonlyStatus: cachedReadonly.platformReadonlyStatus,
         credentialStatus: cachedReadonly.credentialStatus,
@@ -707,7 +724,8 @@ export async function runOe3WorkflowSkills({
   allowedPlanActions = [],
   mockMonitorEnsure = false,
   qiankunOwnerKey = "",
-  createAttemptNo = 1
+  createAttemptNo = 1,
+  awemeAuthorizationClient = null
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
   const numericAttemptNo = Number(createAttemptNo || 1);
@@ -720,6 +738,15 @@ export async function runOe3WorkflowSkills({
     await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
+  const restoreMockAwemeAuthorization = mockReady === true &&
+    (bundle.job?.source_usage || "runtime_truth") === "test_run" &&
+    mode !== "readback_only";
+  const originalAwemeAuthorization = restoreMockAwemeAuthorization &&
+    bundle.account?.aweme_authorization &&
+    typeof bundle.account.aweme_authorization === "object" &&
+    !Array.isArray(bundle.account.aweme_authorization)
+    ? bundle.account.aweme_authorization
+    : {};
   const touchpointVerification = await getTouchpointVerification(repo, bundle);
   const context = {
     bundle,
@@ -737,66 +764,78 @@ export async function runOe3WorkflowSkills({
     allowedPlanActions,
     mockMonitorEnsure,
     qiankunOwnerKey,
+    awemeAuthorizationClient,
     createAttemptNo: numericAttemptNo,
     planVersion: numericAttemptNo,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
   };
-  for (const skillKey of skillsForMode(mode)) {
-    await executeSkill({ repo, context, skillKey });
-    bundle = await repo.getLaunchJobBundle(jobId);
-    context.bundle = bundle;
-    context.touchpointVerification = await getTouchpointVerification(repo, bundle);
-  }
-  const nodes = aggregateNodeRuns({
-    bundle: context.bundle,
-    mode,
-    skillOutputs: context.skillOutputs
-  });
-  await repo.upsertNodeRuns(jobId, nodes);
-  if (mode !== "readback_only") {
-    await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
-  }
-  if (mode === "dry_run") {
-    const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
-    if (latestDraftBundle?.draft?.project_name) {
-      await repo.upsertReadbackRecord({
-        readbackId: `RB-${jobId}-STD-PROJECT-NOT-APPLICABLE`,
-        jobId,
-        objectType: "std_project",
-        objectId: "NOT_APPLICABLE_DRY_RUN",
-        objectName: latestDraftBundle.draft.project_name,
-        readbackStatus: "not_applicable",
-        fieldDiffSummary: {
-          reason: "dry_run_does_not_create_platform_object",
-          object_name_from_draft: true,
-          real_platform_readback_called: false
-        },
-        evidenceRef: ""
+  try {
+    for (const skillKey of skillsForMode(mode)) {
+      await executeSkill({ repo, context, skillKey });
+      bundle = await repo.getLaunchJobBundle(jobId);
+      context.bundle = bundle;
+      context.touchpointVerification = await getTouchpointVerification(repo, bundle);
+    }
+    const nodes = aggregateNodeRuns({
+      bundle: context.bundle,
+      mode,
+      skillOutputs: context.skillOutputs
+    });
+    await repo.upsertNodeRuns(jobId, nodes);
+    if (mode !== "readback_only") {
+      await compileAndSaveExecutionPlan({ repo, jobId, planVersion: numericAttemptNo });
+    }
+    if (mode === "dry_run") {
+      const latestDraftBundle = await repo.getLaunchJobBundle(jobId);
+      if (latestDraftBundle?.draft?.project_name) {
+        await repo.upsertReadbackRecord({
+          readbackId: `RB-${jobId}-STD-PROJECT-NOT-APPLICABLE`,
+          jobId,
+          objectType: "std_project",
+          objectId: "NOT_APPLICABLE_DRY_RUN",
+          objectName: latestDraftBundle.draft.project_name,
+          readbackStatus: "not_applicable",
+          fieldDiffSummary: {
+            reason: "dry_run_does_not_create_platform_object",
+            object_name_from_draft: true,
+            real_platform_readback_called: false
+          },
+          evidenceRef: ""
+        });
+      }
+    }
+    const jobUpdate = workflowJobUpdateFromSkillResults({
+      mode,
+      create: context.skillOutputs.get("create-once") || {},
+      readback: context.skillOutputs.get("readback-std-project") || {}
+    });
+    if (jobUpdate) await repo.updateJob(jobId, jobUpdate);
+    const latest = await repo.getLaunchJobBundle(jobId);
+    const summary = {
+      jobId,
+      mode,
+      jobStatus: latest.job.job_status,
+      currentNode: latest.job.current_node,
+      skillRunCount: context.skillOutputs.size,
+      nodeStatuses: Object.fromEntries(nodes.map((node) => [node.nodeKey, node.status])),
+      createReadiness: nodes.find((node) => node.nodeKey === "std_project_draft_builder")?.outputSummary?.createReadiness || {},
+      noRealPlatformWrite: workflowNoRealPlatformWrite({
+        create: context.skillOutputs.get("create-once") || {}
+      }),
+      noTokenRefresh: true
+    };
+    assertNoSensitiveLeak(summary);
+    return { bundle: latest, nodes, summary };
+  } finally {
+    if (restoreMockAwemeAuthorization) {
+      await repo.updateAdvertiserAwemeAuthorization({
+        advertiserId: bundle.job.advertiser_id,
+        routeId: bundle.job.route_id,
+        gameCode: bundle.job.game_code,
+        authorization: originalAwemeAuthorization
       });
     }
   }
-  const jobUpdate = workflowJobUpdateFromSkillResults({
-    mode,
-    create: context.skillOutputs.get("create-once") || {},
-    readback: context.skillOutputs.get("readback-std-project") || {}
-  });
-  if (jobUpdate) await repo.updateJob(jobId, jobUpdate);
-  const latest = await repo.getLaunchJobBundle(jobId);
-  const summary = {
-    jobId,
-    mode,
-    jobStatus: latest.job.job_status,
-    currentNode: latest.job.current_node,
-    skillRunCount: context.skillOutputs.size,
-    nodeStatuses: Object.fromEntries(nodes.map((node) => [node.nodeKey, node.status])),
-    createReadiness: nodes.find((node) => node.nodeKey === "std_project_draft_builder")?.outputSummary?.createReadiness || {},
-    noRealPlatformWrite: workflowNoRealPlatformWrite({
-      create: context.skillOutputs.get("create-once") || {}
-    }),
-    noTokenRefresh: true
-  };
-  assertNoSensitiveLeak(summary);
-  return { bundle: latest, nodes, summary };
 }

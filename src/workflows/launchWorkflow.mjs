@@ -624,6 +624,29 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       urlHash: bundle.touchpoint?.url_hash || "",
       status: bundle.touchpoint?.status || "missing"
     },
+    awemeAuthorization: {
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id,
+      selectionStatus: bundle.account?.aweme_authorization?.selection_status || "not_verified",
+      activeCandidateCount: Number(bundle.account?.aweme_authorization?.active_candidate_count || (bundle.account?.aweme_authorization?.active_candidates || []).length || 0),
+      selectedAwemeIdPresent: Boolean(bundle.account?.aweme_authorization?.selected_aweme_id),
+      selectedAwemeIdHash: bundle.account?.aweme_authorization?.selected_aweme_id_hash || "",
+      verifiedAt: bundle.account?.aweme_authorization?.verified_at || "",
+      expiresAt: bundle.account?.aweme_authorization?.expires_at || "",
+      evidenceArtifactId: bundle.account?.aweme_authorization?.evidence_artifact_id || "",
+      candidates: (bundle.account?.aweme_authorization?.active_candidates || []).map((candidate) => ({
+        awemeId: candidate.aweme_id || "",
+        awemeIdHash: candidate.aweme_id_hash || "",
+        displayNameSummary: candidate.display_name_summary || "",
+        authType: candidate.auth_type || "",
+        authStatus: candidate.auth_status || "",
+        subStatus: candidate.sub_status || "",
+        authScenarios: candidate.auth_scenarios || [],
+        authorizedAt: candidate.authorized_at || "",
+        expiresAt: candidate.expires_at || ""
+      }))
+    },
     backupLandingPage: {
       landingPageAssetId: bundle.draft?.payload_summary?.backup_landing_page?.landing_page_asset_id || bundle.backupLandingPage?.landing_page_asset_id || "",
       siteId: bundle.draft?.payload_summary?.backup_landing_page?.site_id || bundle.backupLandingPage?.site_id || "",

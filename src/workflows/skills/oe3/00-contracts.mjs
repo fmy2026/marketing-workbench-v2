@@ -113,7 +113,7 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "game_launch_pack",
     dependsOn: ["launch-pack-resolve-game"],
     inputContract: ["route_id", "game_code"],
-    outputContract: ["objective", "deep_objective", "budget", "bid"],
+    outputContract: ["objective", "deep_objective", "budget", "bid", "aweme_id_baseline"],
     stopConditions: ["route_defaults_missing"],
     writeScope: "launch_skill_runs_only"
   },
@@ -143,6 +143,16 @@ export const OE3_SKILL_DEFINITIONS = [
     outputContract: ["blueprint_count", "required_blueprint_count", "resource_type[]"],
     stopConditions: ["baseline_resource_blueprints_missing"],
     writeScope: "launch_skill_runs_only"
+  },
+  {
+    skillKey: "aweme-authorization-readonly",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["launch-pack-resolve-defaults", "context-resolve-account"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "aweme_id_baseline", "advertiser_accounts.aweme_authorization"],
+    outputContract: ["selection_status", "active_candidate_count", "selected_aweme_id_hash", "verified_at", "evidence_ref"],
+    stopConditions: ["aweme_id_baseline_missing_or_incomplete", "aweme_auth_no_active", "aweme_auth_manual_selection_required", "aweme_auth_selected_inactive", "aweme_auth_probe_failed"],
+    writeScope: "launch_skill_runs_advertiser_accounts_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs"
   },
   {
     skillKey: "resource-bootstrap-from-blueprints",
@@ -292,8 +302,8 @@ export const OE3_SKILL_DEFINITIONS = [
   {
     skillKey: "payload-build",
     nodeKey: "std_project_draft_builder",
-    dependsOn: OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`),
-    inputContract: ["job", "account", "route_defaults", "material_pack", "account_resources", "controlled_touchpoint", "controlled_mini_game_launch_link"],
+    dependsOn: ["aweme-authorization-readonly", ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`)],
+    inputContract: ["job", "account", "route_defaults", "material_pack", "account_resources", "controlled_touchpoint", "controlled_mini_game_launch_link", "advertiser_accounts.aweme_authorization"],
     outputContract: ["project_name", "final_payload_hash", "request_field_manifest"],
     stopConditions: ["payload_build_blocked"],
     writeScope: "launch_drafts"
@@ -414,6 +424,7 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey.startsWith("monitor-")) return "src/workflows/skills/oe3/02-monitor-provision.mjs";
   if (skillKey.startsWith("context-resolve-")) return "src/workflows/skills/oe3/02-context-resolvers.mjs";
   if (skillKey.startsWith("launch-pack-resolve-")) return "src/workflows/skills/oe3/03-launch-pack.mjs";
+  if (skillKey === "aweme-authorization-readonly") return "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs";
   if (skillKey === "resource-bootstrap-from-blueprints") return "src/workflows/skills/oe3/04-resource-blueprint-bootstrap.mjs";
   if (skillKey === "resource-live-readonly-reconcile") return "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs";
   if (skillKey === "avatar-source-prepare") return "src/workflows/skills/oe3/04-avatar-source-prepare.mjs";
