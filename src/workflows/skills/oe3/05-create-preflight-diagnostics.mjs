@@ -677,6 +677,9 @@ function checkNestedFieldContractManifest(manifest = {}) {
     nested.externalUrlMaterialListPresent === true &&
     nested.externalUrlMaterialListOmittedByContract === false
   );
+  const filterEventContractOk = nested.filterEventPolicy === "omit" &&
+    nested.filterEventPresent === false &&
+    nested.filterEventOmittedByContract === true;
   const passed = nested.status === "passed" &&
     clean(nested.ruleVersion) === NESTED_FIELD_CONTRACT.ruleVersion &&
     clean(nested.source) === NESTED_FIELD_CONTRACT.source &&
@@ -690,6 +693,7 @@ function checkNestedFieldContractManifest(manifest = {}) {
     groups.includes("track_url_setting") &&
     groups.includes("audience") &&
     externalUrlContractOk &&
+    filterEventContractOk &&
     nested.rawPayloadStored === false;
   return diag({
     checkId: "manifest:nested_field_contract",
@@ -705,6 +709,9 @@ function checkNestedFieldContractManifest(manifest = {}) {
       externalUrlMaterialListPolicy: nested.externalUrlMaterialListPolicy || "",
       externalUrlMaterialListPresent: nested.externalUrlMaterialListPresent === true,
       externalUrlMaterialListOmittedByContract: nested.externalUrlMaterialListOmittedByContract === true,
+      filterEventPolicy: nested.filterEventPolicy || "",
+      filterEventPresent: nested.filterEventPresent === true,
+      filterEventOmittedByContract: nested.filterEventOmittedByContract === true,
       rawPayloadStored: nested.rawPayloadStored === true
     },
     blockerCode: blockers[0] || "nested_field_contract_not_verified",
@@ -747,6 +754,8 @@ export function evaluateStdProjectCreatePreflight({
 } = {}) {
   const diagnostics = [];
   if (payload) {
+    const externalUrlPolicy = clean(requestFieldManifest.externalUrlMaterialListPolicy || "omit");
+    const filterEventPolicy = clean(requestFieldManifest.filterEventPolicy || "omit");
     [
       "advertiser_id",
       "name",
@@ -793,14 +802,30 @@ export function evaluateStdProjectCreatePreflight({
       "EXCLUDE_APP",
       "EXCLUDE_CUSTOMER"
     ]));
+    diagnostics.push(filterEventPolicy === "omit"
+      ? checkAbsent(payload, "audience.filter_event", {
+        blockerCode: "filter_event_must_be_omitted_for_no_exclude",
+        repairHint: "hide_if_converted=NO_EXCLUDE 时必须完全省略 audience.filter_event；空数组同样不允许发送。"
+      })
+      : diag({
+        checkId: "contract:audience.filter_event",
+        fieldPath: "audience.filter_event",
+        status: "blocked",
+        expectedTypeOrRule: "current_jszc_route_filter_event_policy_omit",
+        actualValue: { policy: filterEventPolicy || "missing", rawValueStored: false },
+        blockerCode: "filter_event_policy_invalid_for_no_exclude",
+        repairHint: "将当前 JSZC 路线 filter_event_policy 修正为 omit，并重新生成 Node 5 草稿。"
+      }));
     diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude"));
     diagnostics.push(checkEmptyArray(payload, "project_materials.image_material_list", {
       blockerCode: "image_material_list_must_be_empty_for_current_route"
     }));
-    diagnostics.push(checkAbsent(payload, "project_materials.external_url_material_list", {
-      blockerCode: "external_url_material_list_must_be_omitted_for_current_route",
-      repairHint: "当前 JSZC 路线用 mini_program_info.url 作为主链路；备用网页链接未证明必发，不进入 create payload。"
-    }));
+    diagnostics.push(externalUrlPolicy === "send"
+      ? checkHttpsStringArray(payload, "project_materials.external_url_material_list")
+      : checkAbsent(payload, "project_materials.external_url_material_list", {
+        blockerCode: "external_url_material_list_must_be_omitted_for_current_route",
+        repairHint: "当前 JSZC 路线合同要求省略 external_url_material_list。"
+      }));
     diagnostics.push(checkProductSellingPoints(payload));
     diagnostics.push(checkTitleMaterialList(payload));
     diagnostics.push(...checkAllowedFields(payload));
@@ -883,7 +908,28 @@ export function evaluateStdProjectCreatePreflight({
         hashMatch: requestFieldManifest.backupLandingPageHashMatch === true
       },
       blockerCode: "backup_landing_page_not_ready",
-      repairHint: "当前 JSZC 路线应省略 external_url_material_list；若未来路线要发送，再补充路线合同与只读证据。"
+      repairHint: "外链发送分支必须有一条受控 HTTPS 备用页，并通过目标账户可见性、回查与 hash 一致性验证；省略分支必须由当前路线合同明确授权。"
+    }));
+    const filterEventPolicy = clean(requestFieldManifest.filterEventPolicy || "");
+    const filterEventOmittedByContract = filterEventPolicy === "omit" &&
+      requestFieldManifest.filterEventPresent === false &&
+      requestFieldManifest.filterEventOmittedByContract === true;
+    diagnostics.push(diag({
+      checkId: "manifest:audience.filter_event",
+      fieldPath: "final_payload_manifest.filterEventPolicy",
+      status: requestFieldManifest.hideIfConverted === "NO_EXCLUDE" && filterEventOmittedByContract
+        ? "passed"
+        : "blocked",
+      expectedTypeOrRule: "hide_if_converted:NO_EXCLUDE filter_event_policy:omit present:false omitted_by_contract:true",
+      actualValue: {
+        hideIfConverted: requestFieldManifest.hideIfConverted || "",
+        policy: filterEventPolicy,
+        present: requestFieldManifest.filterEventPresent === true,
+        omittedByContract: requestFieldManifest.filterEventOmittedByContract === true,
+        rawValueStored: false
+      },
+      blockerCode: "filter_event_omit_contract_not_verified",
+      repairHint: "重新生成 Node 5 草稿；NO_EXCLUDE 下必须完全省略 filter_event。"
     }));
   }
   diagnostics.push(checkBusinessDefaults(requestFieldManifest));

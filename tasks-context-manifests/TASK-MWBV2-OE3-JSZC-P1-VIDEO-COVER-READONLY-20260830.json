@@ -1,0 +1,113 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830.md",
+  "status": "closed",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Resolve the target-account visibility of the two Attempt 1 video covers without any platform write or create attempt.",
+    "mode": "target_video_and_cover_readonly_verification",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "new_database_report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830.json",
+    "docs/Solution Design.md",
+    "docs/.问题排查/3.0项目创建排查对比/JSZC-1871922346964041-P10-创建40000-字段差异排查-20260830.md",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md"
+  ],
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "verification_series_id": "SERIES-MWBV2-JSZC-REAL-CREATE-20260829",
+    "baseline": {
+      "job_id": "JOB-MWBV2-20260829151802-CB8550",
+      "draft_id": "DRAFT-JOB-MWBV2-20260829151802-CB8550",
+      "payload_hash": "sha256:84b9867717babc81c957b2ed9eab0f0883df175a0fd04ce46c419dce4bdf3040",
+      "video_source_asset_ids": ["JSZC-HUNT-4IG2-3", "JSZC-HUNT-4GE6-14"],
+      "cover_mode": "platform_default_cover_allowed"
+    },
+    "allowed_platform_reads": ["file/video/get", "file/image/get"],
+    "expected_platform_read_count": 4,
+    "maximum_new_create_attempts": 0
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-P1-VIDEO-COVER-READONLY-20260830.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.json",
+    "project.state.json",
+    "docs/.问题排查/3.0项目创建排查对比/JSZC-1871922346964041-P10-创建40000-字段差异排查-20260830.md",
+    "existing Postgres evidence_artifacts and account_resources for the scoped advertiser and P1 runtime-truth Job"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "std_project/update",
+    "uni_project/material/create or oc_project/material/create",
+    "project material delete, upload, or historical project mutation",
+    "Attempt 2 or any new verification-series create attempt",
+    "budget, bid, DMP, event asset, anchor, component, promotion, or pause write",
+    "token refresh",
+    "route default or Node 5 code change",
+    "new table, view, dashboard, or database report",
+    "writing token, secret, Cookie, auth_code, full URL, raw request, raw payload, or raw response"
+  ],
+  "validation_plan": [
+    "exactly two file/video/get and two file/image/get target-account probes",
+    "verify the probe result contains two required source assets and no unmatched asset",
+    "verify safe evidence has response hash/request ID presence but no raw request or response",
+    "audit zero execution plans, confirmations, platform actions, created objects, and readbacks for the P1 Job",
+    "JSON parse and git diff --check"
+  ],
+  "decision_rules": {
+    "both_videos_and_covers_visible": "set explicit_cover_verified and run fresh Node 1-5 dry draft verification with only video_cover_id semantic changes allowed",
+    "video_visible_cover_not_visible": "retain platform_default_cover_allowed; close P1 without payload change or create",
+    "video_not_visible_or_probe_failure": "record an explicit blocker and stop"
+  },
+  "result": {
+    "status": "closed_default_cover_branch_retained",
+    "p1_runtime_truth_job_id": "JOB-MWBV2-20260829163317-C97C14",
+    "job_status": "diagnosed",
+    "target_video_probe_count": 2,
+    "target_cover_probe_count": 2,
+    "required_video_count": 2,
+    "target_video_visible_count": 2,
+    "target_cover_visible_count": 0,
+    "cover_mode": "platform_default_cover_allowed",
+    "request_id_present_count": 4,
+    "response_hash_present_count": 4,
+    "evidence_refs": [
+      "EV-JOB-MWBV2-20260829163317-C97C14-VIDEO-MATERIAL-JSZC_HUNT_4IG2_3",
+      "EV-JOB-MWBV2-20260829163317-C97C14-VIDEO-MATERIAL-JSZC_HUNT_4GE6_14"
+    ],
+    "audit_counts": {
+      "execution_plans": 0,
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "readback_records": 0
+    },
+    "raw_request_stored": false,
+    "raw_response_stored": false,
+    "next_action": "return_to_forensic_next_candidate_without_payload_change"
+  },
+  "solution_link": {
+    "source": "docs/.问题排查/3.0项目创建排查对比/JSZC-1871922346964041-P10-创建40000-字段差异排查-20260830.md",
+    "objective": "Use target-account material visibility to decide whether the existing default-cover or explicit-cover branch is factually applicable.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, this Task/Manifest, 04-video-material-readiness.mjs, and local official 3.0 std_project/create documentation.",
+    "stop_condition": "Stop before any platform write, code/default change, or Attempt 2."
+  }
+}

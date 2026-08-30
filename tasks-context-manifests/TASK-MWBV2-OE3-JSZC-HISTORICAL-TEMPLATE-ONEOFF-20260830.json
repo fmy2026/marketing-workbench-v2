@@ -1,0 +1,75 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-HISTORICAL-TEMPLATE-ONEOFF-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-HISTORICAL-TEMPLATE-ONEOFF-20260830.md",
+  "status": "completed_create_failed_landing_url_invalid_no_retry",
+  "created_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Compile one standalone historical-template JSZC create payload for the current advertiser and permit at most one explicitly confirmed create.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false
+  },
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "historical_project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260817",
+    "maximum_create_actions": 1,
+    "retry_allowed": false
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-HISTORICAL-TEMPLATE-ONEOFF-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-HISTORICAL-TEMPLATE-ONEOFF-20260830.json",
+    "project.state.json",
+    ".archive/20260830-jszc-oneoff/src/oneoff/jszcHistoricalTemplateCreate.mjs",
+    ".archive/20260830-jszc-oneoff/scripts/oneoff/06-jszc-historical-template-create.mjs",
+    ".archive/20260830-jszc-oneoff/scripts/oneoff/06-jszc-historical-template-create-smoke.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "forbidden_actions": [
+    "any JSZC route-default or shared workflow-contract mutation",
+    "promotion or account-resource write",
+    "token refresh",
+    "automatic second create",
+    "raw payload, raw response, full URL or credential persistence"
+  ],
+  "human_gate": {
+    "before_create": [
+      "exact standalone job, draft, plan, payload hash and project name are displayed",
+      "all current-account fallback sources and duplicate list check pass",
+      "user confirms exactly one create and accepts historical schedule, budget and bid"
+    ]
+  },
+  "prepared_oneoff": {
+    "case_id": "CASE-MWBV2-HISTORICAL-20260830015756-E5D9E1D9",
+    "job_id": "JOB-MWBV2-HISTORICAL-20260830015756-E5D9E1D9",
+    "draft_id": "DRAFT-JOB-MWBV2-HISTORICAL-20260830015756-E5D9E1D9-V1",
+    "plan_id": "PLAN-JOB-MWBV2-HISTORICAL-20260830015756-E5D9E1D9-V1",
+    "plan_hash": "sha256:bfb7393e345b7d88c1997c11262749d7ef52e6787b9c71e75a3d11e5d6010007",
+    "payload_hash": "sha256:52805c0dec2e2d9139acd142569ec42cc9b5e809d3ab0cf8354e1f616e8d9ff1",
+    "project_name": "245791_N_JSZC_HUNT_PAY7DROI_平台定向不限_P01_20260817",
+    "duplicate_status": "platform_not_duplicate",
+    "platform_action_count": 1,
+    "raw_payload_stored": false,
+    "raw_response_stored": false,
+    "result": {
+      "create_called": true,
+      "http_status": 200,
+      "api_code": "40000",
+      "request_id_present": true,
+      "object_id_present": false,
+      "safe_error_category": "landing_url_invalid",
+      "offending_field_path": "",
+      "readback_status": "not_found_or_mismatch",
+      "readback_attempt_delays_ms": [0, 10000, 30000],
+      "readback_object_found": false,
+      "created_object_count": 0,
+      "retry_allowed": false,
+      "raw_payload_stored": false,
+      "raw_response_stored": false
+    }
+  }
+}

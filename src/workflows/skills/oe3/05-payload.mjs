@@ -159,6 +159,10 @@ function routeNestedSendPolicy(bundle = {}, group, fallback = "send") {
   return clean(routeNestedGroup(bundle, group).send_policy || fallback);
 }
 
+function routeNestedFieldPolicy(bundle = {}, group, fieldPolicy, fallback = "") {
+  return clean(routeNestedGroup(bundle, group)[fieldPolicy] || fallback);
+}
+
 function awemeRequired({ payloadDefaults = {}, awemeIdBaseline = {} } = {}) {
   const nativeType = clean(payloadDefaults.project?.native_type);
   const requiredNativeType = clean(awemeIdBaseline.required_when?.native_type || "AWEME");
@@ -423,6 +427,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const miniProgramUrlRequired = microGameByteGame;
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
   const externalUrlMaterialListRequired = externalUrlMaterialListPolicy === "send";
+  const filterEventPolicy = routeNestedFieldPolicy(bundle, "audience", "filter_event_policy", "omit");
+  const filterEventPresent = Object.hasOwn(payload.audience || {}, "filter_event");
   const wireBody = instanceIdCreateEvidence.canSend ? buildStdProjectCreateWireBody(payload) : { status: "not_required", blockers: [] };
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
@@ -477,7 +483,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(payload.audience?.gender !== "GENDER_UNLIMITED" ? ["audience_gender_not_unlimited_enum"] : []),
     ...(!ALLOWED_HIDE_IF_CONVERTED.has(clean(payload.audience?.hide_if_converted)) ? ["hide_if_converted_invalid_enum"] : []),
     ...(clean(payload.audience?.hide_if_converted) === clean(payload.external_action) ? ["hide_if_converted_uses_conversion_event"] : []),
-    ...(!(payload.audience?.filter_event || []).includes(clean(payload.external_action)) ? ["filter_event_missing_primary_conversion_event"] : []),
+    ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && filterEventPolicy !== "omit" ? ["filter_event_policy_invalid_for_no_exclude"] : []),
+    ...(filterEventPolicy === "omit" && filterEventPresent ? ["filter_event_must_be_omitted_for_no_exclude"] : []),
     ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
@@ -514,6 +521,8 @@ function fieldManifest(payload = {}, blockers = [], {
   const externalUrlMaterialListPresent = Object.hasOwn(materials, "external_url_material_list");
   const externalUrlMaterialListPolicy = nestedFieldContract.externalUrlMaterialListPolicy ||
     (externalUrlMaterialListPresent ? "send" : "omit");
+  const filterEventPresent = Object.hasOwn(audience, "filter_event");
+  const filterEventPolicy = nestedFieldContract.filterEventPolicy || "";
   const sellingPoints = materials.product_info?.selling_points;
   const sellingPointsSummary = sellingPointsManifest(sellingPoints, {
     source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
@@ -604,7 +613,9 @@ function fieldManifest(payload = {}, blockers = [], {
     touchpointUrlControlledPresent: Boolean(payload.track_url_setting?.action_track_url?.length),
     audienceGender: audience.gender || "",
     hideIfConverted: audience.hide_if_converted || "",
-    filterEvent: audience.filter_event || [],
+    filterEventPolicy,
+    filterEventPresent,
+    filterEventOmittedByContract: filterEventPolicy === "omit" && !filterEventPresent,
     dmpRetargetingTagsExcludeCount: audience.retargeting_tags_exclude?.length || 0,
     dmpRetargetingTagsExcludePresent: Boolean(audience.retargeting_tags_exclude?.length),
     dmpRetargetingTagsExcludeIntegerArray: (audience.retargeting_tags_exclude || []).every((value) => Number.isInteger(value)),
@@ -659,6 +670,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const backupLandingPage = backupLandingPageReadiness(bundle, backupLandingPageUrl);
   const miniProgramLink = miniProgramLaunchLinkReadiness(bundle, miniProgramLaunchLink);
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
+  const filterEventPolicy = routeNestedFieldPolicy(bundle, "audience", "filter_event_policy", "omit");
   const externalUrlMaterialList = externalUrlMaterialListPolicy === "send" && backupLandingPage.ready
     ? { external_url_material_list: [backupLandingPage.url] }
     : {};
@@ -708,7 +720,6 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       age: configArrayAllowEmpty(payloadDefaults, "targeting.age", configBlockers),
       converted_time_duration: clean(requiredConfigValue(payloadDefaults, "targeting.converted_time_duration", configBlockers)),
       hide_if_converted: clean(requiredConfigValue(payloadDefaults, "targeting.hide_if_converted", configBlockers)),
-      filter_event: objective ? [objective] : [],
       retargeting_tags_exclude: dmpIds,
       interest_action_mode: clean(requiredConfigValue(payloadDefaults, "targeting.interest_action_mode", configBlockers))
     },
@@ -755,7 +766,10 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     backupLandingPage,
     miniProgramLaunchLink: miniProgramLink
   });
-  const createFieldLedger = evaluateCreateFieldLedger(payload);
+  const createFieldLedger = evaluateCreateFieldLedger(payload, {
+    externalUrlMaterialListPolicy,
+    filterEventPolicy
+  });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
     businessDefaultsPresent: configBlockers.length === 0,

@@ -922,7 +922,10 @@ export async function runJob(repo, jobId, options = {}) {
     createAttemptNo: options.createAttemptNo || 1,
     verificationSeriesId: options.verificationSeriesId || "",
     verificationTaskRef: options.verificationTaskRef || "",
-    maximumCreateAttempts: options.maximumCreateAttempts || 3
+    maximumCreateAttempts: options.maximumCreateAttempts || 3,
+    singleVariableExperiment: options.singleVariableExperiment || {},
+    expectedPlanId: options.expectedPlanId || "",
+    expectedPlanHash: options.expectedPlanHash || ""
   });
   return buildPublicJobView(repo, result.bundle, options);
 }

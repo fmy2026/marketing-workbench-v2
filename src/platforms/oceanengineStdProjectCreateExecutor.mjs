@@ -63,11 +63,6 @@ function extractRequestId(payload = {}) {
   return clean(payload.request_id || payload.data?.request_id || "");
 }
 
-function safeRequestId(payload = {}) {
-  const requestId = extractRequestId(payload);
-  return /^[A-Za-z0-9._:-]{1,256}$/.test(requestId) ? requestId : "";
-}
-
 function extractStdProjectId(payload = {}) {
   return clean(
     payload.data?.project_id ||
@@ -96,15 +91,33 @@ const SAFE_ERROR_FIELD_PATHS = [...OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS]
   .filter((path) => !path.includes("[]"))
   .sort((left, right) => right.length - left.length);
 
+// Platform validation messages may name only the JSON leaf instead of the
+// canonical request path. Keep this list explicit: accepting arbitrary leaf
+// names such as `url` or `name` would create false field attributions.
+const SAFE_ERROR_FIELD_ALIASES = new Map([
+  ["filter_event", "audience.filter_event"]
+]);
+
+function includesFieldToken(text = "", token = "") {
+  const escaped = clean(token).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Boolean(escaped) && new RegExp(`(?:^|[^a-z0-9_])${escaped}(?:$|[^a-z0-9_])`, "i").test(text);
+}
+
 function safeOffendingFieldPath(text = "") {
   const normalized = clean(text).toLowerCase();
-  return SAFE_ERROR_FIELD_PATHS.find((path) => normalized.includes(path.toLowerCase())) || "";
+  const canonicalPath = SAFE_ERROR_FIELD_PATHS.find((path) => normalized.includes(path.toLowerCase()));
+  if (canonicalPath) return canonicalPath;
+  for (const [alias, path] of SAFE_ERROR_FIELD_ALIASES) {
+    if (includesFieldToken(normalized, alias)) return path;
+  }
+  return "";
 }
 
 function safeErrorCategory({ text = "", fieldPath = "", apiCode = "" } = {}) {
   const normalized = clean(text).toLowerCase();
   if (/permission|authorize|authorization|scope|无权限|权限/.test(normalized)) return "permission_denied";
   if (/landing|external_url_material_list|落地页|链接/.test(normalized)) return "landing_url_invalid";
+  if (fieldPath && /invalid|required|param|field|参数|字段|必填/.test(normalized)) return "invalid_field";
   if (/asset|resource|brand|event|image|video|素材|资源|品牌|事件/.test(normalized)) return "resource_not_eligible";
   if (fieldPath || /invalid|required|param|field|参数|字段|必填/.test(normalized)) return "invalid_field";
   return apiCode ? "unclassified" : "";
@@ -144,7 +157,6 @@ export function safePlatformErrorSummary(payload = {}) {
   return {
     api_code: apiCode || "",
     request_id_present: Boolean(extractRequestId(payload)),
-    request_id: safeRequestId(payload),
     error_category: errorCategory,
     offending_field_path: offendingFieldPath,
     message_present: messageTexts.length > 0,
@@ -422,12 +434,85 @@ export async function createStdProjectForTargetOnce({
     };
   }
 
-  const response = await fetchImpl(`${API_BASE}${CREATE_ENDPOINT}`, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
-    body: wireBody.body
-  });
-  const text = await response.text();
+  let response = null;
+  let text = "";
+  try {
+    response = await fetchImpl(`${API_BASE}${CREATE_ENDPOINT}`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
+      body: wireBody.body
+    });
+    text = await response.text();
+  } catch {
+    const responseHash = `sha256:${sha256(canonicalJson({
+      request_hash: requestHash,
+      outcome: "transport_unconfirmed",
+      retry_allowed: false
+    }))}`;
+    const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+    await repo.upsertPlatformAction({
+      actionId,
+      jobId: runtimeTarget.jobId,
+      confirmationId,
+      planId: runtimeTarget.planId,
+      actionType: "oceanengine_std_project_create",
+      endpoint: CREATE_ENDPOINT,
+      method: "POST",
+      actionStatus: "failed_or_unconfirmed",
+      attemptNo: runtimeTarget.createAttemptNo,
+      requestHash,
+      responseHash,
+      httpStatus: null,
+      apiCode: "transport_error",
+      requestIdPresent: false,
+      objectIdPresent: false,
+      errorSummary: "platform_create_transport_not_confirmed",
+      requestId: "",
+      errorCategory: "unclassified",
+      offendingFieldPath: "",
+      idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
+      responseSummary: {
+        api_code: "transport_error",
+        request_id_present: false,
+        object_id_present: false,
+        error_category: "unclassified",
+        offending_field_path: "",
+        transport_unconfirmed: true,
+        response_hash_present: true,
+        raw_response_stored: false
+      },
+      finishedAt: new Date().toISOString(),
+      metadata: {
+        target_project_name: runtimeTarget.projectName,
+        raw_payload_stored: false,
+        raw_response_stored: false,
+        retry_allowed: false,
+        attempt_no: runtimeTarget.createAttemptNo,
+        verification_series_id: runtimeTarget.verificationSeriesId || "",
+        verification_task_ref: runtimeTarget.verificationTaskRef || ""
+      }
+    });
+    await repo.upsertEvidence({
+      artifactId: evidenceRef,
+      jobId: runtimeTarget.jobId,
+      artifactType: "std_project_create_once_transport_unconfirmed",
+      title: "std_project create once transport unconfirmed",
+      summary: "endpoint=std_project/create transport_status=unconfirmed request_id_present=false std_project_id_present=false response_hash_present=true retry_allowed=false",
+      contentHash: responseHash,
+      storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+      sourceRef: `oceanengine:${CREATE_ENDPOINT}`,
+      sourceUsage: "runtime_truth"
+    });
+    return {
+      status: "create_failed_stop_for_manual_review",
+      createCalled: true,
+      httpStatus: null,
+      apiCode: "transport_error",
+      requestIdPresent: false,
+      stdProjectId: "",
+      evidenceRef
+    };
+  }
   let payload = {};
   try {
     payload = JSON.parse(text);
@@ -458,7 +543,7 @@ export async function createStdProjectForTargetOnce({
     requestIdPresent,
     objectIdPresent: Boolean(stdProjectId),
     errorSummary: passed ? "" : "platform_create_response_not_confirmed",
-    requestId: safeErrorSummary.request_id,
+    requestId: "",
     errorCategory: passed ? "" : safeErrorSummary.error_category,
     offendingFieldPath: passed ? "" : safeErrorSummary.offending_field_path,
     idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
@@ -573,13 +658,38 @@ export async function readbackStdProjectOnce({
   let response = null;
   let text = "";
   let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
+  const readbackStartedAt = Date.now();
   for (const delayMs of safeReadbackDelays(readbackDelaysMs)) {
-    await sleep(delayMs);
-    response = await fetchImpl(url, {
-      method: "GET",
-      headers: { Accept: "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN }
-    });
-    text = await response.text();
+    const elapsedMs = Date.now() - readbackStartedAt;
+    await sleep(Math.max(0, delayMs - elapsedMs));
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: { Accept: "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN }
+      });
+      text = await response.text();
+    } catch {
+      response = null;
+      text = canonicalJson({ endpoint: "std_project/list", delay_ms: delayMs, outcome: "transport_error" });
+      summary = {
+        apiCode: "transport_error",
+        requestIdPresent: false,
+        objectId: "",
+        objectName: "",
+        objectStatus: "",
+        objectNameMatches: false
+      };
+      attempts.push({
+        delay_ms: delayMs,
+        http_status: null,
+        api_code: "transport_error",
+        request_id_present: false,
+        object_id_present: false,
+        object_name_matches: false,
+        response_hash: `sha256:${sha256(text)}`
+      });
+      continue;
+    }
     let payload = {};
     try {
       payload = JSON.parse(text);

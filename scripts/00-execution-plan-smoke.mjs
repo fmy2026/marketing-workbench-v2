@@ -5,6 +5,7 @@ import {
   ACTION_STD_PROJECT_CREATE,
   buildExecutionPlanFromBundle,
   compileAndSaveExecutionPlan,
+  evaluateSingleVariableLedgerDiff,
   validateExecutionPlanActionScope
 } from "../src/workflows/executionPlan.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
@@ -17,6 +18,45 @@ const TARGET = Object.freeze({
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertThrows(fn, expectedMessage, message) {
+  try {
+    fn();
+  } catch (error) {
+    if (error.message === expectedMessage) return;
+    throw error;
+  }
+  throw new Error(message);
+}
+
+function ledgerEntry(path, overrides = {}) {
+  return {
+    path,
+    sendPolicy: "send",
+    valueType: "string",
+    itemCount: null,
+    stringLength: null,
+    enumRule: [],
+    enumMatched: null,
+    valueHash: `sha256:${"a".repeat(64)}`,
+    preCreateStatus: "passed",
+    ...overrides
+  };
+}
+
+function ledgerBundle({ jobId, payloadHash, entries }) {
+  return {
+    job: { job_id: jobId },
+    draft: {
+      payload_hash: payloadHash,
+      payload_summary: {
+        final_payload_manifest: {
+          createFieldLedger: { entries }
+        }
+      }
+    }
+  };
 }
 
 async function makeTestJob(repo, sourceRecordRef, cleanupJobIds) {
@@ -40,6 +80,86 @@ const repo = new PostgresRepository();
 const cleanupJobIds = [];
 
 try {
+  const filterEventDiff = evaluateSingleVariableLedgerDiff({
+    baselineBundle: ledgerBundle({
+      jobId: "JOB-BASELINE-FILTER-EVENT",
+      payloadHash: `sha256:${"1".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"2".repeat(64)}` }),
+        ledgerEntry("audience.filter_event", { valueType: "array", itemCount: 1, valueHash: `sha256:${"3".repeat(64)}` }),
+        ledgerEntry("audience.filter_event.[]", { valueHash: `sha256:${"4".repeat(64)}` }),
+        ledgerEntry("project_materials.title_material_list.[].title", { valueHash: `sha256:${"a".repeat(64)}` }),
+        ledgerEntry("project_materials.title_material_list.[].title", { valueHash: `sha256:${"b".repeat(64)}` })
+      ]
+    }),
+    freshBundle: ledgerBundle({
+      jobId: "JOB-FRESH-FILTER-EVENT",
+      payloadHash: `sha256:${"5".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"6".repeat(64)}` }),
+        ledgerEntry("project_materials.title_material_list.[].title", { valueHash: `sha256:${"b".repeat(64)}` }),
+        ledgerEntry("audience.filter_event", {
+          sendPolicy: "omit",
+          valueType: "absent",
+          valueHash: ""
+        }),
+        ledgerEntry("project_materials.title_material_list.[].title", { valueHash: `sha256:${"a".repeat(64)}` })
+      ]
+    }),
+    candidatePath: "audience.filter_event",
+    candidateDirection: "single_item_to_omitted"
+  });
+  assert(filterEventDiff.status === "passed", "filter_event_single_variable_diff_not_passed");
+  assert(filterEventDiff.changedPaths.includes("audience.filter_event.[]"), "filter_event_item_path_diff_missing");
+  assert(filterEventDiff.allowedChangedPaths.length === 3, "filter_event_allowed_changed_paths_mismatch");
+  assert(filterEventDiff.diffHash.startsWith("sha256:"), "filter_event_diff_hash_missing");
+
+  const unapprovedDiff = evaluateSingleVariableLedgerDiff({
+    baselineBundle: ledgerBundle({
+      jobId: "JOB-BASELINE-UNAPPROVED",
+      payloadHash: `sha256:${"7".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"8".repeat(64)}` }),
+        ledgerEntry("audience.filter_event", { valueType: "array", itemCount: 1 }),
+        ledgerEntry("audience.filter_event.[]")
+      ]
+    }),
+    freshBundle: ledgerBundle({
+      jobId: "JOB-FRESH-UNAPPROVED",
+      payloadHash: `sha256:${"9".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"b".repeat(64)}` }),
+        ledgerEntry("audience.filter_event", { sendPolicy: "omit", valueType: "absent", valueHash: "" }),
+        ledgerEntry("budget", { valueType: "number", valueHash: `sha256:${"c".repeat(64)}` })
+      ]
+    }),
+    candidatePath: "audience.filter_event"
+  });
+  assert(unapprovedDiff.status === "blocked", "unapproved_business_change_not_blocked");
+  assert(unapprovedDiff.blockedPaths.includes("budget"), "unapproved_budget_path_not_reported");
+
+  const externalUrlDiff = evaluateSingleVariableLedgerDiff({
+    baselineBundle: ledgerBundle({
+      jobId: "JOB-BASELINE-EXTERNAL-URL",
+      payloadHash: `sha256:${"d".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"e".repeat(64)}` }),
+        ledgerEntry("project_materials.external_url_material_list", { sendPolicy: "omit", valueType: "absent", valueHash: "" })
+      ]
+    }),
+    freshBundle: ledgerBundle({
+      jobId: "JOB-FRESH-EXTERNAL-URL",
+      payloadHash: `sha256:${"f".repeat(64)}`,
+      entries: [
+        ledgerEntry("name", { valueHash: `sha256:${"0".repeat(64)}` }),
+        ledgerEntry("project_materials.external_url_material_list", { valueType: "array", itemCount: 1 }),
+        ledgerEntry("project_materials.external_url_material_list.[]")
+      ]
+    }),
+    candidatePath: "project_materials.external_url_material_list"
+  });
+  assert(externalUrlDiff.status === "passed", "external_url_candidate_compatibility_broken");
+
   const jobId = await makeTestJob(repo, `smoke:execution-plan:${new Date().toISOString()}`, cleanupJobIds);
   await runJob(repo, jobId, { mode: "dry_run", mockReady: true });
 
@@ -65,6 +185,64 @@ try {
   assert(outsideScope.blockers.includes("action_not_planned:outside_plan_action"), "outside_plan_action_blocker_missing");
 
   const bundle = await repo.getLaunchJobBundle(jobId);
+  const boundExperiment = {
+    status: "passed",
+    baselineJobId: "JOB-BASELINE-P02",
+    baselinePayloadHash: `sha256:${"1".repeat(64)}`,
+    freshPayloadHash: bundle.draft.payload_hash,
+    candidatePath: "audience.filter_event",
+    candidateDirection: "single_item_to_omitted",
+    diffHash: `sha256:${"2".repeat(64)}`,
+    allowedChangedPaths: ["name", "audience.filter_event", "audience.filter_event.[]"],
+    changedPaths: ["name", "audience.filter_event", "audience.filter_event.[]"]
+  };
+  const boundPlan = buildExecutionPlanFromBundle(bundle, { singleVariableExperiment: boundExperiment });
+  const boundPlanAgain = buildExecutionPlanFromBundle(bundle, { singleVariableExperiment: boundExperiment });
+  assert(boundPlan.planHash === boundPlanAgain.planHash, "single_variable_plan_hash_not_stable");
+  assert(boundPlan.planHash !== second.plan.planHash, "single_variable_binding_not_in_plan_hash");
+  assert(boundPlan.metadata.single_variable_experiment.diff_hash === boundExperiment.diffHash, "single_variable_diff_hash_not_in_metadata");
+  assert(boundPlan.metadata.single_variable_experiment.baseline_job_id === boundExperiment.baselineJobId, "single_variable_baseline_job_not_in_metadata");
+  assert(boundPlan.metadata.execution_scope.single_variable_experiment.candidate_path === "audience.filter_event", "single_variable_candidate_not_in_execution_scope");
+  const canonicalBoundPlan = buildExecutionPlanFromBundle(bundle, {
+    singleVariableExperiment: boundPlan.metadata.single_variable_experiment
+  });
+  assert(canonicalBoundPlan.planHash === boundPlan.planHash, "canonical_single_variable_plan_hash_drifted");
+  assert(
+    JSON.stringify(canonicalBoundPlan.metadata.single_variable_experiment) === JSON.stringify(boundPlan.metadata.single_variable_experiment),
+    "canonical_single_variable_metadata_drifted"
+  );
+  await compileAndSaveExecutionPlan({
+    repo,
+    jobId,
+    singleVariableExperiment: boundPlan.metadata.single_variable_experiment,
+    expectedPlanId: boundPlan.planId,
+    expectedPlanHash: boundPlan.planHash
+  });
+  let confirmedHashDriftBlocked = false;
+  try {
+    await compileAndSaveExecutionPlan({
+      repo,
+      jobId,
+      singleVariableExperiment: boundPlan.metadata.single_variable_experiment,
+      expectedPlanId: boundPlan.planId,
+      expectedPlanHash: `sha256:${"9".repeat(64)}`
+    });
+  } catch (error) {
+    confirmedHashDriftBlocked = error.message === "confirmed_plan_hash_drift";
+  }
+  assert(confirmedHashDriftBlocked, "confirmed_plan_hash_drift_not_blocked");
+  const storedBoundPlan = await repo.getLatestLaunchExecutionPlan(jobId);
+  assert(storedBoundPlan?.plan_hash === boundPlan.planHash, "confirmed_plan_was_overwritten_after_drift");
+  assertThrows(
+    () => buildExecutionPlanFromBundle(bundle, {
+      singleVariableExperiment: {
+        ...boundExperiment,
+        changedPaths: [...boundExperiment.changedPaths, "budget"]
+      }
+    }),
+    "invalid_single_variable_experiment_binding",
+    "unapproved_plan_binding_was_not_rejected"
+  );
   const missingMonitorPlan = buildExecutionPlanFromBundle({
     ...bundle,
     account: { ...(bundle.account || {}), monitor_id: "" },
@@ -146,6 +324,13 @@ try {
       exactScopeStatus: exactScope.status,
       outsideScopeStatus: outsideScope.status,
       outsideScopeBlockers: outsideScope.blockers
+    },
+    singleVariableExperiment: {
+      filterEventDiffStatus: filterEventDiff.status,
+      externalUrlCompatibilityStatus: externalUrlDiff.status,
+      unapprovedChangeStatus: unapprovedDiff.status,
+      planHashBound: boundPlan.planHash !== second.plan.planHash,
+      metadataBound: boundPlan.metadata.single_variable_experiment.diff_hash === boundExperiment.diffHash
     },
     noRealPlatformWrite: true,
     noTokenRefresh: true

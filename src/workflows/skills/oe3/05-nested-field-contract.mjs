@@ -2,7 +2,7 @@ import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-sel
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
 
 export const NESTED_FIELD_CONTRACT = Object.freeze({
-  ruleVersion: "2026-08-29.oe3-std-project-create-nested-fields-v2",
+  ruleVersion: "2026-08-30.oe3-std-project-create-nested-fields-v3",
   source: "postgres:mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules",
   officialCreateRef: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:142"
 });
@@ -94,6 +94,10 @@ function nestedGroupRule(rules = {}, group) {
 
 function nestedSendPolicy(rules = {}, group, fallback = "send") {
   return clean(nestedGroupRule(rules, group).send_policy || fallback);
+}
+
+function nestedFieldPolicy(rules = {}, group, fieldPolicy, fallback = "") {
+  return clean(nestedGroupRule(rules, group)[fieldPolicy] || fallback);
 }
 
 function addCheck(checks, {
@@ -440,22 +444,28 @@ export function evaluateNestedFieldContract({
   });
 
   const audience = payload.audience || {};
+  const filterEventPolicy = nestedFieldPolicy(rules, "audience", "filter_event_policy", "missing");
+  const filterEventPresent = Object.hasOwn(audience, "filter_event");
+  const filterEventOmittedByContract = filterEventPolicy === "omit" && !filterEventPresent;
   addCheck(checks, {
     group: "audience",
     path: "audience",
     passed: clean(audience.gender) === "GENDER_UNLIMITED" &&
       HIDE_IF_CONVERTED_VALUES.has(clean(audience.hide_if_converted)) &&
       clean(audience.hide_if_converted) !== clean(payload.external_action) &&
-      Array.isArray(audience.filter_event) &&
-      audience.filter_event.includes(clean(payload.external_action)) &&
+      clean(audience.hide_if_converted) === "NO_EXCLUDE" &&
+      filterEventPolicy === "omit" &&
+      filterEventOmittedByContract &&
       integerArray(audience.retargeting_tags_exclude) &&
       audience.retargeting_tags_exclude.length > 0,
-    rule: "sent_audience_fields_match_route_enums_and_primary_optimization_event",
+    rule: "no_exclude_requires_filter_event_omitted_and_route_audience_fields_valid",
     blockerCode: "nested_audience_contract_invalid",
     actual: {
       gender: clean(audience.gender),
       hideIfConverted: clean(audience.hide_if_converted),
-      filterEventIncludesPrimary: Array.isArray(audience.filter_event) && audience.filter_event.includes(clean(payload.external_action)),
+      filterEventPolicy,
+      filterEventPresent,
+      filterEventOmittedByContract,
       dmpCount: Array.isArray(audience.retargeting_tags_exclude) ? audience.retargeting_tags_exclude.length : 0,
       dmpIntegerArray: integerArray(audience.retargeting_tags_exclude)
     }
@@ -523,7 +533,9 @@ export function evaluateNestedFieldContract({
       miniProgramUrlOnly: miniKeys.length === 1 && miniKeys[0] === "url",
       trackSendType: clean(payload.track_url_setting?.send_type),
       audienceGender: clean(audience.gender),
-      hideIfConverted: clean(audience.hide_if_converted)
+      hideIfConverted: clean(audience.hide_if_converted),
+      filterEventPolicy,
+      filterEventPresent
     },
     videoCoverMode: coverModes.length ? coverModes.join("+") : "not_checked",
     videoEvidenceRefCount: requiredVideos.filter((item) => item.evidenceRefPresent).length,
@@ -532,6 +544,9 @@ export function evaluateNestedFieldContract({
     externalUrlMaterialListPolicy: externalUrlPolicy || "missing",
     externalUrlMaterialListPresent: externalUrlListPresent,
     externalUrlMaterialListOmittedByContract: externalUrlPolicy === "omit" && !externalUrlListPresent,
+    filterEventPolicy,
+    filterEventPresent,
+    filterEventOmittedByContract,
     miniProgramLaunchLinkReady: miniProgramLaunchLink.ready === true,
     rawPayloadStored: false
   };
@@ -558,6 +573,9 @@ export function nestedFieldContractManifest(result = {}) {
     externalUrlMaterialListPolicy: result.externalUrlMaterialListPolicy || "",
     externalUrlMaterialListPresent: result.externalUrlMaterialListPresent === true,
     externalUrlMaterialListOmittedByContract: result.externalUrlMaterialListOmittedByContract === true,
+    filterEventPolicy: result.filterEventPolicy || "",
+    filterEventPresent: result.filterEventPresent === true,
+    filterEventOmittedByContract: result.filterEventOmittedByContract === true,
     miniProgramLaunchLinkReady: result.miniProgramLaunchLinkReady === true,
     rawPayloadStored: false
   };

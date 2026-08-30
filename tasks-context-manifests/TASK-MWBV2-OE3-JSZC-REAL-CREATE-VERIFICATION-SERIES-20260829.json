@@ -2,13 +2,13 @@
   "schema_version": "2026-08-29.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829",
   "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
-  "status": "failed_waiting_manual_review",
+  "status": "closed_exhausted_failed_or_unconfirmed",
   "created_at": "2026-08-29 CST",
-  "updated_at": "2026-08-29 CST",
+  "updated_at": "2026-08-30 CST",
   "owner_agent": "codex",
   "brief": {
     "goal": "Run at most three independently confirmed JSZC std_project create validations; stop the series immediately after any confirmed creation.",
-    "mode": "implementation_then_manual_single_create",
+    "mode": "closed_after_three_failed_or_unconfirmed_attempts",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
     "report_or_view_creation_allowed": false
@@ -152,5 +152,56 @@
       "raw_response_stored": false
     }
   },
-  "completion_gate": "Any returned project ID or name-matched list record closes the whole series. If all three attempts fail without a verified object, close the series and require a new approved remediation task before any further create."
+  "completion_gate": "Any returned project ID or name-matched list record closes the whole series. If all three attempts fail without a verified object, close the series and require a new approved remediation task before any further create.",
+  "attempt_2_result": {
+    "status": "failed_or_unconfirmed",
+    "job_id": "JOB-MWBV2-20260830010824-488F0E",
+    "create_action_count_after_attempt": 2,
+    "created_object_count": 0,
+    "readback_verified_count": 0,
+    "automatic_retry": false
+  },
+  "attempt_3_preparation": {
+    "status": "executed_failed_or_unconfirmed",
+    "job_id": "JOB-MWBV2-20260830031657-2CE128",
+    "draft_id": "DRAFT-JOB-MWBV2-20260830031657-2CE128-V3",
+    "plan_id": "PLAN-JOB-MWBV2-20260830031657-2CE128-V3",
+    "candidate_field": "audience.filter_event",
+    "platform_actions": 1,
+    "launch_confirmations": 1
+  },
+  "attempt_3_result": {
+    "status": "failed_or_unconfirmed",
+    "create_call_count": 1,
+    "http_status": 200,
+    "api_code": "40000",
+    "request_id_present": true,
+    "complete_request_id_stored": false,
+    "object_id_present": false,
+    "readback_attempt_count": 3,
+    "readback_delays_ms": [0, 10000, 30000],
+    "readback_status": "not_found_after_create",
+    "create_action_count_after_attempt": 3,
+    "created_object_count": 0,
+    "readback_verified_count": 0,
+    "automatic_retry": false,
+    "attempt_4_allowed": false,
+    "external_url_compensation_applied": true,
+    "final_external_url_policy": "omit",
+    "final_filter_event_policy": "omit"
+  },
+  "known_projection_defect": {
+    "projection": "mwb.workflow_case_summary.action_readback_state",
+    "issue": "latest_job_attempt_count_does_not_show_series_3_of_3",
+    "authoritative_series_state": "platform_actions.metadata.verification_series_id aggregate",
+    "series_hard_lock_intact": true,
+    "fix_deferred": true
+  },
+  "handoff": {
+    "to_task_id": "TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830",
+    "to_task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md",
+    "reason": "Attempt 3 consumed the final series slot, returned 40000, and all three list readbacks missed; the series is closed.",
+    "platform_write_scope_remains_closed": true,
+    "next_possible_attempt_no": null
+  }
 }

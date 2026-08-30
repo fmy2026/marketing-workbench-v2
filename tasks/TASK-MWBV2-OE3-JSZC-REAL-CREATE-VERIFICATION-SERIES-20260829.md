@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829
 
-状态：failed_waiting_manual_review
+状态：closed_exhausted_failed_or_unconfirmed
 
 更新时间：2026-08-29 CST
 
@@ -53,6 +53,9 @@
 - [x] 创建 Attempt 1 的 fresh runtime-truth Job，完成 Node 1–5，并记录唯一 Job/Draft/Plan/hash。
 - [x] 用户对 Attempt 1 的精确对象与 `SCHEDULE_FROM_NOW` 风险作出独立确认。
 - [x] Attempt 1 已执行唯一一次 `std_project/create`，并完成三次只读回查；未命中，已停止。
+- [x] Attempt 2 使用 fresh P02 Job 执行唯一一次 create；返回 `40000` 且三次回查未命中，系列累计为 `2/3`。
+- [x] Attempt 3 已以 P02 为基线完成 `audience.filter_event` 单变量省略的 hash-bound Plan，并按精确授权调用一次 create。
+- [x] Attempt 3 返回 HTTP `200` / 业务码 `40000`、无项目 ID，三次 list 回查未命中；系列以 `3/3` 耗尽并关闭。
 
 ## Attempt 1 准备记录（尚未创建）
 
@@ -86,6 +89,26 @@
 | 写入 scope | 已由执行器自动关闭：`platform_write_allowed=false`、allowed actions 为空 |
 
 该结果只说明本次创建未被平台确认，不能据此猜测 `40000` 的具体原因。下一次只能在新 Task/修正方案获确认后，使用 fresh Attempt 2 的 Job、Draft、Plan 和新的人工确认。
+
+## 历史 Handoff 与当前接续
+
+Attempt 1 的 `40000` 未包含安全可记录的具体字段路径，且三次 list 回查均未确认对象；其历史归因已交由 [TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830](TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.md)。Attempt 2 同样未确认对象。
+
+最终接续为 [TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830](TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md)：Attempt 3 已执行且未确认创建成功；系列累计 `3/3`，platform write scope 已关闭，不得 Attempt 4。
+
+## Attempt 3 执行结果（系列终态）
+
+| 项 | 结果 |
+| --- | --- |
+| Job / Plan | `JOB-MWBV2-20260830031657-2CE128` / `PLAN-JOB-MWBV2-20260830031657-2CE128-V3` |
+| 单变量 | `audience.filter_event`：单条数组 → 完全省略；其余业务发送形态按 P02 冻结 |
+| 创建 | 恰好 1 次；HTTP `200` / 平台码 `40000`；请求 ID 仅保存存在性；无项目 ID |
+| 回查 | 累计 `0/10/30` 秒三次；均 HTTP `200` / 平台码 `0`；项目名未命中 |
+| 系列 | action `3`、created object `0`、verified readback `0`；达到上限并关闭 |
+| 补偿 | 备用落地页策略恢复 `omit`；`filter_event=omit` 合同保留 |
+| 解释 | 该单变量不足以使 P02 组合通过；不能据此确定前两次 `40000` 的唯一根因 |
+
+`mwb.workflow_case_summary.action_readback_state` 当前仍按 latest Job 投影为单 Job `1/3`，没有展示 verification series 的真实 `3/3`。这是独立审计投影缺陷；执行授权与防重使用 Postgres series action 聚合，系列硬锁不受影响。本任务不把该投影缺陷与平台 `40000` 混为一谈。
 
 ## 本地验证
 

@@ -1,0 +1,23 @@
+{
+  "schema_version": "2026-08-30.oneoff-archive-v1",
+  "archive_id": "20260830-jszc-oneoff",
+  "status": "completed_archived",
+  "archived_at": "2026-08-30 CST",
+  "reason": "Historical-template create and two-Job forensic scripts completed; remove them from runtime directories and long-term command surfaces.",
+  "task_ids": [
+    "TASK-MWBV2-OE3-JSZC-HISTORICAL-TEMPLATE-ONEOFF-20260830",
+    "TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830"
+  ],
+  "runtime_dependency_allowed": false,
+  "package_command_registered": false,
+  "raw_payload_stored": false,
+  "raw_response_stored": false,
+  "files": [
+    "scripts/oneoff/06-jszc-historical-template-create-smoke.mjs",
+    "scripts/oneoff/06-jszc-historical-template-create.mjs",
+    "scripts/oneoff/06-jszc-official-two-job-forensic-smoke.mjs",
+    "scripts/oneoff/06-jszc-official-two-job-forensic.mjs",
+    "src/oneoff/jszcHistoricalTemplateCreate.mjs",
+    "src/oneoff/jszcOfficialTwoJobForensic.mjs"
+  ]
+}

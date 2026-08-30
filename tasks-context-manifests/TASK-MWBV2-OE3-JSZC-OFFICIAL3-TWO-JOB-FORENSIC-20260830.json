@@ -1,0 +1,86 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830.md",
+  "status": "completed_readonly_forensic",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Rebuild the official OE3 contract and forensically compare the P02 full-chain Job with the historical one-off Job without writing platform or database state.",
+    "mode": "official3_postgres_two_job_readonly_forensic",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_new_create_attempts": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830.json",
+    "docs/Solution Design.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-2-巨量营销智擎版-项目管理-创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/标准项目下获取可用优化目标.md",
+    ".archive/20260830-jszc-oneoff/src/oneoff/jszcOfficialTwoJobForensic.mjs",
+    ".archive/20260830-jszc-oneoff/scripts/oneoff/06-jszc-official-two-job-forensic.mjs",
+    "docs/.问题排查/3.0项目创建排查对比/JSZC-官方3.0-双JOB-40000-问题定位-20260830.md"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "p02_baseline_job_id": "JOB-MWBV2-20260830010824-488F0E",
+    "historical_oneoff_job_id": "JOB-MWBV2-HISTORICAL-20260830015756-E5D9E1D9",
+    "future_baseline": "p02_full_contract_chain",
+    "maximum_platform_actions": 0,
+    "retry_allowed": false
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-OFFICIAL3-TWO-JOB-FORENSIC-20260830.json",
+    "project.state.json",
+    ".archive/20260830-jszc-oneoff/src/oneoff/jszcOfficialTwoJobForensic.mjs",
+    ".archive/20260830-jszc-oneoff/scripts/oneoff/06-jszc-official-two-job-forensic.mjs",
+    ".archive/20260830-jszc-oneoff/scripts/oneoff/06-jszc-official-two-job-forensic-smoke.mjs",
+    "docs/.问题排查/3.0项目创建排查对比/JSZC-官方3.0-双JOB-40000-问题定位-20260830.md"
+  ],
+  "forbidden_actions": [
+    "std_project/create or any other platform write",
+    "token refresh",
+    "database insert, update, delete, migration, schema or view change",
+    "mutation of either target Job, Case, Draft, Plan, Action or Readback",
+    "route default, payload builder, preflight, nested contract or Node registry mutation",
+    "fresh runtime Job, Draft, Plan, confirmation or candidate create scope",
+    "raw request, raw payload, raw response, credential, complete URL or complete request ID persistence or output"
+  ],
+  "validation_plan": [
+    "fixture smoke for field comparison, candidate decision tree, allowlisted single-variable diff and sensitive-output rejection",
+    "real Postgres read-only analysis of both frozen Jobs and action/draft hash consistency",
+    "optional live platform GET probes with an in-memory no-write repository facade",
+    "before/after target Job audit-count equality",
+    "node --check, JSON parse and git diff --check"
+  ],
+  "human_gate": {
+    "before_future_create": [
+      "a candidate replacement is proven by an authoritative current-account read-only source",
+      "a separate corrective Task, Manifest, fresh Case/Job/Draft/Plan and exact single-variable diff are prepared",
+      "the user explicitly confirms the exact future create after reviewing schedule, budget and bid risk"
+    ]
+  },
+  "stop_conditions": [
+    "no externally verified replacement exists for the selected field",
+    "more than project name, fresh evidence/hash and one approved business field would change",
+    "any action would write platform or database state",
+    "the only remaining proof is another create attempt"
+  ],
+  "solution_link": {
+    "source": "User-approved JSZC dual-40000 official-contract and P02 single-variable validation plan.",
+    "objective": "Produce a falsifiable common-plus-branch diagnosis and freeze the P02 baseline without performing a create.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, this Task/Manifest, current code, official OE3 3.0 documentation and safe read-only summaries.",
+    "stop_condition": "Stop before any database or platform mutation and require a separately approved corrective create task."
+  }
+}

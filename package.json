@@ -26,6 +26,7 @@
     "validate:schemas": "node scripts/00-schema-validation-smoke.mjs",
     "test:payload-contract": "node scripts/05-payload-contract-smoke.mjs",
     "test:create-result-mapping": "node scripts/00-create-result-mapping-smoke.mjs",
+    "test:safe-platform-error-summary": "node scripts/00-safe-platform-error-summary-smoke.mjs",
     "test:execution-grant": "node scripts/00-execution-grant-smoke.mjs",
     "test:execution-plan": "node scripts/00-execution-plan-smoke.mjs",
     "test:std-project-create-wire-body": "node scripts/06-std-project-create-wire-body-smoke.mjs",

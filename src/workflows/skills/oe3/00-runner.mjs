@@ -458,7 +458,10 @@ async function executeSkill({ repo, context, skillKey }) {
         createAttemptNo: context.createAttemptNo,
         verificationSeriesId: context.verificationSeriesId,
         verificationTaskRef: context.verificationTaskRef,
-        maximumCreateAttempts: context.maximumCreateAttempts
+        maximumCreateAttempts: context.maximumCreateAttempts,
+        singleVariableExperiment: context.singleVariableExperiment,
+        expectedPlanId: context.expectedPlanId,
+        expectedPlanHash: context.expectedPlanHash
       });
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
@@ -518,7 +521,10 @@ async function executeSkill({ repo, context, skillKey }) {
           createAttemptNo: context.createAttemptNo,
           verificationSeriesId: context.verificationSeriesId,
           verificationTaskRef: context.verificationTaskRef,
-          maximumCreateAttempts: context.maximumCreateAttempts
+          maximumCreateAttempts: context.maximumCreateAttempts,
+          singleVariableExperiment: context.singleVariableExperiment,
+          expectedPlanId: context.expectedPlanId,
+          expectedPlanHash: context.expectedPlanHash
         });
       }
     }
@@ -589,20 +595,43 @@ async function executeSkill({ repo, context, skillKey }) {
   } else if (skillKey === "create-readiness") {
     result = await executeCreateReadiness({ repo, context });
   } else if (skillKey === "create-once") {
-    result = await runCreateOnceSkill({
-      repo,
-      bundle: context.bundle,
-      mode: context.mode,
-      mockReady: context.mockReady,
-      mockExecute: context.mockExecute,
-      readiness: output(context, "create-readiness").outputSummary?.createReadiness || {},
-      allowNetworkWrite: context.allowNetworkWrite === true,
-      confirmationIntent: context.confirmationIntent || "",
-      confirmVariableValue: context.confirmVariableValue || "",
-      grantSource: context.grantSource || "",
-      executionGrantId: context.executionGrantId || "",
-      fetchImpl: context.fetchImpl || globalThis.fetch
-    });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+    const currentPlanId = context.bundle.executionPlan?.plan_id || "";
+    const currentPlanHash = context.bundle.executionPlan?.plan_hash || "";
+    const confirmedPlanBlockers = [
+      ...(context.expectedPlanId && currentPlanId !== context.expectedPlanId ? ["confirmed_plan_id_drift"] : []),
+      ...(context.expectedPlanHash && currentPlanHash !== context.expectedPlanHash ? ["confirmed_plan_hash_drift"] : [])
+    ];
+    result = confirmedPlanBlockers.length
+      ? {
+          status: "blocked",
+          blockers: confirmedPlanBlockers,
+          evidenceRefs: [],
+          outputSummary: {
+            createNodeStatus: "blocked_before_create",
+            createCalled: false,
+            mockCreateCalled: false,
+            realPlatformWriteCalled: false,
+            retryAllowed: false,
+            nextConfirmationRequired: true,
+            blockers: confirmedPlanBlockers,
+            reason: "已确认的 Execution Plan ID/hash 在 Node 6 原子 claim 前发生漂移。"
+          }
+        }
+      : await runCreateOnceSkill({
+          repo,
+          bundle: context.bundle,
+          mode: context.mode,
+          mockReady: context.mockReady,
+          mockExecute: context.mockExecute,
+          readiness: output(context, "create-readiness").outputSummary?.createReadiness || {},
+          allowNetworkWrite: context.allowNetworkWrite === true,
+          confirmationIntent: context.confirmationIntent || "",
+          confirmVariableValue: context.confirmVariableValue || "",
+          grantSource: context.grantSource || "",
+          executionGrantId: context.executionGrantId || "",
+          fetchImpl: context.fetchImpl || globalThis.fetch
+        });
   } else if (skillKey === "readback-std-project") {
     result = await runReadbackSkill({
       repo,
@@ -835,6 +864,9 @@ export async function runOe3WorkflowSkills({
   verificationSeriesId = "",
   verificationTaskRef = "",
   maximumCreateAttempts = 3,
+  singleVariableExperiment = {},
+  expectedPlanId = "",
+  expectedPlanHash = "",
   awemeAuthorizationClient = null
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
@@ -862,7 +894,10 @@ export async function runOe3WorkflowSkills({
       createAttemptNo: numericAttemptNo,
       verificationSeriesId,
       verificationTaskRef,
-      maximumCreateAttempts: numericMaximumCreateAttempts
+      maximumCreateAttempts: numericMaximumCreateAttempts,
+      singleVariableExperiment,
+      expectedPlanId,
+      expectedPlanHash
     });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
@@ -898,6 +933,9 @@ export async function runOe3WorkflowSkills({
     verificationSeriesId,
     verificationTaskRef,
     maximumCreateAttempts: numericMaximumCreateAttempts,
+    singleVariableExperiment,
+    expectedPlanId,
+    expectedPlanHash,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null
@@ -920,7 +958,7 @@ export async function runOe3WorkflowSkills({
         skillOutputs: context.skillOutputs
       });
     await repo.upsertNodeRuns(jobId, nodes);
-    if (EXECUTION_PLAN_MODES.has(mode)) {
+    if (EXECUTION_PLAN_MODES.has(mode) && !(mode === "execute_once" && expectedPlanId && expectedPlanHash)) {
       await compileAndSaveExecutionPlan({
         repo,
         jobId,
@@ -928,7 +966,10 @@ export async function runOe3WorkflowSkills({
         createAttemptNo: numericAttemptNo,
         verificationSeriesId,
         verificationTaskRef,
-        maximumCreateAttempts: numericMaximumCreateAttempts
+        maximumCreateAttempts: numericMaximumCreateAttempts,
+        singleVariableExperiment,
+        expectedPlanId,
+        expectedPlanHash
       });
     }
     if (mode === "dry_run") {

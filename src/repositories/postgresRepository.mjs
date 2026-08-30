@@ -788,12 +788,38 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async updateWorkflowCaseLifecycle({ caseId, lifecycleStatus, metadataPatch = {} } = {}) {
+    assertId("case_id", caseId);
+    assertId("lifecycle_status", lifecycleStatus);
+    if (typeof metadataPatch !== "object" || Array.isArray(metadataPatch) || metadataPatch === null) {
+      throw new Error("invalid_workflow_case_metadata_patch");
+    }
+    await runPsql(`
+      UPDATE mwb.workflow_cases
+      SET lifecycle_status = ${sqlLiteral(lifecycleStatus)},
+          metadata = metadata || ${sqlJson(metadataPatch)},
+          updated_at = now()
+      WHERE case_id = ${sqlLiteral(caseId)};
+    `, this.database);
+  }
+
   async getWorkflowCaseByKey(caseKey) {
     assertId("case_key", caseKey, /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/);
     return queryJson(`
       SELECT to_jsonb(wc)::text
       FROM mwb.workflow_cases wc
       WHERE wc.case_key = ${sqlLiteral(caseKey)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getLatestLaunchJobByCase(caseId) {
+    assertId("case_id", caseId);
+    return queryJson(`
+      SELECT to_jsonb(job)::text
+      FROM mwb.launch_jobs job
+      WHERE job.case_id = ${sqlLiteral(caseId)}
+      ORDER BY job.updated_at DESC, job.created_at DESC, job.job_id DESC
       LIMIT 1;
     `, this.database);
   }

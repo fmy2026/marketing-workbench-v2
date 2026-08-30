@@ -1,0 +1,158 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830.md",
+  "status": "closed_forensic_after_attempt_2_40000",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Prepare a single-variant Attempt 2 that sends exactly one verified backup landing page and cannot call create until a fresh explicit confirmation.",
+    "mode": "corrective_payload_contract_and_fresh_draft_preparation",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "credential_refresh_allowed": false,
+    "new_database_report_or_view_creation_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830.json",
+    "docs/Solution Design.md",
+    "docs/.问题排查/3.0项目创建排查对比/JSZC-1871922346964041-P10-创建40000-字段差异排查-20260830.md",
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.md",
+    "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "verification_series_id": "SERIES-MWBV2-JSZC-REAL-CREATE-20260829",
+    "attempt_no": 2,
+    "maximum_create_attempts": 3,
+    "candidate_field": "project_materials.external_url_material_list",
+    "candidate_change": "absent_to_single_verified_https_backup_landing_page",
+    "expected_project_slot": "fresh_date_scoped_reservation"
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT2-EXTERNAL-URL-SINGLE-VARIANT-20260830.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830.json",
+    "project.state.json",
+    "db/050_jszc_attempt2_external_url_single_variant.sql",
+    "db/051_jszc_attempt2_external_url_restore_omit.sql",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/06-create-verification-series-prepare.mjs"
+  ],
+  "forbidden_actions": [
+    "std_project/create before fresh user confirmation",
+    "promotion/create",
+    "resource, material, anchor, component, event asset, DMP, budget, bid, pause, or promotion write",
+    "token refresh",
+    "new table, view, dashboard, or database report",
+    "writing token, secret, Cookie, auth_code, full URL, raw request, raw payload, or raw response"
+  ],
+  "validation_plan": [
+    "apply one route-default metadata migration only",
+    "npm run test:payload-contract",
+    "npm run test:execution-plan",
+    "npm run smoke:workflow-skills",
+    "fresh runtime-truth Node 1-5 plus execution-plan preparation for Attempt 2",
+    "JSON parse, Markdown links, and git diff --check"
+  ],
+  "human_gate": {
+    "before_attempt_2_create": [
+      "fresh Job, Draft, Plan, payload hash and date-scoped reserved project name are displayed",
+      "Node 1-5, duplicate check, payload contract, preflight and field-diff whitelist pass",
+      "the user explicitly confirms exactly one Attempt 2 and accepts SCHEDULE_FROM_NOW, budget and bid risk"
+    ]
+  },
+  "prepared_attempt": {
+    "job_id": "JOB-MWBV2-20260830010824-488F0E",
+    "draft_id": "DRAFT-JOB-MWBV2-20260830010824-488F0E-V2",
+    "plan_id": "PLAN-JOB-MWBV2-20260830010824-488F0E-V2",
+    "plan_hash": "sha256:eaed9940f8065b347630c1e32a127f6955f37bad0cefc81695f73e4c0fd8af80",
+    "payload_hash": "sha256:f2c98efc3a7279634e91501013c5009f7a39940d1aa03b6c78b0b8ce73eae104",
+    "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P02_20260830",
+    "node_1_to_5_status": "passed",
+    "payload_contract_status": "passed",
+    "create_preflight_status": "passed",
+    "duplicate_status": "platform_not_duplicate",
+    "field_diff": {
+      "baseline_job_id": "JOB-MWBV2-20260829151802-CB8550",
+      "status": "passed",
+      "changed_paths": [
+        "name",
+        "project_materials.external_url_material_list",
+        "project_materials.external_url_material_list.[]"
+      ],
+      "blocked_paths": [],
+      "raw_payload_stored": false
+    },
+    "platform_write_audit": {
+      "launch_confirmations": 0,
+      "platform_actions": 0,
+      "created_objects": 0,
+      "readback_records": 0
+    }
+  },
+  "actual_attempt_result": {
+    "create_called": true,
+    "http_status": 200,
+    "api_code": "40000",
+    "request_id_present": true,
+    "object_id_present": false,
+    "error_category": "resource_not_eligible",
+    "offending_field_path_present": false,
+    "response_hash": "sha256:5aa392773a63f768736b1642f1fa90f6800856643ae22cfd15acdd9202084aa8",
+    "list_readback": {
+      "attempt_delays_seconds": [0, 10, 30],
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "object_id_present": false,
+      "object_name_matches": false,
+      "readback_status": "not_found_after_create",
+      "response_hash": "sha256:5bbb627f6b388e04d9e70d19f1304f262cd503f03b79049b387d28bc96f3b718"
+    },
+    "route_contract_after_close": "omit",
+    "automatic_retry": false,
+    "raw_payload_stored": false,
+    "raw_response_stored": false
+  },
+  "aborted_local_preparation": {
+    "job_id": "JOB-MWBV2-20260830005850-40C6E5",
+    "reason": "corrective_attempt_project_name_missing before a fresh reservation was implemented",
+    "drafts": 0,
+    "launch_confirmations": 0,
+    "platform_actions": 0,
+    "created_objects": 0,
+    "readback_records": 0,
+    "counts_toward_verification_series": false
+  },
+  "stop_conditions": [
+    "missing or invalid controlled backup landing-page readiness evidence",
+    "payload difference outside the approved single-field whitelist",
+    "request to call create before the human gate",
+    "need to restore omit after a real create failure without separate approval"
+  ],
+  "handoff": {
+    "from_task_id": "TASK-MWBV2-OE3-JSZC-ATTEMPT1-40000-FORENSIC-20260830",
+    "reason": "The official 3.0 document lists external_url_material_list as conditional-required, while the current contract omitted it without a directly proven MICRO_GAME BYTE_GAME URL-only exception.",
+    "platform_write_scope_remains_closed": true
+  }
+}

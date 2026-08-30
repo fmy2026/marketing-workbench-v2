@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { STD_PROJECT_CREATE_CONFIRM_VALUE } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
+import { compileAndSaveExecutionPlan } from "../src/workflows/executionPlan.mjs";
 import {
   EXECUTION_GRANT_INTENT,
   executeConfirmedLaunch
@@ -62,7 +63,8 @@ function fakeFetchFactory({
   createApiCode = "0",
   createObjectIdPresent = true,
   listMatch = true,
-  createMessage = ""
+  createMessage = "",
+  createTransportThrows = false
 }) {
   const calls = [];
   async function fakeFetch(url, options = {}) {
@@ -78,6 +80,7 @@ function fakeFetchFactory({
       } : {})
     });
     if (href.includes("/std_project/create/")) {
+      if (createTransportThrows) throw new Error("synthetic_create_transport_error");
       return new Response(JSON.stringify({
         code: createApiCode,
         request_id: "fake-request-create",
@@ -335,6 +338,49 @@ try {
   assert(successStateAfter.guardrails.platform_write_scope.maximum_actions === 0, "scope maximum actions should be reset");
   assertNoSensitiveLeak(result);
 
+  const boundView = await createReadyTestJob("execution-grant-smoke:single-variable-plan-binding");
+  const boundExperiment = {
+    status: "passed",
+    baselineJobId: "JOB-BASELINE-P02-SMOKE",
+    baselinePayloadHash: `sha256:${"1".repeat(64)}`,
+    freshPayloadHash: boundView.payloadHash,
+    candidatePath: "audience.filter_event",
+    candidateDirection: "single_item_to_omitted",
+    diffHash: `sha256:${"2".repeat(64)}`,
+    allowedChangedPaths: ["name", "audience.filter_event", "audience.filter_event.[]"],
+    changedPaths: ["name", "audience.filter_event", "audience.filter_event.[]"]
+  };
+  const boundCompiled = await compileAndSaveExecutionPlan({
+    repo,
+    jobId: boundView.jobId,
+    singleVariableExperiment: boundExperiment
+  });
+  const boundState = await writeProjectStateForScope({
+    ...boundView,
+    overrides: {
+      target_plan_id: boundCompiled.plan.planId,
+      target_plan_hash: boundCompiled.plan.planHash,
+      allowed_plan_actions: ["std_project_create"]
+    }
+  });
+  const boundFetch = fakeFetchFactory({ projectId: "999900013" });
+  const boundResult = await executeConfirmedLaunch({
+    repo,
+    jobId: boundView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: boundFetch,
+    projectStatePath: boundState
+  });
+  assertOneCreateOneReadback(boundFetch);
+  assert(boundResult.executionGrant.createCalled === true, "bound experiment should execute once");
+  const boundAfter = await repo.getLatestLaunchExecutionPlan(boundView.jobId);
+  assert(boundAfter?.plan_id === boundCompiled.plan.planId, "bound plan id drifted during execute_once");
+  assert(boundAfter?.plan_hash === boundCompiled.plan.planHash, "bound plan hash drifted during execute_once");
+  assert(boundAfter?.metadata?.single_variable_experiment?.validation_status === "passed", "bound experiment validation status was lost");
+  assert(boundAfter?.metadata?.single_variable_experiment?.candidate_path === "audience.filter_event", "bound experiment candidate was lost");
+  assert(boundAfter?.metadata?.single_variable_experiment?.diff_hash === boundExperiment.diffHash, "bound experiment diff hash was lost");
+
   const recoveredView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-hit");
   const recoveredState = await writeProjectStateForScope(recoveredView);
   const recoveredFetch = fakeFetchFactory({
@@ -361,7 +407,7 @@ try {
   assert(recovered.readback?.status === "readback_verified", "recovered readback should be verified");
   assert(recoveredReadback.outputSummary?.recoveredByReadback === true, "readback should mark recoveredByReadback");
   const recoveredAudit = await repo.getLaunchJobBundle(recoveredView.jobId);
-  assert(recoveredAudit.platformAction?.request_id_recorded === true, "request_id should be retained only in internal action audit");
+  assert(recoveredAudit.platformAction?.request_id_recorded === false, "complete request_id must not be retained in action audit");
   assert(recoveredAudit.platformAction?.error_category === "landing_url_invalid", "field error should have a safe landing URL category");
   assert(recoveredAudit.platformAction?.offending_field_path === "project_materials.external_url_material_list", "field error should retain only the allowed field path");
   assert(!JSON.stringify(recoveredAudit.platformAction || {}).includes("invalid parameter"), "platform error text must not be persisted in public job data");
@@ -403,6 +449,29 @@ try {
   assert(missedSecond.executionGrant.status === "blocked", "failed job second grant should be blocked");
   assert(missedSecond.executionGrant.createCalled === false, "failed job second grant should not create");
   assertNoSensitiveLeak(missed);
+
+  const transportView = await createReadyTestJob("execution-grant-smoke:create-transport-unconfirmed-readback-miss");
+  const transportState = await writeProjectStateForScope(transportView);
+  const transportFetch = fakeFetchFactory({
+    projectId: "999900014",
+    createTransportThrows: true,
+    listMatch: false
+  });
+  const transportResult = await executeConfirmedLaunch({
+    repo,
+    jobId: transportView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: transportFetch,
+    projectStatePath: transportState
+  });
+  assertOneCreateOneReadback(transportFetch);
+  const transportAudit = await repo.getLaunchJobBundle(transportView.jobId);
+  assert(transportAudit.platformAction?.action_status === "failed_or_unconfirmed", "transport error action must be closed as unconfirmed");
+  assert(transportAudit.platformAction?.api_code === "transport_error", "transport error API code missing");
+  assert(transportAudit.platformAction?.request_id_recorded === false, "transport error must not retain request id");
+  assert(transportResult.executionGrant.createCalled === true, "transport error must preserve that create was attempted");
+  assert(transportResult.readback?.status === "not_found_after_create", "transport error must continue to readback");
 
   const unknownView = await createReadyTestJob("execution-grant-smoke:create-40000-unclassified");
   const unknownState = await writeProjectStateForScope(unknownView);
@@ -523,7 +592,8 @@ try {
     attestedBundle.readback?.field_diff_summary?.create_field_ledger?.status === "manual_console_verified",
     "manual field ledger result should be stored on the existing readback record"
   );
-  assertNoSensitiveLeak(attestedBundle.readback?.field_diff_summary || {});
+  assert(attestedBundle.readback?.field_diff_summary?.raw_response_stored === false, "readback must attest that raw response was not stored");
+  assert(!JSON.stringify(attestedBundle.readback?.field_diff_summary || {}).includes("fake-request-list"), "readback must not retain a complete request id");
 
   const seriesThird = await createReadyTestJob("execution-grant-smoke:series-attempt-3-blocked-after-success", {
     caseId: seriesCaseId,

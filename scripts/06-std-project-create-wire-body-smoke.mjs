@@ -28,9 +28,13 @@ function passedCreateFieldLedger() {
 
 function passedCurrentRouteManifest() {
   return {
-    externalUrlMaterialListPolicy: "omit",
-    externalUrlMaterialListPresent: false,
-    externalUrlMaterialListOmittedByContract: true,
+    externalUrlMaterialListPolicy: "send",
+    externalUrlMaterialListPresent: true,
+    externalUrlMaterialListOmittedByContract: false,
+    hideIfConverted: "NO_EXCLUDE",
+    filterEventPolicy: "omit",
+    filterEventPresent: false,
+    filterEventOmittedByContract: true,
     productSellingPointsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
     productSellingPointsContractRuleVersion: SELLING_POINTS_CONTRACT.ruleVersion,
     productSellingPointsCount: 1,
@@ -75,9 +79,12 @@ function passedCurrentRouteManifest() {
         "track_url_setting",
         "audience"
       ],
-      externalUrlMaterialListPolicy: "omit",
-      externalUrlMaterialListPresent: false,
-      externalUrlMaterialListOmittedByContract: true,
+      externalUrlMaterialListPolicy: "send",
+      externalUrlMaterialListPresent: true,
+      externalUrlMaterialListOmittedByContract: false,
+      filterEventPolicy: "omit",
+      filterEventPresent: false,
+      filterEventOmittedByContract: true,
       rawPayloadStored: false
     }
   };
@@ -111,7 +118,6 @@ function basePayload(instanceId = "7434750138926546994") {
       age: [],
       converted_time_duration: "THIRTY_DAY",
       hide_if_converted: "NO_EXCLUDE",
-      filter_event: ["AD_CONVERT_TYPE_PAY"],
       retargeting_tags_exclude: [100000000001],
       interest_action_mode: "UNLIMITED"
     },

@@ -104,6 +104,9 @@ export async function executeConfirmedLaunch({
   const executionGrantId = grantId(jobId, grantSource);
   const planMetadata = latestBundleBeforeCreate.executionPlan?.metadata || {};
   const createAttemptNo = Number(planMetadata.create_attempt_no || latestBundleBeforeCreate.executionPlan?.plan_version || 1);
+  const expectedPlanId = latestBundleBeforeCreate.executionPlan?.plan_id || "";
+  const expectedPlanHash = latestBundleBeforeCreate.executionPlan?.plan_hash || "";
+  const singleVariableExperiment = planMetadata.single_variable_experiment || {};
   try {
     const view = await runJob(repo, jobId, {
       mode: "execute_once",
@@ -118,6 +121,9 @@ export async function executeConfirmedLaunch({
       verificationSeriesId: planMetadata.verification_series_id || "",
       verificationTaskRef: planMetadata.task_ref || "",
       maximumCreateAttempts: Number(planMetadata.maximum_create_attempts || 3),
+      singleVariableExperiment,
+      expectedPlanId,
+      expectedPlanHash,
       projectStatePath,
       fetchImpl
     });

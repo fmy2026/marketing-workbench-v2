@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-08-28.project-control-plane-v2",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-29 CST",
+  "updated_at": "2026-08-30 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,38 +10,46 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
-    "status": "failed_waiting_manual_review",
+    "task_id": "TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.json",
+    "status": "closed_exhausted_failed_or_unconfirmed",
     "read_order": [
-      "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+      "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.json",
       "docs/Solution Design.md"
     ],
-    "updated_at": "2026-08-29 CST"
+    "updated_at": "2026-08-30 CST"
   },
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "verification_series_single_std_project_create",
+      "mode": "verification_series_attempt_3_consumed_series_exhausted",
+      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md",
+      "case_id": "CASE-LEGACY-2E4217E20C9E26BFB648772C",
       "verification_series_id": "SERIES-MWBV2-JSZC-REAL-CREATE-20260829",
-      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.md",
-      "target_job_id": "JOB-MWBV2-20260829151802-CB8550",
-      "target_draft_id": "DRAFT-JOB-MWBV2-20260829151802-CB8550",
-      "target_payload_hash": "sha256:84b9867717babc81c957b2ed9eab0f0883df175a0fd04ce46c419dce4bdf3040",
-      "target_plan_id": "PLAN-JOB-MWBV2-20260829151802-CB8550-V1",
-      "target_plan_hash": "sha256:b0b4749a09fc74974987a7647919f2e3ec447c4875f73378247c1ca98936af3a",
+      "create_attempt_no": 3,
+      "baseline_job_id": "JOB-MWBV2-20260830010824-488F0E",
+      "target_job_id": "JOB-MWBV2-20260830031657-2CE128",
+      "target_draft_id": "DRAFT-JOB-MWBV2-20260830031657-2CE128-V3",
+      "target_payload_hash": "sha256:611616c1cfcfbb66d42d204137628f8a2513369cc4bb85db3206045010af9cfe",
+      "target_plan_id": "PLAN-JOB-MWBV2-20260830031657-2CE128-V3",
+      "target_plan_hash": "sha256:eab096b09de22cdd5616b4d88519b7e57191d5b0d09f12abc0a44af0b6f430a7",
+      "target_attempt_no": 3,
       "maximum_total_attempts": 3,
-      "target_attempt_no": 1,
       "allowed_actions": [],
       "allowed_plan_actions": [
         "std_project_create"
       ],
       "maximum_actions": 0,
       "retry_allowed": false,
-      "granted_by": "user_confirmed_attempt_1_single_create_2026-08-29",
-      "granted_at": "2026-08-29 CST"
+      "consumed_action_id": "ACTION-JOB-MWBV2-20260830031657-2CE128-STD-PROJECT-CREATE-A03",
+      "result": "failed_or_unconfirmed",
+      "readback_status": "not_found_after_create",
+      "verification_series_final_action_count": 3,
+      "compensation_migration": "db/053_jszc_attempt3_external_url_restore_omit_compensation.sql",
+      "granted_by": "user_confirmed_exact_attempt_3_single_std_project_create",
+      "granted_at": "2026-08-30 CST"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

@@ -1,6 +1,9 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
-import { compileAndSaveExecutionPlan } from "../src/workflows/executionPlan.mjs";
+import {
+  compileAndSaveExecutionPlan,
+  evaluateSingleVariableLedgerDiff
+} from "../src/workflows/executionPlan.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
 function arg(name, fallback = "") {
@@ -33,12 +36,25 @@ const verificationSeriesId = required("verification-series-id");
 const verificationTaskRef = required("verification-task-ref");
 const createAttemptNo = Number(required("create-attempt-no"));
 const maximumCreateAttempts = Number(arg("maximum-create-attempts", "3"));
+const baselineJobId = required("baseline-job-id");
+const expectedBaselinePayloadHash = arg("baseline-payload-hash");
+const preparedJobId = arg("prepared-job-id");
+const candidatePath = arg("candidate-field-path", "project_materials.external_url_material_list");
+const candidateDirection = arg("candidate-direction", arg("candidate-change"));
+const candidateRules = {
+  "audience.filter_event": "single_item_to_omitted",
+  "project_materials.external_url_material_list": "omitted_to_single_item"
+};
 
 if (!Number.isInteger(createAttemptNo) || createAttemptNo < 1 || createAttemptNo > 3) {
   throw new Error("invalid_create_attempt_no");
 }
 if (!Number.isInteger(maximumCreateAttempts) || maximumCreateAttempts < 1 || maximumCreateAttempts > 3) {
   throw new Error("invalid_maximum_create_attempts");
+}
+if (!Object.hasOwn(candidateRules, candidatePath)) throw new Error("unsupported_single_variable_candidate");
+if (candidateDirection && candidateDirection !== candidateRules[candidatePath]) {
+  throw new Error("invalid_single_variable_candidate_direction");
 }
 
 const series = await repo.getCaseCreateVerificationSeriesState({
@@ -64,45 +80,103 @@ if (seriesBlockers.length) {
   }), null, 2));
   process.exitCode = 1;
 } else {
-  const sourceRecordRef = `verification-series:${verificationSeriesId}:attempt:${createAttemptNo}:${new Date().toISOString()}`;
-  const job = await createJob(repo, {
-    user_intent: `route_id=${routeId} game_code=${gameCode} advertiser_id=${advertiserId}`,
-    route_id: routeId,
-    game_code: gameCode,
-    advertiser_id: advertiserId,
-    case_id: caseId,
-    source_usage: "runtime_truth",
-    source_record_ref: sourceRecordRef
+  const baselineBundle = await repo.getLaunchJobBundle(baselineJobId);
+  if (!baselineBundle) throw new Error("baseline_job_not_found");
+  if (expectedBaselinePayloadHash && expectedBaselinePayloadHash !== baselineBundle.draft?.payload_hash) {
+    throw new Error("baseline_payload_hash_mismatch");
+  }
+  if (
+    baselineBundle.job?.case_id !== caseId ||
+    baselineBundle.job?.route_id !== routeId ||
+    baselineBundle.job?.game_code !== gameCode ||
+    String(baselineBundle.job?.advertiser_id || "") !== advertiserId
+  ) {
+    throw new Error("baseline_job_target_mismatch");
+  }
+  let job;
+  if (preparedJobId) {
+    const existingPrepared = await repo.getLaunchJobBundle(preparedJobId);
+    if (!existingPrepared?.job ||
+      existingPrepared.job.case_id !== caseId ||
+      existingPrepared.job.route_id !== routeId ||
+      existingPrepared.job.game_code !== gameCode ||
+      String(existingPrepared.job.advertiser_id || "") !== advertiserId ||
+      existingPrepared.job.source_usage !== "runtime_truth" ||
+      !existingPrepared.draft?.draft_id ||
+      existingPrepared.executionPlan) {
+      throw new Error("prepared_job_not_resumable");
+    }
+    job = { jobId: preparedJobId };
+  } else {
+    const sourceRecordRef = `verification-series:${verificationSeriesId}:attempt:${createAttemptNo}:${new Date().toISOString()}`;
+    job = await createJob(repo, {
+      user_intent: `route_id=${routeId} game_code=${gameCode} advertiser_id=${advertiserId}`,
+      route_id: routeId,
+      game_code: gameCode,
+      advertiser_id: advertiserId,
+      case_id: caseId,
+      source_usage: "runtime_truth",
+      source_record_ref: sourceRecordRef
+    });
+    await runJob(repo, job.jobId, {
+      mode: "draft_readiness",
+      allowReadonlyDependency: true,
+      createAttemptNo,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts
+    });
+  }
+  const preparedBundle = await repo.getLaunchJobBundle(job.jobId);
+  const preparedAuditCounts = await repo.getLaunchJobAuditCounts(job.jobId);
+  const readiness = createReadiness(preparedBundle);
+  const fieldDiff = evaluateSingleVariableLedgerDiff({
+    baselineBundle,
+    freshBundle: preparedBundle,
+    candidatePath,
+    candidateDirection
   });
-  await runJob(repo, job.jobId, {
-    mode: "draft_readiness",
-    allowReadonlyDependency: true,
-    createAttemptNo,
-    verificationSeriesId,
-    verificationTaskRef,
-    maximumCreateAttempts
-  });
-  await compileAndSaveExecutionPlan({
-    repo,
-    jobId: job.jobId,
-    planVersion: createAttemptNo,
-    createAttemptNo,
-    verificationSeriesId,
-    verificationTaskRef,
-    maximumCreateAttempts
-  });
+  const zeroWriteBeforePlan = Number(preparedAuditCounts.launchConfirmations || 0) === 0 &&
+    Number(preparedAuditCounts.platformActions || 0) === 0 &&
+    Number(preparedAuditCounts.createdObjects || 0) === 0 &&
+    Number(preparedAuditCounts.readbackRecords || 0) === 0;
+  const planEligible = readiness.status === "ready_for_user_create_confirmation" &&
+    zeroWriteBeforePlan &&
+    fieldDiff.status === "passed";
+  if (planEligible) {
+    await compileAndSaveExecutionPlan({
+      repo,
+      jobId: job.jobId,
+      planVersion: createAttemptNo,
+      createAttemptNo,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts,
+      singleVariableExperiment: fieldDiff
+    });
+  }
   const bundle = await repo.getLaunchJobBundle(job.jobId);
   const auditCounts = await repo.getLaunchJobAuditCounts(job.jobId);
-  const readiness = createReadiness(bundle);
   const zeroWrite = Number(auditCounts.launchConfirmations || 0) === 0 &&
     Number(auditCounts.platformActions || 0) === 0 &&
     Number(auditCounts.createdObjects || 0) === 0 &&
     Number(auditCounts.readbackRecords || 0) === 0;
+  const storedExperiment = bundle.executionPlan?.metadata?.single_variable_experiment || {};
+  const planBound = bundle.executionPlan?.plan_status === "ready" &&
+    storedExperiment.validation_status === "passed" &&
+    storedExperiment.diff_hash === fieldDiff.diffHash &&
+    storedExperiment.baseline_job_id === baselineJobId &&
+    storedExperiment.baseline_payload_hash === fieldDiff.baselinePayloadHash &&
+    storedExperiment.candidate_path === fieldDiff.candidatePath &&
+    storedExperiment.candidate_direction === fieldDiff.candidateDirection;
   const summary = sanitizeForPublic({
-    status: readiness.status === "ready_for_user_create_confirmation" && zeroWrite ? "ready_for_exact_user_confirmation" : "draft_preparation_blocked",
+    status: planEligible && zeroWrite && planBound
+      ? "ready_for_exact_user_confirmation"
+      : "draft_preparation_blocked",
     verificationSeriesId,
     createAttemptNo,
     maximumCreateAttempts,
+    resumedPreparedJob: Boolean(preparedJobId),
     jobId: bundle.job.job_id,
     draftId: bundle.draft?.draft_id || "",
     planId: bundle.executionPlan?.plan_id || "",
@@ -116,6 +190,25 @@ if (seriesBlockers.length) {
       payloadContractStatus: readiness.payloadContractStatus || "",
       createPreflightStatus: readiness.createPreflightStatus || "",
       duplicateStatus: readiness.duplicateStatus || ""
+    },
+    fieldDiff: {
+      baselineJobId,
+      baselinePayloadHash: fieldDiff.baselinePayloadHash,
+      candidatePath: fieldDiff.candidatePath,
+      candidateDirection: fieldDiff.candidateDirection,
+      status: fieldDiff.status,
+      diffHash: fieldDiff.diffHash,
+      allowedChangedPaths: fieldDiff.allowedChangedPaths,
+      changedPaths: fieldDiff.changedPaths,
+      blockedPaths: fieldDiff.blockedPaths,
+      blockers: fieldDiff.blockers,
+      requiredChangedPathPresent: fieldDiff.requiredChangedPathPresent === true,
+      rawPayloadStored: false
+    },
+    executionPlanBinding: {
+      emittedAfterDiffPassed: planEligible,
+      status: planBound ? "passed" : "blocked",
+      diffHashBound: planBound
     },
     auditCounts,
     zeroPlatformWriteAudit: { passed: zeroWrite },

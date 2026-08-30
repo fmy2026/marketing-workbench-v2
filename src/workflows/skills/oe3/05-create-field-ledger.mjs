@@ -1,10 +1,9 @@
 import { hashValue } from "./00-contracts.mjs";
 
-export const CREATE_FIELD_LEDGER_VERSION = "2026-08-29.oe3-std-project-create-field-ledger-v1";
+export const CREATE_FIELD_LEDGER_VERSION = "2026-08-30.oe3-std-project-create-field-ledger-v2";
 
-const OMITTED_PATHS = Object.freeze([
+const ALWAYS_OMITTED_PATHS = Object.freeze([
   "micro_promotion_type",
-  "project_materials.external_url_material_list",
   "project_materials.mini_program_info.app_id",
   "project_materials.mini_program_info.start_path",
   "project_materials.mini_program_info.params",
@@ -98,11 +97,19 @@ function hasPath(value, dotted) {
   });
 }
 
-export function evaluateCreateFieldLedger(payload = {}) {
+export function evaluateCreateFieldLedger(payload = {}, {
+  externalUrlMaterialListPolicy = "omit",
+  filterEventPolicy = "omit"
+} = {}) {
   const entries = collectEntries(payload)
     .filter((entry) => entry.path)
     .sort((left, right) => left.path.localeCompare(right.path));
-  const omitted = OMITTED_PATHS.map((path) => ({
+  const omittedPaths = [
+    ...ALWAYS_OMITTED_PATHS,
+    ...(externalUrlMaterialListPolicy === "omit" ? ["project_materials.external_url_material_list"] : []),
+    ...(filterEventPolicy === "omit" ? ["audience.filter_event"] : [])
+  ];
+  const omitted = omittedPaths.map((path) => ({
     path,
     group: fieldGroup(path),
     sendPolicy: "omit",

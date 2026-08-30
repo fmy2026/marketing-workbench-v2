@@ -163,7 +163,7 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false, attempt
     ? `DRAFT-${effectiveBundle.job.job_id}`
     : `DRAFT-${effectiveBundle.job.job_id}-V${numericAttemptNo}`;
   const existingProjectName = clean(effectiveBundle.draft?.project_name);
-  const reservation = numericAttemptNo === 1 ? await repo.reserveProjectName({
+  const reservation = await repo.reserveProjectName({
     jobId: effectiveBundle.job.job_id,
     draftId,
     routeId: effectiveBundle.job.route_id,
@@ -173,8 +173,7 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false, attempt
     namePrefix,
     yyyymmdd,
     sourceUsage: effectiveBundle.job.source_usage || "runtime_truth"
-  }) : null;
-  if (numericAttemptNo > 1 && !existingProjectName) throw new Error("corrective_attempt_project_name_missing");
+  });
   if (reservation && existingProjectName && existingProjectName !== reservation.project_name) {
     throw new Error("project_name_reservation_mismatch");
   }
@@ -345,7 +344,12 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const finalPayloadHideOk = !usesFinalPayloadHash ||
     (ALLOWED_HIDE_IF_CONVERTED.has(String(finalManifest.hideIfConverted || "")) && finalManifest.hideIfConverted !== payload.objective);
   const finalPayloadFilterEventOk = !usesFinalPayloadHash ||
-    (Array.isArray(finalManifest.filterEvent) && finalManifest.filterEvent.includes(payload.objective));
+    (
+      finalManifest.hideIfConverted === "NO_EXCLUDE" &&
+      finalManifest.filterEventPolicy === "omit" &&
+      finalManifest.filterEventPresent === false &&
+      finalManifest.filterEventOmittedByContract === true
+    );
   const finalPayloadDmpOk = !usesFinalPayloadHash ||
     (
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
@@ -475,6 +479,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     nestedFieldContract.externalUrlMaterialListPresent === true &&
     nestedFieldContract.externalUrlMaterialListOmittedByContract === false
   );
+  const nestedFilterEventContractOk = nestedFieldContract.filterEventPolicy === "omit" &&
+    nestedFieldContract.filterEventPresent === false &&
+    nestedFieldContract.filterEventOmittedByContract === true;
   const finalNestedFieldContractOk = !usesFinalPayloadHash ||
     (
       nestedFieldContract.status === "passed" &&
@@ -490,6 +497,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       nestedFieldContract.checkedGroups.includes("mini_program_info") &&
       nestedFieldContract.checkedGroups.includes("audience") &&
       nestedExternalUrlContractOk &&
+      nestedFilterEventContractOk &&
       nestedFieldContract.rawPayloadStored === false
     );
   const createFieldLedger = finalManifest.createFieldLedger || {};
@@ -602,7 +610,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     {
       key: "filter_event",
       status: finalPayloadFilterEventOk ? "passed" : "blocked",
-      summary: finalPayloadFilterEventOk ? "filter_event 承担付费事件语义。" : "filter_event 未包含路线默认付费事件。"
+      summary: finalPayloadFilterEventOk
+        ? "NO_EXCLUDE 下已按路线合同完全省略 filter_event。"
+        : "NO_EXCLUDE 下 filter_event 未完全省略，或省略策略证据不完整。"
     },
     {
       key: "dmp_custom_audience_ids",
