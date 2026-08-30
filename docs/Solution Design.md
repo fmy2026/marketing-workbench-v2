@@ -116,3 +116,72 @@ PostgreSQL、当前代码和当前 Manifest 才是运行真值。
 验证与停止条件 → 验收 / validation_plan / stop_conditions
 人工确认项 → human gate / project.state.json guardrail
 ```
+
+## 单模块专项走通与机制收口
+
+当唯一底层机制中的某个单独模块尚未真实走通，或已有主流程因该模块反复阻断时，不先扩大改造范围；先用最短专项链路形成一次真实、可复用、可审计的成功经验，再回填唯一机制。
+
+最简处理逻辑：
+
+```text
+1. 只读定位
+   从 workflow_case_summary / account_resources / platform_actions / evidence_artifacts
+   找到唯一当前 blocker、目标资源、已有证据和缺口。
+
+2. 专项 Task + Manifest
+   只绑定一个 Case、一个 Job、一个资源模块、一个 plan action。
+   禁止夹带主流程其他动作。
+
+3. 本地合同确认
+   官方资料 + 当前代码 + 历史经验只用于确定：
+   endpoint、method、字段清单、幂等规则、回查接口、停止条件。
+   账号、资产、事件、模板等动态数值只从数据库或平台只读实时取得。
+
+4. 单动作 Plan
+   生成一份不可变 Plan：
+   planned_actions = [唯一动作]
+   maximum_platform_calls = 该动作最小上限
+   retry_allowed = false
+   plan_hash 固定后等待人工确认。
+
+5. 快速执行
+   写前再只读一次；
+   缺什么创建什么；
+   小实现问题可修复后用新 Plan/version 继续；
+   不重复消费旧 Plan，不自动扩大权限。
+
+6. 写后回查
+   只认最终成功接口的只读回查：
+   list/detail/config/get/goal/dbt/readback 等模块自己的权威接口。
+   回查不通过即 BLOCKED，不把创建响应本身当 READY。
+
+7. 数据库落账
+   platform_actions：记录 action 类型、endpoint path、code、脱敏摘要、idempotency_key、plan_id/hash。
+   account_resources：仅在回查通过后写 visible + readback_verified。
+   evidence_artifacts：归档脱敏证据 hash、接口路径、字段结果摘要。
+   launch_execution_plans / launch_confirmations：保留每版 Plan 与确认链路。
+   launch_node_runs / launch_skill_runs：记录专项执行结果。
+   workflow_case_summary：作为唯一对外当前状态投影。
+
+8. 机制收口
+   成功后只把“已验证接口 + 字段合同 + 回查判定 + 停止条件”固化进代码和文档；
+   不固化账户 ID、资产 ID、event_id、预算、出价、完整 URL、raw payload 或 raw response。
+   删除或降级旧的保守分支，保留必要 BLOCKED 分支用于权限、合同、歧义和回查失败。
+```
+
+最精简格式：
+
+```text
+模块卡点
+→ 只读查库/查平台定位唯一缺口
+→ 单模块 Task/Manifest
+→ 单动作 Plan + 最小调用上限
+→ 人工确认 plan_id + plan_hash
+→ 写前只读
+→ 单接口创建/补齐
+→ 写后权威回查
+→ Postgres 脱敏落账
+→ workflow_case_summary 收口
+→ project-lessons 记录经验
+→ 代码/逻辑图只保留验证通过的通用机制
+```
