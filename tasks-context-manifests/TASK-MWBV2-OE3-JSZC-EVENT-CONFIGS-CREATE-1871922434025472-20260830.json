@@ -1,0 +1,123 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
+  "status": "completed_event_chain_ready",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-31 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Create missing JSZC baseline MINI_PROGRAME_API event configs for advertiser 1871922434025472 and close event_asset readiness by readback.",
+    "mode": "single_event_chain_event_configs_api_create",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_hash_confirmation": 0,
+    "maximum_platform_actions_after_hash_confirmation": 6
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/04-event-config-provision-contract.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "src/workflows/eventConfigExecutionScope.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/executionPlan.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "job_id": "JOB-MWBV2-20260830140153-667873",
+    "planned_plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V8",
+    "planned_plan_hash": "sha256:0ec98922195eba2b4fca8971251e7520c043097ec2cb5fba938cf96fcc7b741b",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "target_resource_type": "event_asset",
+    "event_asset_id_hint": "1874962943118532",
+    "allowed_plan_action": "ensure_event_configs:baseline",
+    "platform_action_type": "oceanengine_event_config_create",
+    "create_endpoint_path": "/open_api/2/event_manager/events/create/",
+    "create_method": "POST",
+    "maximum_platform_calls": 6
+  },
+  "baseline_events": [
+    "active",
+    "active_register",
+    "active_pay",
+    "purchase_roi",
+    "purchase_roi_7d",
+    "purchase_roi_30d"
+  ],
+  "allowed_writes": [
+    "event config contract, executor, execution scope, plan builder and focused smoke tests",
+    "single V8 execution plan row for the bound Job",
+    "launch_confirmations and up to six event config platform actions only after exact plan hash confirmation",
+    "event_asset and micro_app_instance account_resources only after post-write event chain readback passes",
+    "redacted evidence_artifacts and launch_skill_runs"
+  ],
+  "forbidden_actions": [
+    "event_manager/assets/create or any second event asset creation",
+    "std_project/create, promotion/create, track_url/create, monitor create, budget or bid update",
+    "avatar, DMP, video, product image or backup landing page writes inside this task",
+    "OAuth token refresh",
+    "raw payload, raw response, complete URL, token, Cookie, secret or auth_code persistence",
+    "automatic retry after create failure or post-create readback failure"
+  ],
+  "local_sources": [
+    "docs/Solution Design.md",
+    "official:oceanengine:2.0:19-asset:event_manager/events/create:196-203",
+    "official:oceanengine:2.0-copy:17-asset:event_manager/events/create:4593-4824",
+    "Postgres marketing_workbench_v2.mwb",
+    "Postgres marketing_workbench historical event config create experience"
+  ],
+  "validation_plan": [
+    "test:event-chain-readonly",
+    "test:event-configs-executor",
+    "test:event-asset-executor",
+    "test:resource-action-registry",
+    "test:execution-plan",
+    "test:single-confirmation-orchestrator",
+    "validate:schemas",
+    "git diff --check"
+  ],
+  "human_gate": {
+    "before_real_platform_post": [
+      "Satisfied by user confirmation for the same immutable plan hash.",
+      "V7 performed the six bounded events/create calls.",
+      "V8 performed no-op readback closure."
+    ]
+  },
+  "execution_audit": [
+    "PLAN-JOB-MWBV2-20260830140153-667873-V3 stopped before oceanengine_event_config_create; platform_write_called=false.",
+    "V3 stop was caused by missing explicit event asset id hint propagation from orchestrator to the event config executor.",
+    "PLAN-JOB-MWBV2-20260830140153-667873-V4 stopped before oceanengine_event_config_create; platform_write_called=false.",
+    "V4 stop was caused by an internal claim action id that was scoped to job/action instead of plan id.",
+    "PLAN-JOB-MWBV2-20260830140153-667873-V5 stopped before oceanengine_event_config_create; platform_write_called=false.",
+    "V5 stop was caused by an internal claim idempotency key that was scoped to the planned action instead of plan id.",
+    "PLAN-JOB-MWBV2-20260830140153-667873-V6 stopped before oceanengine_event_config_create; platform_write_called=false; all_assets/detail required a JSON decimal-number array query value.",
+    "PLAN-JOB-MWBV2-20260830140153-667873-V7 executed six oceanengine_event_config_create calls; all six returned API code 0.",
+    "PLAN-JOB-MWBV2-20260830140153-667873-V8 completed no-op readback closure; event_configs/get is 6/6 and optimized_goal/dbt passed."
+  ],
+  "completion": {
+    "completed_at": "2026-08-31 CST",
+    "final_plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V8",
+    "final_plan_hash": "sha256:0ec98922195eba2b4fca8971251e7520c043097ec2cb5fba938cf96fcc7b741b",
+    "event_config_create_success_count": 6,
+    "event_asset_status": "visible/readback_verified",
+    "micro_app_instance_status": "visible/readback_verified",
+    "raw_payload_persisted": false,
+    "raw_response_persisted": false
+  },
+  "stop_conditions": [
+    "target event asset is missing or ambiguous",
+    "available_events/get does not include all six baseline MINI_PROGRAME_API events",
+    "event_configs/get precheck or post-write readback fails",
+    "any events/create call fails or returns non-zero API code",
+    "optimized_goal/get or dbt/get fails after event configs are complete",
+    "platform credential unavailable without an explicitly authorized refresh"
+  ]
+}

@@ -2,6 +2,14 @@ import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineR
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 import { clean, resource, resourceReady } from "./04-resource-verifiers.mjs";
+import { evaluateEventAssetProvisionContract } from "./04-event-asset-provision-contract.mjs";
+import {
+  EVENT_CONFIG_BASELINE_EVENTS,
+  EVENT_CONFIG_TRACK_TYPE,
+  eventConfigBaselineReadiness,
+  eventConfigsFromPayload,
+  normalizeEventConfig
+} from "./04-event-config-provision-contract.mjs";
 
 const EVENT_ASSET_TYPE = "MINI_PROGRAME";
 const MAX_EVENT_ASSET_PAGES = 20;
@@ -62,8 +70,46 @@ function normalizeAsset(asset = {}) {
     id: clean(asset.asset_id || asset.id),
     type: clean(asset.asset_type || asset.type),
     appId: firstByKey(asset, ["app_id", "mini_program_id", "mini_program_app_id"]),
+    instanceId: firstByKey(asset, ["instance_id", "micro_app_instance_id", "mini_program_instance_id"]),
     shareType: clean(asset.share_type || asset.share_status || asset.sharing_status)
   };
+}
+
+function decimalJsonNumberArray(values = []) {
+  const tokens = values.map(clean).filter((value) => /^\d+$/.test(value));
+  return `[${tokens.join(",")}]`;
+}
+
+function summarizeAvailableEvents(payload = {}) {
+  const events = eventConfigsFromPayload(payload).map(normalizeEventConfig);
+  const readiness = eventConfigBaselineReadiness({ availableEvents: events, existingConfigs: [] });
+  return sanitizeForPublic({
+    eventCount: events.length,
+    baselineAvailableCount: readiness.baseline_available_count,
+    missingBaselineEventTypes: readiness.missing_available_event_types,
+    baselineEventTypes: EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type),
+    trackType: EVENT_CONFIG_TRACK_TYPE,
+    readbackVerified: readiness.missing_available_event_types.length === 0
+  });
+}
+
+function summarizeEventConfigs(payload = {}) {
+  const configs = eventConfigsFromPayload(payload).map(normalizeEventConfig);
+  const configured = configs.filter((item) =>
+    EVENT_CONFIG_BASELINE_EVENTS.some((baseline) => baseline.event_type === item.event_type) &&
+    item.track_types.includes(EVENT_CONFIG_TRACK_TYPE)
+  );
+  const missing = EVENT_CONFIG_BASELINE_EVENTS
+    .map((item) => item.event_type)
+    .filter((eventType) => !configured.some((item) => item.event_type === eventType));
+  return sanitizeForPublic({
+    eventConfigCount: configs.length,
+    baselineConfiguredCount: EVENT_CONFIG_BASELINE_EVENTS.length - missing.length,
+    missingBaselineEventTypes: missing,
+    baselineEventTypes: EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type),
+    trackType: EVENT_CONFIG_TRACK_TYPE,
+    readbackVerified: missing.length === 0
+  });
 }
 
 function pageInfo(payload = {}) {
@@ -152,7 +198,21 @@ function safeProbe(probe = {}) {
   };
 }
 
-function eventContractFor({ status, blockers, candidate, inventory, goalProbe, goalSummary, dbtProbe, dbtSummary, instance }) {
+function eventContractFor({
+  status,
+  blockers,
+  candidate,
+  inventory,
+  availableProbe,
+  availableSummary,
+  configProbe,
+  configSummary,
+  goalProbe,
+  goalSummary,
+  dbtProbe,
+  dbtSummary,
+  instance
+}) {
   return sanitizeForPublic({
     status,
     blocker_codes: [...new Set(blockers)],
@@ -160,13 +220,30 @@ function eventContractFor({ status, blockers, candidate, inventory, goalProbe, g
     inventory_page_count: inventory.pageCount,
     inventory_candidate_count: inventory.candidateCount,
     app_bound_candidate_count: inventory.appBoundCandidateCount,
+    instance_bound_candidate_count: Number(inventory.instanceBoundCandidateCount ?? inventory.appBoundCandidateCount ?? 0),
+    instance_binding_observable: inventory.instanceBindingObservable === true,
+    app_binding_observable: inventory.appBindingObservable === true,
+    candidate_selection_source: inventory.candidateSelectionSource || "",
     event_asset_id_present: Boolean(candidate?.id),
     event_asset_target_readback_verified: status === "passed",
-    target_app_binding_verified: inventory.appBoundCandidateCount === 1,
+    target_app_binding_verified: status === "passed",
     target_instance_candidate_present: Boolean(instance.instanceId),
     target_instance_candidate_count: instance.instanceCandidateCount,
     target_instance_reference_only: instance.instanceReferenceOnly,
-    target_instance_readback_verified: status === "passed",
+    target_instance_readback_verified: status === "passed" &&
+      (inventory.instanceBindingObservable !== true || Number(inventory.instanceBoundCandidateCount || 0) === 1),
+    available_events_status: safeProbe(availableProbe).status || "not_called",
+    available_events: safeProbe(availableProbe),
+    available_event_count: Number(availableSummary?.eventCount || 0),
+    baseline_available_event_count: Number(availableSummary?.baselineAvailableCount || 0),
+    available_events_readback_verified: availableSummary?.readbackVerified === true,
+    available_events_missing_types: availableSummary?.missingBaselineEventTypes || [],
+    event_configs_status: safeProbe(configProbe).status || "not_called",
+    event_configs: safeProbe(configProbe),
+    event_config_count: Number(configSummary?.eventConfigCount || 0),
+    baseline_configured_event_count: Number(configSummary?.baselineConfiguredCount || 0),
+    event_configs_readback_verified: configSummary?.readbackVerified === true,
+    event_configs_missing_types: configSummary?.missingBaselineEventTypes || [],
     optimized_goal_status: safeProbe(goalProbe).status || "not_called",
     optimized_goal: safeProbe(goalProbe),
     optimized_goal_count: Number(goalSummary?.goalCount || 0),
@@ -232,10 +309,11 @@ async function detailCandidates({ bundle, client, candidates = [] }) {
       endpoint: "tools/event/all_assets/detail",
       query: {
         advertiser_id: clean(bundle.job?.advertiser_id),
-        asset_ids: [candidate.id]
+        asset_ids: decimalJsonNumberArray([candidate.id])
       },
       requestFieldManifest: {
         fieldNames: ["advertiser_id", "asset_ids"],
+        longIdTransport: "json_decimal_number_array_query_string",
         rawQueryStored: false
       },
       summarize: (payload) => ({ assets: eventAssets(payload).map(normalizeAsset) })
@@ -248,20 +326,53 @@ async function detailCandidates({ bundle, client, candidates = [] }) {
   return { details, probes, blockers: [] };
 }
 
-function classifyEventCandidate({ inventoryResult, details, appId }) {
+function classifyEventCandidate({ inventoryResult, details, appId, instanceId = "" }) {
   if (inventoryResult.status !== "passed") {
-    return { candidate: null, blockers: inventoryResult.blockers || ["event_asset_inventory_readonly_failed"], inventory: { pageCount: inventoryResult.probes.length, candidateCount: 0, appBoundCandidateCount: 0 } };
+    return { candidate: null, blockers: inventoryResult.blockers || ["event_asset_inventory_readonly_failed"], inventory: { pageCount: inventoryResult.probes.length, candidateCount: 0, appBoundCandidateCount: 0, instanceBoundCandidateCount: 0, instanceBindingObservable: false, appBindingObservable: false, candidateSelectionSource: "" } };
   }
   const listed = inventoryResult.items.filter((asset) => asset.type === EVENT_ASSET_TYPE && asset.id && !/EXPIRED/i.test(asset.shareType));
   if (!listed.length) {
-    return { candidate: null, blockers: ["event_asset_target_not_found"], inventory: { pageCount: inventoryResult.probes.length, candidateCount: 0, appBoundCandidateCount: 0 } };
+    return { candidate: null, blockers: ["event_asset_target_not_found"], inventory: { pageCount: inventoryResult.probes.length, candidateCount: 0, appBoundCandidateCount: 0, instanceBoundCandidateCount: 0, instanceBindingObservable: false, appBindingObservable: false, candidateSelectionSource: "" } };
   }
+  const appBindingObservable = details.some((asset) => clean(asset.appId));
   const appBound = details.filter((asset) => asset.type === EVENT_ASSET_TYPE && asset.id && asset.appId === appId && !/EXPIRED/i.test(asset.shareType));
-  const inventory = { pageCount: inventoryResult.probes.length, candidateCount: listed.length, appBoundCandidateCount: appBound.length };
+  const instanceBindingObservable = appBound.some((asset) => clean(asset.instanceId));
+  const instanceBound = instanceBindingObservable
+    ? appBound.filter((asset) => clean(asset.instanceId) === clean(instanceId))
+    : appBound;
+  const inventory = {
+    pageCount: inventoryResult.probes.length,
+    candidateCount: listed.length,
+    appBoundCandidateCount: appBound.length,
+    instanceBoundCandidateCount: instanceBound.length,
+    instanceBindingObservable,
+    appBindingObservable,
+    candidateSelectionSource: ""
+  };
   if (!appId) return { candidate: null, blockers: ["event_asset_app_binding_unverified"], inventory };
-  if (!appBound.length) return { candidate: null, blockers: ["event_asset_app_binding_unverified"], inventory };
-  if (appBound.length > 1) return { candidate: null, blockers: ["event_asset_target_ambiguous"], inventory };
-  return { candidate: appBound[0], blockers: [], inventory };
+  if (!appBound.length && appBindingObservable) return { candidate: null, blockers: ["event_asset_app_binding_unverified"], inventory };
+  if (!appBound.length && listed.length === 1) {
+    return {
+      candidate: listed[0],
+      blockers: [],
+      inventory: {
+        ...inventory,
+        candidateSelectionSource: "single_mini_program_inventory_candidate_without_detail_app_field"
+      }
+    };
+  }
+  if (!appBound.length) return { candidate: null, blockers: ["event_asset_target_ambiguous"], inventory };
+  if (instanceBindingObservable && !instanceId) return { candidate: null, blockers: ["micro_app_instance_candidate_missing"], inventory };
+  if (instanceBindingObservable && !instanceBound.length) return { candidate: null, blockers: ["event_asset_instance_binding_unverified"], inventory };
+  if (instanceBound.length > 1) return { candidate: null, blockers: ["event_asset_target_ambiguous"], inventory };
+  return {
+    candidate: instanceBound[0],
+    blockers: [],
+    inventory: {
+      ...inventory,
+      candidateSelectionSource: instanceBindingObservable ? "detail_app_and_instance_bound" : "detail_app_bound"
+    }
+  };
 }
 
 async function persistEventChain({ repo, bundle, status, blockers, contract, candidate }) {
@@ -312,9 +423,13 @@ async function writeEvidence({ repo, bundle, contract }) {
     `event_asset_id_present=${contract.event_asset_id_present}`,
     `instance_candidate_present=${contract.target_instance_candidate_present}`,
     `reference_candidate=${contract.target_instance_reference_only}`,
+    `available_events_status=${contract.available_events_status}`,
+    `baseline_available_events=${contract.baseline_available_event_count}/${EVENT_CONFIG_BASELINE_EVENTS.length}`,
+    `event_configs_status=${contract.event_configs_status}`,
+    `baseline_event_configs=${contract.baseline_configured_event_count}/${EVENT_CONFIG_BASELINE_EVENTS.length}`,
     `optimized_goal_status=${contract.optimized_goal_status}`,
     `dbt_status=${contract.dbt_status}`,
-    `request_id_present=${contract.optimized_goal.requestIdPresent || contract.dbt.requestIdPresent}`,
+    `request_id_present=${contract.available_events.requestIdPresent || contract.event_configs.requestIdPresent || contract.optimized_goal.requestIdPresent || contract.dbt.requestIdPresent}`,
     "raw_response_stored=false"
   ].join("; ");
   await repo.upsertEvidence({
@@ -336,7 +451,13 @@ export function eventChainResourceReadiness({ bundle = {}, resourceType }) {
   const contract = item.metadata?.event_chain_readonly_contract || {};
   const passed = contract.status === "passed" && resourceReady(item);
   const fallback = resourceType === "event_asset" ? "event_asset_target_not_found" : "micro_app_instance_target_unverified";
-  const blockers = passed ? [] : (contract.blocker_codes?.length ? contract.blocker_codes : [fallback]);
+  const provision = resourceType === "event_asset" ? evaluateEventAssetProvisionContract({ bundle }) : null;
+  const blockers = passed
+    ? []
+    : [...new Set([
+      ...(contract.blocker_codes?.length ? contract.blocker_codes : [fallback]),
+      ...(provision?.blockers || [])
+    ])];
   return sanitizeForPublic({
     status: passed ? "passed" : "blocked",
     blockers,
@@ -353,11 +474,35 @@ export function eventChainResourceReadiness({ bundle = {}, resourceType }) {
       eventAssetTargetReadbackVerified: contract.event_asset_target_readback_verified === true,
       targetAppBindingVerified: contract.target_app_binding_verified === true,
       targetInstanceCandidatePresent: contract.target_instance_candidate_present === true,
+      instanceBindingObservable: contract.instance_binding_observable === true,
+      instanceBoundCandidateCount: Number(contract.instance_bound_candidate_count || 0),
       targetInstanceReferenceOnly: contract.target_instance_reference_only === true,
       targetInstanceReadbackVerified: contract.target_instance_readback_verified === true,
+      availableEventsStatus: contract.available_events_status || "not_run",
+      available_events_status: contract.available_events_status || "not_run",
+      baselineAvailableEventCount: Number(contract.baseline_available_event_count || 0),
+      baseline_available_event_count: Number(contract.baseline_available_event_count || 0),
+      availableEventsReadbackVerified: contract.available_events_readback_verified === true,
+      available_events_readback_verified: contract.available_events_readback_verified === true,
+      eventConfigsStatus: contract.event_configs_status || "not_run",
+      event_configs_status: contract.event_configs_status || "not_run",
+      baselineConfiguredEventCount: Number(contract.baseline_configured_event_count || 0),
+      baseline_configured_event_count: Number(contract.baseline_configured_event_count || 0),
+      eventConfigsReadbackVerified: contract.event_configs_readback_verified === true,
+      event_configs_readback_verified: contract.event_configs_readback_verified === true,
       objectiveFound: contract.objective_found === true,
       deepObjectiveFound: contract.deep_objective_found === true,
       deepBidTypeFound: contract.deep_bid_type_found === true,
+      ...(provision ? {
+        eventAssetProvisionStatus: provision.status,
+        event_asset_provision_status: provision.status,
+        eventAssetProvisionPlanEligible: provision.outputSummary?.planEligible === true,
+        event_asset_provision_plan_eligible: provision.outputSummary?.planEligible === true,
+        eventAssetProvisionTemplateStatus: provision.outputSummary?.templateStatus || "missing",
+        event_asset_provision_template_status: provision.outputSummary?.templateStatus || "missing",
+        eventAssetCreateContractStatus: provision.outputSummary?.officialCreateContractStatus || "missing",
+        event_asset_create_contract_status: provision.outputSummary?.officialCreateContractStatus || "missing"
+      } : {}),
       nextAction: passed ? "无需动作" : "完成目标账户事件资产、小游戏实例与优化目标链准备后重新只读核验。"
     }
   });
@@ -405,7 +550,12 @@ export async function runEventChainReadonlySkill({
   const detailResult = inventoryResult.status === "passed"
     ? await detailCandidates({ bundle, client, candidates: inventoryResult.items.filter((asset) => asset.type === EVENT_ASSET_TYPE && asset.id && !/EXPIRED/i.test(asset.shareType)) })
     : { details: [], probes: [], blockers: [] };
-  const event = classifyEventCandidate({ inventoryResult, details: detailResult.details, appId: instance.appId });
+  const event = classifyEventCandidate({
+    inventoryResult,
+    details: detailResult.details,
+    appId: instance.appId,
+    instanceId: instance.instanceId
+  });
   let blockers = [...event.blockers, ...(detailResult.blockers || [])];
   if (!instance.appId || instance.appType !== "byte_mini_game" || instance.appStatus !== "active") {
     blockers.push("micro_app_platform_app_unverified");
@@ -415,8 +565,58 @@ export async function runEventChainReadonlySkill({
 
   let goalProbe = null;
   let dbtProbe = null;
+  let availableProbe = null;
+  let configProbe = null;
   let goalSummary = {};
   let dbtSummary = {};
+  let availableSummary = {};
+  let configSummary = {};
+  let availableBlockers = [];
+  if (!blockers.length && event.candidate) {
+    availableProbe = await client.get({
+      label: "event_chain_available_events",
+      endpoint: "https://ad.oceanengine.com/open_api/2/event_manager/available_events/get/",
+      query: {
+        advertiser_id: clean(bundle.job?.advertiser_id),
+        asset_id: event.candidate.id
+      },
+      requestFieldManifest: {
+        fieldNames: ["advertiser_id", "asset_id"],
+        rawQueryStored: false
+      },
+      summarize: summarizeAvailableEvents
+    });
+    availableSummary = availableProbe.summary || {};
+    if (availableProbe.status !== "passed") availableBlockers.push("available_events_readonly_failed");
+    if (availableProbe.status === "passed" && availableSummary.readbackVerified !== true) {
+      availableBlockers.push("available_events_baseline_missing");
+    }
+  }
+  if (!blockers.length && event.candidate) {
+    configProbe = await client.get({
+      label: "event_chain_event_configs",
+      endpoint: "https://ad.oceanengine.com/open_api/2/event_manager/event_configs/get/",
+      query: {
+        advertiser_id: clean(bundle.job?.advertiser_id),
+        asset_id: event.candidate.id,
+        sort_type: "DESC"
+      },
+      requestFieldManifest: {
+        fieldNames: ["advertiser_id", "asset_id", "sort_type"],
+        rawQueryStored: false
+      },
+      summarize: summarizeEventConfigs
+    });
+    configSummary = configProbe.summary || {};
+    if (configProbe.status !== "passed") blockers.push("event_configs_readonly_failed");
+    if (configProbe.status === "passed" && configSummary.readbackVerified !== true) {
+      blockers.push("event_configs_baseline_missing");
+      blockers.push(...availableBlockers);
+    }
+    if (configProbe.status !== "passed") {
+      blockers.push(...availableBlockers);
+    }
+  }
   if (!blockers.length && event.candidate) {
     const route = routeQuery(bundle, { assetId: event.candidate.id, instanceId: instance.instanceId });
     goalProbe = await client.get({
@@ -452,6 +652,10 @@ export async function runEventChainReadonlySkill({
     blockers,
     candidate: event.candidate,
     inventory: event.inventory,
+    availableProbe,
+    availableSummary,
+    configProbe,
+    configSummary,
     goalProbe,
     goalSummary,
     dbtProbe,
@@ -474,13 +678,24 @@ export async function runEventChainReadonlySkill({
       targetInstanceCandidatePresent: contract.target_instance_candidate_present,
       targetInstanceReferenceOnly: contract.target_instance_reference_only,
       targetInstanceReadbackVerified: contract.target_instance_readback_verified,
+      availableEventsStatus: contract.available_events_status,
+      baselineAvailableEventCount: contract.baseline_available_event_count,
+      availableEventsReadbackVerified: contract.available_events_readback_verified,
+      availableEventsMissingTypes: contract.available_events_missing_types,
+      eventConfigsStatus: contract.event_configs_status,
+      baselineConfiguredEventCount: contract.baseline_configured_event_count,
+      eventConfigsReadbackVerified: contract.event_configs_readback_verified,
+      eventConfigsMissingTypes: contract.event_configs_missing_types,
       objectiveFound: contract.objective_found,
       deepObjectiveFound: contract.deep_objective_found,
       deepBidTypeFound: contract.deep_bid_type_found,
       optimizedGoalStatus: contract.optimized_goal_status,
       deepBidTypeStatus: contract.dbt_status,
       optimizedGoalApiCode: contract.optimized_goal.apiCode,
-      requestIdPresent: contract.optimized_goal.requestIdPresent || contract.dbt.requestIdPresent,
+      requestIdPresent: contract.available_events.requestIdPresent ||
+        contract.event_configs.requestIdPresent ||
+        contract.optimized_goal.requestIdPresent ||
+        contract.dbt.requestIdPresent,
       evidenceRef,
       platformWriteCalled: false,
       tokenRefreshCalled: false,

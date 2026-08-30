@@ -51,11 +51,55 @@ export {
   runEventChainReadonlySkill
 } from "./04-event-chain-readiness.mjs";
 export {
+  EVENT_ASSET_PROVISION_ACTION,
+  EVENT_ASSET_CREATE_ACTION_TYPE,
+  EVENT_ASSET_CREATE_ENDPOINT,
+  EVENT_ASSET_CREATE_FIELD_NAMES,
+  EVENT_ASSET_CREATE_METHOD,
+  EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
+  EVENT_ASSET_TARGET_ADVERTISER_ID,
+  EVENT_ASSET_TEMPLATE_REF,
+  EVENT_ASSET_TYPE,
+  buildEventAssetCreatePayload,
+  buildEventAssetCreateTemplateManifest,
+  eventAssetCreateContractShape,
+  eventAssetOfficialCreateContractHash,
+  eventAssetTemplateHash,
+  evaluateEventAssetProvisionContract
+} from "./04-event-asset-provision-contract.mjs";
+export {
+  EVENT_CONFIGS_PROVISION_ACTION,
+  EVENT_CONFIG_BASELINE_EVENTS,
+  EVENT_CONFIG_CREATE_ACTION_TYPE,
+  EVENT_CONFIG_CREATE_ENDPOINT,
+  EVENT_CONFIG_CREATE_FIELD_NAMES,
+  EVENT_CONFIG_CREATE_METHOD,
+  EVENT_CONFIG_OFFICIAL_CREATE_SOURCE_REFS,
+  EVENT_CONFIG_TRACK_TYPE,
+  buildEventConfigCreatePayload,
+  eventConfigBaselineReadiness,
+  eventConfigBaselineTemplateHash,
+  eventConfigOfficialCreateContractHash,
+  evaluateEventConfigProvisionContract
+} from "./04-event-config-provision-contract.mjs";
+export {
   runAwemeAuthorizationReadonlySkill
 } from "./04-aweme-authorization-readonly.mjs";
 export {
   runBackupLandingPageSourcePrepareSkill
 } from "./04-backup-landing-page-source-prepare.mjs";
+export {
+  buildEventAssetCreateRequestPlan,
+  ensureEventAssetForTargetOnce,
+  EVENT_ASSET_CONFIRM_ENV,
+  EVENT_ASSET_CONFIRM_VALUE
+} from "../../../platforms/oceanengineEventAssetExecutor.mjs";
+export {
+  buildEventConfigCreateRequestPlans,
+  ensureEventConfigsForTargetOnce,
+  EVENT_CONFIGS_CONFIRM_ENV,
+  EVENT_CONFIGS_CONFIRM_VALUE
+} from "../../../platforms/oceanengineEventConfigExecutor.mjs";
 export {
   buildProductImageUploadRequestPlan,
   ensureProductImageForTargetOnce,

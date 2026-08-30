@@ -1,0 +1,115 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-ASSET-API-CREATE-1871922434025472-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-API-CREATE-1871922434025472-20260830.md",
+  "status": "blocked_after_event_asset_create_post_readback_not_verified",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Create and verify JSZC event_asset by one plan-bound OceanEngine API action for advertiser 1871922434025472.",
+    "mode": "single_resource_event_asset_api_create",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_hash_confirmation": 0,
+    "maximum_platform_actions_after_hash_confirmation": 1
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-API-CREATE-1871922434025472-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-API-CREATE-1871922434025472-20260830.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/04-event-asset-provision-contract.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/eventAssetExecutionScope.mjs",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/workflows/executionPlan.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "job_id": "JOB-MWBV2-20260830140153-667873",
+    "planned_plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V2",
+    "planned_plan_hash": "sha256:1b491dc867ce162cf2b1045c4d8ef3f77fde6dcf0d47796891433be750c52376",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "target_resource_type": "event_asset",
+    "allowed_plan_action": "ensure_resource:event_asset",
+    "platform_action_type": "oceanengine_event_asset_create",
+    "create_endpoint_path": "/open_api/2/event_manager/assets/create/",
+    "create_method": "POST"
+  },
+  "allowed_writes": [
+    "event_asset contract, registry, executor, execution scope, plan builder and focused smoke tests",
+    "idempotent database migration enabling the JSZC event_asset local 2.0 create contract",
+    "single-resource V2 execution plan rows for the bound Job",
+    "launch_confirmations and one platform action only after exact plan hash confirmation",
+    "event_asset and micro_app_instance account_resources only after post-create readback passes",
+    "redacted evidence_artifacts and launch_skill_runs"
+  ],
+  "forbidden_actions": [
+    "std_project/create, promotion/create, monitor create, budget or bid update",
+    "avatar, DMP, video, product image or backup landing page writes inside this task",
+    "OAuth token refresh",
+    "raw payload, raw response, complete URL, token, Cookie, secret or auth_code persistence",
+    "automatic retry after create failure or post-create readback failure"
+  ],
+  "local_sources": [
+    "docs/Solution Design.md",
+    "official:oceanengine:2.0:19-asset:event_manager/assets/create:120-180",
+    "official:oceanengine:2.0-copy:17-asset:event_manager/assets/create:3283-3661",
+    "Postgres marketing_workbench_v2.mwb",
+    "Postgres marketing_workbench.mwb historical readonly experience"
+  ],
+  "validation_plan": [
+    "test:std-project-create-wire-body",
+    "test:event-asset-provision-contract",
+    "test:event-chain-readonly",
+    "test:resource-action-registry",
+    "test:event-asset-executor",
+    "test:single-confirmation-orchestrator",
+    "test:execution-plan",
+    "validate:schemas",
+    "git diff --check"
+  ],
+  "human_gate": {
+    "before_real_platform_post": [
+      "Generate PLAN-JOB-MWBV2-20260830140153-667873-V2.",
+      "Report exact plan_hash to the user: sha256:1b491dc867ce162cf2b1045c4d8ef3f77fde6dcf0d47796891433be750c52376.",
+      "Wait for exact hash confirmation before running --execute."
+    ]
+  },
+  "stop_conditions": [
+    "event_asset provision template or official contract hash mismatch",
+    "platform credential unavailable without an explicitly authorized refresh",
+    "OceanEngine API reports unsupported asset type, permission denied or invalid field",
+    "post-create asset/detail, optimized_goal/get or dbt/get readback fails",
+    "multiple target candidates or App/instance mismatch"
+  ],
+  "closure": {
+    "status": "blocked_after_event_asset_create_post_readback_not_verified",
+    "confirmation_id": "CONFIRM-JOB-MWBV2-20260830140153-667873-EVENT-ASSET-V2",
+    "platform_action_type": "oceanengine_event_asset_create",
+    "platform_action_status": "succeeded",
+    "http_status": 200,
+    "api_code": "0",
+    "request_id_present": true,
+    "asset_id_present": true,
+    "post_readback_status": "blocked",
+    "blocker": "event_asset_app_binding_unverified",
+    "inventory_candidates": 1,
+    "app_bound_candidates": 0,
+    "optimized_goal_called": false,
+    "dbt_called": false,
+    "platform_write_called": true,
+    "platform_write_call_count": 1,
+    "token_refresh_called": false,
+    "payload_persisted": false,
+    "response_persisted": false,
+    "retry_allowed": false
+  }
+}

@@ -8,6 +8,29 @@ import {
   FORMAL_RESOURCE_PREP_ACTION_ORDER,
   getResourceActionCapability
 } from "./skills/oe3/04-resource-action-registry.mjs";
+import {
+  EVENT_ASSET_CREATE_ENDPOINT,
+  EVENT_ASSET_CREATE_FIELD_NAMES,
+  EVENT_ASSET_CREATE_METHOD,
+  EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
+  EVENT_ASSET_PROVISION_ACTION,
+  eventAssetOfficialCreateContractHash,
+  eventAssetTemplateHash,
+  evaluateEventAssetProvisionContract
+} from "./skills/oe3/04-event-asset-provision-contract.mjs";
+import {
+  EVENT_CONFIGS_PROVISION_ACTION,
+  EVENT_CONFIG_BASELINE_EVENTS,
+  EVENT_CONFIG_CREATE_ACTION_TYPE,
+  EVENT_CONFIG_CREATE_ENDPOINT,
+  EVENT_CONFIG_CREATE_FIELD_NAMES,
+  EVENT_CONFIG_CREATE_METHOD,
+  EVENT_CONFIG_OFFICIAL_CREATE_SOURCE_REFS,
+  EVENT_CONFIG_TRACK_TYPE,
+  eventConfigBaselineTemplateHash,
+  eventConfigOfficialCreateContractHash,
+  evaluateEventConfigProvisionContract
+} from "./skills/oe3/04-event-config-provision-contract.mjs";
 
 export const EXECUTION_PLAN_VERSION = 1;
 export const ACTION_ENSURE_MONITOR = "ensure_monitor";
@@ -84,7 +107,13 @@ function resourceVerifierStates(bundle = {}) {
     check.resourceType || check.resource_type || "",
     {
       status: check.prepareCapability?.status || check.prepare_capability?.status || check.status || "",
-      blocker: (check.blocker_codes || check.blockers || [])[0] || ""
+      blocker: (check.blocker_codes || check.blockers || [])[0] || "",
+      blockers: check.blocker_codes || check.blockers || [],
+      eventAssetProvisionPlanEligible: check.eventAssetProvisionPlanEligible === true ||
+        check.event_asset_provision_plan_eligible === true,
+      eventAssetProvisionStatus: check.eventAssetProvisionStatus ||
+        check.event_asset_provision_status ||
+        ""
     }
   ]));
 }
@@ -93,6 +122,8 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
   const maximumPlatformCalls = Number(actionCallLimits[actionType] || ({
     "ensure_resource:avatar": 2,
     "ensure_resource:dmp_audience_package": 10,
+    [EVENT_ASSET_PROVISION_ACTION]: 1,
+    [EVENT_CONFIGS_PROVISION_ACTION]: 6,
     "ensure_resource:video_asset": 1,
     "ensure_resource:product_image": 1,
     [ACTION_STD_PROJECT_CREATE]: 1
@@ -103,6 +134,27 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
       content_hash: hashValue({ method: "POST", endpoint: "/open_api/v3.0/dmp/custom_audience/push_v2/" }),
       method: "POST",
       endpoint: "/open_api/v3.0/dmp/custom_audience/push_v2/"
+    },
+    [EVENT_ASSET_PROVISION_ACTION]: {
+      source_ref: EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS[0],
+      content_hash: eventAssetOfficialCreateContractHash(),
+      method: EVENT_ASSET_CREATE_METHOD,
+      endpoint: EVENT_ASSET_CREATE_ENDPOINT,
+      request_field_manifest: [...EVENT_ASSET_CREATE_FIELD_NAMES],
+      payload_persisted: false,
+      response_persisted: false
+    },
+    [EVENT_CONFIGS_PROVISION_ACTION]: {
+      source_ref: EVENT_CONFIG_OFFICIAL_CREATE_SOURCE_REFS[0],
+      content_hash: eventConfigOfficialCreateContractHash(),
+      method: EVENT_CONFIG_CREATE_METHOD,
+      endpoint: EVENT_CONFIG_CREATE_ENDPOINT,
+      request_field_manifest: [...EVENT_CONFIG_CREATE_FIELD_NAMES],
+      baseline_event_types: EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type),
+      track_types: [EVENT_CONFIG_TRACK_TYPE],
+      event_id_source: "target_asset_available_events_get",
+      payload_persisted: false,
+      response_persisted: false
     },
     "ensure_resource:video_asset": {
       source_ref: "official:oceanengine:file/material/bind",
@@ -422,6 +474,12 @@ function compilePlannedActions(bundle = {}, {
       blockers.push(blocker);
       continue;
     }
+    if (resourceType === "event_asset" && verifier.eventAssetProvisionPlanEligible !== true) {
+      const blocker = "event_asset_provision_not_plan_eligible";
+      resourceStates.push({ resource_type: resourceType, state: "BLOCKED", action_type: "", blocker });
+      blockers.push(blocker);
+      continue;
+    }
     const grant = actionGrantDefaults(actionType, actionCallLimits);
     actions.push({
       action_type: actionType,
@@ -576,6 +634,348 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
   };
   assertNoSensitiveLeak(plan);
   return plan;
+}
+
+export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
+  planVersion = 2,
+  resourceType = "event_asset",
+  planningIntent = {}
+} = {}) {
+  const job = bundle.job || {};
+  if (!job.job_id) throw new Error("job_id_required");
+  if (!resourceType) throw new Error("resource_type_required");
+  const capability = getResourceActionCapability(resourceType);
+  const actionType = capability.prepare_action_type;
+  const blockers = [
+    ...(capability.prepare_supported ? [] : [`resource_prepare_unsupported:${resourceType}`]),
+    ...(actionType && FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(actionType)
+      ? []
+      : [`resource_prepare_executor_not_registered:${resourceType}`])
+  ];
+
+  let provision = null;
+  let templateHash = "";
+  if (resourceType === "event_asset") {
+    provision = evaluateEventAssetProvisionContract({ bundle });
+    templateHash = provision.outputSummary?.expectedTemplateHash || eventAssetTemplateHash({ bundle });
+    if (job.route_id !== "oceanengine_3_byte_mini_game" || job.game_code !== "JSZC") {
+      blockers.push("event_asset_single_plan_scope_not_jszc");
+    }
+    if (provision.status !== "ready_for_plan") {
+      blockers.push(...(provision.blockers || ["event_asset_provision_not_plan_eligible"]));
+    }
+  }
+
+  const uniqueBlockers = [...new Set(blockers)].filter(Boolean);
+  const grant = actionGrantDefaults(actionType, {
+    [actionType]: 1
+  });
+  const idempotencyScope = resourceType === "event_asset"
+    ? hashValue({
+      route_id: job.route_id,
+      game_code: job.game_code,
+      advertiser_id: job.advertiser_id,
+      template_hash: templateHash
+    })
+    : hashValue({
+      route_id: job.route_id,
+      game_code: job.game_code,
+      advertiser_id: job.advertiser_id,
+      resource_type: resourceType
+    });
+  const plannedActions = uniqueBlockers.length ? [] : [{
+    action_type: actionType,
+    target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
+    idempotency_key: actionKey(job.job_id, actionType, idempotencyScope.replace(/^sha256:/, "").slice(0, 32).toUpperCase()),
+    status: "ready",
+    module_ref: capability.prepare_module_ref,
+    depends_on: [capability.verify_skill_key],
+    writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
+    reason: resourceType === "event_asset"
+      ? "single_resource_event_asset_api_create_or_noop"
+      : "single_resource_prepare_or_noop",
+    maximum_platform_calls: grant.maximum_platform_calls
+  }];
+  const resourceStates = [{
+    resource_type: resourceType,
+    state: uniqueBlockers.length ? "BLOCKED" : "PLANNED",
+    action_type: uniqueBlockers.length ? "" : actionType,
+    blocker: uniqueBlockers[0] || ""
+  }];
+  const effectivePlanningIntent = planningIntent && Object.keys(planningIntent).length
+    ? planningIntent
+    : {
+      mode: "single_resource_remediation",
+      target_resource_type: resourceType,
+      no_std_project_create: true
+    };
+  const draft = bundle.draft || null;
+  const targetPlanId = planId(job.job_id, planVersion);
+  const planHash = hashValue(stablePlanInput({
+    job,
+    draft,
+    plannedActions,
+    blockerCodes: uniqueBlockers,
+    planningIntent: effectivePlanningIntent,
+    resourceStates
+  }));
+  const plan = {
+    planId: targetPlanId,
+    jobId: job.job_id,
+    planVersion,
+    planStatus: uniqueBlockers.length ? "blocked" : "ready",
+    planHash,
+    plannedActions,
+    blockerCodes: uniqueBlockers,
+    draftId: draft?.draft_id || "",
+    payloadHash: draft?.payload_hash || "",
+    sourceUsage: job.source_usage || "runtime_truth",
+    metadata: {
+      case_id: job.case_id || "",
+      route_id: job.route_id,
+      game_code: job.game_code,
+      object_type: job.object_type,
+      compiler: "src/workflows/executionPlan.mjs#buildSingleResourceExecutionPlanFromBundle",
+      confirmation_model: "one_plan_one_confirmation_single_bounded_resource_action",
+      planning_intent: effectivePlanningIntent,
+      remediation_scope: {
+        target_resource_type: resourceType,
+        target_account_readonly_precheck: true,
+        create_if_missing_only: true,
+        post_write_readback_required: true,
+        recompile_fresh_job_after_success: true
+      },
+      resource_states: resourceStates,
+      ...(resourceType === "event_asset" ? {
+        event_asset_provision: provision?.outputSummary || {},
+        event_asset_template_hash: templateHash,
+        idempotency_scope_hash: idempotencyScope
+      } : {}),
+      execution_scope: {
+        binding_mode: "single_confirmation_plan",
+        target_job_id: job.job_id,
+        target_advertiser_id: job.advertiser_id,
+        target_draft_id: draft?.draft_id || "",
+        target_payload_hash: draft?.payload_hash || "",
+        target_plan_id: targetPlanId,
+        target_plan_hash: planHash,
+        allowed_actions: plannedActions.map((action) => action.action_type),
+        allowed_plan_actions: plannedActions.map((action) => action.action_type),
+        maximum_actions: plannedActions.length,
+        maximum_platform_calls: plannedActions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0),
+        action_grants: Object.fromEntries(plannedActions.map((action) => [
+          action.action_type,
+          actionGrantDefaults(action.action_type, { [action.action_type]: Number(action.maximum_platform_calls || 1) })
+        ])),
+        maximum_create_calls: 0,
+        retry_allowed: false
+      },
+      root_blocker_codes: uniqueBlockers.slice(0, 1),
+      unique_root_blocker: uniqueBlockers[0] || "",
+      real_platform_write_called: false,
+      payload_persisted: false,
+      response_persisted: false
+    }
+  };
+  assertNoSensitiveLeak(plan);
+  return plan;
+}
+
+export async function compileAndSaveSingleResourceExecutionPlan({
+  repo,
+  jobId,
+  bundleOverride,
+  planVersion = 2,
+  resourceType = "event_asset",
+  expectedPlanId = "",
+  expectedPlanHash = "",
+  planningIntent = null
+} = {}) {
+  if (!repo) throw new Error("repo_required");
+  if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
+  const bundle = bundleOverride || await repo.getLaunchJobBundle(jobId);
+  if (!bundle) throw new Error("job_not_found");
+  const targetPlanId = planId(bundle.job.job_id, planVersion);
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(targetPlanId)
+    : null;
+  if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
+    throw new Error("confirmed_execution_plan_immutable");
+  }
+  const plan = buildSingleResourceExecutionPlanFromBundle(bundle, {
+    planVersion,
+    resourceType,
+    planningIntent: planningIntent || {}
+  });
+  if (expectedPlanId && plan.planId !== expectedPlanId) {
+    throw new Error("confirmed_plan_id_drift");
+  }
+  if (expectedPlanHash && plan.planHash !== expectedPlanHash) {
+    throw new Error("confirmed_plan_hash_drift");
+  }
+  await repo.upsertLaunchExecutionPlan(plan);
+  const stored = await repo.getLaunchExecutionPlan(plan.planId);
+  assertNoSensitiveLeak(stored || plan);
+  return { plan, stored };
+}
+
+export function buildEventConfigsExecutionPlanFromBundle(bundle = {}, {
+  planVersion = 3,
+  assetIdHint = "",
+  planningIntent = {}
+} = {}) {
+  const job = bundle.job || {};
+  if (!job.job_id) throw new Error("job_id_required");
+  const provision = evaluateEventConfigProvisionContract({ bundle, assetIdHint });
+  const blockers = [
+    ...(provision.status === "ready_for_plan" ? [] : provision.blockers || ["event_config_provision_not_plan_eligible"])
+  ];
+  const uniqueBlockers = [...new Set(blockers)].filter(Boolean);
+  const templateHash = eventConfigBaselineTemplateHash({ assetIdHint });
+  const idempotencyScope = hashValue({
+    route_id: job.route_id,
+    game_code: job.game_code,
+    advertiser_id: job.advertiser_id,
+    asset_id_hint: assetIdHint || "",
+    baseline_template_hash: templateHash
+  });
+  const grant = actionGrantDefaults(EVENT_CONFIGS_PROVISION_ACTION, {
+    [EVENT_CONFIGS_PROVISION_ACTION]: EVENT_CONFIG_BASELINE_EVENTS.length
+  });
+  const plannedActions = uniqueBlockers.length ? [] : [{
+    action_type: EVENT_CONFIGS_PROVISION_ACTION,
+    target_ref: `event_configs:${job.route_id}:${job.game_code}:${job.advertiser_id}:${assetIdHint || "target_event_asset"}`,
+    idempotency_key: actionKey(job.job_id, EVENT_CONFIGS_PROVISION_ACTION, idempotencyScope.replace(/^sha256:/, "").slice(0, 32).toUpperCase()),
+    status: "ready",
+    module_ref: "src/platforms/oceanengineEventConfigExecutor.mjs",
+    depends_on: ["event-chain-readonly", "event-configs-baseline"],
+    writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
+    reason: "baseline_event_configs_create_or_noop",
+    maximum_platform_calls: grant.maximum_platform_calls
+  }];
+  const resourceStates = [{
+    resource_type: "event_asset",
+    state: uniqueBlockers.length ? "BLOCKED" : "PLANNED",
+    action_type: uniqueBlockers.length ? "" : EVENT_CONFIGS_PROVISION_ACTION,
+    blocker: uniqueBlockers[0] || ""
+  }];
+  const effectivePlanningIntent = planningIntent && Object.keys(planningIntent).length
+    ? planningIntent
+    : {
+      mode: "single_event_chain_remediation",
+      target_resource_type: "event_asset",
+      event_config_action: EVENT_CONFIGS_PROVISION_ACTION,
+      no_std_project_create: true,
+      no_other_resource_actions: true
+    };
+  const draft = bundle.draft || null;
+  const targetPlanId = planId(job.job_id, planVersion);
+  const planHash = hashValue(stablePlanInput({
+    job,
+    draft,
+    plannedActions,
+    blockerCodes: uniqueBlockers,
+    planningIntent: effectivePlanningIntent,
+    resourceStates
+  }));
+  const plan = {
+    planId: targetPlanId,
+    jobId: job.job_id,
+    planVersion,
+    planStatus: uniqueBlockers.length ? "blocked" : "ready",
+    planHash,
+    plannedActions,
+    blockerCodes: uniqueBlockers,
+    draftId: draft?.draft_id || "",
+    payloadHash: draft?.payload_hash || "",
+    sourceUsage: job.source_usage || "runtime_truth",
+    metadata: {
+      case_id: job.case_id || "",
+      route_id: job.route_id,
+      game_code: job.game_code,
+      object_type: job.object_type,
+      compiler: "src/workflows/executionPlan.mjs#buildEventConfigsExecutionPlanFromBundle",
+      confirmation_model: "one_plan_one_confirmation_single_bounded_event_config_action",
+      planning_intent: effectivePlanningIntent,
+      event_config_provision: provision.outputSummary || {},
+      event_config_baseline_template_hash: templateHash,
+      event_config_asset_id_hint: assetIdHint || "",
+      idempotency_scope_hash: idempotencyScope,
+      remediation_scope: {
+        target_resource_type: "event_asset",
+        event_config_action: EVENT_CONFIGS_PROVISION_ACTION,
+        target_account_readonly_precheck: true,
+        create_missing_event_configs_only: true,
+        post_write_readback_required: true,
+        recompile_fresh_job_after_success: true
+      },
+      resource_states: resourceStates,
+      execution_scope: {
+        binding_mode: "single_confirmation_plan",
+        target_job_id: job.job_id,
+        target_advertiser_id: job.advertiser_id,
+        target_draft_id: draft?.draft_id || "",
+        target_payload_hash: draft?.payload_hash || "",
+        target_plan_id: targetPlanId,
+        target_plan_hash: planHash,
+        allowed_actions: plannedActions.map((action) => action.action_type),
+        allowed_plan_actions: plannedActions.map((action) => action.action_type),
+        maximum_actions: plannedActions.length,
+        maximum_platform_calls: plannedActions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0),
+        action_grants: Object.fromEntries(plannedActions.map((action) => [
+          action.action_type,
+          actionGrantDefaults(action.action_type, { [action.action_type]: Number(action.maximum_platform_calls || 1) })
+        ])),
+        maximum_create_calls: 0,
+        retry_allowed: false
+      },
+      root_blocker_codes: uniqueBlockers.slice(0, 1),
+      unique_root_blocker: uniqueBlockers[0] || "",
+      real_platform_write_called: false,
+      payload_persisted: false,
+      response_persisted: false
+    }
+  };
+  assertNoSensitiveLeak(plan);
+  return plan;
+}
+
+export async function compileAndSaveEventConfigsExecutionPlan({
+  repo,
+  jobId,
+  bundleOverride,
+  planVersion = 3,
+  assetIdHint = "",
+  expectedPlanId = "",
+  expectedPlanHash = "",
+  planningIntent = null
+} = {}) {
+  if (!repo) throw new Error("repo_required");
+  if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
+  const bundle = bundleOverride || await repo.getLaunchJobBundle(jobId);
+  if (!bundle) throw new Error("job_not_found");
+  const targetPlanId = planId(bundle.job.job_id, planVersion);
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(targetPlanId)
+    : null;
+  if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
+    throw new Error("confirmed_execution_plan_immutable");
+  }
+  const plan = buildEventConfigsExecutionPlanFromBundle(bundle, {
+    planVersion,
+    assetIdHint,
+    planningIntent: planningIntent || {}
+  });
+  if (expectedPlanId && plan.planId !== expectedPlanId) {
+    throw new Error("confirmed_plan_id_drift");
+  }
+  if (expectedPlanHash && plan.planHash !== expectedPlanHash) {
+    throw new Error("confirmed_plan_hash_drift");
+  }
+  await repo.upsertLaunchExecutionPlan(plan);
+  const stored = await repo.getLaunchExecutionPlan(plan.planId);
+  assertNoSensitiveLeak(stored || plan);
+  return { plan, stored };
 }
 
 export async function compileAndSaveExecutionPlan({

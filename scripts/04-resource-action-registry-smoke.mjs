@@ -1,11 +1,21 @@
 import {
   ACTION_STD_PROJECT_CREATE,
+  buildEventConfigsExecutionPlanFromBundle,
+  buildSingleResourceExecutionPlanFromBundle,
   buildExecutionPlanFromBundle
 } from "../src/workflows/executionPlan.mjs";
 import {
+  EVENT_CONFIGS_PROVISION_ACTION,
+  EVENT_ASSET_CREATE_ENDPOINT,
+  EVENT_ASSET_CREATE_FIELD_NAMES,
+  EVENT_ASSET_CREATE_METHOD,
+  EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
+  EVENT_ASSET_TEMPLATE_REF,
   OE3_REQUIRED_RESOURCE_TYPES,
   allResourceActionCapabilities,
   assertNoSensitiveLeak,
+  eventAssetOfficialCreateContractHash,
+  eventAssetTemplateHash,
   getResourceActionCapability,
   normalizeResourceSkillResult
 } from "../src/workflows/skills/oe3/00-index.mjs";
@@ -116,6 +126,10 @@ assert(backupCapability.prepare_supported === false, "backup_landing_page_prepar
 assert(backupCapability.prepare_action_type === "", "backup_landing_page_prepare_action_must_not_be_active");
 assert(backupCapability.reserved_prepare_action_type === "ensure_resource:backup_landing_page", "backup_landing_page_reserved_action_missing");
 assert(backupCapability.reserved_prepare_scope === "source_material_account_to_target_account_designated_share_only", "backup_landing_page_reserved_scope_wrong");
+const eventCapability = getResourceActionCapability("event_asset");
+assert(eventCapability.prepare_supported === true, "event_asset_prepare_should_be_supported_when_contract_eligible");
+assert(eventCapability.prepare_action_type === "ensure_resource:event_asset", "event_asset_prepare_action_missing");
+assert(eventCapability.prepare_module_ref === "src/platforms/oceanengineEventAssetExecutor.mjs", "event_asset_prepare_module_ref_wrong");
 
 const readyNormalized = normalizeResourceSkillResult({
   resourceType: "avatar",
@@ -213,6 +227,106 @@ const backupMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
 assert(!actionTypes(backupMissingPlan).includes("ensure_resource:backup_landing_page"), "reserved_backup_landing_page_action_planned_without_contract");
 assert(backupMissingPlan.blockerCodes.includes("resource_prepare_unsupported:backup_landing_page"), "unsupported_backup_landing_page_blocker_missing");
 
+const eventMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "event_asset")
+));
+assert(!actionTypes(eventMissingPlan).includes("ensure_resource:event_asset"), "event_asset_action_planned_without_provision_eligibility");
+assert(eventMissingPlan.blockerCodes.includes("event_asset_provision_not_plan_eligible"), "event_asset_provision_guard_blocker_missing");
+
+function eventProvisionReadyBundle() {
+  const base = {
+    ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "event_asset")),
+    job: {
+      ...bundleWithResources([]).job,
+      advertiser_id: "1871922434025472"
+    },
+    defaults: {
+      ...bundleWithResources([]).defaults,
+      objective: "AD_CONVERT_TYPE_PAY",
+      deep_objective: "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
+      deep_bid_type: "PER_AND_SEVEN_PAY_ROI"
+    },
+    platformApp: {
+      id: "GPA-JSZC-OE-BYTE-MINI-GAME",
+      app_id: "tte95a9fe77665844607",
+      app_name: "巨兽战场",
+      app_type: "byte_mini_game",
+      status: "active",
+      metadata: {
+        micro_app_instance_id: "7434750138926546994",
+        micro_app_instance_id_source: "platform_app_reference"
+      }
+    },
+    resources: allReadyResources
+      .filter((item) => item.resource_type !== "event_asset")
+      .map((item) => item.resource_type === "micro_app_instance"
+        ? {
+            ...item,
+            platform_resource_id: "",
+            visibility_status: "needs_confirmation",
+            readback_status: "not_checked",
+            metadata: {}
+          }
+        : item),
+    resourceBlueprints: [{
+      resource_type: "event_asset",
+      metadata: {}
+    }]
+  };
+  const provision = {
+    version: "test",
+    template_status: "ready",
+    template_ref: EVENT_ASSET_TEMPLATE_REF,
+    template_hash: eventAssetTemplateHash({ bundle: base }),
+    asset_type: "MINI_PROGRAME",
+    platform_app_ref: "GPA-JSZC-OE-BYTE-MINI-GAME",
+    objective: "AD_CONVERT_TYPE_PAY",
+    deep_objective: "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
+    deep_bid_type: "PER_AND_SEVEN_PAY_ROI",
+    official_create_contract: {
+      status: "verified",
+      source_ref: EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS[0],
+      content_hash: eventAssetOfficialCreateContractHash(),
+      method: EVENT_ASSET_CREATE_METHOD,
+      endpoint: EVENT_ASSET_CREATE_ENDPOINT,
+      request_field_manifest: [...EVENT_ASSET_CREATE_FIELD_NAMES]
+    }
+  };
+  return {
+    ...base,
+    resourceBlueprints: [{
+      resource_type: "event_asset",
+      metadata: { event_asset_provision: provision }
+    }]
+  };
+}
+
+const eventEligibleBundle = eventProvisionReadyBundle();
+const eventEligibleNormalized = normalizeResourceSkillResult({
+  resourceType: "event_asset",
+  result: eventChainResourceReadiness({
+    bundle: eventEligibleBundle,
+    resourceType: "event_asset"
+  })
+});
+assert(eventEligibleNormalized.outputSummary.prepare_capability.status === "prepare_supported", "event_asset_contract_ready_should_be_prepare_supported");
+assert(eventEligibleNormalized.outputSummary.eventAssetProvisionPlanEligible === true, "event_asset_provision_eligible_not_exposed");
+const eventSinglePlan = buildSingleResourceExecutionPlanFromBundle(eventEligibleBundle, {
+  planVersion: 2,
+  resourceType: "event_asset"
+});
+assert(eventSinglePlan.planStatus === "ready", "event_single_resource_plan_should_be_ready");
+assert(JSON.stringify(actionTypes(eventSinglePlan)) === JSON.stringify(["ensure_resource:event_asset"]), "event_single_resource_plan_must_only_contain_event_action");
+assert(eventSinglePlan.metadata.execution_scope.maximum_platform_calls === 1, "event_single_resource_plan_call_limit_wrong");
+
+const eventConfigsPlan = buildEventConfigsExecutionPlanFromBundle(eventEligibleBundle, {
+  planVersion: 3,
+  assetIdHint: "1874962943118532"
+});
+assert(eventConfigsPlan.planStatus === "ready", "event_configs_plan_should_be_ready");
+assert(JSON.stringify(actionTypes(eventConfigsPlan)) === JSON.stringify([EVENT_CONFIGS_PROVISION_ACTION]), "event_configs_plan_must_only_contain_baseline_action");
+assert(eventConfigsPlan.metadata.execution_scope.maximum_platform_calls === 6, "event_configs_call_limit_wrong");
+
 const backupBlocked = normalizeResourceSkillResult({
   resourceType: "backup_landing_page",
   result: runBackupLandingPageReadinessSkill({
@@ -249,6 +363,10 @@ const result = {
   productPrepareAction: "ensure_resource:product_image",
   backupLandingPageReservedAction: backupCapability.reserved_prepare_action_type,
   backupLandingPageUnsupportedBlocker: "resource_prepare_unsupported:backup_landing_page",
+  eventAssetPrepareAction: eventCapability.prepare_action_type,
+  eventAssetProvisionGuardBlocker: "event_asset_provision_not_plan_eligible",
+  eventSingleResourcePlan: eventSinglePlan.planId,
+  eventConfigsPlan: eventConfigsPlan.planId,
   backupLandingPageBlockers: backupBlocked.blockers,
   microAppInstanceBlockers: microBlocked.blockers,
   noRealPlatformWrite: true,

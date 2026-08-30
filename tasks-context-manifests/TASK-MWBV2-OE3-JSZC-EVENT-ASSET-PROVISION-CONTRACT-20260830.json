@@ -1,0 +1,86 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-ASSET-PROVISION-CONTRACT-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-PROVISION-CONTRACT-20260830.md",
+  "status": "closed_validated_no_platform_write",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Implement the JSZC event-asset provision contract without enabling an unverified platform write.",
+    "mode": "canonical_node4_event_asset_provision_contract",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-PROVISION-CONTRACT-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-ASSET-PROVISION-CONTRACT-20260830.json",
+    "docs/Solution Design.md",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "parent_case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "change_type": "node4_event_asset_provision_contract"
+  },
+  "allowed_writes": [
+    "workflow skills, resource registry, execution-plan integration and focused smoke tests",
+    "idempotent database migration for the JSZC event-asset blueprint contract",
+    "Task, Manifest and project control-plane status",
+    "test_run records cleaned by smoke"
+  ],
+  "forbidden_actions": [
+    "real platform write or event asset creation",
+    "std_project/create or promotion/create",
+    "token refresh, budget or bid changes",
+    "raw request, raw response, complete URL or credential persistence",
+    "modification of existing runtime Case, Job or Plan facts"
+  ],
+  "validation_plan": [
+    "run event-chain and new event-asset-provision focused smoke tests",
+    "run resource registry, execution-plan and workflow schedule regressions",
+    "verify no event-asset prepare action is compiled when the creation contract is unverified",
+    "run schema and source preflight checks"
+  ],
+  "stop_conditions": [
+    "The official 3.0 event-asset creation contract is unavailable or incomplete.",
+    "The template lacks a stable reference or hash.",
+    "Any implementation requires a real platform write."
+  ],
+  "human_gate": {
+    "before_any_write": [
+      "A future Task must verify the official 3.0 create contract and grant a fresh, plan-bound single confirmation.",
+      "This Task grants no real platform action."
+    ]
+  },
+  "closure": {
+    "status": "validated_no_platform_write",
+    "migration_applied": "db/057_add_jszc_event_asset_provision_contract.sql",
+    "event_asset_prepare_supported": false,
+    "reserved_action": "ensure_resource:event_asset",
+    "official_create_contract_status": "unverified",
+    "platform_action_count": 0,
+    "confirmation_count": 0,
+    "created_object_count": 0,
+    "validation": [
+      "test:event-asset-provision-contract",
+      "test:event-chain-readonly",
+      "test:resource-action-registry",
+      "smoke:workflow-skills",
+      "test:execution-plan",
+      "validate:schemas",
+      "git diff --check"
+    ],
+    "next_task_requirement": "Verify the official 3.0 event-asset create contract before enabling any executor or Plan action."
+  }
+}

@@ -2363,9 +2363,11 @@ export class PostgresRepository {
             updated_at = now()
         WHERE job_id = ${sqlLiteral(plan.jobId)}
           AND plan_version < ${Number(plan.planVersion || 1)}
-          AND plan_status IN ('blocked', 'planned', 'ready')
+          AND plan_status IN ('blocked', 'planned', 'ready', 'executing', 'waiting_readback')
           AND NOT EXISTS (SELECT 1 FROM confirmed)
         RETURNING plan_id
+      ), stale_barrier AS (
+        SELECT count(*) AS stale_count FROM staled
       ), persisted AS (
         INSERT INTO mwb.launch_execution_plans (
           plan_id,
@@ -2396,6 +2398,7 @@ export class PostgresRepository {
           ${sqlJson(plan.metadata || {})},
           now(),
           now()
+        FROM stale_barrier
         WHERE NOT EXISTS (SELECT 1 FROM confirmed)
         ON CONFLICT (job_id, plan_version) DO UPDATE SET
           plan_status = EXCLUDED.plan_status,

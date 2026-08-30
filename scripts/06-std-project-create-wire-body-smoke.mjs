@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  buildLosslessJsonWireBody,
   buildStdProjectCreateWireBody,
   INSTANCE_ID_WIRE_STRATEGY,
   INT64_MAX_DECIMAL
@@ -201,6 +202,24 @@ const int64Wire = buildStdProjectCreateWireBody(basePayload(INT64_MAX_DECIMAL));
 assert.equal(int64Wire.status, "passed");
 assert(int64Wire.body.includes(`"instance_id":${INT64_MAX_DECIMAL}`));
 
+const eventAssetWire = buildLosslessJsonWireBody({
+  advertiser_id: "1871922434025472",
+  asset_type: "MINI_PROGRAME",
+  mini_program_asset: {
+    mini_program_id: "tte95a9fe77665844607",
+    mini_program_name: "巨兽战场",
+    instance_id: "7434750138926546994",
+    mini_program_type: "BYTE_GAME"
+  }
+}, {
+  losslessIntegerPaths: ["advertiser_id", "mini_program_asset.instance_id"]
+});
+assert.equal(eventAssetWire.status, "passed");
+assert(eventAssetWire.body.includes('"advertiser_id":1871922434025472'));
+assert(eventAssetWire.body.includes('"instance_id":7434750138926546994'));
+assert(!eventAssetWire.body.includes('"instance_id":"7434750138926546994"'));
+assert(!eventAssetWire.body.includes("7.434750138926547e+18"));
+
 assertBlocked("07434750138926546994", "invalid_decimal_bigint_json_number:instance_id");
 assertBlocked("7434750138926546994.0", "invalid_decimal_bigint_json_number:instance_id");
 assertBlocked("-7434750138926546994", "invalid_decimal_bigint_json_number:instance_id");
@@ -281,6 +300,7 @@ assert(unverifiedPreflight.blocker_codes.includes("instance_id_long_id_transport
 console.log(JSON.stringify({
   status: "passed",
   instanceIdWireNumberTokenPresent: true,
+  nestedInstanceIdWireNumberTokenPresent: true,
   requestHashPresent: true,
   invalidInputsBlocked: true,
   unverifiedStrategyBlocked: true,

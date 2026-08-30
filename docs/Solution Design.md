@@ -65,6 +65,8 @@ OE3 接口合同：
 docs/project-lessons.md
 → /Users/hys/Projects/marketing-workbench
 → PostgreSQL marketing_workbench
+→ PostgreSQL marketing_workbench_v2
+特别是：platform_actions / evidence_artifacts / launch_execution_plans
 ```
 
 | 资料 | 路径 |

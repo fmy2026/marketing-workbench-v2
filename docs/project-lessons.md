@@ -102,13 +102,19 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 
 | 项 | 经验结论 |
 | --- | --- |
-| 归属与流转 | 当前仅以目标账户的目标/事件链只读合同判断；未验证跨账户流转方案。 |
-| 官方接口 | 账户事件资产列表使用 `GET /open_api/2/tools/event/all_assets/list/`，必要时结合 `GET /open_api/2/tools/event/all_assets/detail/`；目标/深度目标合同使用 `GET /open_api/v3.0/event_manager/optimized_goal/get/` 与 `GET /open_api/v3.0/event_manager/dbt/get/`。旧版 `event_manager/available_events/get`、`event_manager/event_configs/get` 只作兼容只读证据，不替代标准项目目标合同。 |
-| 只读判定 | 目标、优化目标与事件链合同均通过。 |
-| 写入边界 | `prepare_supported=false`；本 Node 不推断或创建事件资产。 |
-| 回查证据 | objective/event readonly evidence 与字段合同。 |
-| 验证状态 | 当前核验合同可用，尚未形成独立资源准备闭环经验。 |
-| 不适用边界 | 不将旧账户事件候选视为目标账户已可用。 |
+| 归属与流转 | `event_asset` 是目标账户事件管理资产，不走跨账户共享；小游戏实例是同一事件链的配套事实。目标账户已有唯一可用资产时 no-op 回查；缺失时才允许在单独 Task、单份 Plan、单次确认下 API 创建。 |
+| 唯一链路 | `all_assets/list` 查目标账户 `MINI_PROGRAME` 资产 -> `all_assets/detail` 核对唯一资产 -> 缺资产时 `assets/create` 创建 -> `available_events/get` 获取本资产可创建 baseline event_id -> `events/create` 仅创建缺失事件 -> `event_configs/get` 验证 6/6 -> `optimized_goal/get` 验证主/深度目标 -> `dbt/get` 验证深度优化方式 -> `event_asset` 与 `micro_app_instance` 写为 `visible + readback_verified`。 |
+| 资产查找接口 | 使用 `GET /open_api/2/tools/event/all_assets/list/` 查询目标账户事件资产列表，过滤 `asset_type=MINI_PROGRAME`；使用 `GET /open_api/2/tools/event/all_assets/detail/` 查询详情。`detail` 的 `asset_ids` 必须按 JSON 十进制数字数组形态传输，例如 `[1234567890123456]`；不要传字符串数组、逗号字符串或单数 `asset_id`。 |
+| 资产创建接口 | 缺失且合同完整时使用 `POST /open_api/2/event_manager/assets/create/` 创建 `MINI_PROGRAME` 资产；字段固定为 `advertiser_id`、`asset_type`、`mini_program_asset.mini_program_id`、`mini_program_asset.mini_program_name`、`mini_program_asset.instance_id`、`mini_program_asset.mini_program_type`。长 ID 以 lossless JSON 十进制 number token 发送；不保存 raw payload 或 raw response。 |
+| 事件配置创建接口 | 使用 `GET /open_api/2/event_manager/available_events/get/` 从目标账户、目标资产获取可创建事件的 `event_id`；再用 `POST /open_api/2/event_manager/events/create/` 创建缺失 baseline，字段只传 `advertiser_id`、`asset_id`、`event_id`、`track_types=["MINI_PROGRAME_API"]`。不得复用其他账户、旧库或历史样本的 event_id。 |
+| Baseline 事件 | 游戏保底集合固定为 `active`、`active_register`、`active_pay`、`purchase_roi`、`purchase_roi_7d`、`purchase_roi_30d`。每次只创建 `event_configs/get` 缺失的项；已存在项必须跳过。 |
+| 配置核查接口 | 最终配置核查以 `GET /open_api/2/event_manager/event_configs/get/` 为准，必须返回 6/6 baseline 且 track type 命中 `MINI_PROGRAME_API`。`available_events/get` 是“可创建事件列表”，创建完成后 baseline 可能不再出现在 available 列表中；因此创建后的 READY 不能要求 available 仍为 6/6。 |
+| 优化目标核查 | 配置 6/6 后，继续使用 `GET /open_api/v3.0/event_manager/optimized_goal/get/` 验证 `PAY + PURCHASE_ROI_7D`，并使用 `GET /open_api/v3.0/event_manager/dbt/get/` 验证 `PER_AND_SEVEN_PAY_ROI`；这两段通过后才允许关闭事件链。 |
+| 写入边界 | 事件资产创建最多 1 次；事件配置创建最多 6 次；每个动作都必须绑定当前 Job、Plan、confirmation、route、game、advertiser 与模板 hash。创建成功但回查不到、候选歧义、App/instance 不匹配、任一 API 非 0 或权限异常时停止，不自动扩大范围。 |
+| 幂等与审计 | orchestrator 的 internal claim 必须同时绑定 plan id 和 idempotency key；不同 plan/version 不得互相挡住，但同一 plan/action 不得重复消费。真实平台动作只记录 endpoint path、method、HTTP/API code、request_id 是否存在、hash 和脱敏 metadata。 |
+| 通过标准 | `event_configs/get` 6/6、`optimized_goal/get` 主/深度目标命中、`dbt/get` 深度优化方式命中；随后 `account_resources.event_asset` 与 `account_resources.micro_app_instance` 均写为 `visible + readback_verified`，Case root blocker 清空事件链相关 blocker。 |
+| 验证状态 | 已闭环；已形成“查找 -> 缺失创建资产 -> 缺失创建 baseline 事件 -> 配置核查 -> 优化目标/DBT 核查 -> READY”的真实可复用经验。 |
+| 不适用边界 | 不把平台 UI 截图、旧账户资产、旧库 event_id、历史目标户候选或 `available_events/get` 创建后为空当作 READY 证据；不在本模块触发标准项目、Promotion、预算、出价、素材、DMP、头像、备用页或 token 刷新。 |
 
 ## 视频（video_asset）
 

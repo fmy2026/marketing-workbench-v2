@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-08-28.project-control-plane-v2",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-30 CST",
+  "updated_at": "2026-08-31 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,35 +9,71 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": null,
+  "active_task": {
+    "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
+    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.json",
+    "status": "completed_event_chain_ready",
+    "read_order": [
+      "AGENTS.md",
+      "project.state.json",
+      "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.json",
+      "docs/Solution Design.md"
+    ]
+  },
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "idle_waiting_for_next_task",
-      "task_ref": "",
-      "retry_allowed": false,
+      "binding_mode": "single_confirmation_plan",
+      "target_job_id": "JOB-MWBV2-20260830140153-667873",
+      "target_advertiser_id": "1871922434025472",
+      "target_draft_id": "DRAFT-JOB-MWBV2-20260830140153-667873",
+      "target_payload_hash": "sha256:fe97a0b0498a9c6026886b85945871ac76a94b8cb0f920d527aeda1a73a57aff",
+      "target_plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V8",
+      "target_plan_hash": "sha256:0ec98922195eba2b4fca8971251e7520c043097ec2cb5fba938cf96fcc7b741b",
       "allowed_actions": [],
+      "allowed_plan_actions": [
+        "ensure_event_configs:baseline"
+      ],
       "maximum_actions": 0,
-      "allowed_plan_actions": [],
-      "verified_oneoff_result": {
-        "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.md",
-        "target_job_id": "JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8",
-        "target_plan_id": "PLAN-JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8-V1",
-        "target_payload_hash": "sha256:e22443b2f2edc37dce042da79519bd6394c9cd35f813a0e5d7ae063161bd353a",
-        "target_plan_hash": "sha256:5b3e70ba2723f74d0499d6dfab006f32c17fcc042dc63ff740347752eb8687fc",
-        "diff_hash": "sha256:17b6e55a7075203f00c9bf89f38692cd8f445d8498f42de72b7c78e61986003c",
-        "result": "created_verified",
-        "readback_status": "readback_verified",
-        "http_status": 200,
-        "api_code": "0",
-        "request_id_present": true,
-        "object_id_present": true,
-        "complete_request_id_stored": false,
-        "created_objects": 1,
-        "readback_attempt_count": 3
+      "maximum_platform_calls": 0,
+      "action_grants": {
+        "ensure_event_configs:baseline": {
+          "maximum_platform_calls": 6,
+          "retry_allowed": false,
+          "official_contract": {
+            "source_ref": "official:oceanengine:2.0:19-asset:event_manager/events/create:196-203",
+            "content_hash": "sha256:e5f319eaa96df41d8c5118c3f5f4b46ca9f57c752b4d3233a4c87905c17079b0",
+            "method": "POST",
+            "endpoint": "/open_api/2/event_manager/events/create/",
+            "request_field_manifest": [
+              "advertiser_id",
+              "asset_id",
+              "event_id",
+              "track_types"
+            ],
+            "baseline_event_types": [
+              "active",
+              "active_register",
+              "active_pay",
+              "purchase_roi",
+              "purchase_roi_7d",
+              "purchase_roi_30d"
+            ],
+            "track_types": [
+              "MINI_PROGRAME_API"
+            ],
+            "event_id_source": "target_asset_available_events_get",
+            "payload_persisted": false,
+            "response_persisted": false
+          }
+        }
       },
-      "granted_by": "no_active_task",
-      "granted_at": "2026-08-30 CST"
+      "maximum_create_calls": 0,
+      "retry_allowed": false,
+      "granted_by_task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
+      "granted_at": "2026-08-30T16:31:50.890Z"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {
@@ -74,6 +110,30 @@
       "把 token、Cookie、secret、auth_code 或完整触点 URL 写入项目文件",
       "直接依赖旧项目路径作为 v2 运行时真值",
       "未建立任务卡和 context manifest 时推进跨阶段开发"
-    ]
+    ],
+    "last_event_asset_write_grant": {
+      "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-ASSET-API-CREATE-1871922434025472-20260830",
+      "job_id": "JOB-MWBV2-20260830140153-667873",
+      "advertiser_id": "1871922434025472",
+      "plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V2",
+      "plan_hash": "sha256:1b491dc867ce162cf2b1045c4d8ef3f77fde6dcf0d47796891433be750c52376",
+      "allowed_actions": [
+        "ensure_resource:event_asset"
+      ],
+      "maximum_platform_calls": 1,
+      "retry_allowed": false
+    },
+    "last_event_configs_write_grant": {
+      "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
+      "job_id": "JOB-MWBV2-20260830140153-667873",
+      "advertiser_id": "1871922434025472",
+      "plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V8",
+      "plan_hash": "sha256:0ec98922195eba2b4fca8971251e7520c043097ec2cb5fba938cf96fcc7b741b",
+      "allowed_actions": [
+        "ensure_event_configs:baseline"
+      ],
+      "maximum_platform_calls": 6,
+      "retry_allowed": false
+    }
   }
 }

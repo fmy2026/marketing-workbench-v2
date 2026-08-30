@@ -12,10 +12,18 @@ import {
   ensureProductImageForTargetOnce
 } from "../../../platforms/oceanengineProductImageExecutor.mjs";
 import {
+  EVENT_ASSET_CONFIRM_VALUE,
+  ensureEventAssetForTargetOnce
+} from "../../../platforms/oceanengineEventAssetExecutor.mjs";
+import {
+  EVENT_CONFIGS_CONFIRM_VALUE,
+  ensureEventConfigsForTargetOnce
+} from "../../../platforms/oceanengineEventConfigExecutor.mjs";
+import {
   DMP_ENSURE_CONFIRM_VALUE
 } from "../../dmpExecutionScope.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "./00-contracts.mjs";
-import { FORMAL_RESOURCE_PREP_ACTION_ORDER } from "./04-resource-action-registry.mjs";
+import { FORMAL_CONFIRMED_ACTION_ORDER } from "./04-resource-action-registry.mjs";
 
 const READY_STATUSES = new Set([
   "already_ready_noop",
@@ -24,15 +32,28 @@ const READY_STATUSES = new Set([
   "video_material_ready",
   "video_material_ready_noop",
   "product_image_ready",
-  "product_image_ready_noop"
+  "product_image_ready_noop",
+  "event_asset_ready",
+  "event_asset_ready_noop",
+  "event_configs_ready",
+  "event_configs_ready_noop"
 ]);
 
 function actions(plan = {}) {
   return plan.planned_actions || plan.plannedActions || [];
 }
 
-function claimActionId(jobId, actionType) {
-  return `ACTION-${jobId}-${actionType.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}-PLAN`;
+function safeIdToken(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function claimActionId(jobId, actionType, planId = "") {
+  const planToken = safeIdToken(planId).slice(-48) || "PLAN";
+  return `ACTION-${jobId}-${safeIdToken(actionType)}-${planToken}`;
+}
+
+function claimIdempotencyKey(plannedAction = {}, actionId = "", planId = "") {
+  return `${plannedAction.idempotency_key || `IDEMP-${actionId}`}:${safeIdToken(planId)}`;
 }
 
 function defaultExecutors() {
@@ -65,6 +86,21 @@ function defaultExecutors() {
       confirmVariableValue: PRODUCT_IMAGE_CONFIRM_VALUE,
       fetchImpl,
       projectStatePath
+    }),
+    "ensure_resource:event_asset": ({ repo, jobId, fetchImpl, projectStatePath }) => ensureEventAssetForTargetOnce({
+      repo,
+      jobId,
+      confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+      fetchImpl,
+      projectStatePath
+    }),
+    "ensure_event_configs:baseline": ({ repo, jobId, fetchImpl, projectStatePath, plan, plannedAction }) => ensureEventConfigsForTargetOnce({
+      repo,
+      jobId,
+      confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+      fetchImpl,
+      projectStatePath,
+      assetIdHint: String(plannedAction?.target_ref || "").split(":").pop() || plan?.metadata?.event_config_asset_id_hint || ""
     })
   };
 }
@@ -93,7 +129,7 @@ export async function runConfirmedResourceOrchestratorSkill({
     ...(confirmation?.metadata?.plan_hash === (plan?.plan_hash || plan?.planHash) ? [] : ["execution_plan_confirmation_hash_mismatch"]),
     ...actions(plan)
       .filter((action) => action.action_type !== "std_project_create")
-      .filter((action) => !FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(action.action_type))
+      .filter((action) => !FORMAL_CONFIRMED_ACTION_ORDER.includes(action.action_type))
       .map((action) => `planned_resource_action_executor_missing:${action.action_type}`)
   ];
   if (preflightBlockers.length) {
@@ -111,17 +147,19 @@ export async function runConfirmedResourceOrchestratorSkill({
 
   const executors = { ...defaultExecutors(), ...executorOverrides };
   const results = [];
-  for (const actionType of FORMAL_RESOURCE_PREP_ACTION_ORDER) {
+  for (const actionType of FORMAL_CONFIRMED_ACTION_ORDER) {
     if (!planned.has(actionType)) continue;
     const plannedAction = actions(plan).find((action) => action.action_type === actionType) || {};
-    const actionId = claimActionId(bundle.job.job_id, actionType);
+    const planId = plan.plan_id || plan.planId;
+    const actionId = claimActionId(bundle.job.job_id, actionType, planId);
+    const idempotencyKey = claimIdempotencyKey(plannedAction, actionId, planId);
     const claim = await repo.claimPlannedExecutionAction({
       actionId,
       jobId: bundle.job.job_id,
       confirmationId: confirmation.confirmation_id,
-      planId: plan.plan_id || plan.planId,
+      planId,
       actionType,
-      idempotencyKey: plannedAction.idempotency_key || `IDEMP-${actionId}`
+      idempotencyKey
     });
     if (!claim?.claimed) {
       return sanitizeForPublic({
@@ -141,7 +179,9 @@ export async function runConfirmedResourceOrchestratorSkill({
       repo,
       jobId: bundle.job.job_id,
       fetchImpl,
-      projectStatePath
+      projectStatePath,
+      plan,
+      plannedAction
     });
     const safe = sanitizeForPublic(result || {});
     results.push({
@@ -154,9 +194,9 @@ export async function runConfirmedResourceOrchestratorSkill({
       actionId,
       jobId: bundle.job.job_id,
       confirmationId: confirmation.confirmation_id,
-      planId: plan.plan_id || plan.planId,
+      planId,
       actionType,
-      idempotencyKey: plannedAction.idempotency_key || `IDEMP-${actionId}`,
+      idempotencyKey,
       actionStatus: READY_STATUSES.has(safe.status) ? "succeeded" : "failed_once",
       metadata: {
         executor_status: safe.status || "unknown",

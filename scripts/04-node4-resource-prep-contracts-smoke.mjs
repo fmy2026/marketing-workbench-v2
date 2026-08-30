@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
+import {
+  EVENT_CONFIG_BASELINE_EVENTS,
+  EVENT_CONFIG_TRACK_TYPE,
+  assertNoSensitiveLeak
+} from "../src/workflows/skills/oe3/00-index.mjs";
 import { runBackupLandingPageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
 import { runEventChainReadonlySkill } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
 import { runProductImageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
@@ -71,11 +75,21 @@ const blockedEventChainClient = {
     return { status: "ready", blockers: [] };
   },
   async get({ label, endpoint, summarize }) {
+    const baselineEvents = EVENT_CONFIG_BASELINE_EVENTS.map((item, index) => ({
+      event_id: String(900000 + index),
+      event_type: item.event_type,
+      event_cn_name: item.event_cn_name,
+      track_types: [EVENT_CONFIG_TRACK_TYPE]
+    }));
     const payload = label === "event_chain_asset_list"
       ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS" }], page_info: { total_page: 1 } } }
       : label === "event_chain_asset_detail"
         ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", app_id: "tte-smoke", share_type: "MY_CREATIONS" }] } }
-        : { code: "0", data: { list: [] } };
+        : label === "event_chain_available_events"
+          ? { code: "0", data: { list: baselineEvents } }
+          : label === "event_chain_event_configs"
+            ? { code: "0", data: { list: baselineEvents } }
+            : { code: "0", data: { list: [] } };
     return {
       label,
       endpoint: endpoint.replace(/^\/open_api\/v3\.0\//, "").replace(/\/$/g, ""),

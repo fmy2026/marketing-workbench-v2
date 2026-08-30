@@ -1,4 +1,8 @@
-import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
+import {
+  assertNoSensitiveLeak,
+  EVENT_CONFIG_BASELINE_EVENTS,
+  EVENT_CONFIG_TRACK_TYPE
+} from "../src/workflows/skills/oe3/00-index.mjs";
 import {
   eventChainResourceReadiness,
   runEventChainReadonlySkill
@@ -64,9 +68,24 @@ function asset(id, appId = APP_ID) {
   return { asset_id: id, asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS", app_id: appId };
 }
 
-function clientStub({ assets = [asset("800000000001")], detailAssets = assets, goals = null, dbt = null } = {}) {
+function baselineEvents({ missingTypes = [] } = {}) {
+  return EVENT_CONFIG_BASELINE_EVENTS
+    .filter((item) => !missingTypes.includes(item.event_type))
+    .map((item, index) => ({
+      event_id: String([8, 13, 14, 160, 360, 607][EVENT_CONFIG_BASELINE_EVENTS.findIndex((baseline) => baseline.event_type === item.event_type) >= 0
+        ? EVENT_CONFIG_BASELINE_EVENTS.findIndex((baseline) => baseline.event_type === item.event_type)
+        : index]),
+      event_type: item.event_type,
+      event_cn_name: item.event_cn_name,
+      track_types: [EVENT_CONFIG_TRACK_TYPE]
+    }));
+}
+
+function clientStub({ assets = [asset("800000000001")], detailAssets = assets, goals = null, dbt = null, missingAvailableTypes = [], missingConfigTypes = [] } = {}) {
   const defaultGoals = [{ optimization_name: "付费", external_action: "AD_CONVERT_TYPE_PAY", deep_external_action: "AD_CONVERT_TYPE_PURCHASE_ROI_7D" }];
   const defaultDbt = [{ deep_bid_type: "PER_AND_SEVEN_PAY_ROI" }];
+  const availableEvents = baselineEvents({ missingTypes: missingAvailableTypes });
+  const configuredEvents = baselineEvents({ missingTypes: missingConfigTypes });
   const calls = [];
   return {
     calls,
@@ -77,6 +96,10 @@ function clientStub({ assets = [asset("800000000001")], detailAssets = assets, g
         ? { code: "0", request_id: "smoke", data: { asset_list: assets, page_info: { total_page: 1 } } }
         : label === "event_chain_asset_detail"
           ? { code: "0", request_id: "smoke", data: { asset_list: detailAssets } }
+          : label === "event_chain_available_events"
+            ? { code: "0", request_id: "smoke", data: { event_configs: availableEvents } }
+          : label === "event_chain_event_configs"
+            ? { code: "0", request_id: "smoke", data: { event_configs: configuredEvents } }
           : label === "event_chain_optimized_goal"
             ? { code: "0", request_id: "smoke", data: { list: goals === null ? defaultGoals : goals } }
             : { code: "0", request_id: "smoke", data: { list: dbt === null ? defaultDbt : dbt } };
@@ -116,6 +139,8 @@ const passClient = clientStub();
 const pass = await runEventChainReadonlySkill({ repo: passRepo, bundle: passBundle, client: passClient, allowReadonlyDependency: true });
 assert(pass.status === "passed", "complete_event_chain_should_pass");
 assert(passRepo.state.updates.length === 2, "two_resource_projections_required");
+assert(passClient.calls.filter((item) => item.label === "event_chain_available_events").length === 1, "available_events_must_run_once");
+assert(passClient.calls.filter((item) => item.label === "event_chain_event_configs").length === 1, "event_configs_must_run_once");
 assert(passClient.calls.filter((item) => item.label === "event_chain_optimized_goal").length === 1, "optimized_goal_must_run_once");
 assert(passClient.calls.filter((item) => item.label === "event_chain_dbt").length === 1, "dbt_must_run_once");
 const passedProjection = persistedBundle(passBundle, passRepo.state.updates);
@@ -140,6 +165,28 @@ const noInstance = await runEventChainReadonlySkill({ repo: repoStub(), bundle: 
 assert(noInstance.blockers.includes("micro_app_instance_candidate_missing"), "missing_candidate_blocker_required");
 assert(noInstance.outputSummary.targetInstanceReadbackVerified === false, "reference_candidate_must_not_be_target_truth");
 
+const noAvailable = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ missingAvailableTypes: ["purchase_roi_7d"] }), allowReadonlyDependency: true });
+assert(noAvailable.status === "passed", "available_events_can_be_empty_after_event_configs_are_configured");
+assert(noAvailable.outputSummary.availableEventsReadbackVerified === false, "available_events_post_configured_gap_must_stay_visible");
+assert(noAvailable.outputSummary.eventConfigsReadbackVerified === true, "configured_event_configs_should_drive_post_create_readback");
+
+const noEventConfig = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ missingConfigTypes: ["purchase_roi_7d"] }), allowReadonlyDependency: true });
+assert(noEventConfig.blockers.includes("event_configs_baseline_missing"), "missing_event_config_blocker_required");
+assert(noEventConfig.outputSummary.optimizedGoalStatus === "not_called", "optimized_goal_must_wait_for_event_configs");
+
+const noAvailableAndNoEventConfig = await runEventChainReadonlySkill({
+  repo: repoStub(),
+  bundle: bundle(),
+  client: clientStub({
+    missingAvailableTypes: ["purchase_roi_7d"],
+    missingConfigTypes: ["purchase_roi_7d"]
+  }),
+  allowReadonlyDependency: true
+});
+assert(noAvailableAndNoEventConfig.blockers.includes("available_events_baseline_missing"), "missing_available_event_blocker_required_when_config_missing");
+assert(noAvailableAndNoEventConfig.blockers.includes("event_configs_baseline_missing"), "missing_config_blocker_required_when_available_missing");
+assert(noAvailableAndNoEventConfig.outputSummary.optimizedGoalStatus === "not_called", "optimized_goal_must_wait_for_missing_event_configs");
+
 const noGoal = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ goals: [] }), allowReadonlyDependency: true });
 assert(noGoal.blockers.includes("optimized_goal_not_available"), "missing_goal_blocker_required");
 
@@ -161,6 +208,9 @@ const output = {
   appMismatchBlocked: appMismatch.blockers.includes("event_asset_app_binding_unverified"),
   ambiguousBlocked: ambiguous.blockers.includes("event_asset_target_ambiguous"),
   referenceCandidateNotPromoted: noInstance.outputSummary.targetInstanceReadbackVerified === false,
+  availableGapIgnoredAfterConfigured: noAvailable.status === "passed",
+  noAvailableBlockedWhenConfigMissing: noAvailableAndNoEventConfig.blockers.includes("available_events_baseline_missing"),
+  noEventConfigBlocked: noEventConfig.blockers.includes("event_configs_baseline_missing"),
   noGoalBlocked: noGoal.blockers.includes("optimized_goal_not_available"),
   noDeepGoalBlocked: noDeepGoal.blockers.includes("deep_objective_not_available"),
   noDeepBidBlocked: noDeepBid.blockers.includes("deep_bid_type_not_available"),

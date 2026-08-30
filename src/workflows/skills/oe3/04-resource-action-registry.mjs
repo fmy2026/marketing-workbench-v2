@@ -1,4 +1,5 @@
 import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "./00-contracts.mjs";
+import { EVENT_CONFIGS_PROVISION_ACTION } from "./04-event-config-provision-contract.mjs";
 
 export const RESOURCE_CAPABILITY_STATES = new Set([
   "ready",
@@ -24,9 +25,9 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
   },
   event_asset: {
     verifyModuleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
-    prepareSupported: false,
-    prepareModuleRef: "",
-    evidenceRequirement: "objective/event chain readonly evidence"
+    prepareSupported: true,
+    prepareModuleRef: "src/platforms/oceanengineEventAssetExecutor.mjs",
+    evidenceRequirement: "target event asset list/detail plus optimized-goal and deep-bid readonly evidence"
   },
   video_asset: {
     verifyModuleRef: "src/workflows/skills/oe3/04-video-material-readiness.mjs",
@@ -111,6 +112,11 @@ export const FORMAL_RESOURCE_PREP_ACTION_ORDER = Object.freeze(
     .filter((capability) => capability.prepare_supported)
     .map((capability) => capability.prepare_action_type)
 );
+
+export const FORMAL_CONFIRMED_ACTION_ORDER = Object.freeze([
+  ...FORMAL_RESOURCE_PREP_ACTION_ORDER,
+  EVENT_CONFIGS_PROVISION_ACTION
+]);
 
 export function formalResourcePrepActionSupported(actionType = "") {
   return FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(String(actionType || ""));
