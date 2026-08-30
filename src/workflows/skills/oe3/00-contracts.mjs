@@ -300,6 +300,16 @@ export const OE3_SKILL_DEFINITIONS = [
       : "launch_skill_runs_only"
   })),
   {
+    skillKey: "confirmed-resource-orchestrator",
+    nodeKey: "std_project_draft_builder",
+    dependsOn: OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`),
+    inputContract: ["confirmed_execution_plan", "planned_resource_actions", "single_plan_confirmation"],
+    outputContract: ["orchestrator_status", "executed_action_count", "action_results", "create_called"],
+    stopConditions: ["execution_plan_confirmation_missing", "planned_resource_action_not_ready"],
+    writeScope: "existing_resource_executors_only",
+    moduleRef: "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs"
+  },
+  {
     skillKey: "payload-build",
     nodeKey: "std_project_draft_builder",
     dependsOn: ["aweme-authorization-readonly", ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`)],
@@ -441,6 +451,7 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey === "resource-verify-micro-app-instance") return "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
   if (skillKey === "resource-verify-backup-landing-page") return "src/workflows/skills/oe3/03-landing-page-readiness.mjs";
   if (skillKey.startsWith("resource-verify-")) return "src/workflows/skills/oe3/04-resource-verifiers.mjs";
+  if (skillKey === "confirmed-resource-orchestrator") return "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs";
   if (skillKey === "payload-build") return "src/workflows/skills/oe3/05-payload-contract.mjs";
   if (skillKey === "payload-contract") return "src/workflows/skills/oe3/05-payload-contract.mjs";
   if (skillKey === "duplicate-check") return "src/workflows/skills/oe3/05-duplicate-readonly.mjs";

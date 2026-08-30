@@ -1,0 +1,85 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+  "status": "blocked_waiting_external_resource_readiness",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Certify the formal Node 1-7 JSZC/BYTE_GAME flow on a user-specified new advertiser account.",
+    "mode": "target_bound_waiting_unsupported_resource_readiness",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "latest_readonly_job_id": "JOB-MWBV2-20260830105042-44AEBA",
+    "latest_blocked_plan_id": "PLAN-JOB-MWBV2-20260830105042-44AEBA-V1",
+    "object_type": "std_project",
+    "success_profile_version": "2026-08-30.jszc-byte-game-success-profile-v1",
+    "field_shape_hash": "sha256:9203ddf077d05b51958e851dad86894f75fdf09884ffc99690ad459ce5dd1064",
+    "certification_attempt_policy": "one_create_after_fresh_exact_confirmation"
+  },
+  "allowed_writes": [
+    "workflow_cases for the exact target account",
+    "runtime launch_jobs, launch_node_runs and launch_skill_runs bound to the exact workflow case",
+    "readonly execution plans, evidence artifacts, resource readonly states and readback audit summaries",
+    "task, manifest and project control-plane status"
+  ],
+  "forbidden_actions": [
+    "std_project/create before a fresh exact confirmation",
+    "promotion/create",
+    "automatic retry",
+    "one-off compiler or .archive runtime dependency",
+    "token refresh",
+    "raw request, raw payload, raw response, token, secret, Cookie, auth_code, complete URL or complete request ID persistence or output"
+  ],
+  "validation_plan": [
+    "create a fresh workflow case for advertiser 1871922434025472",
+    "create a fresh readonly bootstrap job bound to that case",
+    "verify unsupported resources before any resource platform write",
+    "run formal Node 1-5 and verify the success profile and field-shape hash",
+    "obtain exact confirmation for the fresh Job and Plan",
+    "run Node 6 once and Node 7 three-readback closure through the formal mechanism"
+  ],
+  "stop_conditions": [
+    "Target-account micro app instance and objective/event chain are not readonly verified.",
+    "The default backup landing page is not visible or readback verified in the target account.",
+    "Do not execute supported resource writes until unsupported prerequisites pass a fresh readonly bootstrap.",
+    "Do not reuse the current blocked Draft or Execution Plan after external resource state changes."
+  ],
+  "human_gate": {
+    "target_account_gate": {
+      "status": "satisfied",
+      "advertiser_id": "1871922434025472",
+      "certification_definition": "target_account_zero_reusing_verified_game_level_sources",
+      "source": "user_approved_plan_2026-08-30"
+    },
+    "before_any_write": [
+      "Node 4 must produce one blocker-free immutable Plan containing all supported resource actions and one create action.",
+      "One exact Job/Plan/hash and risk confirmation authorizes the bounded Node 5 resource actions and the single Node 6 create."
+    ]
+  },
+  "solution_link": {
+    "source": "Task 1 successfully encoded and locally validated the audited JSZC success profile.",
+    "objective": "Prove the durable formal mechanism, not merely the platform API capability.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, current code, db contract check and docs/Solution Design.md.",
+    "stop_condition": "Paused on unsupported target-account resources; after external preparation, require a fresh readonly Job and one immutable Plan before the only confirmation."
+  }
+}

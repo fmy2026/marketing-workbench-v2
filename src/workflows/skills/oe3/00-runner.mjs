@@ -57,7 +57,8 @@ import { runProductImageSourcePrepareSkill } from "./04-product-image-source-pre
 import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
-import { compileAndSaveExecutionPlan } from "../../executionPlan.mjs";
+import { compileAndSaveExecutionPlan, evaluateConfirmedPlanDraftDerivation } from "../../executionPlan.mjs";
+import { runConfirmedResourceOrchestratorSkill } from "./05-confirmed-resource-orchestrator.mjs";
 
 export const OE3_WORKFLOW_MODES = new Set(["dry_run", "draft_readiness", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
 
@@ -150,7 +151,7 @@ function skillsForMode(mode) {
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
   }
-  const base = [
+  const readinessBase = [
     "intake-normalize",
     ...monitorDryRun,
     "context-resolve-account",
@@ -174,14 +175,24 @@ function skillsForMode(mode) {
     "product-image-source-prepare",
     "micro-app-instance-readonly",
     "backup-landing-page-source-prepare",
-    ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey),
+    ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
+  ];
+  const draftAndReadiness = [
     "payload-build",
     "payload-contract",
     "duplicate-check",
     "create-readiness"
   ];
-  if (mode === "execute_once") return [...base, "create-once", "readback-std-project"];
-  return base;
+  if (mode === "execute_once") {
+    return [
+      ...readinessBase,
+      "confirmed-resource-orchestrator",
+      ...draftAndReadiness,
+      "create-once",
+      "readback-std-project"
+    ];
+  }
+  return [...readinessBase, ...draftAndReadiness];
 }
 
 const SCHEDULE_EXTERNAL_DEPENDENCIES = Object.freeze({
@@ -276,17 +287,35 @@ async function executePayloadBuild({ repo, context }) {
     mockReady: context.mockReady,
     attemptNo: context.createAttemptNo
   });
+  const plan = context.bundle.executionPlan || {};
+  const planBound = plan.metadata?.execution_scope?.binding_mode === "single_confirmation_plan" &&
+    Boolean(context.expectedPlanId && context.expectedPlanHash);
+  const derivation = planBound
+    ? evaluateConfirmedPlanDraftDerivation({ plan, draft })
+    : { status: "not_applicable", blockers: [], derivationHash: "" };
+  const derivationBlockers = derivation.blockers;
+  draft.payloadSummary = {
+    ...draft.payloadSummary,
+    derived_from_plan_id: planBound ? context.expectedPlanId : "",
+    derived_from_plan_hash: planBound ? context.expectedPlanHash : "",
+    plan_derivation_status: derivationBlockers.length ? "blocked" : planBound ? "passed" : "not_applicable",
+    plan_derivation_blockers: derivationBlockers,
+    plan_derivation_hash: derivation.derivationHash
+  };
   await repo.upsertDraft(draft);
   context.draft = draft;
   context.bundle = applyDraftToBundle(context.bundle, draft);
   return {
-    status: draft.payloadSummary.final_payload_blockers?.length ? "blocked" : "passed",
-    blockers: draft.payloadSummary.final_payload_blockers || [],
+    status: draft.payloadSummary.final_payload_blockers?.length || derivationBlockers.length ? "blocked" : "passed",
+    blockers: [...(draft.payloadSummary.final_payload_blockers || []), ...derivationBlockers],
     outputSummary: {
       projectName: draft.projectName,
       payloadHash: draft.payloadHash,
       payloadHashSource: draft.payloadSummary.payload_hash_source || "legacy_summary",
       requestFieldManifest: draft.payloadSummary.final_payload_manifest || {},
+      derivedFromPlanId: draft.payloadSummary.derived_from_plan_id,
+      derivedFromPlanHash: draft.payloadSummary.derived_from_plan_hash,
+      planDerivationStatus: draft.payloadSummary.plan_derivation_status,
       rawPayloadStored: false
     }
   };
@@ -450,7 +479,7 @@ async function executeSkill({ repo, context, skillKey }) {
     result = await runResourceBlueprintBootstrapSkill({ repo, bundle: context.bundle });
     // The initial plan may have seen no target account resource rows. Rebuild it
     // after candidate materialization so later gates use the current local truth.
-    if (result.status === "passed" && EXECUTION_PLAN_MODES.has(context.mode)) {
+    if (result.status === "passed" && EXECUTION_PLAN_MODES.has(context.mode) && !context.freezeConfirmedPlan) {
       await compileAndSaveExecutionPlan({
         repo,
         jobId: context.bundle.job.job_id,
@@ -513,7 +542,7 @@ async function executeSkill({ repo, context, skillKey }) {
         bundle: context.bundle,
         previousOutputs: context.skillOutputs
       });
-      if (EXECUTION_PLAN_MODES.has(context.mode)) {
+      if (EXECUTION_PLAN_MODES.has(context.mode) && !context.freezeConfirmedPlan) {
         await compileAndSaveExecutionPlan({
           repo,
           jobId: context.bundle.job.job_id,
@@ -586,6 +615,25 @@ async function executeSkill({ repo, context, skillKey }) {
     if (!context.mockReady && (resourceType === "event_asset" || resourceType === "video_asset")) {
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
+  } else if (skillKey === "confirmed-resource-orchestrator") {
+    result = context.freezeConfirmedPlan
+      ? await runConfirmedResourceOrchestratorSkill({
+          repo,
+          bundle: context.bundle,
+          fetchImpl: context.fetchImpl || globalThis.fetch,
+          projectStatePath: context.projectStatePath
+        })
+      : {
+          status: "skipped",
+          blockers: [],
+          outputSummary: {
+            orchestratorStatus: "not_applicable_without_confirmed_plan",
+            executedActionCount: 0,
+            createCalled: false,
+            retryAllowed: false
+          }
+        };
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "payload-build") {
     result = await executePayloadBuild({ repo, context });
   } else if (skillKey === "payload-contract") {
@@ -661,10 +709,34 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const skillOutput = (key) => skillOutputs.get(key) || {};
   const resourceOutputs = OE3_REQUIRED_RESOURCE_TYPES.map((type) => skillOutput(resourceSkillKey(type)));
   const awemeAuthorization = skillOutput("aweme-authorization-readonly");
-  const resourceBlockers = [
-    ...(awemeAuthorization.blockers || []),
-    ...resourceOutputs.flatMap((item) => item.blockers || [])
-  ];
+  const resourceStates = resourceOutputs.map((item, index) => {
+    const resourceType = item.outputSummary?.resourceType || item.outputSummary?.resource_type || OE3_REQUIRED_RESOURCE_TYPES[index];
+    const capabilityState = item.outputSummary?.prepareCapability?.status ||
+      item.outputSummary?.prepare_capability?.status || "";
+    const state = item.status === "passed" || capabilityState === "ready"
+      ? "READY"
+      : capabilityState === "prepare_supported"
+        ? "PLANNED"
+        : "BLOCKED";
+    return {
+      resourceType,
+      state,
+      actionType: state === "PLANNED"
+        ? item.outputSummary?.prepareCapability?.prepare_action_type || item.outputSummary?.prepare_capability?.prepare_action_type || ""
+        : "",
+      blocker: state === "BLOCKED" ? (item.blockers || [])[0] || `resource_prepare_unsupported:${resourceType}` : ""
+    };
+  });
+  if (awemeAuthorization.status === "blocked") {
+    resourceStates.unshift({
+      resourceType: "aweme_authorization",
+      state: "BLOCKED",
+      actionType: "",
+      blocker: (awemeAuthorization.blockers || [])[0] || "aweme_authorization_blocked"
+    });
+  }
+  const blockedResourceStates = resourceStates.filter((item) => item.state === "BLOCKED");
+  const resourceBlockers = blockedResourceStates.map((item) => item.blocker);
   const payloadContract = skillOutput("payload-contract");
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
   const create = skillOutput("create-once");
@@ -680,6 +752,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const packBlocked = ["launch-pack-resolve-game", "launch-pack-resolve-defaults", "launch-pack-resolve-materials", "launch-pack-resolve-backup-landing-page", "launch-pack-resolve-resource-blueprints"]
     .some((key) => skillOutput(key).status === "blocked");
   const draft = skillOutput("payload-build").outputSummary || {};
+  const resourceOrchestrator = skillOutput("confirmed-resource-orchestrator");
 
   return [
     nodeStatus({
@@ -724,14 +797,20 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
-      status: resourceBlockers.length ? "blocked" : "passed",
-      summary: resourceBlockers.length ? `账户资源存在 ${resourceBlockers.length} 个阻断。` : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
+      status: blockedResourceStates.length ? "blocked" : "passed",
+      summary: blockedResourceStates.length
+        ? `账户资源存在阻断；唯一根阻断：${blockedResourceStates[0].blocker}。`
+        : resourceStates.some((item) => item.state === "PLANNED")
+          ? "账户资源无外部阻断，待一次确认后按 Plan 准备。"
+          : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
       diagnosticLevel: resourceBlockers.length ? "error" : "info",
       outputSummary: {
-        blockedResourceTypes: resourceOutputs
-          .filter((item) => item.status === "blocked")
-          .map((item) => item.outputSummary?.resourceType)
-          .filter(Boolean),
+        resourceStates,
+        readyCount: resourceStates.filter((item) => item.state === "READY").length,
+        plannedCount: resourceStates.filter((item) => item.state === "PLANNED").length,
+        blockedCount: blockedResourceStates.length,
+        uniqueRootBlocker: blockedResourceStates[0]?.blocker || "",
+        blockedResourceTypes: blockedResourceStates.map((item) => item.resourceType),
         checks: resourceOutputs.map((item) => item.outputSummary).filter(Boolean),
         bootstrap: skillOutput("resource-bootstrap-from-blueprints").outputSummary || {},
         awemeAuthorization: awemeAuthorization.outputSummary || {},
@@ -750,6 +829,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
         : "等待创建草稿。",
       diagnosticLevel: mode === "planned_actions" ? "pending" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
       outputSummary: {
+        confirmedResourceOrchestrator: resourceOrchestrator.outputSummary || {},
         projectName: draft.projectName || bundle.draft?.project_name || "",
         payloadHash: draft.payloadHash || bundle.draft?.payload_hash || "",
         payloadHashSource: draft.payloadHashSource || bundle.draft?.payload_summary?.payload_hash_source || "",
@@ -867,7 +947,9 @@ export async function runOe3WorkflowSkills({
   singleVariableExperiment = {},
   expectedPlanId = "",
   expectedPlanHash = "",
-  awemeAuthorizationClient = null
+  awemeAuthorizationClient = null,
+  confirmedPlanExecution = false,
+  projectStatePath
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
   if (mode === "aweme_auth_readonly" && allowReadonlyDependency !== true && mockReady !== true) {
@@ -886,7 +968,13 @@ export async function runOe3WorkflowSkills({
   }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
-  if (EXECUTION_PLAN_MODES.has(mode)) {
+  const confirmedPlanMode = mode === "execute_once" && confirmedPlanExecution === true &&
+    Boolean(expectedPlanId && expectedPlanHash) &&
+    bundle.executionPlan?.metadata?.execution_scope?.binding_mode === "single_confirmation_plan";
+  if (confirmedPlanMode) {
+    if (bundle.executionPlan?.plan_id !== expectedPlanId) throw new Error("confirmed_plan_id_drift");
+    if (bundle.executionPlan?.plan_hash !== expectedPlanHash) throw new Error("confirmed_plan_hash_drift");
+  } else if (EXECUTION_PLAN_MODES.has(mode)) {
     await compileAndSaveExecutionPlan({
       repo,
       jobId,
@@ -936,6 +1024,8 @@ export async function runOe3WorkflowSkills({
     singleVariableExperiment,
     expectedPlanId,
     expectedPlanHash,
+    projectStatePath,
+    freezeConfirmedPlan: confirmedPlanMode,
     touchpointVerification,
     skillOutputs: new Map(),
     payloadContract: null

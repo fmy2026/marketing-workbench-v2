@@ -419,15 +419,41 @@ export class QiankunMonitorClient {
     }
 
     const url = endpointUrl(credential.apiBaseUrl, cleanEndpoint);
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-Passport-Token": this.passportTokenForOwner(ownerKey)
-      },
-      body: formBody(params, { allowEmptyFields: emptyFormFieldsForEndpoint(cleanEndpoint) })
-    });
+    let response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Passport-Token": this.passportTokenForOwner(ownerKey)
+        },
+        body: formBody(params, { allowEmptyFields: emptyFormFieldsForEndpoint(cleanEndpoint) })
+      });
+    } catch {
+      return {
+        label,
+        endpoint: cleanEndpoint,
+        status: "blocked",
+        credential: {
+          status: credential.status,
+          ownerKey: credential.ownerKey,
+          ownerName: credential.ownerName,
+          pendingOwnerKeyBootstrap: credential.pendingOwnerKeyBootstrap,
+          envFilePresent: credential.envFilePresent,
+          credentialStorePresent: credential.credentialStorePresent,
+          credentialStorePathPresent: credential.credentialStorePathPresent
+        },
+        httpStatus: null,
+        apiCode: "transport_error",
+        apiMessage: "",
+        dataPresent: false,
+        responseHash: "",
+        summary: {},
+        rawResponseStored: false,
+        gap: "乾坤技术 API 只读请求未建立连接。"
+      };
+    }
     const text = await response.text();
     let payload = {};
     try {

@@ -1,14 +1,17 @@
 # TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830
 
-状态：planned_waiting_implementation
+状态：closed_validated_no_platform_write
 
 更新时间：2026-08-30 CST
 
 ## 目标
 
-将 one-off 真实创建已验证成功的字段规则固化到正式 workflow / Skill / 合同 / 预检 / 字段账本中：
+将 one-off 真实创建已验证成功的 JSZC/BYTE_GAME 字段形态固化到正式 workflow / Skill / 合同 / 预检 / 字段账本中：
 
-`hide_if_converted=NO_EXCLUDE` 时，`audience.converted_time_duration` 必须完全省略。
+- `hide_if_converted=NO_EXCLUDE` 时，`audience.filter_event` 与 `audience.converted_time_duration` 必须完全省略；
+- `project_materials.external_url_material_list` 必须发送且只能发送 1 条受控、已核验备用页；
+- `project_materials.mini_program_info` 只发送 `url`；
+- 继续省略 `micro_promotion_type`、`app_id`、`start_path`、`params`、锚点列表和组件列表。
 
 本 Task 只做底层机制修正与本地验证，不开放任何平台写入。
 
@@ -28,7 +31,10 @@
 ## 实施范围
 
 - 修改正式 JSZC / OE3 payload 生成逻辑，禁止在 `hide_if_converted=NO_EXCLUDE` 时发送 `audience.converted_time_duration`。
+- 将 JSZC 路线备用页策略从 `omit` 固化为 `send`，并强制恰好 1 条 active、HTTPS、目标账户可见、回查通过且 hash 一致的备用页。
 - 更新 nested contract、payload contract、字段账本和 create preflight，让发送 `SIX_MONTH`、空值或错误类型都阻断。
+- 增加唯一数据库迁移、成功配置版本、脱敏字段形态 hash 与只读 `db:contract-check`。
+- 以成功请求的脱敏路径、类型、数量和 send/omit 策略建立黄金 fixture；动态值只保存 hash，不保存原始值。
 - 补充回归测试：
   - `NO_EXCLUDE` 下省略 `converted_time_duration`；
   - 非 `NO_EXCLUDE` 场景不被误伤；
@@ -47,11 +53,24 @@
 
 ## 验收
 
-- [ ] workflow / Skill 正式路径生成的 JSZC payload 在 `NO_EXCLUDE` 下完全缺失 `audience.converted_time_duration`。
-- [ ] 合同与预检能阻断误发该字段。
-- [ ] 相关 smoke / contract / workflow 测试通过。
-- [ ] `package.json` 只保留长期需要的命令；无 one-off 临时入口。
-- [ ] 无真实平台写入记录新增。
+- [x] workflow / Skill 正式路径生成的 JSZC payload 在 `NO_EXCLUDE` 下完全缺失 `audience.converted_time_duration`。
+- [x] 正式路径同时完全缺失 `audience.filter_event`，并发送恰好 1 条已核验备用页。
+- [x] 合同与预检能阻断误发该字段。
+- [x] Draft/Plan 脱敏摘要包含 success profile 版本、field shape hash 和三项策略证据。
+- [x] 运行数据库合同版本与代码一致，`db:contract-check` 通过。
+- [x] 相关 smoke / contract / workflow 测试通过。
+- [x] `package.json` 只增加长期只读 `db:contract-check`；无 one-off 临时入口。
+- [x] 无真实平台写入记录新增。
+
+## 验证结果
+
+- 成功配置：`2026-08-30.jszc-byte-game-success-profile-v1`。
+- nested contract：`2026-08-30.oe3-std-project-create-nested-fields-v4`。
+- 黄金字段形态 hash：`sha256:9203ddf077d05b51958e851dad86894f75fdf09884ffc99690ad459ce5dd1064`，脱敏字段账本 `82` 条。
+- 黄金数量：视频 `2`、标题 `3`、产品图 `1`、空图片数组 `0`、备用页 `1`、DMP 排除 `10`。
+- `db:contract-check`、payload contract、execution plan、wire body、launch-link、workflow skills 与 schema smoke 均通过。
+- 迁移前后 `mwb.platform_actions` 总数均为 `29`；相关 `test_run` Job 清理后为 `0`。
+- 正式 builder 对已审计成功 Job 的只读重编译得到相同字段形态；旧 Job 的 aweme 授权证据不属于该 Job scope，因此没有把该只读重编译误记为正式 Node 1–7 认证。
 
 ## Solution Link
 

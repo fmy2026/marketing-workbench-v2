@@ -4,7 +4,10 @@ import {
   hashValue,
   sanitizeForPublic
 } from "./skills/oe3/00-contracts.mjs";
-import { getResourceActionCapability } from "./skills/oe3/04-resource-action-registry.mjs";
+import {
+  FORMAL_RESOURCE_PREP_ACTION_ORDER,
+  getResourceActionCapability
+} from "./skills/oe3/04-resource-action-registry.mjs";
 
 export const EXECUTION_PLAN_VERSION = 1;
 export const ACTION_ENSURE_MONITOR = "ensure_monitor";
@@ -51,7 +54,10 @@ function stablePlanInput({
   plannedActions,
   blockerCodes,
   verificationSeries = {},
-  singleVariableExperiment = {}
+  singleVariableExperiment = {},
+  successProfileSummary = {},
+  planningIntent = {},
+  resourceStates = []
 }) {
   return {
     job_id: job.job_id,
@@ -62,10 +68,95 @@ function stablePlanInput({
     draft_id: draft?.draft_id || "",
     payload_hash: draft?.payload_hash || "",
     verification_series: verificationSeries,
+    success_profile: successProfileSummary,
+    planning_intent: planningIntent,
+    resource_states: resourceStates,
     ...(Object.keys(singleVariableExperiment).length ? { single_variable_experiment: singleVariableExperiment } : {}),
     planned_actions: plannedActions.map(compactAction),
     blocker_codes: blockerCodes
   };
+}
+
+function resourceVerifierStates(bundle = {}) {
+  const node = (bundle.nodes || []).find((item) => item.node_key === "account_resource_prepare");
+  const checks = node?.output_summary?.checks || [];
+  return new Map(checks.map((check) => [
+    check.resourceType || check.resource_type || "",
+    {
+      status: check.prepareCapability?.status || check.prepare_capability?.status || check.status || "",
+      blocker: (check.blocker_codes || check.blockers || [])[0] || ""
+    }
+  ]));
+}
+
+function actionGrantDefaults(actionType, actionCallLimits = {}) {
+  const maximumPlatformCalls = Number(actionCallLimits[actionType] || ({
+    "ensure_resource:avatar": 2,
+    "ensure_resource:dmp_audience_package": 10,
+    "ensure_resource:video_asset": 1,
+    "ensure_resource:product_image": 1,
+    [ACTION_STD_PROJECT_CREATE]: 1
+  })[actionType] || 1);
+  const officialContracts = {
+    "ensure_resource:dmp_audience_package": {
+      source_ref: "official:oceanengine:dmp/custom_audience/push_v2",
+      content_hash: hashValue({ method: "POST", endpoint: "/open_api/v3.0/dmp/custom_audience/push_v2/" }),
+      method: "POST",
+      endpoint: "/open_api/v3.0/dmp/custom_audience/push_v2/"
+    },
+    "ensure_resource:video_asset": {
+      source_ref: "official:oceanengine:file/material/bind",
+      method: "POST",
+      endpoint: "/open_api/v3.0/file/material/bind/"
+    },
+    "ensure_resource:product_image": {
+      source_ref: "official:oceanengine:file/image/ad",
+      upload_method: "POST",
+      upload_endpoint: "/open_api/v3.0/file/image/ad/",
+      readback_endpoint: "/open_api/v3.0/file/image/get/",
+      required_size: "108x108"
+    }
+  };
+  return {
+    maximum_platform_calls: maximumPlatformCalls,
+    retry_allowed: false,
+    ...(officialContracts[actionType] ? { official_contract: officialContracts[actionType] } : {})
+  };
+}
+
+function redactedSuccessProfileSummary(bundle = {}) {
+  const manifest = bundle.draft?.payload_summary?.final_payload_manifest || {};
+  return {
+    success_profile_version: manifest.successProfileVersion || "",
+    field_shape_hash: manifest.fieldShapeHash || "",
+    filter_event_policy: manifest.filterEventPolicy || "",
+    filter_event_present: manifest.filterEventPresent === true,
+    converted_time_duration_policy: manifest.convertedTimeDurationPolicy || "",
+    converted_time_duration_present: manifest.convertedTimeDurationPresent === true,
+    external_url_material_list_policy: manifest.externalUrlMaterialListPolicy || "",
+    external_url_material_list_count: Number(manifest.externalUrlMaterialListCount || 0)
+  };
+}
+
+function planningIntentFromBundle(bundle = {}, explicit = {}) {
+  if (explicit && Object.keys(explicit).length) return explicit;
+  const draft = bundle.draft || {};
+  const summary = draft.payload_summary || {};
+  if (!draft.draft_id || !draft.project_name) return {};
+  const raw = bundle.defaults?.raw_defaults || {};
+  const payloadDefaults = raw.payload_defaults || {};
+  const intent = {
+    project_name: draft.project_name,
+    reserved_draft_id: draft.draft_id,
+    naming_prefix: summary.naming_prefix || "",
+    yyyymmdd: summary.yyyymmdd || "",
+    budget: Number(summary.budget || bundle.defaults?.budget || 0),
+    cpa_bid: Number(summary.bid || bundle.defaults?.bid || 0),
+    roi_goal: Number(summary.roi_goal || bundle.defaults?.roi_goal || 0),
+    schedule_type: payloadDefaults.schedule_type || raw.schedule_type || "SCHEDULE_FROM_NOW",
+    object_type: bundle.job?.object_type || "std_project"
+  };
+  return { ...intent, business_intent_hash: hashValue(intent) };
 }
 
 function fieldLedgerEntries(bundle = {}) {
@@ -283,38 +374,55 @@ function draftReady(bundle = {}) {
   );
 }
 
-function compilePlannedActions(bundle = {}, { planVersion = EXECUTION_PLAN_VERSION } = {}) {
+function compilePlannedActions(bundle = {}, {
+  planVersion = EXECUTION_PLAN_VERSION,
+  actionCallLimits = {}
+} = {}) {
   const job = bundle.job || {};
   const draft = bundle.draft || null;
   const actions = [];
   const blockers = [];
   const dependencyForCreate = [];
   const readiness = createReadiness(bundle);
+  const verifierStates = resourceVerifierStates(bundle);
+  const resourceStates = [];
 
   if (!monitorPresent(bundle)) {
-    actions.push({
-      action_type: ACTION_ENSURE_MONITOR,
-      target_ref: `monitor:${job.route_id}:${job.game_code}:${job.advertiser_id}`,
-      idempotency_key: actionKey(job.job_id, ACTION_ENSURE_MONITOR),
-      status: "planned",
-      module_ref: "src/workflows/skills/oe3/02-monitor-provision.mjs",
-      depends_on: ["account_resolve", "monitor_query", "monitor_plan"],
-      writes_to: ["monitor_provision_runs", "monitor_provision_attempts", "account_touchpoints"],
-      reason: "account_monitor_missing"
-    });
-    dependencyForCreate.push(ACTION_ENSURE_MONITOR);
+    blockers.push("monitor_prepare_not_in_formal_executor_registry");
   }
 
   const byType = resourcesByType(bundle);
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
     const capability = getResourceActionCapability(resourceType);
     const records = byType.get(resourceType) || [];
-    if (records.length && records.some(resourceReady)) continue;
+    const verifier = verifierStates.get(resourceType) || {};
+    const verifierState = verifier.status || "";
+    if (verifierState === "blocked" || verifierState === "prepare_unsupported") {
+      const blocker = verifier.blocker || (verifierState === "blocked"
+        ? `${resourceType}_readonly_or_preflight_blocked`
+        : `resource_prepare_unsupported:${resourceType}`);
+      resourceStates.push({ resource_type: resourceType, state: "BLOCKED", action_type: "", blocker });
+      blockers.push(blocker);
+      continue;
+    }
+    if (verifierState === "ready" || (records.length && records.some(resourceReady))) {
+      resourceStates.push({ resource_type: resourceType, state: "READY", action_type: "", blocker: "" });
+      continue;
+    }
     if (!capability.prepare_supported) {
-      blockers.push(`resource_prepare_unsupported:${resourceType}`);
+      const blocker = `resource_prepare_unsupported:${resourceType}`;
+      resourceStates.push({ resource_type: resourceType, state: "BLOCKED", action_type: "", blocker });
+      blockers.push(blocker);
       continue;
     }
     const actionType = capability.prepare_action_type;
+    if (!FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(actionType)) {
+      const blocker = `resource_prepare_executor_not_registered:${resourceType}`;
+      resourceStates.push({ resource_type: resourceType, state: "BLOCKED", action_type: "", blocker });
+      blockers.push(blocker);
+      continue;
+    }
+    const grant = actionGrantDefaults(actionType, actionCallLimits);
     actions.push({
       action_type: actionType,
       target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
@@ -323,32 +431,40 @@ function compilePlannedActions(bundle = {}, { planVersion = EXECUTION_PLAN_VERSI
       module_ref: capability.prepare_module_ref,
       depends_on: [capability.verify_skill_key],
       writes_to: ["account_resources", "launch_skill_runs", "evidence_artifacts"],
-      reason: records.length ? "resource_not_ready" : "resource_missing"
+      reason: records.length ? "resource_not_ready" : "resource_missing",
+      maximum_platform_calls: grant.maximum_platform_calls
     });
+    resourceStates.push({ resource_type: resourceType, state: "PLANNED", action_type: actionType, blocker: "" });
     dependencyForCreate.push(actionType);
   }
 
-  for (const blocker of readiness.blockers || []) blockers.push(blocker);
+  const plannedResourceActionsPresent = resourceStates.some((item) => item.state === "PLANNED");
+  if (draft?.draft_id && blockers.length === 0 && !plannedResourceActionsPresent) {
+    for (const blocker of readiness.blockers || []) blockers.push(blocker);
+  }
 
-  if (draftReady(bundle) && blockers.length === 0) {
+  if (blockers.length === 0) {
+    const grant = actionGrantDefaults(ACTION_STD_PROJECT_CREATE, actionCallLimits);
     actions.push({
       action_type: ACTION_STD_PROJECT_CREATE,
-      target_ref: `draft:${draft.draft_id}`,
+      target_ref: draft?.draft_id ? `draft:${draft.draft_id}` : `project_intent:${job.job_id}`,
       idempotency_key: actionKey(job.job_id, ACTION_STD_PROJECT_CREATE, `V${planVersion}`),
       status: dependencyForCreate.length ? "waiting_on_plan_actions" : "ready",
       module_ref: "src/workflows/skills/oe3/06-create-once.mjs",
       depends_on: ["payload_hash_latest", ...dependencyForCreate],
       writes_to: ["launch_confirmations", "platform_actions", "created_objects"],
-      reason: "draft_ready_for_single_create"
+      reason: draftReady(bundle) ? "draft_ready_for_single_create" : "final_draft_pending_confirmed_resource_actions",
+      maximum_platform_calls: grant.maximum_platform_calls
     });
-  } else {
+  } else if (draft?.draft_id) {
     blockers.push("draft_not_ready_for_std_project_create");
   }
 
   return {
     plannedActions: actions.map((action) => sanitizeForPublic(action)),
     blockerCodes: [...new Set(blockers)].filter(Boolean),
-    rootBlockerCodes: rootBlockerCodes(bundle)
+    rootBlockerCodes: blockers.length ? [blockers[0]] : rootBlockerCodes(bundle),
+    resourceStates
   };
 }
 
@@ -358,12 +474,18 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
   verificationSeriesId = "",
   verificationTaskRef = "",
   maximumCreateAttempts = 3,
-  singleVariableExperiment = {}
+  singleVariableExperiment = {},
+  planningIntent = {},
+  actionCallLimits = {}
 } = {}) {
   const job = bundle.job || {};
   if (!job.job_id) throw new Error("job_id_required");
 
-  const { plannedActions, blockerCodes, rootBlockerCodes } = compilePlannedActions(bundle, { planVersion });
+  const effectivePlanningIntent = planningIntentFromBundle(bundle, planningIntent);
+  const { plannedActions, blockerCodes, rootBlockerCodes, resourceStates } = compilePlannedActions(bundle, {
+    planVersion,
+    actionCallLimits
+  });
   const draft = bundle.draft || null;
   const numericAttemptNo = Number(createAttemptNo || 1);
   const numericMaximumAttempts = Number(maximumCreateAttempts || 3);
@@ -380,23 +502,26 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
     create_attempt_no: numericAttemptNo
   } : {};
   const normalizedExperiment = normalizeSingleVariableExperiment(singleVariableExperiment, { job, draft });
+  const successProfileSummary = redactedSuccessProfileSummary(bundle);
   const planHash = hashValue(stablePlanInput({
     job,
     draft,
     plannedActions,
     blockerCodes,
     verificationSeries,
-    singleVariableExperiment: normalizedExperiment
+    singleVariableExperiment: normalizedExperiment,
+    successProfileSummary,
+    planningIntent: effectivePlanningIntent,
+    resourceStates
   }));
   const hasCreateAction = plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
-  const createActionReady = plannedActions.some((action) =>
-    action.action_type === ACTION_STD_PROJECT_CREATE && action.status === "ready"
-  );
-  const planStatus = hasCreateAction && createActionReady && blockerCodes.length === 0
-    ? "ready"
-    : plannedActions.length
-      ? "planned"
-      : "blocked";
+  const planStatus = blockerCodes.length
+    ? "blocked"
+    : hasCreateAction
+      ? "ready"
+      : plannedActions.length
+        ? "planned"
+        : "blocked";
   const plan = {
     planId: planId(job.job_id, planVersion),
     jobId: job.job_id,
@@ -416,10 +541,16 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
       compiler: "src/workflows/executionPlan.mjs",
       create_attempt_no: numericAttemptNo,
       maximum_create_attempts: numericMaximumAttempts,
+      confirmation_model: "one_plan_one_confirmation_many_bounded_actions",
+      planning_intent: effectivePlanningIntent,
+      resource_states: resourceStates,
+      success_profile: successProfileSummary,
       ...verificationSeries,
       ...(Object.keys(normalizedExperiment).length ? { single_variable_experiment: normalizedExperiment } : {}),
       execution_scope: {
+        binding_mode: "single_confirmation_plan",
         target_job_id: job.job_id,
+        target_advertiser_id: job.advertiser_id,
         target_draft_id: draft?.draft_id || "",
         target_payload_hash: draft?.payload_hash || "",
         target_plan_id: planId(job.job_id, planVersion),
@@ -428,12 +559,18 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
         maximum_total_attempts: numericMaximumAttempts,
         ...verificationSeries,
         ...(Object.keys(normalizedExperiment).length ? { single_variable_experiment: normalizedExperiment } : {}),
-        allowed_actions: ["oceanengine_std_project_create"],
+        allowed_actions: plannedActions.map((action) => action.action_type),
         allowed_plan_actions: plannedActions.map((action) => action.action_type),
-        maximum_actions: 1,
+        maximum_actions: plannedActions.length,
+        action_grants: Object.fromEntries(plannedActions.map((action) => [
+          action.action_type,
+          actionGrantDefaults(action.action_type, actionCallLimits)
+        ])),
+        maximum_create_calls: 1,
         retry_allowed: false
       },
       root_blocker_codes: rootBlockerCodes,
+      unique_root_blocker: rootBlockerCodes[0] || "",
       real_platform_write_called: false
     }
   };
@@ -452,19 +589,51 @@ export async function compileAndSaveExecutionPlan({
   maximumCreateAttempts = 3,
   singleVariableExperiment = {},
   expectedPlanId = "",
-  expectedPlanHash = ""
+  expectedPlanHash = "",
+  planningIntent = null
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
   const bundle = bundleOverride || await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
+  const targetPlanId = planId(bundle.job.job_id, planVersion);
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(targetPlanId)
+    : null;
+  if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
+    throw new Error("confirmed_execution_plan_immutable");
+  }
+  const dmpPushPlans = typeof repo.getDmpPackagePushPlans === "function"
+    ? await repo.getDmpPackagePushPlans(bundle.job.job_id)
+    : [];
+  const preliminary = buildExecutionPlanFromBundle(bundle, {
+    planVersion,
+    createAttemptNo,
+    verificationSeriesId,
+    verificationTaskRef,
+    maximumCreateAttempts,
+    singleVariableExperiment,
+    planningIntent: planningIntent || {},
+    actionCallLimits: {
+      "ensure_resource:dmp_audience_package": Math.max(1, Number(dmpPushPlans?.length || 0))
+    }
+  });
+  let effectivePlanningIntent = planningIntent || preliminary.metadata?.planning_intent || {};
+  if (preliminary.planStatus === "ready" && !effectivePlanningIntent.project_name) {
+    const { reserveStdProjectPlanningIntent } = await import("./skills/oe3/05-payload-contract.mjs");
+    effectivePlanningIntent = await reserveStdProjectPlanningIntent({ repo, bundle, attemptNo: createAttemptNo });
+  }
   const plan = buildExecutionPlanFromBundle(bundle, {
     planVersion,
     createAttemptNo,
     verificationSeriesId,
     verificationTaskRef,
     maximumCreateAttempts,
-    singleVariableExperiment
+    singleVariableExperiment,
+    planningIntent: effectivePlanningIntent,
+    actionCallLimits: {
+      "ensure_resource:dmp_audience_package": Math.max(1, Number(dmpPushPlans?.length || 0))
+    }
   });
   if (expectedPlanId && plan.planId !== expectedPlanId) {
     throw new Error("confirmed_plan_id_drift");
@@ -491,5 +660,34 @@ export function validateExecutionPlanActionScope({ plan, allowedActions = [] } =
       ...extraAllowed.map((action) => `action_not_planned:${action}`),
       ...notAllowed.map((action) => `planned_action_not_allowed:${action}`)
     ]
+  };
+}
+
+export function evaluateConfirmedPlanDraftDerivation({ plan = {}, draft = {} } = {}) {
+  const planningIntent = plan.metadata?.planning_intent || {};
+  const summary = draft.payloadSummary || draft.payload_summary || {};
+  const projectName = draft.projectName || draft.project_name || "";
+  const planIdValue = plan.planId || plan.plan_id || "";
+  const planHashValue = plan.planHash || plan.plan_hash || "";
+  const blockers = [
+    ...(planningIntent.project_name === projectName ? [] : ["confirmed_plan_project_name_derivation_mismatch"]),
+    ...(Number(planningIntent.budget) === Number(summary.budget) ? [] : ["confirmed_plan_budget_derivation_mismatch"]),
+    ...(Number(planningIntent.cpa_bid) === Number(summary.bid) ? [] : ["confirmed_plan_bid_derivation_mismatch"]),
+    ...(Number(planningIntent.roi_goal) === Number(summary.roi_goal) ? [] : ["confirmed_plan_roi_derivation_mismatch"]),
+    ...(summary.derived_from_plan_id && summary.derived_from_plan_id !== planIdValue ? ["final_draft_not_derived_from_confirmed_plan"] : []),
+    ...(summary.derived_from_plan_hash && summary.derived_from_plan_hash !== planHashValue ? ["final_draft_confirmed_plan_hash_mismatch"] : [])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers,
+    planId: planIdValue,
+    planHash: planHashValue,
+    derivationHash: hashValue({
+      plan_id: planIdValue,
+      plan_hash: planHashValue,
+      business_intent_hash: planningIntent.business_intent_hash || "",
+      project_name: projectName,
+      payload_hash: draft.payloadHash || draft.payload_hash || ""
+    })
   };
 }

@@ -1,8 +1,9 @@
 import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
+import { JSZC_NESTED_FIELD_CONTRACT_VERSION } from "./05-jszc-success-profile.mjs";
 
 export const NESTED_FIELD_CONTRACT = Object.freeze({
-  ruleVersion: "2026-08-30.oe3-std-project-create-nested-fields-v3",
+  ruleVersion: JSZC_NESTED_FIELD_CONTRACT_VERSION,
   source: "postgres:mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules",
   officialCreateRef: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:142"
 });
@@ -274,6 +275,7 @@ export function evaluateNestedFieldContract({
   });
 
   const externalUrlPolicy = nestedSendPolicy(rules, "project_materials.external_url_material_list", "send");
+  const externalUrlRequiredCount = Number(nestedGroupRule(rules, "project_materials.external_url_material_list").required_count || 1);
   const externalUrlListPresent = Object.hasOwn(materials, "external_url_material_list");
   const externalUrlList = materials.external_url_material_list;
   addCheck(checks, {
@@ -281,7 +283,11 @@ export function evaluateNestedFieldContract({
     path: "project_materials.external_url_material_list",
     passed: externalUrlPolicy === "omit"
       ? !externalUrlListPresent
-      : Array.isArray(externalUrlList) && externalUrlList.length === 1 && backupLandingPage.ready === true,
+      : externalUrlPolicy === "send" &&
+        externalUrlRequiredCount === 1 &&
+        Array.isArray(externalUrlList) &&
+        externalUrlList.length === externalUrlRequiredCount &&
+        backupLandingPage.ready === true,
     rule: externalUrlPolicy === "omit"
       ? "current_jszc_route_omits_external_url_material_list"
       : "send_only_when_backup_landing_page_ready",
@@ -292,6 +298,7 @@ export function evaluateNestedFieldContract({
       sendPolicy: externalUrlPolicy || "missing",
       present: externalUrlListPresent,
       count: Array.isArray(externalUrlList) ? externalUrlList.length : 0,
+      requiredCount: externalUrlRequiredCount,
       backupLandingPageReady: backupLandingPage.ready === true,
       rawUrlStoredInManifest: false
     }
@@ -447,18 +454,29 @@ export function evaluateNestedFieldContract({
   const filterEventPolicy = nestedFieldPolicy(rules, "audience", "filter_event_policy", "missing");
   const filterEventPresent = Object.hasOwn(audience, "filter_event");
   const filterEventOmittedByContract = filterEventPolicy === "omit" && !filterEventPresent;
+  const convertedTimeDurationPolicy = nestedFieldPolicy(rules, "audience", "converted_time_duration_policy", "missing");
+  const convertedTimeDurationPresent = Object.hasOwn(audience, "converted_time_duration");
+  const noExclude = clean(audience.hide_if_converted) === "NO_EXCLUDE";
+  const convertedTimeDurationOmittedByContract = noExclude &&
+    convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+    !convertedTimeDurationPresent;
+  const convertedTimeDurationShapeValid = noExclude
+    ? convertedTimeDurationOmittedByContract
+    : convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+      convertedTimeDurationPresent &&
+      Boolean(clean(audience.converted_time_duration));
   addCheck(checks, {
     group: "audience",
     path: "audience",
     passed: clean(audience.gender) === "GENDER_UNLIMITED" &&
       HIDE_IF_CONVERTED_VALUES.has(clean(audience.hide_if_converted)) &&
       clean(audience.hide_if_converted) !== clean(payload.external_action) &&
-      clean(audience.hide_if_converted) === "NO_EXCLUDE" &&
       filterEventPolicy === "omit" &&
       filterEventOmittedByContract &&
+      convertedTimeDurationShapeValid &&
       integerArray(audience.retargeting_tags_exclude) &&
       audience.retargeting_tags_exclude.length > 0,
-    rule: "no_exclude_requires_filter_event_omitted_and_route_audience_fields_valid",
+    rule: "filter_event_omitted_and_no_exclude_omits_converted_time_duration_other_modes_send_configured_value",
     blockerCode: "nested_audience_contract_invalid",
     actual: {
       gender: clean(audience.gender),
@@ -466,6 +484,9 @@ export function evaluateNestedFieldContract({
       filterEventPolicy,
       filterEventPresent,
       filterEventOmittedByContract,
+      convertedTimeDurationPolicy,
+      convertedTimeDurationPresent,
+      convertedTimeDurationOmittedByContract,
       dmpCount: Array.isArray(audience.retargeting_tags_exclude) ? audience.retargeting_tags_exclude.length : 0,
       dmpIntegerArray: integerArray(audience.retargeting_tags_exclude)
     }
@@ -535,7 +556,9 @@ export function evaluateNestedFieldContract({
       audienceGender: clean(audience.gender),
       hideIfConverted: clean(audience.hide_if_converted),
       filterEventPolicy,
-      filterEventPresent
+      filterEventPresent,
+      convertedTimeDurationPolicy,
+      convertedTimeDurationPresent
     },
     videoCoverMode: coverModes.length ? coverModes.join("+") : "not_checked",
     videoEvidenceRefCount: requiredVideos.filter((item) => item.evidenceRefPresent).length,
@@ -547,6 +570,9 @@ export function evaluateNestedFieldContract({
     filterEventPolicy,
     filterEventPresent,
     filterEventOmittedByContract,
+    convertedTimeDurationPolicy,
+    convertedTimeDurationPresent,
+    convertedTimeDurationOmittedByContract,
     miniProgramLaunchLinkReady: miniProgramLaunchLink.ready === true,
     rawPayloadStored: false
   };
@@ -576,6 +602,9 @@ export function nestedFieldContractManifest(result = {}) {
     filterEventPolicy: result.filterEventPolicy || "",
     filterEventPresent: result.filterEventPresent === true,
     filterEventOmittedByContract: result.filterEventOmittedByContract === true,
+    convertedTimeDurationPolicy: result.convertedTimeDurationPolicy || "",
+    convertedTimeDurationPresent: result.convertedTimeDurationPresent === true,
+    convertedTimeDurationOmittedByContract: result.convertedTimeDurationOmittedByContract === true,
     miniProgramLaunchLinkReady: result.miniProgramLaunchLinkReady === true,
     rawPayloadStored: false
   };

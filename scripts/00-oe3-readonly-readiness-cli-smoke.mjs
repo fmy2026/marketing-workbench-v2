@@ -34,6 +34,7 @@ try {
   const args = parseReadonlyReadinessArgs(baseArgv);
   assertReadonlyReadinessInvocation({ args, env: {} });
   assert(args.scope === "", "default_scope_should_be_empty");
+  assert(args.expectedMonitorId === "", "expected_monitor_id_must_not_default_to_another_account");
 
   const awemeScopeArgs = parseReadonlyReadinessArgs([
     ...baseArgv,

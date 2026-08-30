@@ -93,6 +93,7 @@ export function brandInfoSummary(bundle = {}) {
 
 export function mockReadyBundle(bundle = {}) {
   const mockBackupLandingUrlHash = "be2045c5206b29f2e3d08bc46a8ae6dd0f9588aaef11edab968de84a17594b78";
+  const mockDmpAudienceIds = Array.from({ length: 10 }, (_, index) => String(100000000001 + index));
   const resources = [...(bundle.resources || [])];
   // Test-only memory fixture: production always reads its evidence matrix from Postgres.
   const defaults = structuredClone(bundle.defaults || {});
@@ -240,11 +241,11 @@ export function mockReadyBundle(bundle = {}) {
         readback_status: "readback_verified",
         metadata: {
           ...(item.metadata || {}),
-          custom_audience_ids: ["100000000001"],
+          custom_audience_ids: mockDmpAudienceIds,
           readonly_check: {
             ...(item.metadata?.readonly_check || {}),
             status: "passed",
-            custom_audience_ids: ["100000000001"],
+            custom_audience_ids: mockDmpAudienceIds,
             mock: true
           }
         }

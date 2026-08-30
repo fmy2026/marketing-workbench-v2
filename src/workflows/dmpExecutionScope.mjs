@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validatePlannedActionGrant } from "./plannedActionGrant.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const defaultProjectStatePath = join(rootDir, "project.state.json");
@@ -20,10 +21,6 @@ async function writeState(projectStatePath, state) {
 
 function hashValue(value) {
   return `sha256:${createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex")}`;
-}
-
-function onlyDmpAction(actions) {
-  return Array.isArray(actions) && actions.length === 1 && actions[0] === DMP_ENSURE_ACTION;
 }
 
 function clean(value) {
@@ -66,13 +63,18 @@ function contractVerified(scope = {}) {
 
 export async function validateDmpWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath } = {}) {
   if (!repo || !bundle?.job) throw new Error("dmp_scope_job_bundle_required");
-  const state = await readState(projectStatePath);
-  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
-  const scope = plan?.metadata?.execution_scope || plan?.metadata?.executionScope ||
-    (bundle.job.source_usage === "test_run" || projectStatePath !== defaultProjectStatePath ? state.guardrails?.platform_write_scope || {} : {});
-  const plannedActions = plan?.planned_actions || plan?.plannedActions || [];
-  const dmpAction = plannedActions.find((item) => item.action_type === DMP_ENSURE_ACTION);
   const pushPlans = await repo.getDmpPackagePushPlans(bundle.job.job_id);
+  const common = await validatePlannedActionGrant({
+    repo,
+    bundle,
+    actionType: DMP_ENSURE_ACTION,
+    projectStatePath,
+    expectedMaximumPlatformCalls: pushPlans.length
+  });
+  const scope = common.scope;
+  const contractScope = common.actionGrant?.official_contract
+    ? { official_contract: common.actionGrant.official_contract }
+    : scope;
   const packageSet = await repo.getDmpPackageSet({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
@@ -112,19 +114,9 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
     return hashValue(requestShape) === item.request_hash;
   });
   const blockers = [
-    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
-    ...(bundle.case?.lifecycle_status === "active" || (!bundle.case && projectStatePath !== defaultProjectStatePath) ? [] : ["workflow_case_not_active"]),
-    ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
-    ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
-    ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
-    ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
-    ...(onlyDmpAction(scope.allowed_actions) ? [] : ["platform_write_scope_allowed_actions_invalid"]),
-    ...(Number(scope.maximum_actions) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
-    ...(Number(scope.maximum_platform_calls) === pushPlans.length && pushPlans.length > 0 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
-    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
-    ...(contractVerified(scope) ? [] : ["blocked_missing_official_dmp_push_contract"]),
-    ...(dmpAction ? [] : ["ensure_resource_dmp_audience_package_not_in_execution_plan"]),
-    ...(dmpAction?.status === "planned" ? [] : ["ensure_resource_dmp_audience_package_not_planned"]),
+    ...common.blockers,
+    ...(pushPlans.length > 0 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
+    ...(contractVerified(contractScope) ? [] : ["blocked_missing_official_dmp_push_contract"]),
     ...(sourceAvailable ? [] : ["dmp_source_preflight_not_available_full_set"]),
     ...(targetStateMatchesPlan ? [] : ["dmp_target_preflight_not_aligned_to_push_plan"]),
     ...(plannedOnly ? [] : ["dmp_push_plan_rows_not_planned_or_empty"]),
@@ -138,19 +130,19 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
   return {
     status: blockers.length ? "blocked" : "passed",
     blockers,
-    plan,
+    plan: common.plan,
+    confirmation: common.confirmation,
     scopeSummary: {
-      targetJobMatches: scope.target_job_id === bundle.job.job_id,
-      targetAdvertiserMatches: scope.target_advertiser_id === bundle.job.advertiser_id,
-      dmpActionPlanned: Boolean(dmpAction),
+      ...common.scopeSummary,
+      dmpActionPlanned: Boolean(common.action),
       sourceAvailableCount: members.filter((item) => item.source_readonly_status === "passed").length,
       targetMissingCount: members.filter((item) => item.target_readonly_status === "missing").length,
       targetPassedCount: members.filter((item) => item.target_readonly_status === "passed").length,
       pushPlanCount: pushPlans.length,
       pushPlanIdHash: hashValue(plannedIds),
       existingPushActions,
-      officialContractVerified: contractVerified(scope),
-      maximumPlatformCalls: Number(scope.maximum_platform_calls || 0)
+      officialContractVerified: contractVerified(contractScope),
+      maximumPlatformCalls: Number(common.scopeSummary.maximumPlatformCalls || 0)
     }
   };
 }

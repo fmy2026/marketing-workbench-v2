@@ -14,6 +14,11 @@ import {
   evaluateNestedFieldContract,
   nestedFieldContractManifest
 } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
+import {
+  JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_SOURCE,
+  JSZC_SUCCESS_PROFILE_VERSION
+} from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -142,7 +147,12 @@ function createFieldPayloadPreflight(payloadPatch = {}, requestFieldManifest = {
       },
       ...payloadPatch
     },
-    requestFieldManifest
+    requestFieldManifest: {
+      externalUrlMaterialListPolicy: "send",
+      filterEventPolicy: "omit",
+      convertedTimeDurationPolicy: "omit_when_no_exclude",
+      ...requestFieldManifest
+    }
   });
 }
 
@@ -154,12 +164,15 @@ function nestedFieldManifestPreflight({
   blockerCount = 0,
   blockers = [],
   checkedGroups = ["video_materials", "product_info", "image_material_list", "external_url_material_list", "mini_program_info", "track_url_setting", "audience"],
-  externalUrlMaterialListPolicy = "omit",
-  externalUrlMaterialListPresent = false,
-  externalUrlMaterialListOmittedByContract = true,
+  externalUrlMaterialListPolicy = "send",
+  externalUrlMaterialListPresent = true,
+  externalUrlMaterialListOmittedByContract = false,
   filterEventPolicy = "omit",
   filterEventPresent = false,
   filterEventOmittedByContract = true,
+  convertedTimeDurationPolicy = "omit_when_no_exclude",
+  convertedTimeDurationPresent = false,
+  convertedTimeDurationOmittedByContract = true,
   rawPayloadStored = false
 } = {}) {
   return evaluateStdProjectCreatePreflight({
@@ -178,20 +191,23 @@ function nestedFieldManifestPreflight({
         filterEventPolicy,
         filterEventPresent,
         filterEventOmittedByContract,
+        convertedTimeDurationPolicy,
+        convertedTimeDurationPresent,
+        convertedTimeDurationOmittedByContract,
         rawPayloadStored
       }
     }
   }).diagnostics.find((item) => item.check_id === "manifest:nested_field_contract");
 }
 
-function nestedRules(externalUrlMaterialListPolicy = "omit") {
+function nestedRules(externalUrlMaterialListPolicy = "send") {
   return {
     version: NESTED_FIELD_CONTRACT.ruleVersion,
     source: NESTED_FIELD_CONTRACT.source,
     groups: {
       "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
       "project_materials.image_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149", send_policy: "send_empty_array" },
-      "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: externalUrlMaterialListPolicy },
+      "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: externalUrlMaterialListPolicy, required_count: 1 },
       "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
       "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
       "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
@@ -200,14 +216,15 @@ function nestedRules(externalUrlMaterialListPolicy = "omit") {
       "track_url_setting": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
       "audience": {
         reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
-        filter_event_policy: "omit"
+        filter_event_policy: "omit",
+        converted_time_duration_policy: "omit_when_no_exclude"
       },
       "brand_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189" }
     }
   };
 }
 
-function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy = "omit" } = {}) {
+function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy = "send" } = {}) {
   const payload = {
     landing_type: "MICRO_GAME",
     delivery_medium: "BYTE_GAME",
@@ -231,6 +248,7 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
         video_cover_id: "c1"
       }],
       image_material_list: [],
+      ...(externalUrlMaterialListPolicy === "send" ? { external_url_material_list: ["https://example.invalid/backup"] } : {}),
       product_info: {
         titles: ["巨兽战场"],
         image_ids: ["789"],
@@ -388,10 +406,20 @@ try {
   assert(!dryManifest.blockers?.includes("mini_game_launch_url_not_ready"), "ready BYTE_GAME MICRO_GAME route should not emit mini_game_launch_url_not_ready");
   assert(dryManifest.externalUrlMaterialListPolicy === "send", "dry JSZC route should send external_url_material_list by contract");
   assert(dryManifest.externalUrlMaterialListPresent === true, "dry payload should include external_url_material_list");
+  assert(dryManifest.externalUrlMaterialListCount === 1, "dry payload should include exactly one external_url_material_list item");
   assert(dryManifest.externalUrlMaterialListOmittedByContract === false, "dry external_url_material_list send should be recorded");
   assert(dryManifest.filterEventPolicy === "omit", "dry JSZC route should use filter_event omit policy");
   assert(dryManifest.filterEventPresent === false, "dry payload must omit audience.filter_event");
   assert(dryManifest.filterEventOmittedByContract === true, "dry filter_event omission should be recorded");
+  assert(dryManifest.convertedTimeDurationPolicy === "omit_when_no_exclude", "dry JSZC route should use converted_time_duration omission policy");
+  assert(dryManifest.convertedTimeDurationPresent === false, "dry payload must omit audience.converted_time_duration");
+  assert(dryManifest.convertedTimeDurationOmittedByContract === true, "dry converted_time_duration omission should be recorded");
+  assert(dryManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION, "dry success profile version mismatch");
+  assert(dryManifest.successProfile?.source === JSZC_SUCCESS_PROFILE_SOURCE, "dry success profile source mismatch");
+  assert(dryManifest.successProfile?.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH, "dry success profile fixture mismatch");
+  assert(/^sha256:[a-f0-9]{64}$/.test(dryManifest.fieldShapeHash || ""), "dry field shape hash missing");
+  assert(dryManifest.createFieldLedger?.fieldShapeHash === dryManifest.fieldShapeHash, "dry field shape hash must match ledger");
+  assert(dryManifest.createFieldLedger?.entries?.some((entry) => entry.path === "audience.converted_time_duration" && entry.sendPolicy === "omit" && entry.preCreateStatus === "passed"), "dry ledger must attest converted_time_duration omission");
   assert(dryManifest.imageMaterialListEmpty === true, "dry image_material_list should be empty");
   assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "delivery_type" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "delivery_type should be sent with direct create evidence");
   assert(dryFieldEvidence.fields?.some((field) => field.fieldPath === "layer_roi_switch" && field.evidenceLevel === "official_direct" && field.sendPolicy === "send" && field.status === "passed"), "layer_roi_switch should be sent with direct create evidence");
@@ -428,7 +456,7 @@ try {
 
   assert(mock.bundle.job.source_usage === "test_run", "mock payload contract job source_usage is not test_run");
   assert(typeof mock.bundle.draft.payload_summary.advertiser_id === "string", "mock advertiser_id storage summary is not string");
-  assert(mock.contract.status === "passed", "mock payload contract did not pass");
+  assert(mock.contract.status === "passed", `mock payload contract did not pass:${mock.contract.gaps.map((gap) => gap.key).join(",")}`);
   assert(mockFieldEvidence.status === "passed", "complete test field evidence should pass");
   assert(mockInstanceEvidence.status === "passed", "complete test instance evidence should pass");
   assert(mockManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY, "mock instance should use controlled wire number strategy");
@@ -465,10 +493,16 @@ try {
   assert(mockManifest.miniProgramLaunchLinkHashMatch === true, "mock mini_program_info.url hash should match");
   assert(mockManifest.externalUrlMaterialListPolicy === "send", "mock JSZC route should send external_url_material_list by contract");
   assert(mockManifest.externalUrlMaterialListPresent === true, "mock payload should include external_url_material_list");
+  assert(mockManifest.externalUrlMaterialListCount === 1, "mock payload should include exactly one external_url_material_list item");
   assert(mockManifest.externalUrlMaterialListOmittedByContract === false, "mock external_url_material_list send should be recorded");
   assert(mockManifest.filterEventPolicy === "omit", "mock JSZC route should use filter_event omit policy");
   assert(mockManifest.filterEventPresent === false, "mock payload must omit audience.filter_event");
   assert(mockManifest.filterEventOmittedByContract === true, "mock filter_event omission should be recorded");
+  assert(mockManifest.convertedTimeDurationPolicy === "omit_when_no_exclude", "mock JSZC route should use converted_time_duration omission policy");
+  assert(mockManifest.convertedTimeDurationPresent === false, "mock payload must omit audience.converted_time_duration");
+  assert(mockManifest.convertedTimeDurationOmittedByContract === true, "mock converted_time_duration omission should be recorded");
+  assert(mockManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION, "mock success profile version mismatch");
+  assert(/^sha256:[a-f0-9]{64}$/.test(mockManifest.fieldShapeHash || ""), "mock field shape hash missing");
   assert(mockManifest.imageMaterialListEmpty === true, "mock image_material_list should be empty");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
@@ -512,9 +546,13 @@ try {
   assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "absent:audience.filter_event")?.status === "passed", "NO_EXCLUDE should pass only when audience.filter_event is absent");
   assert(createFieldPayloadPreflight({ audience: { gender: "GENDER_UNLIMITED", hide_if_converted: "NO_EXCLUDE", filter_event: [], retargeting_tags_exclude: [123] } }).blocker_codes.includes("filter_event_must_be_omitted_for_no_exclude"), "empty audience.filter_event should block under NO_EXCLUDE");
   assert(createFieldPayloadPreflight({ audience: { gender: "GENDER_UNLIMITED", hide_if_converted: "NO_EXCLUDE", filter_event: ["AD_CONVERT_TYPE_PAY"], retargeting_tags_exclude: [123] } }).blocker_codes.includes("filter_event_must_be_omitted_for_no_exclude"), "PAY audience.filter_event should block under NO_EXCLUDE");
+  assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "absent:audience.converted_time_duration")?.status === "passed", "NO_EXCLUDE should pass only when audience.converted_time_duration is absent");
+  for (const invalidValue of ["SIX_MONTH", null, ""]) {
+    assert(createFieldPayloadPreflight({ audience: { gender: "GENDER_UNLIMITED", hide_if_converted: "NO_EXCLUDE", converted_time_duration: invalidValue, retargeting_tags_exclude: [123] } }).blocker_codes.includes("converted_time_duration_must_be_omitted_for_no_exclude"), "present audience.converted_time_duration should block under NO_EXCLUDE");
+  }
   assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [] } }).diagnostics.find((item) => item.check_id === "empty_array:project_materials.image_material_list")?.status === "passed", "empty image_material_list should pass current route preflight");
   assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [{ material_id: 1 }] } }).blocker_codes.includes("image_material_list_must_be_empty_for_current_route"), "nonempty image_material_list should block current route preflight");
-  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [], external_url_material_list: ["https://example.invalid/backup"] } }).blocker_codes.includes("external_url_material_list_must_be_omitted_for_current_route"), "external_url_material_list should be omitted for current route preflight");
+  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [], external_url_material_list: ["https://example.invalid/backup"] } }).diagnostics.find((item) => item.check_id === "https_string_array:project_materials.external_url_material_list")?.status === "passed", "current success profile should allow exactly one HTTPS external_url_material_list item");
   assert(createFieldPayloadPreflight(
     { project_materials: { image_material_list: [], external_url_material_list: ["https://example.invalid/backup"] } },
     { externalUrlMaterialListPolicy: "send" }
@@ -541,11 +579,10 @@ try {
   assert(nestedFieldContractManifest(nestedContractCase()).rawPayloadStored === false, "nested manifest must not store raw payload");
   assert(nestedContractCase(({ payload }) => { payload.project_materials.video_material_list[0].image_mode = "BAD"; }).blockers.includes("nested_video_image_mode_invalid:0"), "invalid video image_mode should block");
   assert(nestedContractCase(({ payload }) => { payload.project_materials.image_material_list = [{ image_id: "IMG-1" }]; }).blockers.includes("nested_image_material_list_must_be_empty_for_current_route"), "nonempty image_material_list should block");
-  assert(nestedContractCase(({ payload }) => { payload.project_materials.external_url_material_list = ["https://example.invalid/backup"]; }).blockers.includes("nested_external_url_material_list_must_be_omitted_for_current_route"), "external_url_material_list should block when route policy is omit");
+  assert(nestedContractCase(({ payload }) => { delete payload.project_materials.external_url_material_list; }).blockers.includes("nested_external_url_material_list_contract_invalid"), "current success profile should require external_url_material_list");
   assert(nestedContractCase(({ payload }) => {
     payload.project_materials.external_url_material_list = ["https://example.invalid/backup"];
   }, { externalUrlMaterialListPolicy: "send" }).status === "passed", "send route should allow exactly one ready external_url_material_list item");
-  assert(nestedContractCase(() => {}, { externalUrlMaterialListPolicy: "send" }).blockers.includes("nested_external_url_material_list_contract_invalid"), "send route should require external_url_material_list");
   assert(nestedContractCase(({ payload }) => {
     payload.project_materials.external_url_material_list = ["https://example.invalid/one", "https://example.invalid/two"];
   }, { externalUrlMaterialListPolicy: "send" }).blockers.includes("nested_external_url_material_list_contract_invalid"), "send route should reject multiple external_url_material_list items");
@@ -563,6 +600,8 @@ try {
   assert(nestedContractCase(({ payload }) => { payload.audience.filter_event = []; }).blockers.includes("nested_audience_contract_invalid"), "empty audience.filter_event should block when the route requires omission");
   assert(nestedContractCase(({ payload }) => { payload.audience.filter_event = ["AD_CONVERT_TYPE_PAY"]; }).blockers.includes("nested_audience_contract_invalid"), "PAY audience.filter_event should block when the route requires omission");
   assert(nestedContractCase(({ bundle }) => { delete bundle.defaults.raw_defaults.official_create_field_contract.nested_rules.groups.audience.filter_event_policy; }).blockers.includes("nested_audience_contract_invalid"), "missing explicit filter_event_policy should block");
+  assert(nestedContractCase(({ payload }) => { payload.audience.converted_time_duration = "SIX_MONTH"; }).blockers.includes("nested_audience_contract_invalid"), "converted_time_duration should block under NO_EXCLUDE");
+  assert(nestedContractCase(({ bundle }) => { delete bundle.defaults.raw_defaults.official_create_field_contract.nested_rules.groups.audience.converted_time_duration_policy; }).blockers.includes("nested_audience_contract_invalid"), "missing explicit converted_time_duration_policy should block");
   assert(nestedContractCase(({ payload }) => { payload.brand_info.brand_name_id = "1"; }).blockers.includes("nested_brand_info_contract_invalid"), "non-integer brand ID should block");
   assert(nestedContractCase(({ bundle }) => { delete bundle.defaults.raw_defaults.official_create_field_contract.nested_rules; }).blockers.includes("nested_field_contract_rules_missing_or_version_mismatch"), "missing nested_rules should block");
   assert(titleMaterialPayloadDiagnostic([{ title: "开局一把枪，装备全靠捡，看你能射多远！" }])?.status === "passed", "valid title_material payload should pass");

@@ -2,12 +2,12 @@
   "schema_version": "2026-08-30.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830",
   "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
-  "status": "planned_waiting_implementation",
+  "status": "closed_validated_no_platform_write",
   "created_at": "2026-08-30 CST",
   "updated_at": "2026-08-30 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "Permanently encode the verified JSZC rule that audience.converted_time_duration is omitted when hide_if_converted=NO_EXCLUDE.",
+    "goal": "Permanently encode the complete verified JSZC/BYTE_GAME success profile in the formal workflow, including both audience omissions, one verified backup page, URL-only mini_program_info, field-shape evidence and database contract parity.",
     "mode": "mechanism_repair_only",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
@@ -18,6 +18,10 @@
   "read_order": [
     "AGENTS.md",
     "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
+    "tasks/TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830.json",
     "package.json",
     "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
     "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
@@ -37,12 +41,23 @@
     "verified_oneoff_plan_id": "PLAN-JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8-V1",
     "verified_payload_hash": "sha256:e22443b2f2edc37dce042da79519bd6394c9cd35f813a0e5d7ae063161bd353a",
     "verified_diff_hash": "sha256:17b6e55a7075203f00c9bf89f38692cd8f445d8498f42de72b7c78e61986003c",
-    "mechanism_rule": "omit audience.converted_time_duration when hide_if_converted is NO_EXCLUDE"
+    "mechanism_rule": "NO_EXCLUDE omits filter_event and converted_time_duration; send exactly one verified backup page; mini_program_info is URL-only"
   },
   "allowed_writes": [
     "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs test-only mock fixture",
+    "src/workflows/executionPlan.mjs",
+    "src/repositories/postgresRepository.mjs",
     "src/workflows/skills/oe3/00-contracts.mjs",
     "src/workflows/skills/oe3/00-*.mjs",
+    "db/054_jszc_success_profile_contract.sql",
+    "scripts/00-jszc-success-profile-contract-check.mjs",
+    "package.json",
     "tests and smoke fixtures directly covering JSZC payload contract",
     "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
     "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
@@ -61,7 +76,9 @@
   ],
   "validation_plan": [
     "inspect current JSZC builder and contracts for converted_time_duration generation",
-    "patch formal payload builder and contracts to omit converted_time_duration for NO_EXCLUDE",
+    "patch formal payload builder and contracts to apply the complete verified JSZC success profile",
+    "add and apply a unique route-contract migration, then verify code/database parity through a read-only contract check",
+    "generate a redacted golden field-shape fixture without raw values",
     "add or update contract/smoke fixtures covering allowed and blocked cases",
     "run targeted npm tests/checks with no platform writes",
     "verify package.json has no temporary one-off command"
@@ -70,6 +87,19 @@
     "before_platform_write": [
       "No platform write is authorized in this task. Any real create requires a new independent task, plan and explicit confirmation."
     ]
+  },
+  "validation_result": {
+    "status": "passed",
+    "success_profile_version": "2026-08-30.jszc-byte-game-success-profile-v1",
+    "nested_contract_version": "2026-08-30.oe3-std-project-create-nested-fields-v4",
+    "field_shape_hash": "sha256:9203ddf077d05b51958e851dad86894f75fdf09884ffc99690ad459ce5dd1064",
+    "field_ledger_path_count": 82,
+    "database_contract_check": "passed",
+    "target_smokes": "passed",
+    "platform_actions_before": 29,
+    "platform_actions_after": 29,
+    "test_run_jobs_remaining": 0,
+    "real_platform_write_called": false
   },
   "solution_link": {
     "source": "Successful one-off converted_time_duration omission create validation.",

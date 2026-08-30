@@ -126,6 +126,25 @@ try {
   }
   assert(writeBlockedForPendingOwner === true, "pending_bootstrap_must_not_allow_write_endpoint");
 
+  const transportFailureClient = createQiankunMonitorClient({
+    envPath,
+    storePath,
+    allowPendingOwnerKeyBootstrap: true,
+    pendingOwnerKeyBootstrapEndpoints: ["/tf/ad/index"],
+    fetchImpl: async () => {
+      throw new TypeError("fetch failed");
+    }
+  });
+  const transportFailure = await transportFailureClient.queryMonitorIndex({
+    ownerKey: "",
+    params: { monitorId: "245822" }
+  });
+  assert(transportFailure.status === "blocked", "transport_failure_should_be_a_safe_blocker");
+  assert(transportFailure.apiCode === "transport_error", "transport_failure_code_missing");
+  assert(transportFailure.responseHash === "", "transport_failure_must_not_invent_response_hash");
+  assert(transportFailure.rawResponseStored === false, "transport_failure_must_not_store_raw_response");
+  assertNoSensitiveLeak(transportFailure);
+
   const previousEnvPath = process.env.QIANKUN_MONITOR_ENV_PATH;
   writeFileSync(storePath, JSON.stringify({
     schema_version: QIANKUN_CREDENTIAL_SCHEMA_VERSION,

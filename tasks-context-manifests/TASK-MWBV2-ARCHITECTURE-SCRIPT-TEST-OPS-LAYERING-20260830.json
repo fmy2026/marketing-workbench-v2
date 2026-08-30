@@ -1,0 +1,54 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830",
+  "task_ref": "tasks/TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830.md",
+  "status": "planned_blocked_by_formal_node1_7_certification",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Layer scripts, tests and controlled operations after the formal new-account Node 1-7 certification succeeds.",
+    "mode": "blocked_planning_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-ARCHITECTURE-SCRIPT-TEST-OPS-LAYERING-20260830.json",
+    "docs/Solution Design.md"
+  ],
+  "scope": {
+    "blocked_by_task_id": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
+    "runtime_source_root": "src",
+    "compatibility_alias_window": "one_transition_cycle"
+  },
+  "allowed_writes": [],
+  "forbidden_actions": [
+    "moving scripts or tests before the blocking certification task succeeds",
+    "platform write of any kind",
+    "runtime dependency on .archive",
+    "removing compatibility aliases in the first transition cycle"
+  ],
+  "validation_plan": [
+    "wait for formal Node 1-7 certification success",
+    "inventory package entrypoints and import graph",
+    "move files with compatibility aliases",
+    "run architecture boundaries and full aggregated smoke suites"
+  ],
+  "human_gate": {
+    "before_start": [
+      "The blocking formal certification task must be closed successfully."
+    ]
+  },
+  "solution_link": {
+    "source": "Approved new-account flow consolidation and mechanism simplification plan.",
+    "objective": "Reduce operational clutter without changing the verified business mechanism.",
+    "current_truth": "Current repository import graph and package entrypoints at execution time.",
+    "stop_condition": "Do not begin while the formal certification task is incomplete."
+  }
+}

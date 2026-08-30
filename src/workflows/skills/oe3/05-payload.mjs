@@ -27,6 +27,10 @@ import {
   createFieldLedgerManifest,
   evaluateCreateFieldLedger
 } from "./05-create-field-ledger.mjs";
+import {
+  evaluateJsZcSuccessProfile,
+  jszcSuccessProfileManifest
+} from "./05-jszc-success-profile.mjs";
 
 const REQUIRED_CREATE_FIELDS = [
   "advertiser_id",
@@ -421,7 +425,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   awemeAuthorization = {},
   titleMaterialResult = {},
   nestedFieldContract = {},
-  createFieldLedger = {}
+  createFieldLedger = {},
+  successProfile = {}
 } = {}) {
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
@@ -429,6 +434,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const externalUrlMaterialListRequired = externalUrlMaterialListPolicy === "send";
   const filterEventPolicy = routeNestedFieldPolicy(bundle, "audience", "filter_event_policy", "omit");
   const filterEventPresent = Object.hasOwn(payload.audience || {}, "filter_event");
+  const convertedTimeDurationPolicy = routeNestedFieldPolicy(bundle, "audience", "converted_time_duration_policy", "missing");
+  const convertedTimeDurationPresent = Object.hasOwn(payload.audience || {}, "converted_time_duration");
   const wireBody = instanceIdCreateEvidence.canSend ? buildStdProjectCreateWireBody(payload) : { status: "not_required", blockers: [] };
   const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
     const value = payload[field];
@@ -485,6 +492,11 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(clean(payload.audience?.hide_if_converted) === clean(payload.external_action) ? ["hide_if_converted_uses_conversion_event"] : []),
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && filterEventPolicy !== "omit" ? ["filter_event_policy_invalid_for_no_exclude"] : []),
     ...(filterEventPolicy === "omit" && filterEventPresent ? ["filter_event_must_be_omitted_for_no_exclude"] : []),
+    ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPolicy !== "omit_when_no_exclude" ? ["converted_time_duration_policy_invalid_for_no_exclude"] : []),
+    ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPresent ? ["converted_time_duration_must_be_omitted_for_no_exclude"] : []),
+    ...(successProfile.status === "passed" ? [] : (successProfile.blockers || ["jszc_success_profile_not_verified"])),
+    ...(createFieldLedger.fieldShapeHash === successProfile.goldenFieldShapeHash ? [] : ["jszc_success_profile_field_shape_mismatch"]),
+    ...(Number(createFieldLedger.checkedPathCount || 0) === Number(successProfile.expectedLedgerPathCount || 0) ? [] : ["jszc_success_profile_ledger_path_count_mismatch"]),
     ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
@@ -509,7 +521,8 @@ function fieldManifest(payload = {}, blockers = [], {
   awemeAuthorization = {},
   titleMaterialResult = {},
   nestedFieldContract = {},
-  createFieldLedger = {}
+  createFieldLedger = {},
+  successProfile = {}
 } = {}) {
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
@@ -523,6 +536,8 @@ function fieldManifest(payload = {}, blockers = [], {
     (externalUrlMaterialListPresent ? "send" : "omit");
   const filterEventPresent = Object.hasOwn(audience, "filter_event");
   const filterEventPolicy = nestedFieldContract.filterEventPolicy || "";
+  const convertedTimeDurationPresent = Object.hasOwn(audience, "converted_time_duration");
+  const convertedTimeDurationPolicy = nestedFieldContract.convertedTimeDurationPolicy || "";
   const sellingPoints = materials.product_info?.selling_points;
   const sellingPointsSummary = sellingPointsManifest(sellingPoints, {
     source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
@@ -601,6 +616,7 @@ function fieldManifest(payload = {}, blockers = [], {
     imageMaterialListEmpty: Array.isArray(materials.image_material_list) && materials.image_material_list.length === 0,
     externalUrlMaterialListPolicy,
     externalUrlMaterialListPresent,
+    externalUrlMaterialListCount: Array.isArray(materials.external_url_material_list) ? materials.external_url_material_list.length : 0,
     externalUrlMaterialListOmittedByContract: externalUrlMaterialListPolicy === "omit" && !externalUrlMaterialListPresent,
     backupLandingPagePresent: Boolean(materials.external_url_material_list?.length),
     backupLandingPageSiteId: backupLandingPage.siteId || "",
@@ -616,6 +632,11 @@ function fieldManifest(payload = {}, blockers = [], {
     filterEventPolicy,
     filterEventPresent,
     filterEventOmittedByContract: filterEventPolicy === "omit" && !filterEventPresent,
+    convertedTimeDurationPolicy,
+    convertedTimeDurationPresent,
+    convertedTimeDurationOmittedByContract: clean(audience.hide_if_converted) === "NO_EXCLUDE" &&
+      convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+      !convertedTimeDurationPresent,
     dmpRetargetingTagsExcludeCount: audience.retargeting_tags_exclude?.length || 0,
     dmpRetargetingTagsExcludePresent: Boolean(audience.retargeting_tags_exclude?.length),
     dmpRetargetingTagsExcludeIntegerArray: (audience.retargeting_tags_exclude || []).every((value) => Number.isInteger(value)),
@@ -650,6 +671,9 @@ function fieldManifest(payload = {}, blockers = [], {
     },
     nestedFieldContract: nestedFieldContractManifest(nestedFieldContract),
     createFieldLedger: createFieldLedgerManifest(createFieldLedger),
+    successProfileVersion: successProfile.version || "",
+    fieldShapeHash: createFieldLedger.fieldShapeHash || "",
+    successProfile: jszcSuccessProfileManifest(successProfile),
     officialFieldEvidence: officialFieldEvidenceSummary(officialFieldEvidence),
     instanceIdCreateEvidence: instanceIdCreateEvidenceSummary(instanceIdCreateEvidence),
     forbiddenFieldsPresent: false,
@@ -671,6 +695,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const miniProgramLink = miniProgramLaunchLinkReadiness(bundle, miniProgramLaunchLink);
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
   const filterEventPolicy = routeNestedFieldPolicy(bundle, "audience", "filter_event_policy", "omit");
+  const convertedTimeDurationPolicy = routeNestedFieldPolicy(bundle, "audience", "converted_time_duration_policy", "missing");
   const externalUrlMaterialList = externalUrlMaterialListPolicy === "send" && backupLandingPage.ready
     ? { external_url_material_list: [backupLandingPage.url] }
     : {};
@@ -689,6 +714,13 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const instanceIdCreateEvidence = getInstanceIdCreateEvidence(officialContract, { resourceId: instanceIdValue });
   const awemeAuthorization = awemeAuthorizationReadiness(bundle, { payloadDefaults, awemeIdBaseline });
   const titleMaterialResult = titleMaterials(bundle);
+  const hideIfConverted = clean(requiredConfigValue(payloadDefaults, "targeting.hide_if_converted", configBlockers));
+  const convertedTimeDurationField = hideIfConverted === "NO_EXCLUDE" && convertedTimeDurationPolicy === "omit_when_no_exclude"
+    ? {}
+    : {
+        converted_time_duration: clean(requiredConfigValue(payloadDefaults, "targeting.converted_time_duration", configBlockers))
+      };
+  const successProfile = evaluateJsZcSuccessProfile(bundle);
 
   const requestedPayload = {
     advertiser_id: advertiserIdForTransport(advertiserIdStorageValue),
@@ -718,8 +750,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       district: clean(requiredConfigValue(payloadDefaults, "targeting.district", configBlockers)),
       gender: clean(requiredConfigValue(payloadDefaults, "targeting.gender", configBlockers)),
       age: configArrayAllowEmpty(payloadDefaults, "targeting.age", configBlockers),
-      converted_time_duration: clean(requiredConfigValue(payloadDefaults, "targeting.converted_time_duration", configBlockers)),
-      hide_if_converted: clean(requiredConfigValue(payloadDefaults, "targeting.hide_if_converted", configBlockers)),
+      ...convertedTimeDurationField,
+      hide_if_converted: hideIfConverted,
       retargeting_tags_exclude: dmpIds,
       interest_action_mode: clean(requiredConfigValue(payloadDefaults, "targeting.interest_action_mode", configBlockers))
     },
@@ -768,7 +800,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   });
   const createFieldLedger = evaluateCreateFieldLedger(payload, {
     externalUrlMaterialListPolicy,
-    filterEventPolicy
+    filterEventPolicy,
+    convertedTimeDurationPolicy
   });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
@@ -789,7 +822,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     awemeAuthorization,
     titleMaterialResult,
     nestedFieldContract,
-    createFieldLedger
+    createFieldLedger,
+    successProfile
   });
   const wireBody = buildStdProjectCreateWireBody(payload);
   const payloadHash = wireBody.bodyHash || hashValue(payload);
@@ -807,7 +841,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       awemeAuthorization,
       titleMaterialResult,
       nestedFieldContract,
-      createFieldLedger
+      createFieldLedger,
+      successProfile
     }),
     blockers
   };

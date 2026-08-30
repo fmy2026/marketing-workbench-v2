@@ -925,7 +925,9 @@ export async function runJob(repo, jobId, options = {}) {
     maximumCreateAttempts: options.maximumCreateAttempts || 3,
     singleVariableExperiment: options.singleVariableExperiment || {},
     expectedPlanId: options.expectedPlanId || "",
-    expectedPlanHash: options.expectedPlanHash || ""
+    expectedPlanHash: options.expectedPlanHash || "",
+    confirmedPlanExecution: options.confirmedPlanExecution === true,
+    projectStatePath: options.projectStatePath
   });
   return buildPublicJobView(repo, result.bundle, options);
 }

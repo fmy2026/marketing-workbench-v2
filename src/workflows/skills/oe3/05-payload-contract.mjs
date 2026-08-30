@@ -10,6 +10,13 @@ import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
+import {
+  JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+  JSZC_SUCCESS_PROFILE_SOURCE,
+  JSZC_SUCCESS_PROFILE_VERSION
+} from "./05-jszc-success-profile.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
   "route_id",
@@ -144,36 +151,75 @@ function draftToBundleShape(draft) {
   };
 }
 
-export async function buildSkillDraft({ repo, bundle, mockReady = false, attemptNo = 1 }) {
-  const effectiveBundle = mockReady ? mockReadyBundle(bundle) : bundle;
+function projectReservationInput(bundle, attemptNo = 1) {
   const numericAttemptNo = Number(attemptNo || 1);
   if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
     throw new Error("invalid_std_project_create_attempt_no");
   }
-  const yyyymmdd = cstYyyymmdd(effectiveBundle.job.created_at);
-  const nameContext = {
-    account: effectiveBundle.account,
-    game: effectiveBundle.game,
-    defaults: effectiveBundle.defaults,
-    materialPack: effectiveBundle.materialPack,
+  const yyyymmdd = cstYyyymmdd(bundle.job.created_at);
+  const namePrefix = buildStdProjectNamePrefix({
+    account: bundle.account,
+    game: bundle.game,
+    defaults: bundle.defaults,
+    materialPack: bundle.materialPack,
     yyyymmdd
-  };
-  const namePrefix = buildStdProjectNamePrefix(nameContext);
-  const draftId = numericAttemptNo === 1
-    ? `DRAFT-${effectiveBundle.job.job_id}`
-    : `DRAFT-${effectiveBundle.job.job_id}-V${numericAttemptNo}`;
-  const existingProjectName = clean(effectiveBundle.draft?.project_name);
-  const reservation = await repo.reserveProjectName({
-    jobId: effectiveBundle.job.job_id,
-    draftId,
-    routeId: effectiveBundle.job.route_id,
-    gameCode: effectiveBundle.job.game_code,
-    advertiserId: effectiveBundle.job.advertiser_id,
-    objectType: effectiveBundle.job.object_type,
-    namePrefix,
-    yyyymmdd,
-    sourceUsage: effectiveBundle.job.source_usage || "runtime_truth"
   });
+  return {
+    numericAttemptNo,
+    yyyymmdd,
+    namePrefix,
+    draftId: numericAttemptNo === 1
+      ? `DRAFT-${bundle.job.job_id}`
+      : `DRAFT-${bundle.job.job_id}-V${numericAttemptNo}`
+  };
+}
+
+async function reserveProjectNameForBundle({ repo, bundle, attemptNo = 1 }) {
+  const input = projectReservationInput(bundle, attemptNo);
+  const reservation = await repo.reserveProjectName({
+    jobId: bundle.job.job_id,
+    draftId: input.draftId,
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id,
+    objectType: bundle.job.object_type,
+    namePrefix: input.namePrefix,
+    yyyymmdd: input.yyyymmdd,
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  });
+  return { ...input, reservation };
+}
+
+export async function reserveStdProjectPlanningIntent({ repo, bundle, attemptNo = 1 } = {}) {
+  if (!repo || !bundle?.job) throw new Error("planning_intent_bundle_required");
+  const { reservation, draftId, namePrefix, yyyymmdd } = await reserveProjectNameForBundle({ repo, bundle, attemptNo });
+  const raw = bundle.defaults?.raw_defaults || {};
+  const payloadDefaults = raw.payload_defaults || {};
+  const intent = {
+    project_name: reservation.project_name,
+    reserved_draft_id: draftId,
+    naming_prefix: namePrefix,
+    yyyymmdd,
+    budget: Number(bundle.defaults?.budget || 0),
+    cpa_bid: Number(bundle.defaults?.bid || 0),
+    roi_goal: Number(bundle.defaults?.roi_goal || 0),
+    schedule_type: payloadDefaults.schedule_type || raw.schedule_type || "SCHEDULE_FROM_NOW",
+    object_type: bundle.job.object_type
+  };
+  return {
+    ...intent,
+    business_intent_hash: stablePayloadHash(intent)
+  };
+}
+
+export async function buildSkillDraft({ repo, bundle, mockReady = false, attemptNo = 1 }) {
+  const effectiveBundle = mockReady ? mockReadyBundle(bundle) : bundle;
+  const { numericAttemptNo, yyyymmdd, namePrefix, draftId, reservation } = await reserveProjectNameForBundle({
+    repo,
+    bundle: effectiveBundle,
+    attemptNo
+  });
+  const existingProjectName = clean(effectiveBundle.draft?.project_name);
   if (reservation && existingProjectName && existingProjectName !== reservation.project_name) {
     throw new Error("project_name_reservation_mismatch");
   }
@@ -350,6 +396,31 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.filterEventPresent === false &&
       finalManifest.filterEventOmittedByContract === true
     );
+  const finalPayloadConvertedTimeDurationOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.hideIfConverted === "NO_EXCLUDE" &&
+      finalManifest.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+      finalManifest.convertedTimeDurationPresent === false &&
+      finalManifest.convertedTimeDurationOmittedByContract === true
+    );
+  const successProfile = finalManifest.successProfile || {};
+  const finalSuccessProfileOk = !usesFinalPayloadHash ||
+    (
+      finalManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
+      /^sha256:[a-f0-9]{64}$/.test(clean(finalManifest.fieldShapeHash)) &&
+      successProfile.status === "passed" &&
+      successProfile.version === JSZC_SUCCESS_PROFILE_VERSION &&
+      successProfile.source === JSZC_SUCCESS_PROFILE_SOURCE &&
+      successProfile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH &&
+      successProfile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+      Number(successProfile.expectedLedgerPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
+      finalManifest.fieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+      successProfile.filterEventPolicy === "omit" &&
+      successProfile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+      successProfile.externalUrlMaterialListPolicy === "send" &&
+      Number(successProfile.externalUrlMaterialListRequiredCount || 0) === 1 &&
+      successProfile.rawPayloadStored === false
+    );
   const finalPayloadDmpOk = !usesFinalPayloadHash ||
     (
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
@@ -419,6 +490,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     ) ||
     (
       externalUrlMaterialListPolicy === "send" &&
+      Number(finalManifest.externalUrlMaterialListCount || 0) === 1 &&
       finalManifest.backupLandingPagePresent === true &&
       finalManifest.backupLandingPageHttps === true &&
       finalManifest.backupLandingPageTargetVisible === true &&
@@ -482,6 +554,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const nestedFilterEventContractOk = nestedFieldContract.filterEventPolicy === "omit" &&
     nestedFieldContract.filterEventPresent === false &&
     nestedFieldContract.filterEventOmittedByContract === true;
+  const nestedConvertedTimeDurationContractOk = nestedFieldContract.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+    nestedFieldContract.convertedTimeDurationPresent === false &&
+    nestedFieldContract.convertedTimeDurationOmittedByContract === true;
   const finalNestedFieldContractOk = !usesFinalPayloadHash ||
     (
       nestedFieldContract.status === "passed" &&
@@ -498,6 +573,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       nestedFieldContract.checkedGroups.includes("audience") &&
       nestedExternalUrlContractOk &&
       nestedFilterEventContractOk &&
+      nestedConvertedTimeDurationContractOk &&
       nestedFieldContract.rawPayloadStored === false
     );
   const createFieldLedger = finalManifest.createFieldLedger || {};
@@ -509,6 +585,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Number(createFieldLedger.blockedPathCount || 0) === 0 &&
       Array.isArray(createFieldLedger.entries) &&
       createFieldLedger.entries.length === Number(createFieldLedger.checkedPathCount || 0) &&
+      Number(createFieldLedger.checkedPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
+      /^sha256:[a-f0-9]{64}$/.test(clean(createFieldLedger.fieldShapeHash)) &&
+      createFieldLedger.fieldShapeHash === finalManifest.fieldShapeHash &&
       createFieldLedger.entries.every((entry) => entry.preCreateStatus === "passed" && entry.rawValueStored === false) &&
       createFieldLedger.rawPayloadStored === false
     );
@@ -613,6 +692,20 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       summary: finalPayloadFilterEventOk
         ? "NO_EXCLUDE 下已按路线合同完全省略 filter_event。"
         : "NO_EXCLUDE 下 filter_event 未完全省略，或省略策略证据不完整。"
+    },
+    {
+      key: "converted_time_duration",
+      status: finalPayloadConvertedTimeDurationOk ? "passed" : "blocked",
+      summary: finalPayloadConvertedTimeDurationOk
+        ? "NO_EXCLUDE 下已按成功配置完全省略 converted_time_duration。"
+        : "NO_EXCLUDE 下 converted_time_duration 未完全省略，或省略策略证据不完整。"
+    },
+    {
+      key: "jszc_success_profile",
+      status: finalSuccessProfileOk ? "passed" : "blocked",
+      summary: finalSuccessProfileOk
+        ? `JSZC 成功配置 ${JSZC_SUCCESS_PROFILE_VERSION} 与字段形态 hash 已绑定。`
+        : "JSZC 成功配置版本、黄金 fixture 或字段形态 hash 未通过。"
     },
     {
       key: "dmp_custom_audience_ids",

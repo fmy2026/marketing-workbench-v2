@@ -9,19 +9,29 @@ import { CREATE_FIELD_LEDGER_VERSION } from "../src/workflows/skills/oe3/05-crea
 import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
+import {
+  JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+  JSZC_SUCCESS_PROFILE_SOURCE,
+  JSZC_SUCCESS_PROFILE_VERSION
+} from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
+
+const FIELD_SHAPE_HASH = JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
 
 function passedCreateFieldLedger() {
   return {
     status: "passed",
     ruleVersion: CREATE_FIELD_LEDGER_VERSION,
-    checkedPathCount: 1,
+    checkedPathCount: JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
     blockedPathCount: 0,
-    entries: [{
-      path: "landing_type",
+    fieldShapeHash: FIELD_SHAPE_HASH,
+    entries: Array.from({ length: JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT }, (_, index) => ({
+      path: `shape_path_${index}`,
       sendPolicy: "send",
       preCreateStatus: "passed",
       rawValueStored: false
-    }],
+    })),
     rawPayloadStored: false
   };
 }
@@ -30,11 +40,30 @@ function passedCurrentRouteManifest() {
   return {
     externalUrlMaterialListPolicy: "send",
     externalUrlMaterialListPresent: true,
+    externalUrlMaterialListCount: 1,
     externalUrlMaterialListOmittedByContract: false,
     hideIfConverted: "NO_EXCLUDE",
     filterEventPolicy: "omit",
     filterEventPresent: false,
     filterEventOmittedByContract: true,
+    convertedTimeDurationPolicy: "omit_when_no_exclude",
+    convertedTimeDurationPresent: false,
+    convertedTimeDurationOmittedByContract: true,
+    successProfileVersion: JSZC_SUCCESS_PROFILE_VERSION,
+    fieldShapeHash: FIELD_SHAPE_HASH,
+    successProfile: {
+      status: "passed",
+      version: JSZC_SUCCESS_PROFILE_VERSION,
+      source: JSZC_SUCCESS_PROFILE_SOURCE,
+      fixtureHash: JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+      goldenFieldShapeHash: JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+      expectedLedgerPathCount: JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+      filterEventPolicy: "omit",
+      convertedTimeDurationPolicy: "omit_when_no_exclude",
+      externalUrlMaterialListPolicy: "send",
+      externalUrlMaterialListRequiredCount: 1,
+      rawPayloadStored: false
+    },
     productSellingPointsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
     productSellingPointsContractRuleVersion: SELLING_POINTS_CONTRACT.ruleVersion,
     productSellingPointsCount: 1,
@@ -85,6 +114,9 @@ function passedCurrentRouteManifest() {
       filterEventPolicy: "omit",
       filterEventPresent: false,
       filterEventOmittedByContract: true,
+      convertedTimeDurationPolicy: "omit_when_no_exclude",
+      convertedTimeDurationPresent: false,
+      convertedTimeDurationOmittedByContract: true,
       rawPayloadStored: false
     }
   };

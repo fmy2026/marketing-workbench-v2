@@ -1,6 +1,6 @@
 import { hashValue } from "./00-contracts.mjs";
 
-export const CREATE_FIELD_LEDGER_VERSION = "2026-08-30.oe3-std-project-create-field-ledger-v2";
+export const CREATE_FIELD_LEDGER_VERSION = "2026-08-30.oe3-std-project-create-field-ledger-v3";
 
 const ALWAYS_OMITTED_PATHS = Object.freeze([
   "micro_promotion_type",
@@ -99,7 +99,8 @@ function hasPath(value, dotted) {
 
 export function evaluateCreateFieldLedger(payload = {}, {
   externalUrlMaterialListPolicy = "omit",
-  filterEventPolicy = "omit"
+  filterEventPolicy = "omit",
+  convertedTimeDurationPolicy = ""
 } = {}) {
   const entries = collectEntries(payload)
     .filter((entry) => entry.path)
@@ -107,7 +108,10 @@ export function evaluateCreateFieldLedger(payload = {}, {
   const omittedPaths = [
     ...ALWAYS_OMITTED_PATHS,
     ...(externalUrlMaterialListPolicy === "omit" ? ["project_materials.external_url_material_list"] : []),
-    ...(filterEventPolicy === "omit" ? ["audience.filter_event"] : [])
+    ...(filterEventPolicy === "omit" ? ["audience.filter_event"] : []),
+    ...(convertedTimeDurationPolicy === "omit_when_no_exclude" && payload.audience?.hide_if_converted === "NO_EXCLUDE"
+      ? ["audience.converted_time_duration"]
+      : [])
   ];
   const omitted = omittedPaths.map((path) => ({
     path,
@@ -124,11 +128,22 @@ export function evaluateCreateFieldLedger(payload = {}, {
   }));
   const allEntries = [...entries, ...omitted];
   const blocked = allEntries.filter((entry) => entry.preCreateStatus !== "passed");
+  const fieldShapeHash = hashValue(allEntries.map((entry) => ({
+    path: entry.path,
+    group: entry.group,
+    sendPolicy: entry.sendPolicy,
+    valueType: entry.valueType,
+    itemCount: entry.itemCount,
+    enumRule: entry.enumRule,
+    enumMatched: entry.enumMatched,
+    preCreateStatus: entry.preCreateStatus
+  })));
   return {
     status: blocked.length ? "blocked" : "passed",
     ruleVersion: CREATE_FIELD_LEDGER_VERSION,
     checkedPathCount: allEntries.length,
     blockedPathCount: blocked.length,
+    fieldShapeHash,
     groups: [...new Set(allEntries.map((entry) => entry.group))],
     entries: allEntries,
     rawPayloadStored: false
@@ -141,6 +156,7 @@ export function createFieldLedgerManifest(ledger = {}) {
     ruleVersion: ledger.ruleVersion || CREATE_FIELD_LEDGER_VERSION,
     checkedPathCount: Number(ledger.checkedPathCount || 0),
     blockedPathCount: Number(ledger.blockedPathCount || 0),
+    fieldShapeHash: ledger.fieldShapeHash || "",
     groups: Array.isArray(ledger.groups) ? ledger.groups : [],
     entries: Array.isArray(ledger.entries) ? ledger.entries.map((entry) => ({
       path: entry.path || "",

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { getJobView, runJob } from "./launchWorkflow.mjs";
-import { revokeWriteScope, validateWriteScope } from "./executionGrantScope.mjs";
+import { revokeWriteScope, validatePlanConfirmationScope, validateWriteScope } from "./executionGrantScope.mjs";
 import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
@@ -32,6 +33,14 @@ function validateGrant({ grantSource, executionIntent, envConfirm }) {
     return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
   }
   return ["grant_source_invalid"];
+}
+
+async function usePlanBoundConfirmation(bundle, projectStatePath) {
+  const binding = bundle.executionPlan?.metadata?.execution_scope?.binding_mode === "single_confirmation_plan";
+  if (!binding) return false;
+  if (bundle.job?.source_usage !== "test_run" || !projectStatePath) return true;
+  const state = JSON.parse(await readFile(projectStatePath, "utf8"));
+  return state.guardrails?.platform_write_scope?.mode !== "single_oceanengine_std_project_create";
 }
 
 
@@ -66,7 +75,24 @@ export async function executeConfirmedLaunch({
     return result;
   }
 
-  const scopeCheck = await validateWriteScope({ repo, bundle, projectStatePath });
+  const planBound = await usePlanBoundConfirmation(bundle, projectStatePath);
+  if (!planBound && (bundle.job?.source_usage || "runtime_truth") !== "test_run") {
+    const view = await getJobView(repo, jobId);
+    const result = {
+      ...view,
+      executionGrant: {
+        status: "blocked",
+        grantSource,
+        blockers: ["runtime_truth_requires_plan_bound_confirmation"],
+        createCalled: false
+      }
+    };
+    assertNoSensitiveLeak(result.executionGrant);
+    return result;
+  }
+  const scopeCheck = planBound
+    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
+    : await validateWriteScope({ repo, bundle, projectStatePath });
   if (scopeCheck.blockers.length) {
     const view = await getJobView(repo, jobId);
     const result = {
@@ -83,8 +109,10 @@ export async function executeConfirmedLaunch({
     return result;
   }
 
-  const latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
-  const secondScopeCheck = await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
+  let latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
+  const secondScopeCheck = planBound
+    ? await validatePlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath })
+    : await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
   if (secondScopeCheck.blockers.length) {
     const view = await getJobView(repo, jobId);
     const result = {
@@ -108,6 +136,33 @@ export async function executeConfirmedLaunch({
   const expectedPlanHash = latestBundleBeforeCreate.executionPlan?.plan_hash || "";
   const singleVariableExperiment = planMetadata.single_variable_experiment || {};
   try {
+    if (planBound) {
+      const planningIntent = planMetadata.planning_intent || {};
+      await repo.upsertLaunchConfirmation({
+        confirmationId: `CONFIRM-${jobId}-EXECUTION-PLAN`,
+        jobId,
+        draftId: "",
+        objectType: latestBundleBeforeCreate.job.object_type,
+        objectName: planningIntent.project_name || "",
+        payloadHash: "",
+        confirmationStatus: "confirmed_for_execution_plan",
+        confirmVariable: `${EXECUTION_GRANT_CONFIRM_ENV}=${EXECUTION_GRANT_INTENT}`,
+        confirmedBy: grantSource || "local_operator",
+        planId: expectedPlanId,
+        metadata: {
+          binding_mode: "single_confirmation_plan",
+          plan_hash: expectedPlanHash,
+          business_intent_hash: planningIntent.business_intent_hash || "",
+          advertiser_id: latestBundleBeforeCreate.job.advertiser_id,
+          allowed_actions: latestBundleBeforeCreate.executionPlan?.planned_actions?.map((action) => action.action_type) || [],
+          maximum_create_calls: 1,
+          retry_allowed: false,
+          raw_payload_stored: false,
+          raw_response_stored: false
+        }
+      });
+      latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
+    }
     const view = await runJob(repo, jobId, {
       mode: "execute_once",
       mockReady: grantSource === "test_fake_transport",
@@ -124,6 +179,7 @@ export async function executeConfirmedLaunch({
       singleVariableExperiment,
       expectedPlanId,
       expectedPlanHash,
+      confirmedPlanExecution: planBound,
       projectStatePath,
       fetchImpl
     });

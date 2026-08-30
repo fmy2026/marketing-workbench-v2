@@ -65,6 +65,53 @@ try {
   assert(allCases.some((item) => item.case_id === firstCase.case_id), "first_case_missing_from_list");
   assert(allCases.some((item) => item.case_id === secondCase.case_id), "second_case_missing_from_list");
 
+  await repo.upsertLaunchExecutionPlan({
+    planId: `PLAN-${firstJob.jobId}-V1`,
+    jobId: firstJob.jobId,
+    planVersion: 1,
+    planStatus: "blocked",
+    planHash: `sha256:${"1".repeat(64)}`,
+    plannedActions: [],
+    blockerCodes: [
+      "resource_prepare_unsupported:event_asset",
+      "nested_audience_contract_invalid"
+    ],
+    sourceUsage: "test_run",
+    metadata: {
+      resource_states: [
+        { resource_type: "micro_app_instance", state: "BLOCKED", blocker: "resource_prepare_unsupported:micro_app_instance" },
+        { resource_type: "event_asset", state: "BLOCKED", blocker: "resource_prepare_unsupported:event_asset" }
+      ],
+      root_blocker_codes: ["nested_audience_contract_invalid"]
+    }
+  });
+  await repo.upsertLaunchExecutionPlan({
+    planId: `PLAN-${secondJob.jobId}-V1`,
+    jobId: secondJob.jobId,
+    planVersion: 1,
+    planStatus: "blocked",
+    planHash: `sha256:${"2".repeat(64)}`,
+    plannedActions: [],
+    blockerCodes: ["nested_audience_contract_invalid"],
+    sourceUsage: "test_run",
+    metadata: {
+      resource_states: [],
+      root_blocker_codes: ["nested_audience_contract_invalid"]
+    }
+  });
+  const [resourceBlockedSummary, node5BlockedSummary] = await Promise.all([
+    repo.getWorkflowCaseSummary(firstCase.case_id),
+    repo.getWorkflowCaseSummary(secondCase.case_id)
+  ]);
+  assert(resourceBlockedSummary.current_gate === "resolve_case_blocker", "resource_root_gate_not_single");
+  assert(resourceBlockedSummary.root_blocker_codes?.length === 1, "resource_root_blocker_cardinality_invalid");
+  assert(resourceBlockedSummary.root_blocker_codes[0] === "resource_prepare_unsupported:event_asset", "resource_root_priority_invalid");
+  assert(resourceBlockedSummary.blocker_codes?.length === 1, "effective_blocker_cardinality_invalid");
+  assert(resourceBlockedSummary.structural_blocker_codes?.length === 2, "structural_blockers_not_retained");
+  assert(resourceBlockedSummary.suggested_next_action === "resolve_root_blocker:resource_prepare_unsupported:event_asset", "resource_next_action_not_aligned");
+  assert(node5BlockedSummary.root_blocker_codes?.length === 1, "node5_root_blocker_cardinality_invalid");
+  assert(node5BlockedSummary.root_blocker_codes[0] === "nested_audience_contract_invalid", "node5_root_fallback_missing");
+
   let runtimeCaseRequired = false;
   try {
     await createJob(repo, {
@@ -86,6 +133,9 @@ try {
     firstCaseId: firstCase.case_id,
     secondCaseId: secondCase.case_id,
     currentGate: firstSummary.current_gate,
+    resourceRootBlocker: resourceBlockedSummary.root_blocker_codes[0],
+    node5RootBlocker: node5BlockedSummary.root_blocker_codes[0],
+    structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,
     platformWrites: 0
   }, null, 2));
 } finally {

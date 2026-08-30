@@ -92,7 +92,7 @@ export function parseReadonlyReadinessArgs(argv = process.argv.slice(2)) {
     advertiserId: argValue(argv, "advertiser-id"),
     caseId: argValue(argv, "case-id"),
     jobId: argValue(argv, "job-id"),
-    expectedMonitorId: argValue(argv, "expected-monitor-id", "245828"),
+    expectedMonitorId: argValue(argv, "expected-monitor-id"),
     sourceRecordRef: argValue(argv, "source-record-ref"),
     flags: flagNames(argv),
     argv

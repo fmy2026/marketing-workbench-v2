@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
+import {
+  JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_SOURCE,
+  JSZC_SUCCESS_PROFILE_VERSION
+} from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -59,20 +64,25 @@ function bundle() {
           optimized_goal_query_app_field: "mini_program_id"
         },
         official_create_field_contract: {
+          success_profile: {
+            version: JSZC_SUCCESS_PROFILE_VERSION,
+            source: JSZC_SUCCESS_PROFILE_SOURCE,
+            fixture_hash: JSZC_SUCCESS_PROFILE_FIXTURE_HASH
+          },
           nested_rules: {
             version: NESTED_FIELD_CONTRACT.ruleVersion,
             source: NESTED_FIELD_CONTRACT.source,
             groups: {
               "project_materials.video_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143" },
               "project_materials.image_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149", send_policy: "send_empty_array" },
-              "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: "omit" },
+              "project_materials.external_url_material_list": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:174", send_policy: "send", required_count: 1 },
               "project_materials.product_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163" },
               "project_materials.call_to_action_buttons": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167" },
               "project_materials.source": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173" },
               "project_materials.anchor_related_type": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:168" },
               "project_materials.mini_program_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184" },
               "track_url_setting": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
-              "audience": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md" },
+              "audience": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md", filter_event_policy: "omit", converted_time_duration_policy: "omit_when_no_exclude" },
               "brand_info": { reference: "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189" }
             }
           },
@@ -177,8 +187,12 @@ assert(ready.requestFieldManifest.miniProgramUrlRequired === true, "mini game ro
 assert(ready.requestFieldManifest.miniProgramLaunchLinkPresent === true, "ready launch link should enter final payload only");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkHashMatch === true, "ready launch link should hash-match");
 assert(ready.requestFieldManifest.nestedFieldContract?.status === "passed", "ready payload nested field contract should pass");
-assert(ready.requestFieldManifest.externalUrlMaterialListPolicy === "omit", "ready payload should omit external_url_material_list by current route contract");
-assert(ready.requestFieldManifest.externalUrlMaterialListPresent === false, "ready payload must not include external_url_material_list");
+assert(ready.requestFieldManifest.externalUrlMaterialListPolicy === "send", "ready payload should send external_url_material_list by success profile");
+assert(ready.requestFieldManifest.externalUrlMaterialListPresent === true, "ready payload must include external_url_material_list");
+assert(ready.requestFieldManifest.externalUrlMaterialListCount === 1, "ready payload must include exactly one external_url_material_list item");
+assert(ready.requestFieldManifest.convertedTimeDurationPresent === false, "NO_EXCLUDE must omit converted_time_duration");
+assert(ready.requestFieldManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION, "success profile version must be persisted in manifest");
+assert(/^sha256:[a-f0-9]{64}$/.test(ready.requestFieldManifest.fieldShapeHash), "field shape hash must be present");
 assert(!ready.blockers.includes("mini_game_launch_url_not_ready"), "ready launch link should not block");
 
 const missing = buildWith({});

@@ -1,0 +1,93 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830.md",
+  "status": "completed",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Implement the minimal backend-only single-confirmation OE3 Node 1-7 workflow using existing resource executors.",
+    "mode": "backend_implementation_zero_real_platform_write",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830.json",
+    "docs/Solution Design.md",
+    "docs/project-最合理的逻辑图.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "evidence_job_id": "JOB-MWBV2-20260830083744-4F7FC2",
+    "implementation_scope": "workflow_skill_script_backend_only",
+    "confirmation_model": "one_plan_one_confirmation_many_bounded_actions"
+  },
+  "allowed_writes": [
+    "workflow, skill, repository, executor scope and CLI source code",
+    "smoke and contract tests",
+    "one unique database migration for plan-bound confirmation compatibility",
+    "task, manifest and project control-plane status",
+    "test_run audit records created and cleaned by smoke"
+  ],
+  "forbidden_actions": [
+    "real OceanEngine or Qiankun platform write",
+    "std_project/create",
+    "promotion/create",
+    "token refresh",
+    "frontend or UI changes",
+    "new event, micro-app binding or landing-page share executor",
+    "one-off runtime compiler or script",
+    "raw payload, raw response, complete URL, token, secret, Cookie, auth_code or complete request ID persistence"
+  ],
+  "validation_plan": [
+    "validate READY/PLANNED/BLOCKED classification and root blocker selection",
+    "validate one immutable plan and one plan-bound confirmation",
+    "validate existing resource executors through a shared action grant",
+    "validate Node 5 fail-fast orchestration and final draft derivation",
+    "validate Node 6 calls create at most once under fake transport",
+    "run existing executor and payload/create regression smoke"
+  ],
+  "stop_conditions": [
+    "Any command would perform a real platform write.",
+    "Implementation requires duplicating an existing resource executor or payload builder.",
+    "An unsupported event, micro-app or backup landing-page write capability would be required.",
+    "Existing user changes overlap in a way that cannot be preserved safely."
+  ],
+  "human_gate": {
+    "implementation_plan": "user_approved",
+    "real_platform_write": "not_authorized"
+  },
+  "validation_result": {
+    "status": "passed",
+    "migration_055_applied": true,
+    "single_plan_confirmation_smoke": "passed",
+    "execution_plan_smoke": "passed",
+    "execution_grant_fake_transport_smoke": "passed",
+    "workflow_and_payload_smokes": "passed",
+    "existing_resource_executor_smokes": "passed",
+    "target_account_confirmation_count": 0,
+    "target_account_platform_action_count": 0,
+    "target_account_created_object_count": 0,
+    "test_run_jobs_remaining": 0,
+    "real_platform_write_called": false,
+    "token_refresh_called": false
+  },
+  "solution_link": {
+    "source": "docs/project-最合理的逻辑图.md and approved backend-only single-confirmation plan",
+    "objective": "Implement the smallest durable backend mechanism without frontend or duplicate executors.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, current code and this manifest.",
+    "stop_condition": "Zero real platform writes during implementation and validation."
+  }
+}

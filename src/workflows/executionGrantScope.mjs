@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateExecutionPlanActionScope } from "./executionPlan.mjs";
+import { ACTION_STD_PROJECT_CREATE, validateExecutionPlanActionScope } from "./executionPlan.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const defaultProjectStatePath = join(rootDir, "project.state.json");
@@ -118,9 +118,80 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
   };
 }
 
+export async function validatePlanConfirmationScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
+  const state = await readProjectState(projectStatePath);
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const scope = plan?.metadata?.execution_scope || {};
+  const actions = plan?.planned_actions || plan?.plannedActions || [];
+  const blockerCodes = plan?.blocker_codes || plan?.blockerCodes || [];
+  const createActions = actions.filter((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
+    : null;
+  const attemptState = await repo.getCreateAttemptState(bundle.job.job_id);
+  const actionScope = validateExecutionPlanActionScope({
+    plan,
+    allowedActions: scope.allowed_actions || []
+  });
+  const blockers = [
+    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
+    ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(blockerCodes.length === 0 ? [] : ["execution_plan_has_blockers"]),
+    ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
+    ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
+    ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
+    ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
+    ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
+    ...(actionScope.status === "passed" ? [] : actionScope.blockers),
+    ...(Number(scope.maximum_actions) === actions.length && actions.length > 0 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(createActions.length === 1 ? [] : ["execution_plan_create_action_count_invalid"]),
+    ...(Number(scope.maximum_create_calls) === 1 ? [] : ["execution_plan_create_call_limit_invalid"]),
+    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : []),
+    ...(Number(attemptState.createActionCount || 0) === 0 ? [] : ["std_project_create_action_already_recorded"]),
+    ...(Number(attemptState.createdObjectCount || 0) === 0 ? [] : ["created_object_already_recorded"]),
+    ...(plan?.metadata?.planning_intent?.project_name ? [] : ["execution_plan_project_name_missing"]),
+    ...(plan?.metadata?.planning_intent?.business_intent_hash ? [] : ["execution_plan_business_intent_hash_missing"])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers,
+    plan,
+    scope,
+    attemptState,
+    scopeSummary: {
+      bindingMode: scope.binding_mode || "",
+      planReady: plan?.plan_status === "ready",
+      blockerCount: blockerCodes.length,
+      actionCount: actions.length,
+      createActionCount: createActions.length,
+      existingConfirmation: Boolean(existingConfirmation),
+      retryAllowed: scope.retry_allowed === true
+    }
+  };
+}
+
 export async function getExecutionGrantAvailability({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
-  const scope = await validateWriteScope({ repo, bundle, projectStatePath });
-  const alreadyAttempted = Number(scope.attemptState.nextCreateAttemptNo || 1) > Number(scope.attemptState.maximumCreateAttempts || 3);
+  const state = await readProjectState(projectStatePath);
+  const legacyTestScope = bundle.job?.source_usage === "test_run" &&
+    projectStatePath !== defaultProjectStatePath &&
+    state.guardrails?.platform_write_scope?.mode === "single_oceanengine_std_project_create";
+  const planBound = bundle.executionPlan?.metadata?.execution_scope?.binding_mode === "single_confirmation_plan" && !legacyTestScope;
+  if (!planBound && (bundle.job?.source_usage || "runtime_truth") !== "test_run") {
+    return {
+      status: "unavailable",
+      canExecuteOnce: false,
+      alreadyAttempted: false,
+      blockers: ["runtime_truth_requires_plan_bound_confirmation"]
+    };
+  }
+  const scope = planBound
+    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
+    : await validateWriteScope({ repo, bundle, projectStatePath });
+  const alreadyAttempted = planBound
+    ? scope.blockers.includes("execution_plan_confirmation_already_recorded") || Number(scope.attemptState.createActionCount || 0) > 0
+    : Number(scope.attemptState.nextCreateAttemptNo || 1) > Number(scope.attemptState.maximumCreateAttempts || 3);
   return {
     status: scope.status === "passed" ? "available" : (alreadyAttempted ? "consumed" : "unavailable"),
     canExecuteOnce: scope.status === "passed",

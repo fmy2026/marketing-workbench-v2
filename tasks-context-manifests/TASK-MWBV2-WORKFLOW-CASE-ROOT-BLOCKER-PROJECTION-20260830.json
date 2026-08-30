@@ -1,0 +1,49 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830.md",
+  "status": "superseded",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "superseded_by": "TASK-MWBV2-OE3-CANONICAL-WORKFLOW-GATE-HARDENING-20260830",
+  "brief": {
+    "goal": "Project one actionable root blocker and next action from workflow_case_summary without losing structural evidence.",
+    "mode": "database_projection_fix_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830.json",
+    "docs/Solution Design.md",
+    "docs/project-现状数据与报表契约.md"
+  ],
+  "scope": {
+    "database": "marketing_workbench_v2",
+    "view": "mwb.workflow_case_summary",
+    "runtime_node_registry_change_allowed": false,
+    "payload_contract_change_allowed": false
+  },
+  "allowed_writes": [
+    "a new uniquely numbered database migration for workflow_case_summary",
+    "projection smoke tests and data/report contract documentation"
+  ],
+  "forbidden_actions": [
+    "platform reads or writes",
+    "resource preparation",
+    "std_project/create",
+    "payload or resource contract changes",
+    "runtime business Case mutation"
+  ],
+  "validation_plan": [
+    "reproduce mixed resource and Node 5 derivative blockers from a redacted fixture",
+    "verify a single actionable root blocker and aligned next action",
+    "verify structural blockers remain available for forensics",
+    "run workflow case and reporting regression tests"
+  ]
+}

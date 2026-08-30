@@ -105,6 +105,17 @@ export function allResourceActionCapabilities() {
   return OE3_REQUIRED_RESOURCE_TYPES.map(getResourceActionCapability);
 }
 
+export const FORMAL_RESOURCE_PREP_ACTION_ORDER = Object.freeze(
+  OE3_REQUIRED_RESOURCE_TYPES
+    .map(getResourceActionCapability)
+    .filter((capability) => capability.prepare_supported)
+    .map((capability) => capability.prepare_action_type)
+);
+
+export function formalResourcePrepActionSupported(actionType = "") {
+  return FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(String(actionType || ""));
+}
+
 export function moduleRefForResourceVerifier(resourceType) {
   return getResourceActionCapability(resourceType).verify_module_ref;
 }

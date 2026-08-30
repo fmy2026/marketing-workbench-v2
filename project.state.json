@@ -10,13 +10,13 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
-    "status": "planned_waiting_implementation",
+    "task_id": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
+    "status": "blocked_waiting_external_resource_readiness",
     "read_order": [
-      "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
+      "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
       "docs/Solution Design.md"
     ],
     "updated_at": "2026-08-30 CST"
@@ -24,8 +24,8 @@
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "mechanism_repair_no_platform_write",
-      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
+      "mode": "formal_node1_7_certification_waiting_external_resource_readiness",
+      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
       "retry_allowed": false,
       "allowed_actions": [],
       "maximum_actions": 0,
@@ -47,7 +47,7 @@
         "created_objects": 1,
         "readback_attempt_count": 3
       },
-      "granted_by": "no_platform_write_for_mechanism_repair",
+      "granted_by": "user_approved_new_account_formal_certification_plan",
       "granted_at": "2026-08-30 CST"
     },
     "credential_refresh_allowed": true,

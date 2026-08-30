@@ -1,13 +1,13 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import {
-  ACTION_ENSURE_MONITOR,
   ACTION_STD_PROJECT_CREATE,
   buildExecutionPlanFromBundle,
   compileAndSaveExecutionPlan,
   evaluateSingleVariableLedgerDiff,
   validateExecutionPlanActionScope
 } from "../src/workflows/executionPlan.mjs";
+import { JSZC_SUCCESS_PROFILE_VERSION } from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 
 const TARGET = Object.freeze({
@@ -169,6 +169,14 @@ try {
   assert(second.stored?.plan_id === second.plan.planId, "execution_plan_not_persisted");
   assert(second.stored?.planned_actions?.length === second.plan.plannedActions.length, "stored_plan_action_count_mismatch");
   assert(actionTypes(second.plan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_not_planned");
+  assert(second.plan.metadata.success_profile?.success_profile_version === JSZC_SUCCESS_PROFILE_VERSION, "success_profile_version_not_in_plan_metadata");
+  assert(/^sha256:[a-f0-9]{64}$/.test(second.plan.metadata.success_profile?.field_shape_hash || ""), "field_shape_hash_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.filter_event_policy === "omit", "filter_event_policy_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.filter_event_present === false, "filter_event_presence_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.converted_time_duration_policy === "omit_when_no_exclude", "converted_time_duration_policy_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.converted_time_duration_present === false, "converted_time_duration_presence_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.external_url_material_list_policy === "send", "external_url_policy_not_in_plan_metadata");
+  assert(second.plan.metadata.success_profile?.external_url_material_list_count === 1, "external_url_count_not_in_plan_metadata");
 
   const plannedTypes = actionTypes(second.plan);
   const exactScope = validateExecutionPlanActionScope({
@@ -248,7 +256,9 @@ try {
     account: { ...(bundle.account || {}), monitor_id: "" },
     touchpoint: null
   });
-  assert(actionTypes(missingMonitorPlan).includes(ACTION_ENSURE_MONITOR), "ensure_monitor_not_planned_when_missing");
+  assert(!actionTypes(missingMonitorPlan).includes("ensure_monitor"), "unexecutable_ensure_monitor_must_not_be_planned");
+  assert(!actionTypes(missingMonitorPlan).includes(ACTION_STD_PROJECT_CREATE), "missing_monitor_plan_must_not_contain_create");
+  assert(missingMonitorPlan.blockerCodes.includes("monitor_prepare_not_in_formal_executor_registry"), "missing_monitor_formal_blocker_missing");
   const missingMonitorHashAgain = buildExecutionPlanFromBundle({
     ...bundle,
     account: { ...(bundle.account || {}), monitor_id: "" },
@@ -302,6 +312,33 @@ try {
   assert((attemptState.confirmationCount || 0) === 0, "confirmation_recorded_by_plan_smoke");
   assert((attemptState.createdObjectCount || 0) === 0, "created_object_recorded_by_plan_smoke");
 
+  await repo.upsertLaunchConfirmation({
+    confirmationId: `CONFIRM-${jobId}-EXECUTION-PLAN`,
+    jobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: boundPlan.metadata.planning_intent.project_name,
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "TEST_ONLY",
+    confirmedBy: "execution_plan_smoke",
+    planId: boundPlan.planId,
+    metadata: {
+      plan_hash: boundPlan.planHash,
+      retry_allowed: false,
+      test_only: true
+    }
+  });
+  let confirmedPlanImmutable = false;
+  try {
+    await compileAndSaveExecutionPlan({ repo, jobId });
+  } catch (error) {
+    confirmedPlanImmutable = error.message === "confirmed_execution_plan_immutable";
+  }
+  assert(confirmedPlanImmutable, "confirmed_execution_plan_was_mutable");
+  const storedAfterConfirmation = await repo.getLatestLaunchExecutionPlan(jobId);
+  assert(storedAfterConfirmation?.plan_hash === boundPlan.planHash, "confirmed_execution_plan_hash_changed");
+
   const result = {
     status: "passed",
     persistedPlan: {
@@ -313,9 +350,11 @@ try {
     },
     missingMonitorPlan: {
       actionTypes: actionTypes(missingMonitorPlan),
-      hasEnsureMonitor: true,
+      hasEnsureMonitor: false,
+      blocker: missingMonitorPlan.metadata.unique_root_blocker,
       stableHash: true
     },
+    confirmedPlanImmutable,
     leafBlockerProjection: {
       rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
       structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")

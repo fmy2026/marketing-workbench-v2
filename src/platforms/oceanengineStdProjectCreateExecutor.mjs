@@ -319,6 +319,11 @@ export async function createStdProjectForTargetOnce({
   const bundle = await repo.getLaunchJobBundle(target.jobId);
   if (!bundle) throw new Error("target_job_not_found");
   const runtimeTarget = { ...targetFromBundle(bundle), ...target };
+  const existingPlanConfirmation = bundle.executionPlan?.metadata?.execution_scope?.binding_mode === "single_confirmation_plan" &&
+    typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(runtimeTarget.planId)
+    : null;
+  const planBound = existingPlanConfirmation?.confirmation_status === "confirmed_for_execution_plan";
   const fakeTransport = grantSource === "test_fake_transport";
   const credentialSummary = fakeTransport ? { status: "valid", blockers: [] } : getOceanEngineCredentialSummary();
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
@@ -348,6 +353,15 @@ export async function createStdProjectForTargetOnce({
     ...(readiness.payloadContractStatus !== "passed" ? ["payload_contract_not_passed"] : []),
     ...(readiness.duplicateStatus !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : []),
     ...(runtimeTarget.payloadHash !== bundle.draft?.payload_hash ? ["payload_hash_mismatch"] : []),
+    ...(planBound &&
+      bundle.draft?.payload_summary?.derived_from_plan_id !== runtimeTarget.planId
+      ? ["final_draft_not_derived_from_confirmed_plan"] : []),
+    ...(planBound &&
+      bundle.draft?.payload_summary?.derived_from_plan_hash !== runtimeTarget.planHash
+      ? ["final_draft_confirmed_plan_hash_mismatch"] : []),
+    ...(planBound &&
+      bundle.draft?.payload_summary?.plan_derivation_status !== "passed"
+      ? ["final_draft_plan_derivation_not_passed"] : []),
     ...(!fakeTransport && !prepared.ready ? prepared.blockers : []),
     ...(!allowNetworkWrite ? ["network_write_not_enabled_by_caller"] : [])
   ];
@@ -365,7 +379,20 @@ export async function createStdProjectForTargetOnce({
 
   const env = fakeTransport ? {} : readOceanEngineEnv().env;
   const attemptLabel = String(runtimeTarget.createAttemptNo).padStart(2, "0");
-  const confirmationId = `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+  const confirmationId = planBound
+    ? existingPlanConfirmation?.confirmation_id || ""
+    : `CONFIRM-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+  if (planBound && !confirmationId) {
+    return {
+      status: "blocked_before_create",
+      createCalled: false,
+      blockers: ["execution_plan_confirmation_missing_before_create"],
+      credentialStatus: credentialSummary.status,
+      attemptState,
+      redactedPayloadSummary: prepared.redactedPayloadSummary,
+      createPreflight: prepared.createPreflight
+    };
+  }
   const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
   const wireBody = buildStdProjectCreateWireBody(prepared.payload);
   const requestHash = wireBody.requestHash;
@@ -377,8 +404,10 @@ export async function createStdProjectForTargetOnce({
       objectType: runtimeTarget.objectType,
       objectName: runtimeTarget.projectName,
       payloadHash: runtimeTarget.payloadHash,
-      confirmationStatus: "confirmed_for_single_create",
-      confirmVariable: `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
+      confirmationStatus: planBound ? "confirmed_for_execution_plan" : "confirmed_for_single_create",
+      confirmVariable: planBound
+        ? existingPlanConfirmation.confirm_variable
+        : `${STD_PROJECT_CREATE_CONFIRM_ENV}=${STD_PROJECT_CREATE_CONFIRM_VALUE}`,
       planId: runtimeTarget.planId,
       metadata: {
         grant_source: grantSource || "unknown",
@@ -420,7 +449,8 @@ export async function createStdProjectForTargetOnce({
         verification_series_id: runtimeTarget.verificationSeriesId || "",
         verification_task_ref: runtimeTarget.verificationTaskRef || ""
       }
-    }
+    },
+    requireExistingConfirmation: planBound
   });
   if (!claim.claimed) {
     return {

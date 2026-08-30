@@ -9,6 +9,13 @@ import {
 } from "./05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
+import {
+  JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+  JSZC_SUCCESS_PROFILE_SOURCE,
+  JSZC_SUCCESS_PROFILE_VERSION
+} from "./05-jszc-success-profile.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -680,6 +687,9 @@ function checkNestedFieldContractManifest(manifest = {}) {
   const filterEventContractOk = nested.filterEventPolicy === "omit" &&
     nested.filterEventPresent === false &&
     nested.filterEventOmittedByContract === true;
+  const convertedTimeDurationContractOk = nested.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+    nested.convertedTimeDurationPresent === false &&
+    nested.convertedTimeDurationOmittedByContract === true;
   const passed = nested.status === "passed" &&
     clean(nested.ruleVersion) === NESTED_FIELD_CONTRACT.ruleVersion &&
     clean(nested.source) === NESTED_FIELD_CONTRACT.source &&
@@ -694,6 +704,7 @@ function checkNestedFieldContractManifest(manifest = {}) {
     groups.includes("audience") &&
     externalUrlContractOk &&
     filterEventContractOk &&
+    convertedTimeDurationContractOk &&
     nested.rawPayloadStored === false;
   return diag({
     checkId: "manifest:nested_field_contract",
@@ -712,6 +723,9 @@ function checkNestedFieldContractManifest(manifest = {}) {
       filterEventPolicy: nested.filterEventPolicy || "",
       filterEventPresent: nested.filterEventPresent === true,
       filterEventOmittedByContract: nested.filterEventOmittedByContract === true,
+      convertedTimeDurationPolicy: nested.convertedTimeDurationPolicy || "",
+      convertedTimeDurationPresent: nested.convertedTimeDurationPresent === true,
+      convertedTimeDurationOmittedByContract: nested.convertedTimeDurationOmittedByContract === true,
       rawPayloadStored: nested.rawPayloadStored === true
     },
     blockerCode: blockers[0] || "nested_field_contract_not_verified",
@@ -726,7 +740,10 @@ function checkCreateFieldLedger(manifest = {}) {
     ledger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
     Number(ledger.checkedPathCount || 0) > 0 &&
     Number(ledger.blockedPathCount || 0) === 0 &&
+    Number(ledger.checkedPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
     entries.length === Number(ledger.checkedPathCount || 0) &&
+    /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)) &&
+    ledger.fieldShapeHash === manifest.fieldShapeHash &&
     entries.every((entry) => entry.rawValueStored === false && entry.preCreateStatus === "passed") &&
     ledger.rawPayloadStored === false;
   return diag({
@@ -739,11 +756,52 @@ function checkCreateFieldLedger(manifest = {}) {
       ruleVersion: ledger.ruleVersion || "",
       checkedPathCount: Number(ledger.checkedPathCount || 0),
       blockedPathCount: Number(ledger.blockedPathCount || 0),
+      fieldShapeHashPresent: /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)),
+      manifestFieldShapeHashMatch: ledger.fieldShapeHash === manifest.fieldShapeHash,
       entriesPresent: entries.length,
       rawPayloadStored: ledger.rawPayloadStored === true
     },
     blockerCode: "create_field_ledger_not_verified",
     repairHint: "重新生成最终 payload ledger；只记录路径、合同、类型、数量与 hash，不保存原始 payload。"
+  });
+}
+
+function checkJsZcSuccessProfile(manifest = {}) {
+  const profile = manifest.successProfile || {};
+  const passed = manifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
+    /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)) &&
+    profile.status === "passed" &&
+    profile.version === JSZC_SUCCESS_PROFILE_VERSION &&
+    profile.source === JSZC_SUCCESS_PROFILE_SOURCE &&
+    profile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH &&
+    profile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+    Number(profile.expectedLedgerPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
+    manifest.fieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+    profile.filterEventPolicy === "omit" &&
+    profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+    profile.externalUrlMaterialListPolicy === "send" &&
+    Number(profile.externalUrlMaterialListRequiredCount || 0) === 1 &&
+    profile.rawPayloadStored === false;
+  return diag({
+    checkId: "manifest:jszc_success_profile",
+    fieldPath: "final_payload_manifest.successProfile",
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: `verified_jszc_success_profile:${JSZC_SUCCESS_PROFILE_VERSION}`,
+    actualValue: {
+      version: profile.version || "",
+      source: profile.source || "",
+      fixtureHashMatches: profile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+      goldenFieldShapeHashMatches: profile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+      expectedLedgerPathCount: Number(profile.expectedLedgerPathCount || 0),
+      fieldShapeHashPresent: /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)),
+      filterEventPolicy: profile.filterEventPolicy || "",
+      convertedTimeDurationPolicy: profile.convertedTimeDurationPolicy || "",
+      externalUrlMaterialListPolicy: profile.externalUrlMaterialListPolicy || "",
+      externalUrlMaterialListRequiredCount: Number(profile.externalUrlMaterialListRequiredCount || 0),
+      rawPayloadStored: false
+    },
+    blockerCode: "jszc_success_profile_not_verified",
+    repairHint: "应用当前 JSZC 成功配置迁移并重新生成 Node 5 草稿；禁止以旧路线合同进入 create。"
   });
 }
 
@@ -756,6 +814,7 @@ export function evaluateStdProjectCreatePreflight({
   if (payload) {
     const externalUrlPolicy = clean(requestFieldManifest.externalUrlMaterialListPolicy || "omit");
     const filterEventPolicy = clean(requestFieldManifest.filterEventPolicy || "omit");
+    const convertedTimeDurationPolicy = clean(requestFieldManifest.convertedTimeDurationPolicy || "");
     [
       "advertiser_id",
       "name",
@@ -789,6 +848,23 @@ export function evaluateStdProjectCreatePreflight({
         blockerCode: "invalid_lossless_platform_id:instance_id"
       }));
     }
+    const noExclude = clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE";
+    diagnostics.push(noExclude && convertedTimeDurationPolicy === "omit_when_no_exclude"
+      ? checkAbsent(payload, "audience.converted_time_duration", {
+        blockerCode: "converted_time_duration_must_be_omitted_for_no_exclude",
+        repairHint: "hide_if_converted=NO_EXCLUDE 时必须完全省略 audience.converted_time_duration；空值同样不允许发送。"
+      })
+      : !noExclude && convertedTimeDurationPolicy === "omit_when_no_exclude"
+        ? checkRequired(payload, "audience.converted_time_duration")
+        : diag({
+          checkId: "contract:audience.converted_time_duration",
+          fieldPath: "audience.converted_time_duration",
+          status: "blocked",
+          expectedTypeOrRule: "converted_time_duration_policy:omit_when_no_exclude",
+          actualValue: { policy: convertedTimeDurationPolicy || "missing", rawValueStored: false },
+          blockerCode: "converted_time_duration_policy_invalid_for_no_exclude",
+          repairHint: "将当前 JSZC 路线 converted_time_duration_policy 修正为 omit_when_no_exclude，并重新生成 Node 5 草稿。"
+        }));
     diagnostics.push(checkCreateWireBody(payload));
     diagnostics.push(checkPayloadAwemeId(payload));
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
@@ -824,7 +900,7 @@ export function evaluateStdProjectCreatePreflight({
       ? checkHttpsStringArray(payload, "project_materials.external_url_material_list")
       : checkAbsent(payload, "project_materials.external_url_material_list", {
         blockerCode: "external_url_material_list_must_be_omitted_for_current_route",
-        repairHint: "当前 JSZC 路线合同要求省略 external_url_material_list。"
+        repairHint: "当前 JSZC 成功配置要求发送恰好 1 条已核验 external_url_material_list。"
       }));
     diagnostics.push(checkProductSellingPoints(payload));
     diagnostics.push(checkTitleMaterialList(payload));
@@ -885,6 +961,7 @@ export function evaluateStdProjectCreatePreflight({
       status: externalUrlOmittedByContract ||
         (
           externalUrlPolicy === "send" &&
+          Number(requestFieldManifest.externalUrlMaterialListCount || 0) === 1 &&
           requestFieldManifest.backupLandingPagePresent === true &&
           requestFieldManifest.backupLandingPageHttps === true &&
           requestFieldManifest.backupLandingPageTargetVisible === true &&
@@ -898,6 +975,7 @@ export function evaluateStdProjectCreatePreflight({
         policy: externalUrlPolicy,
         omittedByContract: externalUrlOmittedByContract,
         externalUrlMaterialListPresent: requestFieldManifest.externalUrlMaterialListPresent === true,
+        externalUrlMaterialListCount: Number(requestFieldManifest.externalUrlMaterialListCount || 0),
         present: requestFieldManifest.backupLandingPagePresent === true,
         siteId: requestFieldManifest.backupLandingPageSiteId || "",
         assetId: requestFieldManifest.backupLandingPageAssetId || "",
@@ -931,7 +1009,29 @@ export function evaluateStdProjectCreatePreflight({
       blockerCode: "filter_event_omit_contract_not_verified",
       repairHint: "重新生成 Node 5 草稿；NO_EXCLUDE 下必须完全省略 filter_event。"
     }));
+    const convertedTimeDurationPolicy = clean(requestFieldManifest.convertedTimeDurationPolicy || "");
+    const convertedTimeDurationOmittedByContract = convertedTimeDurationPolicy === "omit_when_no_exclude" &&
+      requestFieldManifest.convertedTimeDurationPresent === false &&
+      requestFieldManifest.convertedTimeDurationOmittedByContract === true;
+    diagnostics.push(diag({
+      checkId: "manifest:audience.converted_time_duration",
+      fieldPath: "final_payload_manifest.convertedTimeDurationPolicy",
+      status: requestFieldManifest.hideIfConverted === "NO_EXCLUDE" && convertedTimeDurationOmittedByContract
+        ? "passed"
+        : "blocked",
+      expectedTypeOrRule: "hide_if_converted:NO_EXCLUDE converted_time_duration_policy:omit_when_no_exclude present:false omitted_by_contract:true",
+      actualValue: {
+        hideIfConverted: requestFieldManifest.hideIfConverted || "",
+        policy: convertedTimeDurationPolicy,
+        present: requestFieldManifest.convertedTimeDurationPresent === true,
+        omittedByContract: requestFieldManifest.convertedTimeDurationOmittedByContract === true,
+        rawValueStored: false
+      },
+      blockerCode: "converted_time_duration_omit_contract_not_verified",
+      repairHint: "重新生成 Node 5 草稿；NO_EXCLUDE 下必须完全省略 converted_time_duration。"
+    }));
   }
+  diagnostics.push(checkJsZcSuccessProfile(requestFieldManifest));
   diagnostics.push(checkBusinessDefaults(requestFieldManifest));
   diagnostics.push(checkContractMapping(requestFieldManifest));
   diagnostics.push(checkInstanceIdCreateEvidence(requestFieldManifest));
