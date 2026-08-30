@@ -1,0 +1,80 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
+  "status": "planned_waiting_implementation",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Permanently encode the verified JSZC rule that audience.converted_time_duration is omitted when hide_if_converted=NO_EXCLUDE.",
+    "mode": "mechanism_repair_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "package.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "verified_oneoff_job_id": "JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8",
+    "verified_oneoff_plan_id": "PLAN-JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8-V1",
+    "verified_payload_hash": "sha256:e22443b2f2edc37dce042da79519bd6394c9cd35f813a0e5d7ae063161bd353a",
+    "verified_diff_hash": "sha256:17b6e55a7075203f00c9bf89f38692cd8f445d8498f42de72b7c78e61986003c",
+    "mechanism_rule": "omit audience.converted_time_duration when hide_if_converted is NO_EXCLUDE"
+  },
+  "allowed_writes": [
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-*.mjs",
+    "tests and smoke fixtures directly covering JSZC payload contract",
+    "tasks/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-CONVERTED-TIME-DURATION-MECHANISM-FIX-20260830.json",
+    "project.state.json",
+    "docs/project-lessons.md if a concise durable lesson is needed"
+  ],
+  "forbidden_actions": [
+    "std_project/create",
+    "promotion/create",
+    "platform write of any kind",
+    "resource, material, event asset, DMP, budget, bid, pause, anchor or component write",
+    "token refresh",
+    "using .archive one-off code as a runtime dependency",
+    "modifying closed Attempt 1-3 or one-off execution results",
+    "raw request, raw payload, raw response, token, secret, Cookie, auth_code, complete URL or complete request ID persistence or output"
+  ],
+  "validation_plan": [
+    "inspect current JSZC builder and contracts for converted_time_duration generation",
+    "patch formal payload builder and contracts to omit converted_time_duration for NO_EXCLUDE",
+    "add or update contract/smoke fixtures covering allowed and blocked cases",
+    "run targeted npm tests/checks with no platform writes",
+    "verify package.json has no temporary one-off command"
+  ],
+  "human_gate": {
+    "before_platform_write": [
+      "No platform write is authorized in this task. Any real create requires a new independent task, plan and explicit confirmation."
+    ]
+  },
+  "solution_link": {
+    "source": "Successful one-off converted_time_duration omission create validation.",
+    "objective": "Convert a verified platform-accepted payload rule into the durable v2 workflow mechanism.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, successful one-off task records, current code, official OE3 documentation and docs/Solution Design.md.",
+    "stop_condition": "Stop after local mechanism repair validation, or before any action that would require platform write or second business-field change."
+  }
+}

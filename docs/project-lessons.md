@@ -54,11 +54,11 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | --- | --- |
 | 合同来源 | 顶层字段和已发送嵌套字段均记录在 `game_route_defaults.raw_defaults.official_create_field_contract`；顶层用 `field_rules`，嵌套路径用 `nested_rules`，不新增第二套表或报表。 |
 | 官方接口 | 创建字段唯一依据为 `POST /open_api/v3.0/std_project/create/`；`tools/project_material_type/update` 只能作为同素材结构旁证，本流程不调用素材更新接口。 |
-| 已发送与受控省略路径 | 当前 JSZC 路线校验实际发送的 `video_material_list`、`image_material_list`、`title_material_list`、`product_info`、`call_to_action_buttons`、`source`、`anchor_related_type`、`mini_program_info`、`track_url_setting`、`audience`、`brand_info`；同时校验当前路线按合同省略 `external_url_material_list`。 |
+| 已发送与受控省略路径 | 当前 JSZC 路线校验实际发送的 `video_material_list`、`image_material_list`、`title_material_list`、`product_info`、`call_to_action_buttons`、`source`、`anchor_related_type`、`mini_program_info`、`track_url_setting`、`audience`、`brand_info`。`external_url_material_list` 的 send/omit 必须由当次路线 nested contract 决定；已验证成功的受控场景为发送 1 条已回查备用页，不能据此把它推广为所有场景必填。 |
 | 共同 Gate | Node 5、payload contract 与 create preflight 必须复用同一个嵌套字段合同模块；不得在三处各写一套规则。 |
 | 视频素材 | 视频必须来自当前物料包 required `video_asset`，目标账户只读证据通过；竖版视频使用 `CREATIVE_IMAGE_MODE_VIDEO_VERTICAL`；只有显式封面已验证时才发送 `video_cover_id`，否则省略并记录平台默认封面模式。 |
 | 商品与标题 | 标题素材来自 `game_assets.asset_type=title_material` 经物料包关联；商品名来自游戏身份，商品图来自目标账户已核验产品图，卖点来自路线默认值并满足 6-9 字合同。 |
-| 备用网页链接 | 当前 JSZC 为 `MICRO_GAME + BYTE_GAME + mini_program_info.url` 主链路；官方 create 文档仅说明 `external_url_material_list` 为条件必填，未证明当前路线必须发送，因此路线合同默认省略。未来路线若要发送，必须先补官方条件依据、只读证据和测试。 |
+| 备用网页链接 | 当前 JSZC 为 `MICRO_GAME + BYTE_GAME + mini_program_info.url` 主链路；`external_url_material_list` 是条件字段，必须由路线 nested contract 明确 send/omit。已验证成功的受控场景发送 1 条已回查备用页；这说明该组合可接受，不证明所有 BYTE_GAME 场景都必须发送。 |
 | 图片素材列表 | 当前 JSZC 走视频素材和产品图，普通 `image_material_list` 固定为空数组；非空图片列表必须被 Node 5 / preflight 阻断。 |
 | 小游戏链接 | `MICRO_GAME + BYTE_GAME` 使用受控 `mini_program_info.url`；传 `url` 时禁止同时传 `app_id`、`start_path`、`params`。 |
 | 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 从 `payload_defaults` 读取，不在 Node 5 硬编码第二来源。 |
@@ -178,7 +178,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 通过标准 | `account_resources.backup_landing_page` 写为 `visible + readback_verified`；evidence 只留状态、ID、hash、request id/response hash 是否存在。 |
 | 失败分流 | 源户缺失/不可用直接 blocked；目标未命中、目标状态不可用或源/目标实时 hash 不一致时保持 blocker，不补写、不猜 URL。 |
 | 验证状态 | 已闭环；人工共享后，目标 `share_type=SHARE` 库存可命中默认页，源户实时 hash 与目标共享 hash 一致即可通过。 |
-| 创建字段边界 | 备用落地页资源可作为未来路线的候选准备事实，但当前 JSZC 创建 payload 默认不发送 `external_url_material_list`；是否发送由 `official_create_field_contract.nested_rules` 决定。 |
+| 创建字段边界 | 备用落地页资源可作为路线候选准备事实；`external_url_material_list` 是否发送由 `official_create_field_contract.nested_rules` 决定。已验证成功的受控场景发送 1 条，但该成功事实不应被泛化为所有 JSZC/BYTE_GAME 场景必填。 |
 | 不适用边界 | 不在文档、日志、API 或前端保存完整落地页 URL；不把落地页通过替代产品图或小程序实例 Gate，也不因资源存在就默认进入创建字段。 |
 
 ## 新案例模板
@@ -197,3 +197,63 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 回归校验：
 不适用边界：
 ```
+
+## JSZC 智擎版标准项目：一次性真实创建成功的完整经验（2026-08-30）
+
+### 已证实的结论与边界
+
+在独立、单次、受控的 `POST /open_api/v3.0/std_project/create/` 验证中，平台返回 HTTP `200`、业务码 `0`、项目对象存在；随后 `0/10/30` 秒三次 `std_project/list` 回查均确认创建。整个 Job 只有一次人工确认、一次 create action、一条汇总回查记录；没有 Promotion、资源、预算、出价或自动重试写入。
+
+成功请求相对已冻结的上一基线，唯一业务变化为：在 `audience.hide_if_converted=NO_EXCLUDE` 下，**完全省略** `audience.converted_time_duration`。该结果证明“该基线减去该字段”的组合可被平台接受；不证明此前失败必然或仅由此字段导致。
+
+下列内容是本案例的精确、可复用字段形态；动态 ID、名称、完整 URL、监测参数、素材文本和原始请求不记录在此，必须在下次创建时从目标账户的当轮 Postgres 只读核验重新解析。
+
+### 创建前必须同时通过的核心模块
+
+| 模块 | 创建前 Gate / 最终使用方式 | 不能用什么替代 |
+| --- | --- | --- |
+| 账户与抖音号 | 当前广告主有效，`aweme_id` 经目标账户授权只读核验；长数字 ID 使用正确 wire 编码。 | 旧账户可见、历史 ID 或项目 list。 |
+| 优化目标、事件与小游戏实例 | 当前 `BYTE_GAME`、小游戏实例、主优化目标 `PAY`、深度目标 `PURCHASE_ROI_7D` 和事件链均通过当前只读合同。 | 历史创建样本、仅数据库旧 hash。 |
+| 头像 | 目标账户头像 Gate 已通过；它是资源准入条件，不是本 create payload 字段。 | 上传成功但未提交/回查的头像。 |
+| DMP 排除人群 | 目标账户当前可投、未删除的 DMP 包通过回查；本成功组合发送 10 个整数 ID 到 `audience.retargeting_tags_exclude`。 | 来源户包、字符串 ID、缺少成员的包集合。 |
+| 品牌 | 当前账户可投品牌及行业关系通过只读核验，发送三个整数品牌/行业 ID 与脱敏品牌名称。 | 历史品牌候选。 |
+| 视频、标题、产品图 | 目标账户回查通过；本成功形态为 2 条竖版视频、3 条标题、1 张产品图、3 条卖点。封面未获得显式可用证据时省略，由平台默认。 | 物料户可见、未回查封面、把产品图当普通图片或头像。 |
+| 小游戏主链、备用页与监测 | 小游戏只发送受控 `mini_program_info.url`；备用页、监测链接均为目标账户可见、已回查且 hash 一致的受控链接。 | 拼接 URL、历史 URL、只比较旧数据库 hash。 |
+| 审计与执行 | 同名查重、字段账本、payload/wire hash、单变量 diff、凭据、确认/action/readback 计数都通过，才允许原子 claim 的一次 create。 | 只看 HTTP `200`、自动重试或跳过 list 回查。 |
+
+### 最终成功的字段参数与发送形态
+
+固定业务枚举来自路线 `payload_defaults`，下表列出本次成功组合。`budget`、`cpa_bid`、`roi_goal` 仅是本次验证值，不是下次项目应照抄的业务预算策略。
+
+| 区域 | 字段与最终参数 |
+| --- | --- |
+| 顶层投放类型 | `ad_type=ALL`；`native_type=AWEME`；`landing_type=MICRO_GAME`；`marketing_goal=VIDEO_AND_IMAGE`；`delivery_mode=PROCEDURAL`；`delivery_type=NORMAL`；`delivery_medium=BYTE_GAME`。 |
+| 优化与出价 | `external_action=AD_CONVERT_TYPE_PAY`；`deep_external_action=AD_CONVERT_TYPE_PURCHASE_ROI_7D`；`deep_bid_type=PER_AND_SEVEN_PAY_ROI`；`bid_type=CUSTOM`；`pricing=PRICING_OCPM`；`budget_mode=BUDGET_MODE_DAY`；`budget=88888`；`cpa_bid=488`；`roi_goal=0.088`。 |
+| 排期与静态开关 | `schedule_type=SCHEDULE_FROM_NOW`；`layer_roi_switch=OFF`；`aigc_dynamic_creative_switch=OFF`；`is_comment_disable=OFF`。`SCHEDULE_FROM_NOW` 具有真实投放风险，必须在每次 create 前单独展示并人工确认。 |
+| 账户绑定字段 | 发送 `advertiser_id`、`aweme_id`、`asset_id`、`instance_id`；其具体值只从当前账户的已核验数据库记录读取，不能从 lessons、历史请求或 Markdown 复制。 |
+| 受众 | `audience_type=CUSTOM`；`district=NONE`；`gender=GENDER_UNLIMITED`；`age=[]`；`interest_action_mode=UNLIMITED`；`hide_if_converted=NO_EXCLUDE`；`retargeting_tags_exclude` 为当轮核验通过的 10 个整数 DMP ID。 |
+| 受众必须省略 | `audience.filter_event` 必须完全缺失（不可为 `[]`、`null` 或 `[PAY]`）；`audience.converted_time_duration` 必须完全缺失（不可恢复路线默认值 `SIX_MONTH`、空串或 `null`）。这是本成功组合最关键的字段规则。 |
+| 品牌 | 发送 `brand_info.brand_name_id`、`cdp_brand_id`、`yuntu_category_id`（均为整数）与 `cdp_brand_name`；具体值以当前账户品牌/行业只读回查为准。 |
+| 视频与标题 | `project_materials.video_material_list` 发送 2 条，每条仅为已回查的 `video_id + CREATIVE_IMAGE_MODE_VIDEO_VERTICAL`；`title_material_list` 发送 3 条标题。未有显式封面证据时不得发送 `video_cover_id`。 |
+| 商品与 CTA | `product_info.titles` 发送 1 条当前游戏产品名；`image_ids` 发送 1 个当前账户已回查产品图 ID；`selling_points` 发送 3 条，均满足路线长度合同；`call_to_action_buttons=["立即试玩"]`；`source` 由当前游戏品牌/名称生成。 |
+| 小游戏、备用页、图片 | `mini_program_info` **仅**发送 `url`；必须省略 `app_id`、`start_path`、`params`。`external_url_material_list` 发送 1 条已核验 HTTPS 备用页；`image_material_list=[]` 保持显式空数组。 |
+| 锚点与组件 | `anchor_related_type=OFF`；必须省略 `anchor_material_list` 与 `component_material_list`。 |
+| 监测 | `track_url_setting.send_type=SERVER_SEND`；`action_track_url` 发送 1 条当前受控、回查通过的监测链接。完整链接及宏参数不入 lessons。 |
+| 顶层禁止字段 | `micro_promotion_type` 不属于本 create 请求，必须省略；不得把优化目标查询接口字段混入 create payload。 |
+
+最终成功请求的字段账本共校验 81 个路径，阻断路径为 0。下次项目应以这张“模块 + 字段形态”表生成 fresh Draft，再用当前官方 3.0 合同、当前路线 nested contract 和目标账户只读证据决定动态值；不得把本例当作跨账户、跨游戏或所有 BYTE_GAME 场景的固定模板。
+
+### 最小可复用执行顺序
+
+```text
+当前账户/授权/资源只读回查
+  -> 路线合同与字段账本（特别检查两个 audience 省略字段）
+  -> 同名查重 + payload/wire hash 稳定
+  -> 精确展示预算、出价、ROI、排期与唯一差异
+  -> 人工确认
+  -> 原子 claim 的一次 create
+  -> 0/10/30 秒 list 回查
+  -> 只保存脱敏摘要、hash、状态与必要对象存在性
+```
+
+案例依据：当前项目 Postgres 中已验证的创建 action 与汇总回查、对应 one-off Task/Manifest、当前 OE3 字段合同及官方 3.0 创建标准项目资料。任何后续真实写入仍须新建独立 Task、Plan 和人工确认。

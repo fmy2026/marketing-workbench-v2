@@ -1,0 +1,126 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.md",
+  "status": "closed_created_verified",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Prepare a one-off real create validation that omits audience.converted_time_duration relative to Attempt 3.",
+    "mode": "closed_created_verified",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "package.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.json",
+    "docs/Solution Design.md",
+    "tasks/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.md",
+    ".archive/20260830-jszc-ctd-omit-oneoff/src/oneoff/jszcConvertedTimeDurationOmitCreate.mjs",
+    ".archive/20260830-jszc-ctd-omit-oneoff/scripts/oneoff/06-jszc-converted-time-duration-omit-create.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922346964041",
+    "object_type": "std_project",
+    "verification_series_id": "SERIES-MWBV2-JSZC-CTD-OMIT-ONEOFF-20260830",
+    "maximum_create_attempts": 1,
+    "baseline_job_id": "JOB-MWBV2-20260830031657-2CE128",
+    "baseline_payload_hash": "sha256:611616c1cfcfbb66d42d204137628f8a2513369cc4bb85db3206045010af9cfe",
+    "candidate_field": "audience.converted_time_duration",
+    "candidate_change": "sent_SIX_MONTH_to_omitted",
+    "allowed_changed_paths": [
+      "name",
+      "audience.converted_time_duration"
+    ],
+    "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P04_20260830",
+    "schedule_type": "SCHEDULE_FROM_NOW",
+    "budget": 88888,
+    "cpa_bid": 488,
+    "roi_goal": 0.088
+  },
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ONEOFF-CONVERTED-TIME-OMIT-CREATE-20260830.json",
+    "project.state.json",
+    "src/oneoff/jszcConvertedTimeDurationOmitCreate.mjs",
+    "scripts/oneoff/06-jszc-converted-time-duration-omit-create.mjs",
+    "scripts/00-jszc-converted-time-duration-omit-oneoff-smoke.mjs",
+    "fresh scoped runtime Case, Job, Draft, Execution Plan and redacted evidence records"
+  ],
+  "forbidden_actions": [
+    "std_project/create before exact follow-up confirmation",
+    "a second std_project/create or automatic retry",
+    "modifying workflow, Node 1-7, Skill builder, route defaults or Attempt 1-3 records",
+    "promotion/create",
+    "resource, material, event asset, DMP, budget, bid, pause, anchor or component write",
+    "token refresh",
+    "raw request, raw payload, raw response, token, secret, Cookie, auth_code, complete URL or complete request ID persistence or output"
+  ],
+  "validation_plan": [
+    "node --check for new one-off module and CLI",
+    "one-off smoke for approved diff, one claim, one create, three readbacks and no retry",
+    "prepare one fresh runtime Job/Draft/Plan with platform readonly duplicate check",
+    "Postgres audit proving fresh one-off confirmation/action/created/readback counts are zero before confirmation"
+  ],
+  "human_gate": {
+    "before_create": [
+      "prepared Job, Draft, Plan, plan hash, payload hash, diff hash and project name are displayed",
+      "resource readiness, duplicate check, payload/wire hash and single-variable diff pass",
+      "the user explicitly confirms the exact Job/Plan and accepts SCHEDULE_FROM_NOW, budget 88888, CPA 488 and ROI 0.088 risk"
+    ]
+  },
+  "prepared_attempt": {
+    "status": "closed_created_verified",
+    "case_id": "CASE-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8",
+    "job_id": "JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8",
+    "draft_id": "DRAFT-JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8-V1",
+    "plan_id": "PLAN-JOB-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8-V1",
+    "project_name": "245828_N_JSZC_HUNT_PAY7DROI_平台定向不限_P04_20260830",
+    "payload_hash": "sha256:e22443b2f2edc37dce042da79519bd6394c9cd35f813a0e5d7ae063161bd353a",
+    "plan_hash": "sha256:5b3e70ba2723f74d0499d6dfab006f32c17fcc042dc63ff740347752eb8687fc",
+    "diff_hash": "sha256:17b6e55a7075203f00c9bf89f38692cd8f445d8498f42de72b7c78e61986003c",
+    "changed_paths": [
+      "audience.converted_time_duration",
+      "name"
+    ],
+    "duplicate_status": "platform_not_duplicate",
+    "blockers": [],
+    "platform_write_audit": {
+      "launch_confirmations": 1,
+      "platform_actions": 1,
+      "created_objects": 1,
+      "readback_records": 1
+    },
+    "execution_result": {
+      "create_called": true,
+      "create_call_count_for_job": 1,
+      "http_status": 200,
+      "api_code": "0",
+      "request_id_present": true,
+      "complete_request_id_stored": false,
+      "object_id_present": true,
+      "readback_status": "readback_verified",
+      "readback_attempt_count": 3,
+      "platform_write_scope_closed": true,
+      "promotion_created": false,
+      "budget_bid_changed": false
+    },
+    "payload_body_stored": false,
+    "response_body_stored": false
+  },
+  "solution_link": {
+    "source": "User-approved one-off converted_time_duration omission create-validation plan.",
+    "objective": "Prepare an isolated one-off create candidate before any permanent workflow/skill repair.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, this Task/Manifest, Attempt 3 persisted field ledger/hash, current code and official OE3 documentation.",
+    "stop_condition": "Stop before create until exact confirmation, or after one real create/readback terminal result."
+  }
+}
