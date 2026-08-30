@@ -9,23 +9,12 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
-    "status": "blocked_waiting_external_resource_readiness",
-    "read_order": [
-      "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.json",
-      "docs/Solution Design.md"
-    ],
-    "updated_at": "2026-08-30 CST"
-  },
+  "active_task": null,
   "guardrails": {
     "platform_write_allowed": false,
     "platform_write_scope": {
-      "mode": "formal_node1_7_certification_waiting_external_resource_readiness",
-      "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
+      "mode": "idle_waiting_for_next_task",
+      "task_ref": "",
       "retry_allowed": false,
       "allowed_actions": [],
       "maximum_actions": 0,
@@ -47,7 +36,7 @@
         "created_objects": 1,
         "readback_attempt_count": 3
       },
-      "granted_by": "user_approved_new_account_formal_certification_plan",
+      "granted_by": "no_active_task",
       "granted_at": "2026-08-30 CST"
     },
     "credential_refresh_allowed": true,

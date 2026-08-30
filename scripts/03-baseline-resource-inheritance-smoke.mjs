@@ -140,7 +140,16 @@ assert(!node4LandingCandidate.blockers.includes("backup_landing_page_resource_mi
 assert(node4LandingCandidate.blockers.includes("backup_landing_page_target_not_visible"), "node4_target_visibility_not_enforced");
 
 const baselineCalls = [];
-const probes = await runOceanEngineBaselineResourceProbes({ bundle: targetRuntimeBundle, client: fakeReadonlyClient(baselineCalls) });
+const baselineInventoryBundle = {
+  ...targetRuntimeBundle,
+  resources: (targetRuntimeBundle.resources || []).filter((item) => item.resource_type !== "product_image").concat([{
+    resource_type: "product_image",
+    visibility_status: "needs_confirmation",
+    readback_status: "not_checked",
+    metadata: { readonly_check: { status: "baseline_candidate" } }
+  }])
+};
+const probes = await runOceanEngineBaselineResourceProbes({ bundle: baselineInventoryBundle, client: fakeReadonlyClient(baselineCalls) });
 assertIndustryQueryShape(baselineCalls.find((item) => item.label === "baseline_brand_industry"), "baseline_brand_industry");
 const avatarUpdate = probes.resourceUpdates.find((item) => item.resourceType === "avatar") || {};
 const productUpdate = probes.resourceUpdates.find((item) => item.resourceType === "product_image") || {};

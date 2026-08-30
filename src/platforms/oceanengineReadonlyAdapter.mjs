@@ -661,7 +661,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
       credential,
       probes,
       checks: [],
-      resourceUpdates: ["avatar", "event_asset", "product_image", "brand_info"].map((resourceType) => ({
+      resourceUpdates: ["avatar", "product_image", "brand_info"].map((resourceType) => ({
         resourceType,
         inheritanceStatus: "target_readonly_blocked",
         readonlyCheck: {
@@ -679,17 +679,6 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
     endpoint: "https://ad.oceanengine.com/open_api/2/advertiser/avatar/get/",
     query: { advertiser_id: advertiserId },
     summarize: summarizeAvatar
-  });
-  const eventProbe = await run({
-    label: "baseline_event_asset",
-    endpoint: "tools/event/all_assets/list",
-    query: {
-      advertiser_id: advertiserId,
-      filtering: JSON.stringify({ asset_type: EVENT_ASSET_TYPE }),
-      page: "1",
-      page_size: "100"
-    },
-    summarize: (payload) => summarizeEventAssets(payload, bundle)
   });
   const brandProbe = await run({
     label: "baseline_brand_info",
@@ -725,7 +714,6 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
 
   const avatarPassed = avatarProbe.status === "passed" && avatarProbe.summary?.avatarReady === true;
   const avatarDiagnostic = avatarReadonlyDiagnostic(avatarProbe);
-  const eventPassed = eventProbe.status === "passed" && eventProbe.summary?.expectedAssetFound === true;
   const brandPassed = brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 1 &&
     industryProbe?.status === "passed" && brandOfficialMatchesExpected(brandProbe.summary || {}, industryProbe.summary || {});
   const imageInventoryReadable = imageProbe.status === "passed";
@@ -739,7 +727,6 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
   const blockedProbes = probes.filter((probe) => probe.status !== "passed");
   const checks = [
     check(avatarPassed ? "passed" : "blocked", "baseline_platform_avatar", avatarPassed ? "目标账户头像已通过只读核验。" : "目标账户头像未 ready。", { resourceType: "avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready" }),
-    check(eventPassed ? "passed" : "blocked", "baseline_platform_event", eventPassed ? "目标账户事件资产已命中小游戏。" : "目标账户未命中小游戏事件资产。", { resourceType: "event_asset", gap: eventPassed ? "" : "event_asset_readonly_not_ready" }),
     check(brandPassed ? "passed" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : "目标账户品牌或行业未完整命中。", { resourceType: "brand_info", gap: brandPassed ? "" : "brand_industry_readback_required" }),
     check(productImagePassed ? "passed" : imageInventoryReadable ? "needs_confirmation" : "blocked", "baseline_platform_product_image_inventory", productImagePassed ? "目标账户产品图已通过上传回查证据核验。" : imageInventoryReadable ? "已盘点目标账户产品图库存；未自动选择产品图。" : "目标账户产品图库存读取失败。", { resourceType: "product_image", gap: productImagePassed ? "" : imageInventoryReadable ? "product_image_selection_required" : "product_image_inventory_unavailable" })
   ];
@@ -768,14 +755,6 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
           image_present: avatarDiagnostic.image_present,
           probe_labels: [avatarProbe.label]
         }
-      },
-      {
-        resourceType: "event_asset",
-        visibilityStatus: eventPassed ? "visible" : undefined,
-        readbackStatus: eventPassed ? "readback_verified" : undefined,
-        platformResourceId: eventPassed ? eventProbe.summary?.expectedAssetId || "" : "",
-        inheritanceStatus: eventPassed ? "target_readonly_verified" : "target_readonly_blocked",
-        readonlyCheck: { status: eventPassed ? "passed" : "blocked", key: "baseline_platform_event", gap: eventPassed ? "" : "event_asset_readonly_not_ready", probe_labels: [eventProbe.label] }
       },
       {
         resourceType: "brand_info",

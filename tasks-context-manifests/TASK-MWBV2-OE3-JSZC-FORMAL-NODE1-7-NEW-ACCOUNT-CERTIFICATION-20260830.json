@@ -2,7 +2,7 @@
   "schema_version": "2026-08-30.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
   "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md",
-  "status": "blocked_waiting_external_resource_readiness",
+  "status": "closed_waiting_external_resource_readiness",
   "created_at": "2026-08-30 CST",
   "updated_at": "2026-08-30 CST",
   "owner_agent": "codex",
@@ -29,8 +29,8 @@
     "game_code": "JSZC",
     "advertiser_id": "1871922434025472",
     "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
-    "latest_readonly_job_id": "JOB-MWBV2-20260830105042-44AEBA",
-    "latest_blocked_plan_id": "PLAN-JOB-MWBV2-20260830105042-44AEBA-V1",
+    "latest_readonly_job_id": "JOB-MWBV2-20260830110925-8CA4A1",
+    "latest_blocked_plan_id": "PLAN-JOB-MWBV2-20260830110925-8CA4A1-V1",
     "object_type": "std_project",
     "success_profile_version": "2026-08-30.jszc-byte-game-success-profile-v1",
     "field_shape_hash": "sha256:9203ddf077d05b51958e851dad86894f75fdf09884ffc99690ad459ce5dd1064",
@@ -79,7 +79,17 @@
   "solution_link": {
     "source": "Task 1 successfully encoded and locally validated the audited JSZC success profile.",
     "objective": "Prove the durable formal mechanism, not merely the platform API capability.",
-    "current_truth": "Postgres marketing_workbench_v2.mwb, current code, db contract check and docs/Solution Design.md.",
+    "current_truth": "Postgres marketing_workbench_v2.mwb, current code, db contract check and docs/Solution Design.md; backup landing-page ordinary/shared inventory is now refreshed inside formal Node 4.",
     "stop_condition": "Paused on unsupported target-account resources; after external preparation, require a fresh readonly Job and one immutable Plan before the only confirmation."
+  },
+  "closure": {
+    "reason": "user_cleared_active_task_waiting_for_next_task",
+    "certification_result": "not_certified",
+    "platform_write_performed": false,
+    "pending_external_prerequisites": [
+      "target_account_event_asset_instance_objective_chain",
+      "target_account_backup_landing_page_share"
+    ],
+    "successor_rule": "A successor Task must create a fresh readonly bootstrap Job; the blocked Draft and Plan in this Task are not reusable."
   }
 }

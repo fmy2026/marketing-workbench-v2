@@ -253,19 +253,19 @@ export const OE3_SKILL_DEFINITIONS = [
     moduleRef: "src/workflows/skills/oe3/04-product-image-source-prepare.mjs"
   },
   {
-    skillKey: "micro-app-instance-readonly",
+    skillKey: "event-chain-readonly",
     nodeKey: "account_resource_prepare",
-    dependsOn: ["resource-live-readonly-reconcile"],
-    inputContract: ["route_id", "game_code", "advertiser_id", "platform_app", "micro_app_instance", "official_create_field_contract"],
-    outputContract: ["app_id_present", "candidate_instance_id_present", "target_instance_id_present", "field_contract_status", "material_account_route_allowed"],
-    stopConditions: ["micro_app_instance_id_missing", "micro_app_instance_not_ready", "instance_id_create_field_name_not_verified", "instance_id_long_id_transport_not_verified"],
+    dependsOn: ["context-resolve-platform-app", "launch-pack-resolve-defaults", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "platform_app", "event_asset", "micro_app_instance", "payload_defaults", "optimization"],
+    outputContract: ["event_asset_target_readback_verified", "target_app_binding_verified", "target_instance_readback_verified", "objective_found", "deep_objective_found", "deep_bid_type_found", "blocker_codes", "evidence_ref"],
+    stopConditions: ["event_asset_target_not_found", "event_asset_app_binding_unverified", "event_asset_target_ambiguous", "micro_app_instance_candidate_missing", "optimized_goal_not_available", "deep_objective_not_available", "deep_bid_type_not_available"],
     writeScope: "launch_skill_runs_account_resources_evidence_artifacts",
-    moduleRef: "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs"
+    moduleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs"
   },
   {
     skillKey: "backup-landing-page-source-prepare",
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-backup-landing-page", "resource-live-readonly-reconcile"],
+    dependsOn: ["launch-pack-resolve-backup-landing-page", "resource-live-readonly-reconcile", "backup-landing-page-material-inventory"],
     inputContract: ["route_id", "game_code", "advertiser_id", "backup_landing_page", "local_material_folder", "material_source_account"],
     outputContract: ["local_manifest_hash", "local_file_count", "source_account_present", "target_transport_contract_verified", "flow", "target_visible"],
     stopConditions: ["backup_landing_page_local_folder_missing", "backup_landing_page_source_account_missing", "backup_landing_page_target_transport_contract_unverified"],
@@ -275,7 +275,7 @@ export const OE3_SKILL_DEFINITIONS = [
   {
     skillKey: "backup-landing-page-material-inventory",
     nodeKey: "account_resource_prepare",
-    dependsOn: [],
+    dependsOn: ["launch-pack-resolve-backup-landing-page", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
     inputContract: ["route_id", "game_code", "advertiser_id", "source_advertiser_id", "controlled_default_asset_id"],
     outputContract: ["conclusion", "candidate_count", "source_candidate_count", "target_match_count", "target_shared_match_count", "default_source_verified", "target_already_usable", "default_target_hash_matches", "cross_account_path"],
     stopConditions: ["backup_landing_page_default_source_missing", "backup_landing_page_default_source_not_usable", "backup_landing_page_default_candidate_not_unique", "backup_landing_page_target_site_missing", "backup_landing_page_target_site_not_usable", "backup_landing_page_target_url_hash_mismatch", "site_get_source_blocked", "site_get_target_blocked", "site_get_target_shared_blocked"],
@@ -285,7 +285,7 @@ export const OE3_SKILL_DEFINITIONS = [
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
     skillKey: `resource-verify-${resourceType.replace(/_/g, "-")}`,
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : []), ...(resourceType === "video_asset" ? ["video-material-bind-plan"] : []), ...(resourceType === "product_image" ? ["product-image-source-prepare"] : []), ...(resourceType === "micro_app_instance" ? ["micro-app-instance-readonly"] : []), ...(resourceType === "backup_landing_page" ? ["backup-landing-page-source-prepare"] : [])],
+    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(["event_asset", "micro_app_instance"].includes(resourceType) ? ["event-chain-readonly"] : []), ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : []), ...(resourceType === "video_asset" ? ["video-material-bind-plan"] : []), ...(resourceType === "product_image" ? ["product-image-source-prepare"] : []), ...(resourceType === "backup_landing_page" ? ["backup-landing-page-material-inventory", "backup-landing-page-source-prepare"] : [])],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
@@ -442,13 +442,13 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey.startsWith("dmp-")) return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "video-material-bind-plan") return "src/workflows/skills/oe3/04-video-material-bind-plan.mjs";
   if (skillKey === "product-image-source-prepare") return "src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
-  if (skillKey === "micro-app-instance-readonly") return "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+  if (skillKey === "event-chain-readonly") return "src/workflows/skills/oe3/04-event-chain-readiness.mjs";
   if (skillKey === "backup-landing-page-source-prepare") return "src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
   if (skillKey === "backup-landing-page-material-inventory") return "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs";
   if (skillKey === "resource-verify-dmp-audience-package") return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
-  if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/05-objective-contract-readiness.mjs";
+  if (skillKey === "resource-verify-event-asset") return "src/workflows/skills/oe3/04-event-chain-readiness.mjs";
   if (skillKey === "resource-verify-video-asset") return "src/workflows/skills/oe3/04-video-material-readiness.mjs";
-  if (skillKey === "resource-verify-micro-app-instance") return "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+  if (skillKey === "resource-verify-micro-app-instance") return "src/workflows/skills/oe3/04-event-chain-readiness.mjs";
   if (skillKey === "resource-verify-backup-landing-page") return "src/workflows/skills/oe3/03-landing-page-readiness.mjs";
   if (skillKey.startsWith("resource-verify-")) return "src/workflows/skills/oe3/04-resource-verifiers.mjs";
   if (skillKey === "confirmed-resource-orchestrator") return "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs";

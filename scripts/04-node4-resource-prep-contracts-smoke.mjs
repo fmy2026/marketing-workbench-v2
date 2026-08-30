@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 import { runBackupLandingPageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
-import { runMicroAppInstanceReadonlySkill } from "../src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+import { runEventChainReadonlySkill } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
 import { runProductImageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
 import { runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { validateOe3WorkflowSchedules, workflowSkillScheduleForMode } from "../src/workflows/skills/oe3/00-runner.mjs";
@@ -66,11 +66,16 @@ const repo = {
   }
 };
 
-const blockedMicroClient = {
+const blockedEventChainClient = {
   credentialState() {
     return { status: "ready", blockers: [] };
   },
-  async get({ label, endpoint }) {
+  async get({ label, endpoint, summarize }) {
+    const payload = label === "event_chain_asset_list"
+      ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS" }], page_info: { total_page: 1 } } }
+      : label === "event_chain_asset_detail"
+        ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", app_id: "tte-smoke", share_type: "MY_CREATIONS" }] } }
+        : { code: "0", data: { list: [] } };
     return {
       label,
       endpoint: endpoint.replace(/^\/open_api\/v3\.0\//, "").replace(/\/$/g, ""),
@@ -80,12 +85,7 @@ const blockedMicroClient = {
       requestIdPresent: true,
       dataPresent: true,
       responseHash: "sha256:smoke",
-      summary: {
-        goalCount: 0,
-        externalActionFound: false,
-        deepExternalActionFound: false,
-        assetIdReferenced: true
-      }
+      summary: summarize(payload)
     };
   }
 };
@@ -198,7 +198,10 @@ const bundle = {
 const schedule = workflowSkillScheduleForMode("dry_run");
 assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("product-image-source-prepare"), "product_skill_after_readonly_wrong");
 assert(schedule.indexOf("product-image-source-prepare") < schedule.indexOf("resource-verify-product-image"), "product_verifier_dependency_order_wrong");
-assert(schedule.indexOf("micro-app-instance-readonly") < schedule.indexOf("resource-verify-micro-app-instance"), "micro_verifier_dependency_order_wrong");
+assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-event-asset"), "event_verifier_dependency_order_wrong");
+assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-micro-app-instance"), "micro_verifier_dependency_order_wrong");
+assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("backup-landing-page-material-inventory"), "backup_inventory_after_readonly_wrong");
+assert(schedule.indexOf("backup-landing-page-material-inventory") < schedule.indexOf("backup-landing-page-source-prepare"), "backup_source_before_inventory_wrong");
 assert(schedule.indexOf("backup-landing-page-source-prepare") < schedule.indexOf("resource-verify-backup-landing-page"), "backup_verifier_dependency_order_wrong");
 assert(JSON.stringify(workflowSkillScheduleForMode("aweme_auth_readonly")) === JSON.stringify([
   "intake-normalize",
@@ -238,16 +241,15 @@ const productReadbackBundle = {
 const productVerifier = runResourceVerifier({ bundle: productReadbackBundle, resourceType: "product_image" });
 assert(productVerifier.status === "passed", "product_target_upload_readback_should_override_stale_inventory_confirmation");
 
-const micro = await runMicroAppInstanceReadonlySkill({
+const eventChain = await runEventChainReadonlySkill({
   repo,
   bundle,
-  client: blockedMicroClient,
+  client: blockedEventChainClient,
   allowReadonlyDependency: true
 });
-assert(micro.status === "blocked", "micro_candidate_should_not_pass_without_target_readback");
-assert(micro.blockers.includes("micro_app_objective_not_available"), "micro_target_objective_blocker_missing");
-assert(micro.outputSummary.material_account_route_allowed === false, "micro_should_not_use_material_account_route");
-assert(micro.outputSummary.target_visible === false, "micro_candidate_must_not_be_marked_visible_without_target_readback");
+assert(eventChain.status === "blocked", "event_chain_should_not_pass_without_target_objective");
+assert(eventChain.blockers.includes("optimized_goal_not_available"), "event_chain_target_objective_blocker_missing");
+assert(eventChain.outputSummary.targetInstanceReadbackVerified === false, "reference_candidate_must_not_be_marked_target_visible");
 
 const backup = await runBackupLandingPageSourcePrepareSkill({ repo, bundle });
 assert(backup.status === "needs_confirmation", "backup_source_ready_should_need_contract_confirmation");
@@ -280,7 +282,8 @@ const result = {
   status: "passed",
   newSkills: [
     "product-image-source-prepare",
-    "micro-app-instance-readonly",
+    "event-chain-readonly",
+    "backup-landing-page-material-inventory",
     "backup-landing-page-source-prepare"
   ],
   product: {
@@ -288,10 +291,10 @@ const result = {
     directTargetUploadDefault: product.outputSummary.direct_target_upload_default,
     materialAccountRouteAllowed: product.outputSummary.material_account_route_allowed
   },
-  micro: {
-    status: micro.status,
-    targetObjectiveBlocked: micro.blockers.includes("micro_app_objective_not_available"),
-    targetVisible: micro.outputSummary.target_visible
+  eventChain: {
+    status: eventChain.status,
+    targetObjectiveBlocked: eventChain.blockers.includes("optimized_goal_not_available"),
+    targetVisible: eventChain.outputSummary.targetInstanceReadbackVerified
   },
   backup: {
     status: backup.status,

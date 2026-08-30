@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CHAIN-READINESS-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CHAIN-READINESS-20260830.md",
+  "status": "closed_validated_no_platform_write",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Unify JSZC target-account event asset and micro app instance readonly readiness in formal Node 4.",
+    "mode": "canonical_node4_event_chain_readonly_zero_platform_write",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_new_confirmation": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CHAIN-READINESS-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CHAIN-READINESS-20260830.json",
+    "docs/Solution Design.md",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "parent_certification_task": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
+    "parent_case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "change_type": "node4_event_chain_readonly_consolidation"
+  },
+  "allowed_writes": [
+    "workflow Skill contracts, canonical runner, resource registry and focused smoke tests",
+    "Task, Manifest and project control-plane status",
+    "test_run records cleaned by smoke"
+  ],
+  "forbidden_actions": [
+    "real platform write",
+    "event asset or micro app instance creation, binding, sharing or mutation",
+    "std_project/create or promotion/create",
+    "token refresh",
+    "raw query, raw response, full URL, token or historical identifier persistence",
+    "new executor or second workflow"
+  ],
+  "validation_plan": [
+    "verify formal Skill dependency and Node 4 trace use one event-chain coordinator",
+    "run focused fake-transport event-chain smoke and existing Node 4/resource/workflow regression smoke",
+    "run repository contract, schema and source preflight checks",
+    "confirm all test-run records are cleaned"
+  ],
+  "stop_conditions": [
+    "Any implementation path requires a platform write.",
+    "A target asset cannot be disambiguated with stored official readonly contracts.",
+    "Any path would promote a reference-only instance candidate to target-account truth without fresh platform evidence."
+  ],
+  "human_gate": {
+    "before_any_write": [
+      "This Task never grants a platform write.",
+      "The parent certification Task requires a fresh blocker-free Plan and one exact confirmation after external event-chain preparation."
+    ]
+  },
+  "closure": {
+    "status": "validated_no_platform_write",
+    "canonical_event_chain_skill": "event-chain-readonly",
+    "legacy_micro_instance_entry_removed": true,
+    "resource_verifiers_consume_shared_readonly_result": true,
+    "focused_fake_transport_coverage_passed": true,
+    "formal_workflow_regression_passed": true,
+    "platform_action_count": 0,
+    "confirmation_count": 0,
+    "created_object_count": 0,
+    "next_task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md"
+  }
+}

@@ -19,7 +19,6 @@ import {
 } from "./04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./03-launch-pack.mjs";
 import { runMonitorWorkflowSkill } from "./02-monitor-provision.mjs";
-import { runObjectiveContractReadonlyGate } from "./05-objective-contract-readiness.mjs";
 import {
   applyDraftToBundle,
   buildSkillDraft,
@@ -44,9 +43,9 @@ import {
   withDmpCustomAudienceIds
 } from "./04-resource-verifiers.mjs";
 import {
-  runMicroAppInstanceReadinessSkill,
-  runMicroAppInstanceReadonlySkill
-} from "./04-micro-app-instance-readiness.mjs";
+  eventChainResourceReadiness,
+  runEventChainReadonlySkill
+} from "./04-event-chain-readiness.mjs";
 import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconcile.mjs";
 import { runResourceBlueprintBootstrapSkill } from "./04-resource-blueprint-bootstrap.mjs";
 import { runAvatarSourcePrepareSkill } from "./04-avatar-source-prepare.mjs";
@@ -55,6 +54,7 @@ import { runAwemeAuthorizationReadonlySkill } from "./04-aweme-authorization-rea
 import { runBackupLandingPageSourcePrepareSkill } from "./04-backup-landing-page-source-prepare.mjs";
 import { runProductImageSourcePrepareSkill } from "./04-product-image-source-prepare.mjs";
 import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs";
+import { runBackupLandingPageMaterialInventorySkill } from "./04-backup-landing-page-material-inventory.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
 import { compileAndSaveExecutionPlan, evaluateConfirmedPlanDraftDerivation } from "../../executionPlan.mjs";
@@ -80,7 +80,6 @@ const DMP_SKILLS = new Set([
 ]);
 const RESOURCE_PREP_CONTRACT_SKILLS = new Set([
   "product-image-source-prepare",
-  "micro-app-instance-readonly",
   "backup-landing-page-source-prepare"
 ]);
 
@@ -139,6 +138,7 @@ function skillsForMode(mode) {
       "aweme-authorization-readonly",
       "avatar-source-prepare",
       "resource-live-readonly-reconcile",
+      "backup-landing-page-material-inventory",
       "avatar-submit-plan",
       "dmp-baseline-resolve",
       "dmp-source-readonly-verify",
@@ -146,7 +146,7 @@ function skillsForMode(mode) {
       "dmp-push-plan",
       "video-material-bind-plan",
       "product-image-source-prepare",
-      "micro-app-instance-readonly",
+      "event-chain-readonly",
       "backup-landing-page-source-prepare",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
     ];
@@ -166,6 +166,7 @@ function skillsForMode(mode) {
     "aweme-authorization-readonly",
     "avatar-source-prepare",
     "resource-live-readonly-reconcile",
+    "backup-landing-page-material-inventory",
     "avatar-submit-plan",
     "dmp-baseline-resolve",
     "dmp-source-readonly-verify",
@@ -173,7 +174,7 @@ function skillsForMode(mode) {
     "dmp-push-plan",
     "video-material-bind-plan",
     "product-image-source-prepare",
-    "micro-app-instance-readonly",
+    "event-chain-readonly",
     "backup-landing-page-source-prepare",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
   ];
@@ -560,16 +561,48 @@ async function executeSkill({ repo, context, skillKey }) {
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "video-material-bind-plan") {
     result = await runVideoMaterialBindPlanSkill({ bundle: context.bundle });
+  } else if (skillKey === "backup-landing-page-material-inventory") {
+    result = context.mockReady
+      ? {
+          status: "mock_passed",
+          blockers: [],
+          outputSummary: {
+            conclusion: "mock_target_already_usable",
+            target_already_usable: true,
+            default_target_hash_matches: true,
+            platform_write_called: false,
+            token_refresh_called: false
+          }
+        }
+      : context.allowReadonlyDependency === true
+        ? await runBackupLandingPageMaterialInventorySkill({
+            repo,
+            bundle: context.bundle,
+            record: true,
+            recordSkillRunResult: false
+          })
+        : {
+            status: "blocked",
+            blockers: ["readonly_permission_required"],
+            outputSummary: {
+              conclusion: "readonly_permission_required",
+              target_already_usable: false,
+              platform_write_called: false,
+              token_refresh_called: false
+            }
+          };
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+  } else if (skillKey === "event-chain-readonly") {
+    result = await runEventChainReadonlySkill({
+      repo,
+      bundle: context.bundle,
+      mockReady: context.mockReady,
+      allowReadonlyDependency: context.allowReadonlyDependency === true
+    });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (RESOURCE_PREP_CONTRACT_SKILLS.has(skillKey)) {
     if (skillKey === "product-image-source-prepare") {
       result = await runProductImageSourcePrepareSkill({ repo, bundle: context.bundle });
-    } else if (skillKey === "micro-app-instance-readonly") {
-      result = await runMicroAppInstanceReadonlySkill({
-        repo,
-        bundle: context.bundle,
-        mockReady: context.mockReady,
-        allowReadonlyDependency: context.allowReadonlyDependency === true
-      });
     } else if (skillKey === "backup-landing-page-source-prepare") {
       result = await runBackupLandingPageSourcePrepareSkill({ repo, bundle: context.bundle });
     }
@@ -584,13 +617,14 @@ async function executeSkill({ repo, context, skillKey }) {
         allowReadonlyDependency: context.allowReadonlyDependency === true,
         previousOutputs: context.skillOutputs
       })
-      : resourceType === "event_asset"
-        ? await runObjectiveContractReadonlyGate({
-          repo,
-          bundle: context.bundle,
-          mockReady: context.mockReady,
-          allowReadonlyDependency: context.allowReadonlyDependency === true
-        })
+      : ["event_asset", "micro_app_instance"].includes(resourceType)
+        ? context.mockReady
+          ? runResourceVerifier({
+            bundle: mockReadyBundle(context.bundle),
+            resourceType,
+            mockReady: true
+          })
+          : eventChainResourceReadiness({ bundle: context.bundle, resourceType })
       : resourceType === "video_asset"
         ? await runVideoMaterialReadonlyGate({
           repo,
@@ -598,16 +632,27 @@ async function executeSkill({ repo, context, skillKey }) {
           mockReady: context.mockReady,
           allowReadonlyDependency: context.allowReadonlyDependency === true
         })
-      : resourceType === "micro_app_instance"
-        ? runMicroAppInstanceReadinessSkill({
-          bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
-          mockReady: context.mockReady
-        })
       : runResourceVerifier({
         bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
         resourceType,
         mockReady: context.mockReady
       });
+    if (resourceType === "backup_landing_page" && !context.mockReady) {
+      const inventory = output(context, "backup-landing-page-material-inventory");
+      if (inventory.status !== "passed") {
+        result = {
+          ...result,
+          status: "blocked",
+          blockers: [...new Set([...(result.blockers || []), ...(inventory.blockers || ["backup_landing_page_inventory_not_passed"])])],
+          outputSummary: {
+            ...(result.outputSummary || {}),
+            inventoryStatus: inventory.status || "not_run",
+            inventoryConclusion: inventory.outputSummary?.conclusion || "not_run"
+          },
+          evidenceRefs: [...new Set([...(result.evidenceRefs || []), ...(inventory.evidenceRefs || [])])]
+        };
+      }
+    }
     result = normalizeResourceSkillResult({ resourceType, result });
     if (resourceType === "dmp_audience_package" && Array.isArray(result.customAudienceIds)) {
       context.dmpCustomAudienceIds = result.customAudienceIds;

@@ -66,6 +66,7 @@ export function eventChainPassed(bundle = {}) {
   const event = resource(bundle, "event_asset");
   return resourceReady(event) &&
     (clean(event.metadata?.std_project_create_readiness?.event_chain_status) === "passed" ||
+      clean(event.metadata?.event_chain_readonly_contract?.status) === "passed" ||
       clean(event.metadata?.oe3_brand_event_gate?.status) === "passed" ||
       clean(event.metadata?.readonly_check?.status) === "passed");
 }
@@ -229,6 +230,33 @@ export function mockReadyBundle(bundle = {}) {
               video_id_present: true,
               video_cover_id_present: true,
               cover_mode: "platform_default_cover_allowed",
+              mock: true
+            }
+          }
+        };
+      }
+      if (["event_asset", "micro_app_instance"].includes(item.resource_type)) {
+        return {
+          ...item,
+          platform_resource_id: item.platform_resource_id || (item.resource_type === "event_asset" ? "800000000001" : "700000000001"),
+          visibility_status: "visible",
+          readback_status: "readback_verified",
+          metadata: {
+            ...(item.metadata || {}),
+            readonly_check: {
+              ...(item.metadata?.readonly_check || {}),
+              status: "passed",
+              mock: true
+            },
+            event_chain_readonly_contract: {
+              status: "passed",
+              event_asset_target_readback_verified: true,
+              target_app_binding_verified: true,
+              target_instance_candidate_present: true,
+              target_instance_readback_verified: true,
+              objective_found: true,
+              deep_objective_found: true,
+              deep_bid_type_found: true,
               mock: true
             }
           }

@@ -47,8 +47,9 @@ export {
   runProductImageSourcePrepareSkill
 } from "./04-product-image-source-prepare.mjs";
 export {
-  runMicroAppInstanceReadonlySkill
-} from "./04-micro-app-instance-readiness.mjs";
+  eventChainResourceReadiness,
+  runEventChainReadonlySkill
+} from "./04-event-chain-readiness.mjs";
 export {
   runAwemeAuthorizationReadonlySkill
 } from "./04-aweme-authorization-readonly.mjs";

@@ -23,7 +23,7 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     evidenceRequirement: "DMP package-set source/target readonly evidence and per-package push plan"
   },
   event_asset: {
-    verifyModuleRef: "src/workflows/skills/oe3/05-objective-contract-readiness.mjs",
+    verifyModuleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
     evidenceRequirement: "objective/event chain readonly evidence"
@@ -47,7 +47,7 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     evidenceRequirement: "brand industry readonly/readback evidence"
   },
   micro_app_instance: {
-    verifyModuleRef: "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs",
+    verifyModuleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
     evidenceRequirement: "target account micro app instance readonly evidence and official create-field evidence"

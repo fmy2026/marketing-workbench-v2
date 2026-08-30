@@ -1,0 +1,66 @@
+{
+  "schema_version": "2026-08-30.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-NODE4-BACKUP-LANDING-INVENTORY-WIRING-20260830",
+  "task_ref": "tasks/TASK-MWBV2-OE3-NODE4-BACKUP-LANDING-INVENTORY-WIRING-20260830.md",
+  "status": "closed_validated_no_platform_write",
+  "created_at": "2026-08-30 CST",
+  "updated_at": "2026-08-30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Wire the existing backup landing-page target inventory readonly Skill into the canonical Node 4 schedule.",
+    "mode": "canonical_node4_readonly_wiring_zero_platform_write",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-NODE4-BACKUP-LANDING-INVENTORY-WIRING-20260830.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-NODE4-BACKUP-LANDING-INVENTORY-WIRING-20260830.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs"
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "parent_certification_task": "TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830",
+    "change_type": "existing_skill_schedule_wiring"
+  },
+  "allowed_writes": [
+    "workflow Skill contracts, runner schedule and node trace",
+    "focused smoke tests",
+    "Task, Manifest and project control-plane status",
+    "test_run records cleaned by smoke"
+  ],
+  "forbidden_actions": [
+    "real platform write",
+    "landing-page share, copy or rebuild",
+    "std_project/create or promotion/create",
+    "token refresh",
+    "new executor or second workflow"
+  ],
+  "validation_plan": [
+    "validate formal schedule dependency order",
+    "validate mock mode performs no inventory network call",
+    "run backup landing inventory, Node 4 contract, workflow Skill and readonly CLI smoke"
+  ],
+  "stop_conditions": [
+    "Any implementation path requires a platform write.",
+    "The existing inventory Skill cannot be reused without a second implementation."
+  ],
+  "closure": {
+    "status": "validated_no_platform_write",
+    "formal_schedule_wired": true,
+    "node4_trace_wired": true,
+    "target_inventory_probe_executed": true,
+    "target_page_currently_usable": false,
+    "confirmation_count": 0,
+    "platform_action_count": 0,
+    "created_object_count": 0,
+    "test_run_cleanup_complete": true,
+    "next_task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830.md"
+  }
+}

@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-JSZC-FORMAL-NODE1-7-NEW-ACCOUNT-CERTIFICATION-20260830
 
-状态：blocked_waiting_external_resource_readiness
+状态：closed_waiting_external_resource_readiness
 
 更新时间：2026-08-30 CST
 
@@ -62,8 +62,14 @@
 - 不在本 Task 内提前进行脚本目录重构。
 - 不因资源缺失新增事件、品牌、小游戏实例或备用页写入 executor。
 
-## 下一步
+## 关闭原因
 
-保持 Case active、平台写入关闭；先在目标账户完成小游戏实例与优化目标/事件链的外部准备，以及备用落地页的目标账户授权/共享。准备完成后创建 fresh 只读 bootstrap Job 重新核验，不复用当前 Draft/Plan；Node 4 无 BLOCKED 后只申请一次 Plan 级确认。
+用户已清理当前 active Task，为下一项独立工作释放项目协调位。本 Task 未完成新账户认证，不代表外部资源或标准项目创建已经成功；保留此记录仅用于后续 fresh Task 的事实参考。
+
+## 后续前提
+
+1. 平台侧完成目标账户的 JSZC 事件资产、小游戏实例、PAY、7 日 ROI 深度目标和深度出价的有效关联；
+2. 平台侧完成受控备用落地页对目标账户的有效共享；
+3. 新建独立 Task 后，创建 fresh 只读 bootstrap Job 重新核验。不得复用本 Case 的 Draft/Plan；Node 4 无 BLOCKED 后才可申请唯一 Plan 级确认。
 
 唯一 Workflow 的单确认机制与 Case 单根 blocker 投影已经由独立 Task 完成并验证。当前只读 Case 只显示最前置的事件资源 blocker；Node 5 派生诊断保留在 `structural_blocker_codes`，不再阻断对根因的判断。

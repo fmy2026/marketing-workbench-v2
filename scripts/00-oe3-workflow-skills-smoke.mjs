@@ -69,9 +69,14 @@ try {
   assert(workflowChildren.length === registryValidation.childCount, "workflow_child_view_count_mismatch");
   assert(workflowChildren.every((child) => child.trace?.type && child.trace?.resolverRef), "workflow_child_trace_view_missing");
   assert(workflowChildren.filter((child) => child.trace.type !== "derived").every((child) => child.trace.skills.length > 0), "workflow_skill_trace_view_missing_skills");
-  const backupLandingChild = workflowChildren.find((child) => child.id === "backup-landing-page");
-  assert(backupLandingChild?.trace?.type === "skill", "backup_landing_child_not_atomic_skill");
-  assert(backupLandingChild?.trace?.skills?.[0]?.latestRun?.inputHash?.startsWith("sha256:"), "backup_landing_child_latest_run_missing");
+  const backupLandingChild = workflowChildren.find((child) => child.id === "resource-backup_landing_page");
+  assert(backupLandingChild?.trace?.type === "pipeline", "backup_landing_child_not_pipeline");
+  assert(JSON.stringify(backupLandingChild?.trace?.skills?.map((item) => item.skillKey)) === JSON.stringify([
+    "backup-landing-page-material-inventory",
+    "backup-landing-page-source-prepare",
+    "resource-verify-backup-landing-page"
+  ]), "backup_landing_child_pipeline_wrong");
+  assert(backupLandingChild?.trace?.skills?.every((item) => item.latestRun?.inputHash?.startsWith("sha256:")), "backup_landing_child_latest_runs_missing");
 
   const executeJobId = await makeTestJob(repo, `smoke:workflow-skills:execute-mock:${new Date().toISOString()}`, cleanupJobIds);
   const execute = await runOe3WorkflowSkills({

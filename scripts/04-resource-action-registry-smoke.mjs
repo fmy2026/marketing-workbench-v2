@@ -10,7 +10,7 @@ import {
   normalizeResourceSkillResult
 } from "../src/workflows/skills/oe3/00-index.mjs";
 import { runBackupLandingPageReadinessSkill } from "../src/workflows/skills/oe3/03-landing-page-readiness.mjs";
-import { runMicroAppInstanceReadinessSkill } from "../src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs";
+import { eventChainResourceReadiness } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -227,15 +227,16 @@ assert(backupBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/03-l
 
 const microBlocked = normalizeResourceSkillResult({
   resourceType: "micro_app_instance",
-  result: runMicroAppInstanceReadinessSkill({
+  result: eventChainResourceReadiness({
     bundle: {
       ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "micro_app_instance")),
       defaults: {}
-    }
+    },
+    resourceType: "micro_app_instance"
   })
 });
-assert(microBlocked.blockers.includes("micro_app_instance_missing"), "micro_app_instance_blocker_missing");
-assert(microBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs", "micro_app_instance_module_ref_wrong");
+assert(microBlocked.blockers.includes("micro_app_instance_target_unverified"), "micro_app_instance_blocker_missing");
+assert(microBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/04-event-chain-readiness.mjs", "micro_app_instance_module_ref_wrong");
 
 const result = {
   status: "passed",

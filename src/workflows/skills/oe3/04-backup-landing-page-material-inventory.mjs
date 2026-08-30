@@ -398,7 +398,8 @@ export async function runBackupLandingPageMaterialInventorySkill({
   readonlyClient = createOceanEngineReadonlyClient(),
   sourceAdvertiserId = DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT,
   pageSize = DEFAULT_PAGE_SIZE,
-  record = true
+  record = true,
+  recordSkillRunResult = true
 } = {}) {
   if (!repo || !bundle?.job) throw new Error("launch_job_bundle_required");
   const startedAt = new Date().toISOString();
@@ -513,21 +514,23 @@ export async function runBackupLandingPageMaterialInventorySkill({
       outputSummary: outputWithEvidence,
       evidenceRefs: evidenceRef ? [evidenceRef] : []
     };
-    await recordSkillRun({
-      repo,
-      bundle,
-      definition: skillDefinition(BACKUP_LANDING_PAGE_INVENTORY_SKILL_KEY),
-      input: {
-        route_id: bundle.job.route_id,
-        game_code: bundle.job.game_code,
-        advertiser_id: bundle.job.advertiser_id,
-        source_advertiser_id: sourceAdvertiserId,
-        controlled_default_asset_id: CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
-        readonly: true
-      },
-      result: resultForRecord,
-      startedAt
-    });
+    if (recordSkillRunResult) {
+      await recordSkillRun({
+        repo,
+        bundle,
+        definition: skillDefinition(BACKUP_LANDING_PAGE_INVENTORY_SKILL_KEY),
+        input: {
+          route_id: bundle.job.route_id,
+          game_code: bundle.job.game_code,
+          advertiser_id: bundle.job.advertiser_id,
+          source_advertiser_id: sourceAdvertiserId,
+          controlled_default_asset_id: CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
+          readonly: true
+        },
+        result: resultForRecord,
+        startedAt
+      });
+    }
     const result = resultForRecord;
     assertNoSensitiveLeak(result);
     return result;

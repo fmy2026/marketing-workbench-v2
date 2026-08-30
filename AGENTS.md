@@ -46,8 +46,8 @@ Markdown：
 涉及项目流程、数据报表时，按需读取：
 
 ```text
-docs/project-现状逻辑图.md
-docs/project-现状数据与报表契约.md
+docs/project-现在的逻辑图.md
+docs/project-数据与报表契约.md
 ```
 
 可复用、已验证的经验只记录在 `docs/project-lessons.md`；它辅助诊断，不替代 Postgres、当前代码或任务合同。
