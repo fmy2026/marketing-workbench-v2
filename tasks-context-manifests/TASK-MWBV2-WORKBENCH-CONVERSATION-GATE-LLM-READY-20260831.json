@@ -1,0 +1,113 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-CONVERSATION-GATE-LLM-READY-20260831",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-CONVERSATION-GATE-LLM-READY-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 16:42 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add a deterministic, LLM-ready conversation control plane that safely resumes workflow cases without platform writes.",
+    "mode": "workbench_conversation_gate_policy",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-CONVERSATION-GATE-LLM-READY-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-CONVERSATION-GATE-LLM-READY-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/agents/launchAgent.mjs",
+    "src/server/index.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "frontend/app.js",
+    "scripts/00-smoke-api.mjs",
+    "scripts/00-execution-grant-smoke.mjs"
+  ],
+  "scope": {
+    "runtime": [
+      "src/agents/launchAgent.mjs",
+      "src/agents/conversationIntentResolver.mjs",
+      "src/workflows/workbenchConversation.mjs",
+      "src/server/index.mjs",
+      "src/workflows/launchWorkflow.mjs",
+      "src/workflows/executeConfirmedLaunch.mjs",
+      "frontend/app.js",
+      "frontend/index.html",
+      "frontend/styles.css"
+    ],
+    "documentation": [
+      "docs/project-现在的逻辑图.md"
+    ],
+    "validation": [
+      "scripts/00-smoke-api.mjs",
+      "scripts/00-execution-grant-smoke.mjs",
+      "scripts/00-workflow-case-smoke.mjs",
+      "scripts/00-oe3-workflow-skills-smoke.mjs",
+      "scripts/00-readonly-oceanengine-smoke.mjs"
+    ]
+  },
+  "allowed_writes": [
+    "Task, Manifest and project control-plane updates",
+    "conversation resolver, gate policy, API, frontend, documentation and test code",
+    "existing smoke test_run records only"
+  ],
+  "forbidden_actions": [
+    "all external platform writes",
+    "resource preparation execution",
+    "std_project/create or retry",
+    "budget, bid, monitor or OAuth mutation",
+    "database schema or workflow_case_summary View changes",
+    "Node or Skill status semantic changes",
+    "LLM network calls or SDK installation",
+    "persisting raw user transcript, model reasoning, token, secret, Cookie, complete URL, raw payload or raw response"
+  ],
+  "validation_plan": [
+    "node --check on changed runtime files",
+    "npm run smoke:api",
+    "npm run test:execution-grant",
+    "npm run test:workflow-case",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:readonly",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "implementation requires a real platform write or confirmation consumption",
+    "LLM/provider can choose a platform action or bypass plan confirmation",
+    "current Gate is duplicated or computed outside workflow_case_summary",
+    "a public response or persisted record could contain sensitive data",
+    "implementation requires a database migration"
+  ],
+  "completed_at": "2026-08-31 17:01 CST",
+  "result": {
+    "platform_writes": 0,
+    "llm_network_calls": 0,
+    "database_schema_changes": 0,
+    "capabilities": [
+      "deterministic intent resolver with future provider adapter",
+      "workflow_case_summary-backed gate action policy",
+      "case-resumable command API and historical job read-only mode",
+      "redacted plan-bound confirmation preview"
+    ],
+    "validation": [
+      "node --check changed runtime files",
+      "npm run test:workbench-conversation",
+      "npm run smoke:api",
+      "npm run test:execution-grant",
+      "npm run test:workflow-case",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:readonly",
+      "git diff --check",
+      "browser active-case and historical-job interaction verification"
+    ],
+    "current_case_safety": {
+      "case_id": "CASE-MWBV2-EC9287D4A4BC82E5E2",
+      "platform_action_count": 0,
+      "attempts_used": 0
+    }
+  }
+}

@@ -83,6 +83,21 @@ Plan 编译：src/workflows/executionPlan.mjs
 | workflow_case_summary | 唯一当前 Gate、root blocker、建议动作 | 历史明细和反向写入 |
 | docs/ | 机制、方案、Task 合同、lessons | 实时状态、secret、raw 请求/响应 |
 
+### 1.1 工作台对话续办层
+
+```text
+用户消息
+→ Conversation Intent Resolver（默认 deterministic；未来可配置 LLM adapter）
+→ 严格 allowlist Intent
+→ Gate Action Policy（只读 workflow_case_summary）
+→ 状态说明 / safe readonly run / Plan 确认卡
+→ 既有 Plan-bound executor
+```
+
+Resolver 只规范化用户意图和输入槽位；不计算 Gate、不选择平台 action、不开放 Guardrail，也不能直接执行。LLM adapter 只能接收脱敏上下文并输出 allowlist Intent；低置信度、异常或未识别输入一律追问。写入仍需当前 latest Job、显式“确认创建”、展示时的 `plan_id + plan_hash`、全局 scope 和既有 executor 的全部校验同时通过。
+
+工作台以 `?case_id=` 恢复活动 Case 的最新 Job；`?job_id=` 只用于历史只读查看。对话本身不持久化 raw transcript 或模型推理。
+
 ## 2. 唯一主链
 
 ~~~text

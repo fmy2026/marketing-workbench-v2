@@ -272,6 +272,24 @@ try {
   assert(missingScope.executionGrant.blockers.includes("platform_write_scope_not_enabled"), "missing scope blocker not reported");
   assert(missingScope.executionGrant.createCalled === false, "missing scope should not create");
 
+  const closedWorkbenchView = await createReadyTestJob("execution-grant-smoke:closed-workbench-scope");
+  const closedWorkbenchPlan = await repo.getLatestLaunchExecutionPlan(closedWorkbenchView.jobId);
+  const closedWorkbenchState = await writeProjectStateForScope({ ...closedWorkbenchView, enabled: false });
+  const closedWorkbenchFetch = fakeFetchFactory({ projectId: "999900016" });
+  const closedWorkbench = await executeConfirmedLaunch({
+    repo,
+    jobId: closedWorkbenchView.jobId,
+    grantSource: "workbench_conversation",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    expectedPlanId: closedWorkbenchPlan.plan_id,
+    expectedPlanHash: closedWorkbenchPlan.plan_hash,
+    fetchImpl: closedWorkbenchFetch,
+    projectStatePath: closedWorkbenchState
+  });
+  assert(closedWorkbench.executionGrant.status === "blocked", "closed workbench scope should block");
+  assert(closedWorkbench.executionGrant.blockers.includes("platform_write_scope_not_enabled"), "closed workbench scope blocker missing");
+  assert(closedWorkbenchFetch.calls.length === 0, "closed workbench scope must not make platform calls");
+
   const wrongHashView = await createReadyTestJob("execution-grant-smoke:wrong-hash");
   const wrongHashState = await writeProjectStateForScope({ ...wrongHashView, payloadHash: "sha256:wrong" });
   const wrongHash = await executeConfirmedLaunch({
@@ -285,6 +303,24 @@ try {
   assert(wrongHash.executionGrant.status === "blocked", "wrong payload hash should block");
   assert(wrongHash.executionGrant.blockers.includes("platform_write_scope_payload_hash_mismatch"), "wrong hash blocker not reported");
   assert(wrongHash.executionGrant.createCalled === false, "wrong payload hash should not create");
+
+  const staleConfirmationView = await createReadyTestJob("execution-grant-smoke:stale-workbench-confirmation");
+  const staleConfirmationState = await writeProjectStateForScope(staleConfirmationView);
+  const staleConfirmationFetch = fakeFetchFactory({ projectId: "999900015" });
+  const staleConfirmation = await executeConfirmedLaunch({
+    repo,
+    jobId: staleConfirmationView.jobId,
+    grantSource: "workbench_conversation",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    expectedPlanId: "PLAN-STALE",
+    expectedPlanHash: "sha256:stale",
+    fetchImpl: staleConfirmationFetch,
+    projectStatePath: staleConfirmationState
+  });
+  assert(staleConfirmation.executionGrant.status === "blocked", "stale workbench confirmation should block");
+  assert(staleConfirmation.executionGrant.blockers.includes("execution_plan_id_changed_since_confirmation"), "stale plan id was not blocked");
+  assert(staleConfirmation.executionGrant.blockers.includes("execution_plan_hash_changed_since_confirmation"), "stale plan hash was not blocked");
+  assert(staleConfirmationFetch.calls.length === 0, "stale confirmation must not make platform calls");
 
   const successView = await createReadyTestJob("execution-grant-smoke:create-ok-readback-hit");
   const successState = await writeProjectStateForScope(successView);

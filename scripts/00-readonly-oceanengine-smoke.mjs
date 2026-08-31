@@ -1,8 +1,14 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { createJob, resolveReadonlyDependencyForRun, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { readonlyPermissionState } from "../src/workflows/skills/oe3/00-readonly-permission.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
+const permissionStateDir = await mkdtemp(join(tmpdir(), "mwbv2-readonly-permission-"));
+const permissionStatePath = join(permissionStateDir, "project.state.json");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,17 +34,28 @@ function assertNoSensitiveLeak(value) {
 }
 
 try {
+  await writeFile(permissionStatePath, JSON.stringify({
+    guardrails: { real_platform_dependency_allowed: true }
+  }));
+  assert(resolveReadonlyDependencyForRun({ projectStatePath: permissionStatePath }) === true, "omitted_readonly_permission_must_inherit_guardrail");
+  assert(resolveReadonlyDependencyForRun({ projectStatePath: permissionStatePath, allowReadonlyDependency: false }) === false, "explicit_readonly_rejection_must_win");
+  assert(readonlyPermissionState({ allowReadonlyDependency: false, projectStatePath: permissionStatePath }).allowed === false, "explicit_readonly_rejection_must_not_fall_back_to_guardrail");
+
   const created = await createJob(repo, {
     user_intent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993",
     source_usage: "test_run",
     source_record_ref: "smoke:readonly"
   });
   cleanupJobIds.push(created.jobId);
-  const draftReady = await runJob(repo, created.jobId, { mode: "dry_run" });
+  const draftReady = await runJob(repo, created.jobId, {
+    mode: "dry_run",
+    allowReadonlyDependency: false
+  });
   const bundle = await repo.getLaunchJobBundle(draftReady.jobId);
   const nodes = bundle.nodes || [];
   const skillRuns = bundle.skillRuns || [];
   const dmpSkill = skillRuns.find((run) => run.skill_key === "resource-verify-dmp-audience-package");
+  const duplicateSkill = skillRuns.find((run) => run.skill_key === "duplicate-check");
   const dmpEvidence = (bundle.evidence || []).filter((item) => /^dmp_/u.test(item.artifact_type || ""));
   const dmpNodeSummary = nodes.find((node) => node.node_key === "account_resource_prepare")
     ?.output_summary?.checks?.find((item) => item.resourceType === "dmp_audience_package") || {};
@@ -46,6 +63,8 @@ try {
   assert(nodes.length === 7, `expected 7 node runs, got ${nodes.length}`);
   assert(bundle.job.source_usage === "test_run", "readonly smoke job source_usage is not test_run");
   assert(dmpSkill, "DMP readonly skill run missing");
+  assert(duplicateSkill?.status === "blocked", "explicit_readonly_rejection_must_block_duplicate_check");
+  assert((duplicateSkill.blockers || []).includes("readonly_permission_required"), "duplicate_check_must_report_explicit_readonly_rejection");
   assert(["passed", "blocked"].includes(dmpSkill.status), `unexpected DMP skill status ${dmpSkill.status}`);
   assert(dmpNodeSummary.resourceType === "dmp_audience_package", "DMP node summary missing");
   assert(dmpNodeSummary.payloadField === "audience.retargeting_tags_exclude", "DMP payload field mismatch");
@@ -79,4 +98,5 @@ try {
   for (const jobId of cleanupJobIds.reverse()) {
     await repo.deleteTestJobCascade(jobId);
   }
+  await rm(permissionStateDir, { recursive: true, force: true });
 }

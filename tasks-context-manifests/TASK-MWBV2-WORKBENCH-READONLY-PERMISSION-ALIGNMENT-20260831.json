@@ -1,0 +1,98 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-READONLY-PERMISSION-ALIGNMENT-20260831",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-READONLY-PERMISSION-ALIGNMENT-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Align workbench dry-run readonly permission with the project guardrail without any platform write.",
+    "mode": "readonly_permission_alignment_and_case_cleanup",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-READONLY-PERMISSION-ALIGNMENT-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-READONLY-PERMISSION-ALIGNMENT-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-readonly-permission.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "scripts/00-readonly-oceanengine-smoke.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "scope": {
+    "runtime": [
+      "src/workflows/launchWorkflow.mjs",
+      "src/workflows/skills/oe3/00-readonly-permission.mjs"
+    ],
+    "validation": [
+      "scripts/00-readonly-oceanengine-smoke.mjs",
+      "scripts/00-smoke-api.mjs"
+    ],
+    "runtime_truth": [
+      "CASE-MWBV2-EC9287D4A4BC82E5E2",
+      "CASE-MWBV2-8A6DF2616F4FC3120C",
+      "CASE-MWBV2-CF0D927AF25EF78820",
+      "CASE-MWBV2-B9214CFC748004E873"
+    ]
+  },
+  "allowed_writes": [
+    "Task, Manifest and project control-plane updates",
+    "readonly permission runtime code and smoke tests",
+    "workflow_cases lifecycle update to cancelled only after zero-action audit",
+    "one fresh runtime_truth Job bound to the retained Case",
+    "normal readonly evidence, node, skill, draft and Plan records for that fresh Job"
+  ],
+  "forbidden_actions": [
+    "all external platform writes",
+    "resource preparation execution",
+    "std_project/create or retry",
+    "budget, bid, monitor or OAuth mutation",
+    "database schema or workflow_case_summary View changes",
+    "Node or Skill status semantic changes",
+    "deleting existing Case, Job, Plan or evidence records",
+    "persisting raw user transcript, token, secret, Cookie, complete URL, raw payload or raw response"
+  ],
+  "validation_plan": [
+    "node --check src/workflows/launchWorkflow.mjs",
+    "node --check src/workflows/skills/oe3/00-readonly-permission.mjs",
+    "npm run smoke:api",
+    "npm run smoke:workflow-skills",
+    "npm run smoke:readonly",
+    "npm run test:workflow-case",
+    "git diff --check",
+    "Postgres zero-action audit for duplicate Cases",
+    "fresh retained-Case readonly summary check"
+  ],
+  "stop_conditions": [
+    "implementation requires a platform write or create confirmation",
+    "a new fresh Job would be created without the retained case_id",
+    "a duplicate Case has one or more platform actions",
+    "fresh readonly produces a root blocker other than readonly_permission_required",
+    "any sensitive value could enter a public result or project file"
+  ],
+  "result": {
+    "global_guardrail_inherited_when_option_omitted": true,
+    "explicit_readonly_rejection_preserved": true,
+    "public_api_or_schema_changed": false,
+    "platform_write_called": false,
+    "fresh_readonly_cleared_synthetic_permission_blocker": true,
+    "duplicate_case_cleanup_verified_zero_action": true,
+    "validation": [
+      "node --check",
+      "npm run smoke:api",
+      "npm run smoke:workflow-skills",
+      "npm run smoke:readonly",
+      "npm run test:workflow-case",
+      "git diff --check",
+      "Postgres fresh readonly summary and zero-action audit"
+    ]
+  },
+  "completed_at": "2026-08-31 16:25 CST"
+}

@@ -5,7 +5,9 @@ import {
   evaluateOe3PayloadContract,
   runOe3WorkflowSkills
 } from "./skills/oe3/00-index.mjs";
+import { readonlyPermissionState } from "./skills/oe3/00-readonly-permission.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
+import { buildConfirmationPreview } from "./gateActionPolicy.mjs";
 export {
   WORKFLOW_NODES,
   getWorkflowNode,
@@ -626,6 +628,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
   const caseGate = caseGateView(caseSummary, bundle.job.job_id);
+  const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
@@ -725,6 +728,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       alreadyAttempted: executionAvailability.alreadyAttempted === true
     },
     primaryAction,
+    confirmationPreview,
     platformReadonly: {
       status: runtimeChecks.prewriteGate?.platformReadonlyApi?.status || "not_run",
       credentialStatus: runtimeChecks.prewriteGate?.platformReadonlyApi?.credentialStatus || "unknown",
@@ -951,6 +955,13 @@ export async function createJob(repo, body = {}) {
   return buildPublicJobView(repo, bundle);
 }
 
+export function resolveReadonlyDependencyForRun(options = {}) {
+  if (Object.prototype.hasOwnProperty.call(options, "allowReadonlyDependency")) {
+    return options.allowReadonlyDependency === true;
+  }
+  return readonlyPermissionState({ projectStatePath: options.projectStatePath }).allowed;
+}
+
 export async function runJob(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
@@ -958,6 +969,7 @@ export async function runJob(repo, jobId, options = {}) {
     error.statusCode = 404;
     throw error;
   }
+  const allowReadonlyDependency = resolveReadonlyDependencyForRun(options);
   const result = await runOe3WorkflowSkills({
     repo,
     jobId,
@@ -965,7 +977,7 @@ export async function runJob(repo, jobId, options = {}) {
     mockReady: options.mockReady === true,
     mockExecute: options.mockExecute === true,
     allowNetworkWrite: options.allowNetworkWrite === true,
-    allowReadonlyDependency: options.allowReadonlyDependency === true,
+    allowReadonlyDependency,
     confirmationIntent: options.confirmationIntent || "",
     confirmVariableValue: options.confirmVariableValue || "",
     grantSource: options.grantSource || "",

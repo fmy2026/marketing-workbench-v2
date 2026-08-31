@@ -6,6 +6,7 @@ import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import { buildWorkbenchView, createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
+import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
@@ -112,13 +113,25 @@ async function handleApi(req, res, pathname) {
     const body = await readBody(req);
     return sendJson(res, 200, await runJob(repo, jobId, { mode: body.mode || "dry_run" }));
   }
+  if (req.method === "POST" && action === "command") {
+    const body = await readBody(req);
+    return sendJson(res, 200, await handleWorkbenchCommand({
+      repo,
+      jobId,
+      message: body.message || body.user_intent || body.userIntent || "",
+      expectedPlanId: body.expected_plan_id || body.expectedPlanId || "",
+      expectedPlanHash: body.expected_plan_hash || body.expectedPlanHash || ""
+    }));
+  }
   if (req.method === "POST" && action === "execute-once") {
     const body = await readBody(req);
     return sendJson(res, 200, await executeConfirmedLaunch({
       repo,
       jobId,
       grantSource: "workbench_click",
-      executionIntent: body.execution_intent || body.executionIntent || ""
+      executionIntent: body.execution_intent || body.executionIntent || "",
+      expectedPlanId: body.expected_plan_id || body.expectedPlanId || "",
+      expectedPlanHash: body.expected_plan_hash || body.expectedPlanHash || ""
     }));
   }
   if (req.method === "POST" && action === "confirm-create") {
@@ -127,7 +140,9 @@ async function handleApi(req, res, pathname) {
       repo,
       jobId,
       grantSource: "workbench_click",
-      executionIntent: body.execution_intent || body.executionIntent || ""
+      executionIntent: body.execution_intent || body.executionIntent || "",
+      expectedPlanId: body.expected_plan_id || body.expectedPlanId || "",
+      expectedPlanHash: body.expected_plan_hash || body.expectedPlanHash || ""
     }));
   }
   return sendJson(res, 404, { error: "not_found" });

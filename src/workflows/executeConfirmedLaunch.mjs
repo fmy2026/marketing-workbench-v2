@@ -23,7 +23,7 @@ function createCalledFromView(view = {}) {
 }
 
 function validateGrant({ grantSource, executionIntent, envConfirm }) {
-  if (grantSource === "workbench_click") {
+  if (grantSource === "workbench_click" || grantSource === "workbench_conversation") {
     return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
   }
   if (grantSource === "cli_confirm") {
@@ -33,6 +33,16 @@ function validateGrant({ grantSource, executionIntent, envConfirm }) {
     return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
   }
   return ["grant_source_invalid"];
+}
+
+function planBindingBlockers({ bundle = {}, grantSource = "", expectedPlanId = "", expectedPlanHash = "" } = {}) {
+  if (!["workbench_click", "workbench_conversation"].includes(grantSource)) return [];
+  const plan = bundle.executionPlan || {};
+  const blockers = [];
+  if (!expectedPlanId || !expectedPlanHash) blockers.push("execution_plan_confirmation_context_missing");
+  if (expectedPlanId && expectedPlanId !== plan.plan_id) blockers.push("execution_plan_id_changed_since_confirmation");
+  if (expectedPlanHash && expectedPlanHash !== plan.plan_hash) blockers.push("execution_plan_hash_changed_since_confirmation");
+  return blockers;
 }
 
 async function usePlanBoundConfirmation(bundle, projectStatePath) {
@@ -49,6 +59,8 @@ export async function executeConfirmedLaunch({
   jobId,
   grantSource,
   executionIntent = "",
+  expectedPlanId = "",
+  expectedPlanHash = "",
   envConfirm = process.env[EXECUTION_GRANT_CONFIRM_ENV] || "",
   fetchImpl = globalThis.fetch,
   projectStatePath
@@ -68,6 +80,22 @@ export async function executeConfirmedLaunch({
         status: "blocked",
         grantSource,
         blockers,
+        createCalled: false
+      }
+    };
+    assertNoSensitiveLeak(result.executionGrant);
+    return result;
+  }
+
+  const initialPlanBindingBlockers = planBindingBlockers({ bundle, grantSource, expectedPlanId, expectedPlanHash });
+  if (initialPlanBindingBlockers.length) {
+    const view = await getJobView(repo, jobId, { projectStatePath });
+    const result = {
+      ...view,
+      executionGrant: {
+        status: "blocked",
+        grantSource,
+        blockers: initialPlanBindingBlockers,
         createCalled: false
       }
     };
@@ -110,6 +138,26 @@ export async function executeConfirmedLaunch({
   }
 
   let latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
+  const latestPlanBindingBlockers = planBindingBlockers({
+    bundle: latestBundleBeforeCreate,
+    grantSource,
+    expectedPlanId,
+    expectedPlanHash
+  });
+  if (latestPlanBindingBlockers.length) {
+    const view = await getJobView(repo, jobId, { projectStatePath });
+    const result = {
+      ...view,
+      executionGrant: {
+        status: "blocked",
+        grantSource,
+        blockers: latestPlanBindingBlockers,
+        createCalled: false
+      }
+    };
+    assertNoSensitiveLeak(result.executionGrant);
+    return result;
+  }
   const secondScopeCheck = planBound
     ? await validatePlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath })
     : await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
@@ -132,8 +180,8 @@ export async function executeConfirmedLaunch({
   const executionGrantId = grantId(jobId, grantSource);
   const planMetadata = latestBundleBeforeCreate.executionPlan?.metadata || {};
   const createAttemptNo = Number(planMetadata.create_attempt_no || latestBundleBeforeCreate.executionPlan?.plan_version || 1);
-  const expectedPlanId = latestBundleBeforeCreate.executionPlan?.plan_id || "";
-  const expectedPlanHash = latestBundleBeforeCreate.executionPlan?.plan_hash || "";
+  const currentPlanId = latestBundleBeforeCreate.executionPlan?.plan_id || "";
+  const currentPlanHash = latestBundleBeforeCreate.executionPlan?.plan_hash || "";
   const singleVariableExperiment = planMetadata.single_variable_experiment || {};
   try {
     if (planBound) {
@@ -148,10 +196,10 @@ export async function executeConfirmedLaunch({
         confirmationStatus: "confirmed_for_execution_plan",
         confirmVariable: `${EXECUTION_GRANT_CONFIRM_ENV}=${EXECUTION_GRANT_INTENT}`,
         confirmedBy: grantSource || "local_operator",
-        planId: expectedPlanId,
+        planId: currentPlanId,
         metadata: {
           binding_mode: "single_confirmation_plan",
-          plan_hash: expectedPlanHash,
+          plan_hash: currentPlanHash,
           business_intent_hash: planningIntent.business_intent_hash || "",
           advertiser_id: latestBundleBeforeCreate.job.advertiser_id,
           allowed_actions: latestBundleBeforeCreate.executionPlan?.planned_actions?.map((action) => action.action_type) || [],
@@ -177,8 +225,8 @@ export async function executeConfirmedLaunch({
       verificationTaskRef: planMetadata.task_ref || "",
       maximumCreateAttempts: Number(planMetadata.maximum_create_attempts || 3),
       singleVariableExperiment,
-      expectedPlanId,
-      expectedPlanHash,
+      expectedPlanId: currentPlanId,
+      expectedPlanHash: currentPlanHash,
       confirmedPlanExecution: planBound,
       projectStatePath,
       fetchImpl

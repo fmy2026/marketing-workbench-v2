@@ -85,6 +85,8 @@ function assertInitialWorkflow(view) {
   assert(view.isLatestCaseJob === true, "initial_view_must_be_latest_case_job");
   assert(view.caseGate?.currentGate === "run_fresh_readiness", "initial_view_case_gate_mismatch");
   assert(view.headline?.nextAction === view.caseGate?.suggestedNextAction, "headline_must_use_case_summary_next_action");
+  assert(Object.prototype.hasOwnProperty.call(view, "confirmationPreview"), "job view confirmation preview field missing");
+  assert(view.confirmationPreview === null, "fresh job must not expose a confirmation preview before a ready plan");
 }
 
 function expectedMonitorStatus(monitorChild) {
@@ -104,8 +106,10 @@ function assertDryRunWorkflow(view) {
   const node4 = nodeById(view, "account_resource_prepare");
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
     const child = node4.children.find((item) => item.id === `resource-${resourceType}`);
-    const skill = (view.skills?.latest || []).filter((item) => item.skillKey === `resource-verify-${resourceType.replace(/_/g, "-")}`).at(-1);
-    assert(child?.status === (skill?.status || node4.status), `node4 child status mismatch: ${resourceType}`);
+    const sourceSkill = (child?.trace?.skills || [])
+      .map((traceSkill) => (view.skills?.latest || []).filter((item) => item.skillKey === traceSkill.skillKey).at(-1))
+      .find(Boolean);
+    assert(child?.status === (sourceSkill?.status || node4.status), `node4 child status mismatch: ${resourceType}`);
   }
   assert(view.primaryAction?.kind !== "execute_once", "dry-run must not expose execute-once without a server grant");
 }

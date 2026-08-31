@@ -416,6 +416,59 @@ p {
   color: #ffffff;
 }
 
+.confirmation-card {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #93b7fa;
+  border-radius: 8px;
+  background: var(--blue-soft);
+}
+
+.confirmation-card strong {
+  font-size: 13px;
+}
+
+.confirmation-card p {
+  color: #174ea6;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.confirmation-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.confirmation-facts dt {
+  color: var(--muted);
+}
+
+.confirmation-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.confirmation-button {
+  height: 32px;
+  border: 1px solid var(--blue);
+  border-radius: 7px;
+  background: var(--blue);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.confirmation-button:disabled {
+  border-color: var(--line);
+  background: var(--disabled);
+  color: var(--muted);
+}
+
 .chat-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px;

@@ -6,6 +6,7 @@
   let polling = false;
   let draftCaseId = "";
   let draftCaseKey = "";
+  let pendingConfirmation = null;
   const chatMessages = [];
   const focusedNodes = new Map();
   const draftIntake = {
@@ -84,6 +85,50 @@
     stream.append(messageNode);
   }
 
+  function confirmationPreview() {
+    if (viewOnly || !job?.isLatestCaseJob) return null;
+    return pendingConfirmation || job.confirmationPreview || null;
+  }
+
+  function renderConfirmationCard(stream) {
+    const preview = confirmationPreview();
+    if (!preview) return;
+    const card = el("section", "confirmation-card");
+    card.setAttribute("aria-label", "单次创建确认");
+    card.append(el("strong", "", "单次创建确认"));
+    card.append(el("p", "", preview.actionLabel || "创建 1 个广告项目"));
+    const facts = el("dl", "confirmation-facts");
+    [
+      ["项目", preview.projectName || "待生成"],
+      ["账户", preview.advertiser || "已脱敏"],
+      ["调用上限", `${preview.maximumPlatformCalls || 1} 次`],
+      ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
+      ["Plan", preview.planId || "未生成"],
+      ["Hash", preview.planHash || "未生成"]
+    ].forEach(([label, value]) => {
+      facts.append(el("dt", "", label));
+      facts.append(el("dd", "", value));
+    });
+    card.append(facts);
+    const canExecute = job?.executionAvailability?.canExecuteOnce === true;
+    const button = el("button", "confirmation-button", canExecute ? "确认创建" : "等待平台写授权");
+    button.type = "button";
+    button.disabled = busy || !canExecute;
+    button.addEventListener("click", async () => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        await submitJobCommand("确认创建");
+      } catch (error) {
+        showError(error);
+      } finally {
+        setBusy(false);
+      }
+    });
+    card.append(button);
+    stream.append(card);
+  }
+
   function operationalMessage() {
     if (!job?.caseGate?.currentGate) return "";
     const gate = job.caseGate;
@@ -106,6 +151,7 @@
     }
     const current = operationalMessage();
     if (current) appendRenderedMessage(stream, "agent", current);
+    renderConfirmationCard(stream);
     stream.scrollTop = stream.scrollHeight;
   }
 
@@ -245,8 +291,11 @@
     document.getElementById("runModeText").textContent = busy
       ? "只读流程执行中"
       : (viewOnly ? "历史 Job · 只读" : (job ? "状态已由后端同步" : (missingFields().length ? "等待规范化输入" : "等待启动流程")));
-    document.getElementById("chatInput").disabled = viewOnly || busy || Boolean(job);
-    document.querySelector(".send-button").disabled = viewOnly || busy || Boolean(job);
+    const activeCaseConversation = job?.isLatestCaseJob === true && !viewOnly;
+    const input = document.getElementById("chatInput");
+    input.disabled = viewOnly || busy || Boolean(job && !activeCaseConversation);
+    input.placeholder = activeCaseConversation ? "输入“继续执行”或“查看状态”..." : "输入投放需求...";
+    document.querySelector(".send-button").disabled = input.disabled;
     refreshIcons();
   }
 
@@ -273,6 +322,7 @@
     polling = true;
     try {
       job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}`);
+      pendingConfirmation = job.confirmationPreview || null;
       renderAll();
     } finally {
       polling = false;
@@ -347,6 +397,8 @@
         })
       });
       job = created;
+      pendingConfirmation = job.confirmationPreview || null;
+      setActiveCaseUrl(job.caseId);
       await refreshJob();
       message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
       await runWorkflow(job.jobId);
@@ -364,16 +416,44 @@
     }
   }
 
+  function setActiveCaseUrl(caseId) {
+    if (!caseId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("job_id");
+    url.searchParams.set("case_id", caseId);
+    window.history.replaceState({}, "", url);
+  }
+
+  async function submitJobCommand(text) {
+    const preview = confirmationPreview();
+    const result = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/command`, {
+      method: "POST",
+      body: JSON.stringify({
+        message: text,
+        expected_plan_id: preview?.planId || "",
+        expected_plan_hash: preview?.planHash || ""
+      })
+    });
+    job = result.view || job;
+    pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
+    if (result.interaction?.message) message("agent", result.interaction.message);
+    renderAll();
+  }
+
   function bindInteractions() {
     document.getElementById("chatForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (!text || busy || viewOnly || job) return;
+      if (!text || busy || viewOnly) return;
       input.value = "";
       message("user", text);
       setBusy(true);
       try {
+        if (job) {
+          await submitJobCommand(text);
+          return;
+        }
         const intake = await api("/api/launch/intake", {
           method: "POST",
           body: JSON.stringify({ user_intent: text })
@@ -399,12 +479,23 @@
     try {
       const params = new URLSearchParams(window.location.search);
       const jobId = params.get("job_id");
+      const caseId = params.get("case_id");
       viewOnly = Boolean(jobId);
       if (jobId) {
         job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}`);
+      } else if (caseId) {
+        const caseView = await api(`/api/workflow-cases/${encodeURIComponent(caseId)}`);
+        const latestJobId = caseView.summary?.latest_job_id || "";
+        if (latestJobId) {
+          draftCaseId = caseId;
+          job = await api(`/api/launch/jobs/${encodeURIComponent(latestJobId)}`);
+        } else {
+          workbench = await api("/api/launch/workbench");
+        }
       } else {
         workbench = await api("/api/launch/workbench");
       }
+      pendingConfirmation = job?.confirmationPreview || null;
       renderAll();
     } catch (error) {
       document.getElementById("agentStatus").textContent = "加载失败";
