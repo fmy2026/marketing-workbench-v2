@@ -307,6 +307,28 @@ try {
   });
   assert(readinessFallbackPlan.metadata.root_blocker_codes[0] === "instance_id_long_id_transport_not_verified", "readiness_root_blocker_fallback_missing");
 
+  const sharedReadonlyDegradedPlan = buildExecutionPlanFromBundle({
+    ...bundle,
+    nodes: (bundle.nodes || []).map((node) => node.node_key === "account_resource_prepare" ? {
+      ...node,
+      output_summary: {
+        ...(node.output_summary || {}),
+        checks: [
+          ...(node.output_summary?.checks || []).filter((check) => (check.resource_type || check.resourceType) !== "backup_landing_page"),
+          {
+            resource_type: "backup_landing_page",
+            status: "blocked",
+            blocker_codes: ["site_get_target_shared_blocked"],
+            prepare_capability: { status: "blocked" }
+          }
+        ]
+      }
+    } : node)
+  });
+  assert(sharedReadonlyDegradedPlan.planStatus === "blocked", "shared_readonly_degraded_plan_not_blocked");
+  assert(sharedReadonlyDegradedPlan.metadata.root_blocker_codes[0] === "site_get_target_shared_blocked", "shared_readonly_degraded_root_not_preserved");
+  assert(!sharedReadonlyDegradedPlan.blockerCodes.includes("backup_landing_page_target_site_missing"), "shared_readonly_degraded_must_not_imply_missing_site");
+
   const attemptState = await repo.getCreateAttemptState(jobId);
   assert((attemptState.createActionCount || 0) === 0, "platform_action_recorded_by_plan_smoke");
   assert((attemptState.confirmationCount || 0) === 0, "confirmation_recorded_by_plan_smoke");
@@ -358,6 +380,10 @@ try {
     leafBlockerProjection: {
       rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
       structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")
+    },
+    sharedReadonlyDegradedPlan: {
+      status: sharedReadonlyDegradedPlan.planStatus,
+      rootBlocker: sharedReadonlyDegradedPlan.metadata.root_blocker_codes[0]
     },
     planScope: {
       exactScopeStatus: exactScope.status,

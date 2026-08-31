@@ -13,7 +13,7 @@
     "task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
     "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
     "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
-    "status": "awaiting_dmp_single_plan_confirmation",
+    "status": "backup_landing_page_shared_readonly_degraded",
     "read_order": [
       "AGENTS.md",
       "project.state.json",
@@ -26,28 +26,23 @@
     "platform_write_allowed": false,
     "platform_write_scope": {
       "binding_mode": "single_confirmation_plan",
-      "target_job_id": "JOB-MWBV2-20260831031113-7FDB77",
+      "target_job_id": "JOB-MWBV2-20260831032433-79D808",
       "target_advertiser_id": "1871922434025472",
-      "target_draft_id": "DRAFT-JOB-MWBV2-20260831031113-7FDB77",
-      "target_payload_hash": "sha256:b77ea4e3c66e4b5a533f058f2429476d13dbd64f4427e3e4cc66ce22bdc2bdaa",
-      "target_plan_id": "PLAN-JOB-MWBV2-20260831031113-7FDB77-V2",
-      "target_plan_hash": "sha256:bca5ef2fa34f4e6fee7317b6a7c30473c6decd9fabad39411f527f7a106b4811",
+      "target_draft_id": "DRAFT-JOB-MWBV2-20260831032433-79D808",
+      "target_payload_hash": "sha256:a834906691ddc3459e7842d7456b64db5a69f5029c709e1707c9ba7cc657ef33",
+      "target_plan_id": "PLAN-JOB-MWBV2-20260831032433-79D808-V1",
+      "target_plan_hash": "sha256:36b159f68f09136c8e8c51bb2c1ceebbe944533dd7d175de76bf564051353941",
       "allowed_actions": [],
-      "allowed_plan_actions": [
-        "ensure_resource:dmp_audience_package"
-      ],
+      "allowed_plan_actions": [],
       "maximum_actions": 0,
       "maximum_platform_calls": 0,
-      "action_grants": {
-        "ensure_resource:dmp_audience_package": {
-          "maximum_platform_calls": 10,
-          "retry_allowed": false
-        }
-      },
+      "action_grants": {},
       "maximum_create_calls": 0,
       "retry_allowed": false,
       "granted_by_task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
-      "granted_at": "2026-08-31T10:50:00+08:00"
+      "granted_at": "2026-08-31T11:16:56+08:00",
+      "revoked_at": "2026-08-31T11:24:33+08:00",
+      "revocation_reason": "fresh_readonly_blocked:site_get_target_shared_blocked"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

@@ -299,28 +299,49 @@ function selectConclusion({ candidates, sourceInventory, targetInventory, target
   const defaultSourceVerified = defaultRows.length === 1 && defaultRow.source_match && defaultRow.source_usable;
   const targetAlreadyUsable = defaultSourceVerified && defaultRow.target_verified === true;
   const defaultTargetSeen = defaultRows.length === 1 && defaultRow.target_exact_match === true;
+  const sourceReadonlyDegraded = sourceInventory.status !== "passed";
+  const targetSharedReadonlyDegraded = targetSharedInventory.status !== "passed";
+  const readonlyDegraded = sourceReadonlyDegraded || targetSharedReadonlyDegraded;
+  const targetSharedMissing = defaultSourceVerified && !targetSharedReadonlyDegraded && !defaultTargetSeen;
   const blockers = [
     ...(defaultRows.length !== 1 ? ["backup_landing_page_default_candidate_not_unique"] : []),
     ...(sourceInventory.status === "passed" ? [] : sourceInventory.blockers),
-    ...(targetInventory.status === "passed" ? [] : targetInventory.blockers),
+    // Ordinary target inventory is diagnostic-only. The target SHARE inventory
+    // is the sole authority for cross-account same-site visibility.
     ...(targetSharedInventory.status === "passed" ? [] : targetSharedInventory.blockers),
     ...(defaultRows.length === 1 && !defaultRow.source_match ? ["backup_landing_page_default_source_missing"] : []),
     ...(defaultRows.length === 1 && defaultRow.source_match && !defaultRow.source_usable ? ["backup_landing_page_default_source_not_usable"] : []),
-    ...(defaultSourceVerified && !defaultTargetSeen ? ["backup_landing_page_target_site_missing"] : []),
+    ...(targetSharedMissing ? ["backup_landing_page_target_site_missing"] : []),
     ...(defaultSourceVerified && defaultTargetSeen && !defaultRow.target_shared_share_type_matches ? ["backup_landing_page_target_share_type_invalid"] : []),
     ...(defaultSourceVerified && defaultTargetSeen && !defaultRow.target_resolved_usable ? ["backup_landing_page_target_site_not_usable"] : []),
     ...(defaultSourceVerified && defaultTargetSeen && defaultRow.target_resolved_usable && !defaultRow.target_hash_matches ? ["backup_landing_page_target_url_hash_mismatch"] : [])
   ];
-  const sourceBlockers = blockers.filter((blocker) => !String(blocker).startsWith("backup_landing_page_target_"));
-  const hasSourceBlockingProbeOrDefaultIssue = sourceBlockers.length > 0;
-  const conclusion = targetAlreadyUsable && !hasSourceBlockingProbeOrDefaultIssue
+  const observationStatus = targetAlreadyUsable && !readonlyDegraded
+    ? "verified"
+    : readonlyDegraded
+      ? "degraded"
+      : targetSharedMissing
+        ? "missing"
+        : "invalid";
+  const conclusion = observationStatus === "verified"
     ? "target_already_usable"
-    : defaultSourceVerified && !hasSourceBlockingProbeOrDefaultIssue
-      ? "default_source_verified"
-      : "default_source_unverified";
+    : targetSharedReadonlyDegraded
+      ? "target_shared_readonly_degraded"
+      : sourceReadonlyDegraded
+        ? "source_readonly_degraded"
+        : observationStatus === "missing"
+          ? "target_shared_missing"
+          : defaultSourceVerified
+            ? "target_shared_invalid"
+            : "default_source_unverified";
   return {
-    status: conclusion === "target_already_usable" ? "passed" : conclusion === "default_source_verified" ? "needs_confirmation" : "blocked",
+    status: observationStatus === "verified"
+      ? "passed"
+      : observationStatus === "missing" || (observationStatus === "invalid" && defaultSourceVerified)
+        ? "needs_confirmation"
+        : "blocked",
     conclusion,
+    observationStatus,
     blockers: [...new Set(blockers)],
     candidateRows,
     defaultRow,
@@ -376,7 +397,10 @@ async function persistInventory({ repo, bundle, candidates, conclusion, outputSu
         }
       });
     }
-    if (repo.upsertAccountResourceReadonlyBySourceAsset && row.is_default) {
+    // A failed authority probe says only that this round is unknown. It must
+    // not erase the last successful visible + readback_verified resource fact.
+    if (repo.upsertAccountResourceReadonlyBySourceAsset && row.is_default && conclusion.observationStatus !== "degraded") {
+      const targetMissing = conclusion.observationStatus === "missing";
       await repo.upsertAccountResourceReadonlyBySourceAsset({
         routeId: bundle.job.route_id,
         gameCode: bundle.job.game_code,
@@ -385,8 +409,8 @@ async function persistInventory({ repo, bundle, candidates, conclusion, outputSu
         sourceAssetId: row.landing_page_asset_id,
         resourceName: clean(candidate.site_name || row.site_id),
         platformResourceId: row.site_id,
-        visibilityStatus: row.target_verified ? "visible" : "unknown",
-        readbackStatus: row.target_verified ? "readback_verified" : "not_checked",
+        visibilityStatus: row.target_verified ? "visible" : targetMissing ? "not_visible" : "unknown",
+        readbackStatus: row.target_verified ? "readback_verified" : targetMissing ? "not_found" : "not_checked",
         required: true,
         metadata: {
           status: row.target_verified ? "passed" : outputSummary.conclusion,
@@ -463,6 +487,7 @@ export async function runBackupLandingPageMaterialInventorySkill({
     task_id: BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
     resource_type: "backup_landing_page",
     conclusion: conclusion.conclusion,
+    observation_status: conclusion.observationStatus,
     default_landing_page_asset_id: clean(conclusion.defaultRow?.landing_page_asset_id || ""),
     source_advertiser_id: resolvedSourceAdvertiserId,
     target_advertiser_id_present: Boolean(clean(bundle.job.advertiser_id)),
@@ -513,7 +538,9 @@ export async function runBackupLandingPageMaterialInventorySkill({
       write_allowed_this_cycle: false,
       next_action: conclusion.targetAlreadyUsable
         ? "共享库存回查已通过；无需备用页平台写入。"
-        : "人工将游戏默认来源站点共享到目标账户后，重新执行只读库存回查。"
+        : conclusion.observationStatus === "degraded"
+          ? "共享库存只读退化；恢复只读服务后重新执行 fresh 回查，不执行备用页写入。"
+          : "人工将游戏默认来源站点共享到目标账户后，重新执行只读库存回查。"
     },
     platform_write_called: false,
     create_called: false,

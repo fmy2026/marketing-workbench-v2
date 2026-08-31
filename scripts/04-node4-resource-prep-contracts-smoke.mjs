@@ -267,7 +267,7 @@ assert(eventChain.outputSummary.targetInstanceReadbackVerified === false, "refer
 
 const backup = await runBackupLandingPageSourcePrepareSkill({ repo, bundle });
 assert(backup.status === "needs_confirmation", "backup_source_ready_should_need_contract_confirmation");
-assert(backup.outputSummary.flow === "local_folder_to_material_account_to_target_account", "backup_flow_wrong");
+assert(backup.outputSummary.flow === "local_folder_to_material_account_to_target_same_site_share", "backup_flow_wrong");
 assert(backup.outputSummary.target_transport_contract_verified === false, "backup_transport_contract_should_stay_unverified");
 assert(backup.blockers.includes("backup_landing_page_target_transport_contract_unverified"), "backup_contract_blocker_missing");
 

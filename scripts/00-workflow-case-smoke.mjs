@@ -112,6 +112,39 @@ try {
   assert(node5BlockedSummary.root_blocker_codes?.length === 1, "node5_root_blocker_cardinality_invalid");
   assert(node5BlockedSummary.root_blocker_codes[0] === "nested_audience_contract_invalid", "node5_root_fallback_missing");
 
+  await repo.upsertLaunchSkillRun({
+    skillRunId: `SR-${secondJob.jobId}-BACKUP-LANDING-INVENTORY`,
+    jobId: secondJob.jobId,
+    nodeKey: "account_resource_prepare",
+    skillKey: "backup-landing-page-material-inventory",
+    attemptNo: 1,
+    status: "blocked",
+    inputHash: `sha256:${"3".repeat(64)}`,
+    outputSummary: { observation_status: "degraded" },
+    blockers: ["site_get_target_shared_blocked"],
+    evidenceRefs: [],
+    sourceUsage: "test_run"
+  });
+  await repo.upsertLaunchExecutionPlan({
+    planId: `PLAN-${secondJob.jobId}-V2`,
+    jobId: secondJob.jobId,
+    planVersion: 2,
+    planStatus: "blocked",
+    planHash: `sha256:${"4".repeat(64)}`,
+    plannedActions: [],
+    blockerCodes: ["backup_landing_page_target_not_visible"],
+    sourceUsage: "test_run",
+    metadata: {
+      resource_states: [
+        { resource_type: "backup_landing_page", state: "BLOCKED", blocker: "backup_landing_page_target_not_visible" }
+      ],
+      root_blocker_codes: ["backup_landing_page_target_not_visible"]
+    }
+  });
+  const sharedReadonlyDegradedSummary = await repo.getWorkflowCaseSummary(secondCase.case_id);
+  assert(sharedReadonlyDegradedSummary.root_blocker_codes?.[0] === "site_get_target_shared_blocked", "shared_readonly_root_blocker_not_prioritized");
+  assert(sharedReadonlyDegradedSummary.suggested_next_action === "resolve_root_blocker:site_get_target_shared_blocked", "shared_readonly_next_action_not_aligned");
+
   let runtimeCaseRequired = false;
   try {
     await createJob(repo, {
@@ -135,6 +168,7 @@ try {
     currentGate: firstSummary.current_gate,
     resourceRootBlocker: resourceBlockedSummary.root_blocker_codes[0],
     node5RootBlocker: node5BlockedSummary.root_blocker_codes[0],
+    sharedReadonlyRootBlocker: sharedReadonlyDegradedSummary.root_blocker_codes[0],
     structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,
     platformWrites: 0
   }, null, 2));

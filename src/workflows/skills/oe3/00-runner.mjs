@@ -643,7 +643,9 @@ async function executeSkill({ repo, context, skillKey }) {
         result = {
           ...result,
           status: "blocked",
-          blockers: [...new Set([...(result.blockers || []), ...(inventory.blockers || ["backup_landing_page_inventory_not_passed"])])],
+          // The inventory owns cross-account visibility. Preserve its blocker
+          // first so Node 4 and the Plan expose the actual failed authority.
+          blockers: [...new Set([...(inventory.blockers || ["backup_landing_page_inventory_not_passed"]), ...(result.blockers || [])])],
           outputSummary: {
             ...(result.outputSummary || {}),
             inventoryStatus: inventory.status || "not_run",
