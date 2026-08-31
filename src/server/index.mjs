@@ -63,7 +63,8 @@ async function serveStatic(req, res, pathname) {
   }
 }
 
-async function handleApi(req, res, pathname) {
+async function handleApi(req, res, url) {
+  const pathname = url.pathname;
   if (req.method === "GET" && pathname === "/api/launch/workbench") {
     return sendJson(res, 200, buildWorkbenchView());
   }
@@ -105,7 +106,9 @@ async function handleApi(req, res, pathname) {
   const jobId = decodeURIComponent(jobMatch[1]);
   const action = jobMatch[2] || "";
   if (req.method === "GET" && !action) {
-    const view = await getJobView(repo, jobId);
+    const view = await getJobView(repo, jobId, {
+      currentCaseReadiness: url.searchParams.get("view") !== "history"
+    });
     if (!view) return sendJson(res, 404, { error: "job_not_found" });
     return sendJson(res, 200, view);
   }
@@ -152,7 +155,7 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     if (url.pathname.startsWith("/api/")) {
-      await handleApi(req, res, url.pathname);
+      await handleApi(req, res, url);
       return;
     }
     await serveStatic(req, res, url.pathname);

@@ -80,6 +80,8 @@ v_monitor_readiness（唯一状态读取）
 
 `monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
 
+最新 Case 视图中的 Node 02 子项使用当前账户事实与 `v_monitor_readiness`：账户状态只表示账户可用性，触点引用表示受控触点与回查完整性，monitor 表示 canonical `monitor_ready`。同一 Job 的历史 Skill 结果仅作为 trace；`?job_id=` 继续按历史 Skill 显示，不使用后续 reconcile 覆盖。节点已落账进度仍属于 Job 执行历史，不能由展示层回写。
+
 ## 3. Node 04：资源状态与准备边界
 
 ```text
@@ -88,6 +90,8 @@ v_monitor_readiness（唯一状态读取）
   ├─ 缺失，但 prepare_supported 且 executor / 调用上限 / 回查合同齐全 → PLANNED
   └─ 只读失败、多候选、来源或合同缺失、executor 缺失、回查失败 → BLOCKED
 ```
+
+事件资产是账户级受控合同，不是通用模板开关：readonly 先核验同账户平台 App、目标小游戏实例的权威回查证据与事件链，再生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许编译一个未确认的 `resource_prepare` Plan，且动作仅可为 `ensure_resource:event_asset`、调用上限为一次、禁止重试；引用型实例候选或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
 
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
 
@@ -174,7 +178,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 ```text
 工作台默认 idle
   ├─ ?case_id=：恢复该 Case 的最新 Job，可继续受 Gate 约束的工作流
-  └─ ?job_id=：仅历史只读查看
+  └─ ?job_id=：仅历史只读查看，Node 02 保留该 Job 的历史 Skill 状态
 
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡

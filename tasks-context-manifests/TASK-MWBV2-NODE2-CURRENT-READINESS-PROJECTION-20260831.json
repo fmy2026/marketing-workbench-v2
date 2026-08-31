@@ -1,0 +1,72 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NODE2-CURRENT-READINESS-PROJECTION-20260831",
+  "task_ref": "tasks/TASK-MWBV2-NODE2-CURRENT-READINESS-PROJECTION-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "updated_at": "2026-08-31 22:12 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的当前显示判定与下一步方案",
+    "objective": "Unify current Case Node 02 presentation with canonical account and monitor readiness while retaining Job history as audit trace.",
+    "current_truth": "The Case Gate consumes current readiness but two Node 02 children still consume stale launch_skill_runs.",
+    "stop_condition": "No platform write, Case-Gate recomputation, or historical runtime-fact rewrite is authorized."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-NODE2-CURRENT-READINESS-PROJECTION-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE2-CURRENT-READINESS-PROJECTION-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js"
+  ],
+  "allowed_writes": [
+    "Solution Design, current-mechanism documentation, Task and Context Manifest",
+    "Node 02 display projection, API history presentation selector and focused smoke tests",
+    "test_run records created and cleaned by smoke tests only"
+  ],
+  "forbidden_actions": [
+    "monitor create or retry",
+    "resource or std_project platform write",
+    "token refresh",
+    "workflow_case_summary or dynamic runtime-fact migration",
+    "new execution Plan, confirmation or action grant",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "test:workflow-case",
+    "test:workbench-conversation",
+    "smoke:api",
+    "validate:schemas",
+    "git diff --check",
+    "test_run cleanup and zero runtime platform-action audit"
+  ],
+  "stop_conditions": [
+    "A platform write, active Case truth rewrite, or historical Skill mutation would be required.",
+    "The current/read-only history distinction cannot be conveyed without exposing sensitive data."
+  ],
+  "result": {
+    "status": "completed_without_platform_write",
+    "changes": [
+      "latest Case Node 02 current readiness projection",
+      "history presentation selector for job-only workbench view",
+      "current-versus-history regression coverage"
+    ],
+    "validation": [
+      "test:monitor",
+      "test:workflow-case",
+      "test:workbench-conversation",
+      "smoke:api",
+      "validate:schemas",
+      "git diff --check"
+    ],
+    "test_run_jobs_remaining": 0,
+    "platform_write_called": false
+  }
+}

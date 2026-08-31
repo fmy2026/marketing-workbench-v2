@@ -496,17 +496,44 @@ function childTraceView(descriptor, bundle) {
   };
 }
 
-function childStatus({ descriptor, node, bundle, executionAvailability }) {
+function currentAccountStatus(bundle = {}) {
+  const account = bundle.account || {};
+  if (!account.advertiser_id) return "blocked";
+  if (account.auth_status === "ready") return "passed";
+  return account.auth_status ? "blocked" : "waiting";
+}
+
+function currentMonitorTouchpointStatus(bundle = {}) {
+  const readiness = bundle.monitorReadiness || {};
+  if (readiness.touchpoint_ref_present === true &&
+      readiness.touchpoint_url_present === true &&
+      readiness.readback_verified === true) return "passed";
+  const blocker = String(readiness.actionable_blocker_code || "");
+  if (blocker.startsWith("touchpoint_") || readiness.readiness_status === "needs_touchpoint_readback") return "blocked";
+  return "waiting";
+}
+
+function currentMonitorStatus(bundle = {}) {
+  const readiness = bundle.monitorReadiness || {};
+  if (readiness.monitor_ready === true) return "passed";
+  if (readiness.actionable_blocker_code) return "blocked";
+  return "waiting";
+}
+
+function childStatus({ descriptor, node, bundle, executionAvailability, currentCaseReadiness = false }) {
   const source = descriptor.statusSource || {};
   const nodeFallback = publicWorkflowStatus(node.status, "waiting");
   if (source.kind === "node_status") return nodeFallback;
-  if (descriptor.id === "monitor") {
-    const readiness = bundle.monitorReadiness || {};
-    if (readiness.monitor_ready === true) return "passed";
-    if (readiness.actionable_blocker_code) return "blocked";
-    return nodeFallback;
+  if (currentCaseReadiness && source.kind === "current_account_readiness") {
+    return currentAccountStatus(bundle);
   }
-  if (source.kind === "latest_skill") {
+  if (currentCaseReadiness && source.kind === "monitor_touchpoint_readiness") {
+    return currentMonitorTouchpointStatus(bundle);
+  }
+  if (currentCaseReadiness && source.kind === "monitor_readiness") {
+    return currentMonitorStatus(bundle);
+  }
+  if (source.kind === "latest_skill" || source.skillKeys?.length) {
     const run = latestSkillRun(bundle.skillRuns || [], source.skillKeys || []);
     return run ? publicWorkflowStatus(run.status, nodeFallback) : nodeFallback;
   }
@@ -528,9 +555,15 @@ function childStatus({ descriptor, node, bundle, executionAvailability }) {
   return nodeFallback;
 }
 
-function childView(node, bundle, executionAvailability) {
+function childView(node, bundle, executionAvailability, presentation = {}) {
   return (node.children || []).map((descriptor) => {
-    const status = childStatus({ descriptor, node, bundle, executionAvailability });
+    const status = childStatus({
+      descriptor,
+      node,
+      bundle,
+      executionAvailability,
+      currentCaseReadiness: presentation.currentCaseReadiness === true
+    });
     const videoCount = descriptor.id === "resource-video_asset"
       ? (bundle.resources || []).filter((resource) => resource.resource_type === "video_asset").length
       : 0;
@@ -544,7 +577,7 @@ function childView(node, bundle, executionAvailability) {
   });
 }
 
-function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {}) {
+function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {}, presentation = {}) {
   return PHASES.map((phase) => ({
     ...phase,
     nodes: nodes.filter((node) => node.phase === phase.title).map((node) => ({
@@ -555,7 +588,7 @@ function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {
       statusLabel: statusLabel(node.status || "waiting"),
       subflows: node.subflows,
       children: bundle
-        ? childView(node, bundle, executionAvailability)
+        ? childView(node, bundle, executionAvailability, presentation)
         : (node.children || []).map((child) => ({
           id: child.id,
           label: child.label,
@@ -659,7 +692,7 @@ function primaryActionView(bundle = {}, createReadiness = {}, executionAvailabil
   };
 }
 
-export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null) {
+export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null, presentation = {}) {
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
     const row = dbNodes.get(node.nodeKey) || {};
@@ -673,13 +706,15 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       evidenceRefs: row.evidence_refs || []
     };
   });
-  const phases = workflowPhasesView(nodes, bundle, executionAvailability);
+  const caseGate = caseGateView(caseSummary, bundle.job.job_id);
+  const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
+    currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false
+  });
   const diagnostics = diagnosticsFromNodes(nodes);
   const execution = executionView(bundle);
   const createReadiness = createReadinessView(bundle, runtimeChecks);
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
-  const caseGate = caseGateView(caseSummary, bundle.job.job_id);
   const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
   const headline = {
@@ -829,7 +864,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   });
 }
 
-async function buildPublicJobView(repo, bundle, { projectStatePath } = {}) {
+async function buildPublicJobView(repo, bundle, { projectStatePath, currentCaseReadiness = true } = {}) {
   const [runtimeChecks, executionAvailability, awemeReadiness, caseSummary] = await Promise.all([
     buildRuntimeChecks(repo, bundle),
     getExecutionGrantAvailability({ repo, bundle, projectStatePath }),
@@ -840,7 +875,9 @@ async function buildPublicJobView(repo, bundle, { projectStatePath } = {}) {
     }),
     repo.getWorkflowCaseSummary(bundle.job.case_id)
   ]);
-  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability, awemeReadiness, caseSummary);
+  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability, awemeReadiness, caseSummary, {
+    currentCaseReadiness
+  });
 }
 
 export async function getJobView(repo, jobId, options = {}) {

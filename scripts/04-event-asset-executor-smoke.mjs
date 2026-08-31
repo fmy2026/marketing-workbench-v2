@@ -116,7 +116,11 @@ function baseBundle({ jobId = "JOB-SMOKE-EVENT-ASSET-EXECUTOR", resources = null
         resource_type: "micro_app_instance",
         visibility_status: "needs_confirmation",
         readback_status: "not_checked",
-        metadata: {}
+        metadata: {
+          event_chain_readonly_contract: {
+            target_instance_readback_verified: true
+          }
+        }
       }
     ],
     resourceBlueprints: []

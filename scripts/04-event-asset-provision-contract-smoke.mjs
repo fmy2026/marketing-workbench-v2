@@ -21,7 +21,8 @@ const HASH = `sha256:${"a".repeat(64)}`;
 function bundle({
   advertiserId = "1871922434025472",
   provision = {},
-  eventContract = { status: "blocked", blocker_codes: ["event_asset_target_not_found"] }
+  eventContract = { status: "blocked", blocker_codes: ["event_asset_target_not_found"] },
+  instanceReadbackVerified = false
 } = {}) {
   return {
     job: {
@@ -59,7 +60,11 @@ function bundle({
       resource_type: "micro_app_instance",
       visibility_status: "needs_confirmation",
       readback_status: "not_checked",
-      metadata: {}
+      metadata: {
+        event_chain_readonly_contract: {
+          target_instance_readback_verified: instanceReadbackVerified
+        }
+      }
     }]
   };
 }
@@ -92,7 +97,7 @@ const missingTemplate = evaluateEventAssetProvisionContract({
 });
 assert(missingTemplate.blockers.includes("event_asset_provision_template_ref_mismatch"), "missing_template_ref_not_blocked");
 
-const verifiedBundle = bundle();
+const verifiedBundle = bundle({ instanceReadbackVerified: true });
 const verifiedProvision = {
   version: "test",
   template_status: "ready",
@@ -113,7 +118,7 @@ const verifiedProvision = {
     request_field_manifest: [...EVENT_ASSET_CREATE_FIELD_NAMES]
   }
 };
-const eligible = evaluateEventAssetProvisionContract({ bundle: bundle({ provision: verifiedProvision }) });
+const eligible = evaluateEventAssetProvisionContract({ bundle: bundle({ provision: verifiedProvision, instanceReadbackVerified: true }) });
 assert(eligible.status === "ready_for_plan", "verified_contract_should_be_plan_eligible");
 assert(eligible.outputSummary.proposedAction === EVENT_ASSET_PROVISION_ACTION, "event_action_missing");
 assert(Boolean(eligible.outputSummary.idempotencyScope), "event_idempotency_scope_missing");
@@ -123,24 +128,31 @@ assert(eligible.outputSummary.templateHashMatchesExpected === true, "event_templ
 const crossAccount = evaluateEventAssetProvisionContract({ bundle: bundle({
   advertiserId: "1871922414575753",
   provision: { ...verifiedProvision },
-  eventContract: { status: "blocked", blocker_codes: ["event_asset_target_not_found"] }
+  eventContract: { status: "blocked", blocker_codes: ["event_asset_target_not_found"] },
+  instanceReadbackVerified: true
 }) });
 assert(crossAccount.status === "blocked", "cross_account_contract_must_fail_closed");
 assert(crossAccount.blockers.includes("event_asset_provision_advertiser_scope_mismatch"), "cross_account_scope_blocker_missing");
 
 const missingTargetReadiness = eventChainResourceReadiness({
-  bundle: bundle({ provision: verifiedProvision }),
+  bundle: bundle({ provision: verifiedProvision, instanceReadbackVerified: true }),
   resourceType: "event_asset"
 });
 assert(missingTargetReadiness.status === "blocked", "missing_target_must_stay_blocked");
 assert(missingTargetReadiness.blockers[0] === "event_asset_target_not_found", "target_blocker_must_remain_primary");
 assert(missingTargetReadiness.outputSummary.eventAssetProvisionPlanEligible === true, "eligible_provision_not_exposed");
 
+const referenceOnlyInstance = evaluateEventAssetProvisionContract({
+  bundle: bundle({ provision: verifiedProvision })
+});
+assert(referenceOnlyInstance.blockers.includes("event_asset_provision_instance_readback_unverified"), "reference_only_instance_must_fail_closed");
+
 const result = {
   status: "passed",
   unverifiedBlocked: unverified.status === "blocked",
   missingTemplateBlocked: missingTemplate.status === "blocked",
   verifiedProvisionEligible: eligible.outputSummary.planEligible,
+  referenceOnlyInstanceBlocked: referenceOnlyInstance.blockers.includes("event_asset_provision_instance_readback_unverified"),
   targetMissingStillBlocked: missingTargetReadiness.status === "blocked",
   platformWriteCalled: false,
   rawRequestStored: false,

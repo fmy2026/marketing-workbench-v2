@@ -325,12 +325,17 @@
     if (!job?.jobId || polling) return;
     polling = true;
     try {
-      job = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}`);
+      job = await api(jobViewPath(job.jobId));
       pendingConfirmation = job.confirmationPreview || null;
       renderAll();
     } finally {
       polling = false;
     }
+  }
+
+  function jobViewPath(jobId) {
+    const view = viewOnly ? "?view=history" : "";
+    return `/api/launch/jobs/${encodeURIComponent(jobId)}${view}`;
   }
 
   async function runWorkflow(jobId) {
@@ -486,13 +491,13 @@
       const caseId = params.get("case_id");
       viewOnly = Boolean(jobId);
       if (jobId) {
-        job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}`);
+        job = await api(jobViewPath(jobId));
       } else if (caseId) {
         const caseView = await api(`/api/workflow-cases/${encodeURIComponent(caseId)}`);
         const latestJobId = caseView.summary?.latest_job_id || "";
         if (latestJobId) {
           draftCaseId = caseId;
-          job = await api(`/api/launch/jobs/${encodeURIComponent(latestJobId)}`);
+          job = await api(jobViewPath(latestJobId));
         } else {
           workbench = await api("/api/launch/workbench");
         }

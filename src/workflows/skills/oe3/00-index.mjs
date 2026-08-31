@@ -62,10 +62,15 @@ export {
   buildEventAssetCreateTemplateManifest,
   eventAssetCreateContractShape,
   eventAssetOfficialCreateContractHash,
+  eventAssetInstanceReadbackVerified,
   eventAssetTemplateRef,
   eventAssetTemplateHash,
   evaluateEventAssetProvisionContract
 } from "./04-event-asset-provision-contract.mjs";
+export {
+  buildEventAssetAccountProvisionContract,
+  syncEventAssetAccountProvisionContract
+} from "./04-event-asset-account-contract.mjs";
 export {
   EVENT_CONFIGS_PROVISION_ACTION,
   EVENT_CONFIG_BASELINE_EVENTS,

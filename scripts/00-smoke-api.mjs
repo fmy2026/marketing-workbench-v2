@@ -88,7 +88,10 @@ function assertInitialWorkflow(view) {
   assert(intake.status === "passed", "initial intake node must be passed");
   assert(intake.children.every((child) => child.status === "passed"), "initial intake children must be passed");
   const downstream = workflowNodes(view).filter((node) => node.id !== "launch_intake");
-  assert(downstream.every((node) => node.children.every((child) => child.id === "monitor" || child.status === "waiting")), "initial downstream children must be waiting except a persisted monitor blocker");
+  const currentNodeTwoChildren = new Set(["account-status", "touchpoint-reference", "monitor"]);
+  assert(downstream.every((node) => node.children.every((child) =>
+    currentNodeTwoChildren.has(child.id) || child.status === "waiting"
+  )), "initial downstream children must wait except current Node 02 readiness projections");
   assert(view.primaryAction?.kind === "run" && view.primaryAction?.enabled === true, "initial action must be safe dry-run");
   assert(view.caseId, "initial_view_case_id_missing");
   assert(view.isLatestCaseJob === true, "initial_view_must_be_latest_case_job");

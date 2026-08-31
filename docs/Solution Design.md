@@ -43,6 +43,14 @@ Node 02 fresh readonly reconcile 必须以平台返回的受控触点 URL 与其
 
 `workflow_case_summary` 在 `run_monitor_readonly` 状态必须直接选择 `v_monitor_readiness.actionable_blocker_code`，不得以历史 Skill blocker 回退覆盖它。monitor 已 READY 后，`monitor_id_missing`、`touchpoint_url_missing` 和 `touchpoint_url_hash_mismatch` 等历史 Node 02 Skill blocker 必须从 root 排序中排除，让 Case 进入下一项真实非 monitor blocker。工作台回查成功提示必须读取刷新后的 canonical `monitor_ready=true`；否则只说明“已找到 monitor，但受控触点回查未完成”，并不暗示可继续创建。
 
+## 已批准设计：最新 Case 的 Node 02 当前就绪投影
+
+工作台的 `?case_id=` 最新 Case 视图必须把 Node 02 的当前就绪状态与历史 Skill 取证分开：账户状态读取当前 `advertiser_accounts`，触点引用与 monitor 读取 `v_monitor_readiness`。只有当前账户、受控触点与 canonical readiness 均满足时才显示通过；当前 readiness 有对应 blocker 时显示阻断；未知时显示等待。
+
+`?job_id=` 是历史只读视图，继续展示该 Job 的 `launch_skill_runs`，不得被后续 readonly reconcile 覆盖。最新 Case 视图可在每个子项的 trace 中保留这些历史 Skill 结果供审计，但不得用它们覆盖当前 canonical 状态。此展示修复不改写 `launch_node_runs`、`launch_skill_runs`、Case Gate、root blocker 或任何平台动作。
+
+事件资产仍按账户级合同 fail-closed：仅在 fresh readonly 已验证目标 App、目标小游戏实例的权威回查证据和事件资产链路，且当前账户的 `target_advertiser_id`、`template_ref`、动态 `template_hash` 与官方创建合同匹配时，才可编译只含 `ensure_resource:event_asset` 的 fresh `resource_prepare` Plan。引用型实例候选、缺失实例回查或跨账户模板都只能形成 blocker，不能持久化可执行合同。该专项不确认、不执行写入；未来执行必须使用新的 Task、Plan/hash 与单次确认。
+
 ## 何时使用
 
 以下情况必须读取：

@@ -59,6 +59,46 @@ try {
   const touchpointSummary = await repo.getWorkflowCaseSummary(touchpointCase.case_id);
   assert(touchpointSummary.monitor_resolved === true, "monitor_readonly_reconcile_must_promote_verified_touchpoint");
   assert(touchpointSummary.root_blocker_codes?.[0] !== "monitor_id_missing", "verified_monitor_must_not_fall_back_to_stale_skill");
+  await repo.upsertLaunchSkillRun({
+    skillRunId: `SR-${touchpointJob.jobId}-STALE-ACCOUNT`,
+    jobId: touchpointJob.jobId,
+    nodeKey: "creation_context",
+    skillKey: "context-resolve-account",
+    attemptNo: 1,
+    status: "blocked",
+    inputHash: `sha256:${"8".repeat(64)}`,
+    outputSummary: { monitorIdPresent: false },
+    blockers: ["monitor_id_missing"],
+    evidenceRefs: [],
+    sourceUsage: "test_run"
+  });
+  await repo.upsertLaunchSkillRun({
+    skillRunId: `SR-${touchpointJob.jobId}-STALE-TOUCHPOINT`,
+    jobId: touchpointJob.jobId,
+    nodeKey: "creation_context",
+    skillKey: "context-resolve-touchpoint",
+    attemptNo: 1,
+    status: "blocked",
+    inputHash: `sha256:${"7".repeat(64)}`,
+    outputSummary: { touchpointUrlPresent: false },
+    blockers: ["touchpoint_url_missing"],
+    evidenceRefs: [],
+    sourceUsage: "test_run"
+  });
+  const [currentReadinessView, historicalReadinessView] = await Promise.all([
+    getJobView(repo, touchpointJob.jobId),
+    getJobView(repo, touchpointJob.jobId, { currentCaseReadiness: false })
+  ]);
+  const nodeChildren = (view) => (view.phases || [])
+    .flatMap((phase) => phase.nodes || [])
+    .find((node) => node.id === "creation_context")?.children || [];
+  const currentChildren = new Map(nodeChildren(currentReadinessView).map((child) => [child.id, child]));
+  const historicalChildren = new Map(nodeChildren(historicalReadinessView).map((child) => [child.id, child]));
+  assert(currentChildren.get("account-status")?.status === "passed", "latest_case_account_status_must_use_current_account_truth");
+  assert(currentChildren.get("touchpoint-reference")?.status === "passed", "latest_case_touchpoint_must_use_canonical_readiness");
+  assert(currentChildren.get("monitor")?.status === "passed", "latest_case_monitor_must_use_canonical_readiness");
+  assert(historicalChildren.get("account-status")?.status === "blocked", "history_account_status_must_preserve_skill_snapshot");
+  assert(historicalChildren.get("touchpoint-reference")?.status === "blocked", "history_touchpoint_status_must_preserve_skill_snapshot");
 
   const [firstCase, secondCase] = await Promise.all([makeCase("first"), makeCase("second")]);
   assert(firstCase.case_id !== secondCase.case_id, "case_ids_must_differ");

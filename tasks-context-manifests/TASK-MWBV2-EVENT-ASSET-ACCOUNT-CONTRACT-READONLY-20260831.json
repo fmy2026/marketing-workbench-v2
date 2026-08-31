@@ -1,0 +1,68 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-ASSET-ACCOUNT-CONTRACT-READONLY-20260831",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-ASSET-ACCOUNT-CONTRACT-READONLY-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "updated_at": "2026-08-31 22:20 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的当前显示判定与下一步方案",
+    "objective": "Perform one event-asset account-contract readonly reconciliation and compile at most one unconfirmed single-resource plan when all account-scoped prerequisites pass.",
+    "current_truth": "The active Case has an event-asset plan-eligibility blocker after canonical monitor readiness is verified.",
+    "stop_condition": "Any platform write, confirmation, action grant, token refresh, ambiguous instance binding, or missing authoritative instance evidence stops the task."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-ASSET-ACCOUNT-CONTRACT-READONLY-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-ACCOUNT-CONTRACT-READONLY-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-event-asset-provision-contract.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest and current mechanism documentation",
+    "event-asset account-contract compiler, readonly CLI and focused smoke tests",
+    "account resource readonly evidence and contract metadata only after successful readonly preconditions",
+    "one unconfirmed single-resource execution Plan only when all preconditions pass",
+    "test_run records created and cleaned by smoke tests only"
+  ],
+  "forbidden_actions": [
+    "monitor, event asset, material or std_project platform write",
+    "platform retry, Plan confirmation, action grant or global guardrail change",
+    "token refresh",
+    "reuse of blocked, stale or consumed Plan",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "test:event-chain-readonly",
+    "test:event-asset-provision-contract",
+    "test:resource-action-registry",
+    "test:execution-plan",
+    "test:workflow-case",
+    "validate:schemas",
+    "git diff --check",
+    "test_run cleanup and zero platform-write/confirmation/action-grant audit"
+  ],
+  "stop_conditions": [
+    "Target instance cannot be authoritatively verified by readonly evidence.",
+    "The fresh event chain has an ambiguous target, App mismatch, credential failure, or external write would be required.",
+    "The generated contract or output would contain sensitive data."
+  ],
+  "result": {
+    "status": "completed_safe_stop",
+    "readonly_reconcile": "blocked_by_instance_readback_evidence",
+    "account_contract_stored": false,
+    "execution_plan_created": false,
+    "platform_actions_created": 0,
+    "created_objects": 0,
+    "launch_confirmations": 0,
+    "test_run_remaining": 0,
+    "next_step": "Create a separate readonly micro-app-instance authority diagnosis Task; no event-asset write is authorized."
+  }
+}

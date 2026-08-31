@@ -211,7 +211,8 @@ function eventContractFor({
   goalSummary,
   dbtProbe,
   dbtSummary,
-  instance
+  instance,
+  priorInstanceReadbackVerified = false
 }) {
   return sanitizeForPublic({
     status,
@@ -230,8 +231,9 @@ function eventContractFor({
     target_instance_candidate_present: Boolean(instance.instanceId),
     target_instance_candidate_count: instance.instanceCandidateCount,
     target_instance_reference_only: instance.instanceReferenceOnly,
-    target_instance_readback_verified: status === "passed" &&
-      (inventory.instanceBindingObservable !== true || Number(inventory.instanceBoundCandidateCount || 0) === 1),
+    target_instance_readback_verified: (status === "passed" &&
+      (inventory.instanceBindingObservable !== true || Number(inventory.instanceBoundCandidateCount || 0) === 1)) ||
+      priorInstanceReadbackVerified === true,
     available_events_status: safeProbe(availableProbe).status || "not_called",
     available_events: safeProbe(availableProbe),
     available_event_count: Number(availableSummary?.eventCount || 0),
@@ -647,6 +649,8 @@ export async function runEventChainReadonlySkill({
 
   blockers = [...new Set(blockers)];
   const status = blockers.length ? "blocked" : "passed";
+  const priorInstanceReadbackVerified = resource(bundle, "micro_app_instance")
+    .metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true;
   const contract = eventContractFor({
     status,
     blockers,
@@ -660,7 +664,8 @@ export async function runEventChainReadonlySkill({
     goalSummary,
     dbtProbe,
     dbtSummary,
-    instance
+    instance,
+    priorInstanceReadbackVerified
   });
   const evidenceRef = await writeEvidence({ repo, bundle, contract });
   const contractWithEvidence = { ...contract, evidence_ref: evidenceRef };

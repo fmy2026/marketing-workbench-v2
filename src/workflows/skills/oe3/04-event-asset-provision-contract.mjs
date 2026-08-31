@@ -80,6 +80,11 @@ function microAppInstanceId(bundle = {}) {
   };
 }
 
+export function eventAssetInstanceReadbackVerified(bundle = {}) {
+  const item = resource(bundle, "micro_app_instance");
+  return resourceReady(item) || item.metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true;
+}
+
 export function buildEventAssetCreateTemplateManifest({ bundle = {} } = {}) {
   const app = bundle.platformApp || {};
   const instance = microAppInstanceId(bundle);
@@ -174,6 +179,7 @@ export function evaluateEventAssetProvisionContract({ bundle = {} } = {}) {
       : ["event_asset_provision_platform_app_unverified"]),
     ...(instance.ambiguous ? ["event_asset_provision_instance_ambiguous"] : []),
     ...(instance.id ? [] : ["event_asset_provision_instance_missing"]),
+    ...(eventAssetInstanceReadbackVerified(bundle) ? [] : ["event_asset_provision_instance_readback_unverified"]),
     ...(clean(expectedTemplate.mini_program_asset.mini_program_id) ? [] : ["event_asset_provision_mini_program_id_missing"]),
     ...(clean(expectedTemplate.mini_program_asset.mini_program_name) ? [] : ["event_asset_provision_mini_program_name_missing"])
   ];
@@ -208,6 +214,7 @@ export function evaluateEventAssetProvisionContract({ bundle = {} } = {}) {
       microAppInstanceIdPresent: Boolean(instance.id),
       microAppInstanceCandidateCount: instance.candidateCount,
       microAppInstanceSource: instance.source,
+      microAppInstanceReadbackVerified: eventAssetInstanceReadbackVerified(bundle),
       planEligible,
       proposedAction: planEligible ? EVENT_ASSET_PROVISION_ACTION : "",
       idempotencyScope: planEligible

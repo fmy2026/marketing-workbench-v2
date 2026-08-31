@@ -34,6 +34,24 @@ function skillTrace(skillKeys = []) {
 
 function derivedTrace(kind) {
   const descriptions = {
+    current_account_readiness: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#currentAccountStatus",
+      inputContract: ["advertiser_accounts.advertiser_id", "advertiser_accounts.auth_status"],
+      outputContract: ["child_status"],
+      stopConditions: ["account_missing", "account_not_ready"]
+    },
+    monitor_touchpoint_readiness: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#currentMonitorTouchpointStatus",
+      inputContract: ["v_monitor_readiness.touchpoint_ref_present", "v_monitor_readiness.touchpoint_url_present", "v_monitor_readiness.readback_verified", "v_monitor_readiness.actionable_blocker_code"],
+      outputContract: ["child_status"],
+      stopConditions: ["touchpoint_url_missing", "touchpoint_url_hash_mismatch"]
+    },
+    monitor_readiness: {
+      resolverRef: "src/workflows/launchWorkflow.mjs#currentMonitorStatus",
+      inputContract: ["v_monitor_readiness.monitor_ready", "v_monitor_readiness.actionable_blocker_code"],
+      outputContract: ["child_status"],
+      stopConditions: ["monitor_readiness_not_ready"]
+    },
     node_status: {
       resolverRef: "src/workflows/launchWorkflow.mjs#childStatus",
       inputContract: ["launch_node_runs.status"],
@@ -83,9 +101,19 @@ function derivedTrace(kind) {
 }
 
 function traceForStatusSource(statusSource = {}) {
-  return statusSource.kind === "latest_skill"
-    ? skillTrace(statusSource.skillKeys || [])
-    : derivedTrace(statusSource.kind);
+  const historicalSkills = skillTrace(statusSource.skillKeys || []);
+  if (statusSource.kind === "latest_skill") return historicalSkills;
+  const derived = derivedTrace(statusSource.kind);
+  if (!historicalSkills.skills.length) return derived;
+  return Object.freeze({
+    ...derived,
+    type: "derived_with_historical_skill_trace",
+    selection: "current_case_readiness_else_historical_skill",
+    inputContract: Object.freeze(unique([...derived.inputContract, ...historicalSkills.inputContract])),
+    outputContract: Object.freeze(unique([...derived.outputContract, ...historicalSkills.outputContract])),
+    stopConditions: Object.freeze(unique([...derived.stopConditions, ...historicalSkills.stopConditions])),
+    skills: historicalSkills.skills
+  });
 }
 
 function child(id, label, statusSource) {
@@ -140,9 +168,9 @@ export const WORKFLOW_NODES = Object.freeze([
     output: "creation_context",
     subflows: Object.freeze(["账户状态", "触点引用", "monitor", "平台 App"]),
     children: Object.freeze([
-      child("account-status", "账户状态", { kind: "latest_skill", skillKeys: ["context-resolve-account"] }),
-      child("touchpoint-reference", "触点引用", { kind: "latest_skill", skillKeys: ["context-resolve-touchpoint"] }),
-      child("monitor", "monitor", { kind: "latest_skill", skillKeys: ["monitor-readback", "monitor-execute-once", "monitor-plan-compile", "monitor-readonly-reconcile", "monitor-state-read"] }),
+      child("account-status", "账户状态", { kind: "current_account_readiness", skillKeys: ["context-resolve-account"] }),
+      child("touchpoint-reference", "触点引用", { kind: "monitor_touchpoint_readiness", skillKeys: ["context-resolve-touchpoint"] }),
+      child("monitor", "monitor", { kind: "monitor_readiness", skillKeys: ["monitor-readback", "monitor-execute-once", "monitor-plan-compile", "monitor-readonly-reconcile", "monitor-state-read"] }),
       child("platform-app", "平台 App", { kind: "latest_skill", skillKeys: ["context-resolve-platform-app"] })
     ]),
     bootstrapCapabilities: Object.freeze([

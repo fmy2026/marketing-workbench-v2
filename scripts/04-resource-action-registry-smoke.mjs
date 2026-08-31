@@ -268,7 +268,11 @@ function eventProvisionReadyBundle() {
             platform_resource_id: "",
             visibility_status: "needs_confirmation",
             readback_status: "not_checked",
-            metadata: {}
+            metadata: {
+              event_chain_readonly_contract: {
+                target_instance_readback_verified: true
+              }
+            }
           }
         : item),
     resourceBlueprints: [{
