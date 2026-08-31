@@ -4,7 +4,7 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
-import { createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
+import { buildWorkbenchView, createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
@@ -64,10 +64,7 @@ async function serveStatic(req, res, pathname) {
 
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/launch/workbench") {
-    return sendJson(res, 200, {
-      state: "idle",
-      workbenchUrl: "http://127.0.0.1:3000/"
-    });
+    return sendJson(res, 200, buildWorkbenchView());
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {

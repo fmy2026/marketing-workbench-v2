@@ -1,5 +1,5 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, createWorkflowCase } from "../src/workflows/launchWorkflow.mjs";
+import { createJob, createWorkflowCase, getJobView } from "../src/workflows/launchWorkflow.mjs";
 
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
@@ -242,6 +242,24 @@ try {
   }
   assert(runtimeCaseRequired, "runtime_job_must_require_explicit_case");
 
+  const historicalJob = await createJob(repo, {
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: firstCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:history:${Date.now()}`
+  });
+  cleanupJobIds.push(historicalJob.jobId);
+  const [historicalView, latestView] = await Promise.all([
+    getJobView(repo, firstJob.jobId),
+    getJobView(repo, historicalJob.jobId)
+  ]);
+  assert(historicalView.caseId === firstCase.case_id, "historical_view_case_id_missing");
+  assert(historicalView.isLatestCaseJob === false, "historical_view_must_not_claim_current_case_job");
+  assert(latestView.isLatestCaseJob === true, "latest_view_must_claim_current_case_job");
+  assert(historicalView.caseGate.currentGate === latestView.caseGate.currentGate, "historical_and_latest_case_gate_must_share_projection");
+
   console.log(JSON.stringify({
     status: "passed",
     sameAccountIsolated: true,
@@ -254,6 +272,7 @@ try {
     sharedReadonlyRootBlocker: sharedReadonlyDegradedSummary.root_blocker_codes[0],
     confirmedResourceStopRootBlocker: confirmedResourceStopSummary.root_blocker_codes[0],
     completedCreateGate: completionSummary.current_gate,
+    historicalJobSeparated: historicalView.isLatestCaseJob === false && latestView.isLatestCaseJob === true,
     structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,
     platformWrites: 0
   }, null, 2));

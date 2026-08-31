@@ -1,0 +1,99 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 14:52 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make the workbench intake and node view consume the single workflow truth without triggering platform writes.",
+    "mode": "frontend_case_bound_dry_run_and_readonly_truth_projection",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/server/index.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-smoke-api.mjs"
+  ],
+  "scope": {
+    "frontend": [
+      "frontend/index.html",
+      "frontend/app.js",
+      "frontend/styles.css"
+    ],
+    "backend": [
+      "src/server/index.mjs",
+      "src/workflows/launchWorkflow.mjs"
+    ],
+    "validation": [
+      "scripts/00-smoke-api.mjs"
+    ]
+  },
+  "allowed_writes": [
+    "Task, Manifest and project control-plane updates",
+    "frontend and backend view-model code",
+    "test_run records created and cleaned by existing smoke scripts"
+  ],
+  "forbidden_actions": [
+    "all external platform writes",
+    "resource preparation execution",
+    "std_project/create or retry",
+    "budget, bid, monitor or OAuth mutation",
+    "database schema or workflow_case_summary View changes",
+    "Node or Skill status semantic changes",
+    "persisting raw user transcript, token, secret, Cookie, complete URL, raw payload or raw response"
+  ],
+  "validation_plan": [
+    "node --check frontend/app.js",
+    "node --check src/server/index.mjs",
+    "node --check src/workflows/launchWorkflow.mjs",
+    "npm run smoke:api",
+    "npm run test:workflow-case",
+    "npm run smoke:workflow-skills",
+    "browser readonly verification for idle workbench and an explicit historical job",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "implementation requires an external platform write",
+    "frontend derives or persists current Gate instead of reading workflow_case_summary",
+    "a runtime Job could be created without case_id",
+    "historical Job and Case-current data cannot be labeled separately",
+    "API view exposes a sensitive value"
+  ],
+  "result": {
+    "intake_is_multi_turn_and_explicit_start": true,
+    "runtime_job_requires_case_id": true,
+    "idle_workbench_uses_registry_projection": true,
+    "node_visual_status_is_binary": true,
+    "case_gate_is_readonly_summary_projection": true,
+    "historical_job_is_labeled_separately": true,
+    "platform_write_called": false,
+    "database_schema_changed": false,
+    "validation": [
+      "node --check frontend/app.js",
+      "node --check src/server/index.mjs",
+      "node --check src/workflows/launchWorkflow.mjs",
+      "npm run smoke:api",
+      "npm run test:workflow-case",
+      "npm run smoke:workflow-skills",
+      "browser readonly verification",
+      "git diff --check"
+    ]
+  },
+  "completed_at": "2026-08-31 15:03 CST"
+}

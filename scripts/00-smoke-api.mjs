@@ -1,5 +1,5 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { buildWorkbenchView, createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { WORKFLOW_NODES } from "../src/workflows/skills/oe3/00-workflow-node-registry.mjs";
 
@@ -60,6 +60,18 @@ function assertWorkflowShape(view) {
   assert(nodes.every((node) => Array.isArray(node.subflows) && node.subflows.every((item) => typeof item === "string")), "legacy subflows compatibility changed");
 }
 
+function assertWorkbenchShape(view) {
+  const nodes = workflowNodes(view);
+  const children = workflowChildren(view);
+  const registryChildren = WORKFLOW_NODES.flatMap((node) => node.children || []);
+  assert(view.state === "idle", "workbench_state_must_be_idle");
+  assert((view.intake?.requiredFields || []).map((field) => field.key).join(",") === "route_id,game_code,advertiser_id", "workbench_intake_fields_mismatch");
+  assert(nodes.length === WORKFLOW_NODES.length, "workbench_node_count_must_come_from_registry");
+  assert(children.length === registryChildren.length, "workbench_child_count_must_come_from_registry");
+  assert(nodes.every((node) => node.status === "waiting"), "idle_workbench_nodes_must_be_waiting");
+  assert(children.every((child) => child.status === "waiting"), "idle_workbench_children_must_be_waiting");
+}
+
 function assertInitialWorkflow(view) {
   assertWorkflowShape(view);
   assertAwemeReadinessShape(view);
@@ -69,6 +81,10 @@ function assertInitialWorkflow(view) {
   const downstream = workflowNodes(view).filter((node) => node.id !== "launch_intake");
   assert(downstream.every((node) => node.children.every((child) => child.status === "waiting")), "initial downstream children must be waiting");
   assert(view.primaryAction?.kind === "run" && view.primaryAction?.enabled === true, "initial action must be safe dry-run");
+  assert(view.caseId, "initial_view_case_id_missing");
+  assert(view.isLatestCaseJob === true, "initial_view_must_be_latest_case_job");
+  assert(view.caseGate?.currentGate === "run_fresh_readiness", "initial_view_case_gate_mismatch");
+  assert(view.headline?.nextAction === view.caseGate?.suggestedNextAction, "headline_must_use_case_summary_next_action");
 }
 
 function expectedMonitorStatus(monitorChild) {
@@ -166,6 +182,7 @@ function assertPayloadContract(view) {
 }
 
 try {
+  assertWorkbenchShape(buildWorkbenchView());
   const firstDraft = await createDraft(`smoke:api:first:${new Date().toISOString()}`);
   const secondDraft = await createDraft(`smoke:api:second:${new Date().toISOString()}`);
 

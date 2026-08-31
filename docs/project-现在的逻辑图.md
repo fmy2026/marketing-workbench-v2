@@ -1,786 +1,648 @@
-# marketing-workbench-v2｜项目当前唯一底层机制逻辑图
+# marketing-workbench-v2｜v2 当前唯一底层机制：完整文本逻辑图
 
-> 文档性质：当前 OE3 / JSZC 工作流机制的静态说明。
+> 文档性质：静态架构与运行合同说明，不是运行报表。
 >
-> 本文只解释“系统如何判断、计划、授权、执行、回查和收口”。账户、Case、Job、资源、平台动作和 blocker 的实时状态只看 PostgreSQL `marketing_workbench_v2.mwb`，尤其是 `mwb.workflow_case_summary`。不得从本文恢复动态运行事实。
+> 动态账户、Case、Job、Plan、确认、资源、平台动作、项目 ID 与 blocker 的唯一真值在 PostgreSQL marketing_workbench_v2.mwb；消费端只读 mwb.workflow_case_summary。本文不保存或恢复动态运行事实。
 
 ## 0. 一句话结论
 
-当前 v2 已收敛为一条唯一主链：
+v2 只有一条受控主链：
 
-```text
-业务 Case
+~~~text
+Task / Manifest + 全局 Guardrail
+→ Workflow Case
 → fresh runtime Job
-→ Node 1-4 只读发现与资源三态分类
-→ 一份不可变 Execution Plan
-→ 一次 Plan-bound 人工确认
-→ Node 5 按 Plan 执行缺失资源并生成确定性 Draft
-→ Node 6 恰好一次 std_project/create
-→ Node 7 最多三次只读回查
-→ Postgres 写入脱敏证据
-→ workflow_case_summary 输出唯一当前状态
-```
+→ Node 01–04 readonly
+→ READY / PLANNED / BLOCKED
+→ immutable Execution Plan
+→ exact plan_id + plan_hash 人工确认
+→ Node 05 只执行 Plan 内资源并写后回查
+→ fresh Draft / ledger / wire body / 独立 Create Plan
+→ Node 06 std_project/create 恰好一次
+→ Node 07 只读回查与精确 ID 一致性
+→ Postgres 脱敏账本
+→ mwb.workflow_case_summary 唯一当前 Gate
+~~~
 
-唯一节点来源：
+六条不可绕过的规则：
 
-```text
-src/workflows/skills/oe3/00-workflow-node-registry.mjs
-```
+~~~text
+1. 没有 fresh readonly 结果，不生成可执行 Plan。
+2. 没有 prepare_supported、executor、写后回查合同，不计划资源写入。
+3. 没有精确 Plan ID + hash 的人工确认，不调用平台写接口。
+4. Plan 外动作、超调用上限、旧 Plan / 旧确认、自动重试，一律禁止。
+5. 创建响应不是 READY；只有权威只读回查通过才写 verified。
+6. UI / API / CLI / Task 不手写当前 Gate；只读 workflow_case_summary。
+~~~
 
-唯一运行入口链：
+唯一来源：
 
-```text
-frontend / API / CLI
-→ launchWorkflow
-→ workflow-node-registry
-→ OE3 runner
-→ Node 01-07 Skills
-→ platforms / repositories
-→ Postgres marketing_workbench_v2.mwb
-→ mwb.workflow_case_summary
-→ UI / API / CLI / 任务卡
-```
+~~~text
+Node 定义：src/workflows/skills/oe3/00-workflow-node-registry.mjs
+Skill 合同：src/workflows/skills/oe3/00-contracts.mjs
+Skill 调度：src/workflows/skills/oe3/00-runner.mjs
+Plan 编译：src/workflows/executionPlan.mjs
+当前状态：mwb.workflow_case_summary
+~~~
 
-核心原则：
+## 1. 真值、控制面与消费面
 
-```text
-只读先行
-→ 缺什么只计划什么
-→ 没有 Plan 不写
-→ 没有确认不写
-→ 超出 Plan 不写
-→ 写后不回查通过不 READY
-→ Case 当前状态只由 workflow_case_summary 投影
-```
+~~~text
+┌───────────────────────────────────────────────────────────────────────┐
+│ 项目控制面                                                            │
+│ AGENTS.md → project.state.json → Task / Context Manifest              │
+│ 规定任务范围、全局 Guardrail、确认 Gate、禁止项、验证项               │
+└───────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ 不替代动态事实
+                                  ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ 运行真值：Postgres marketing_workbench_v2.mwb                         │
+│ L1 配置 → L2 账户 → L3 Case → L4 Job/Node/Skill → L5 Plan/证据       │
+└───────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ 唯一当前投影：mwb.workflow_case_summary                               │
+│ current_gate + root_blocker_codes + suggested_next_action              │
+└───────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ frontend / API / CLI / 任务卡 / 自动化                                 │
+│ 只读投影；不得反向写状态，也不得自己计算下一步                         │
+└───────────────────────────────────────────────────────────────────────┘
+~~~
 
-## 1. 最完整文本逻辑图
-
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ 入口层                                                                       │
-│ frontend / API / CLI                                                         │
-│ 输入：route_id + game_code + advertiser_id + case_id / case_key              │
-│ 边界：默认 idle，不自动加载最后一次 Job；历史 Job 只能显式只读查看             │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Workflow Case｜持续业务闭环身份                                               │
-│ 表：mwb.workflow_cases                                                        │
-│ 粒度：一个 route × game × advertiser 的持续业务目标                           │
-│ 作用：把多次 fresh Job、只读复核、资源准备、创建和回查放在同一业务闭环下        │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Latest / Fresh Runtime Job｜一次运行尝试                                      │
-│ 表：mwb.launch_jobs                                                           │
-│ 要求：新 runtime Job 必须显式带 case_id                                       │
-│ 输出：job_id、source_usage、current_node、job_status                           │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Node 1｜launch_intake：需求与目标标准化                                        │
-│ 读取：route_id、game_code、advertiser_id、case_id                              │
-│ 写入：launch_node_runs / launch_skill_runs 脱敏摘要                            │
-│ 边界：不访问平台资源，不写平台                                                  │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Node 2｜creation_context：账户与创建上下文                                     │
-│ 读取：advertiser_accounts、account_touchpoints、game_platform_apps             │
-│ 核验：账户、受控触点、monitor、平台 App、抖音号授权                             │
-│ 边界：只读核验；monitor / 授权缺失只写 blocker，不偷偷补写                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Node 3｜game_launch_pack：游戏保底包                                           │
-│ 读取：games、game_route_defaults、game_assets、material_packs                  │
-│      landing_page_assets、resource_blueprints、launch_links、DMP baseline      │
-│ 输出：默认目标、预算、出价、排期、物料包、资源蓝图、成功字段合同                  │
-│ 边界：不从历史请求恢复目标账户动态资源 ID                                       │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Node 4｜account_resource_prepare：账户资源只读发现 + 三态分类                  │
-│                                                                              │
-│ 1. 对每个必需资源执行目标账户只读核验                                          │
-│ 2. 汇总 resource readiness                                                     │
-│ 3. 形成 READY / PLANNED / BLOCKED 三态                                         │
-│ 4. 编译一份 Execution Plan                                                     │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-              ┌───────────────────────┴───────────────────────┐
-              ▼                                               ▼
-┌──────────────────────────────────────┐      ┌──────────────────────────────────┐
-│ 全部缺口都可准备或已 READY            │      │ 存在不可准备 / 不可信 / 歧义缺口    │
-│ → ready Execution Plan                │      │ → blocked Execution Plan           │
-│ → 可进入人工确认                       │      │ → 不可确认，零平台写入              │
-└──────────────────────────────────────┘      └──────────────────────────────────┘
-              │                                               │
-              ▼                                               ▼
-┌──────────────────────────────────────┐      ┌──────────────────────────────────┐
-│ Plan-bound Confirmation              │      │ workflow_case_summary             │
-│ 表：launch_confirmations              │      │ 输出唯一 root blocker              │
-│ 绑定：job_id + plan_id + plan_hash     │      │ 保留 structural blockers 供排查     │
-│      + advertiser + 风险 + 调用上限    │      │ suggested_next_action 指向下一步    │
-└──────────────────────────────────────┘      └──────────────────────────────────┘
-              │                                               │
-              ▼                                               ▼
-┌──────────────────────────────────────┐      ┌──────────────────────────────────┐
-│ Node 5｜confirmed-resource-orchestrator│     │ 停止当前 Job                     │
-│ 只执行 Plan 内的资源动作               │      │ fresh Job 重新只读，不沿用旧状态    │
-│ 每个动作原子 claim + 写后回查           │      └──────────────────────────────────┘
-└──────────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Node 5｜payload-build / payload-contract / duplicate-check / create-readiness │
-│ 输入：已 READY 资源 + 本 Plan 写后回查资源                                     │
-│ 输出：最终 Draft、payload hash、字段合同、字段账本、同名查重和 preflight        │
-│ 边界：不扩大 Plan；不二次确认；不创建项目                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────┐
-│ Node 6｜std_project_create_executor   │
-│ POST /open_api/v3.0/std_project/create│
-│ 恰好一次；无自动重试；不创建 Promotion │
-└──────────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────┐
-│ Node 7｜readback_closer               │
-│ std_project/list 0 / 10 / 30 秒回查    │
-│ 命中提前结束；最多一条汇总 readback     │
-└──────────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ 收口层                                                                       │
-│ platform_actions：每次平台动作脱敏审计                                        │
-│ created_objects：创建对象事实                                                 │
-│ readback_records：创建回查结果                                                │
-│ evidence_artifacts：脱敏证据与 hash                                           │
-│ account_resources：账户资源 visible / readback_verified 状态                  │
-│ workflow_case_summary：唯一 current_gate / root blocker / next action         │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-## 2. Node 4 资源三态的唯一判定模型
-
-Node 4 不直接“修资源”，只做事实判断与计划编译。
-
-```text
-资源进入 Node 4
-  ↓
-查游戏级保底定义 / 资源蓝图 / 来源合同
-  ↓
-查目标账户真实只读状态
-  ↓
-┌─ 已存在、唯一、未过期、目标账户可用、回查通过
-│    → READY
-│    → 写 account_resources 可见 / 已回查
-│    → 不生成资源写动作
-│
-├─ 目标账户缺失
-│  + prepare_supported=true
-│  + 官方接口合同已验证
-│  + executor 已实现
-│  + 写后回查合同已验证
-│    → PLANNED
-│    → 生成 ensure_resource:* 或专用 ensure_* 动作
-│
-└─ 多候选 / App 不匹配 / 来源缺失 / 合同缺失 / executor 缺失 / 回查失败
-     → BLOCKED
-     → 保存 blocked Plan
-     → 不允许确认，不允许平台写入
-```
-
-三态含义：
-
-| 状态 | 含义 | 对 Plan 的影响 |
+| 层 | 权威内容 | 不承担 |
 | --- | --- | --- |
-| `READY` | 当前目标账户本轮只读回查可用 | no-op，作为 Node 5 payload 输入 |
-| `PLANNED` | 当前缺失但系统已有完整受控准备机制 | 进入 ready Plan 的受限动作 |
-| `BLOCKED` | 缺官方合同、缺来源、缺权限、歧义或回查不通过 | Plan 为 blocked，不可确认 |
+| 项目文件 | 静态机制、当前任务的权限边界 | 动态资源和平台结果 |
+| src/ | Node、Skill、Plan、executor、脱敏与接口合同 | 当前账户是否 READY |
+| db/*.sql | Schema、约束、View、投影优先级 | 外部平台写入 |
+| mwb 表 | 配置、账户、Case、Job、确认、动作、证据 | UI 自行派生的下一步 |
+| workflow_case_summary | 唯一当前 Gate、root blocker、建议动作 | 历史明细和反向写入 |
+| docs/ | 机制、方案、Task 合同、lessons | 实时状态、secret、raw 请求/响应 |
 
-当前已验证可自动准备的资源动作：
+## 2. 唯一主链
 
-| 资源 / 环节 | Plan action | 平台动作 | 上限 | 收口标准 |
-| --- | --- | --- | --- | --- |
-| 头像 | `ensure_resource:avatar` | 上传 + submit | 上传 1 次、提交 1 次 | `advertiser/avatar/get` 命中可接受状态 |
-| DMP 人群包 | `ensure_resource:dmp_audience_package` | DMP push | 仅缺失成员 | read/select 全部成员可投 |
-| 视频素材 | `ensure_resource:video_asset` | material bind | 一次批量绑定 | 目标户视频/封面规则通过 |
-| 产品图 | `ensure_resource:product_image` | image upload | 最多 1 张 | 目标户 image/material id 回查通过 |
-| 事件资产 | `ensure_resource:event_asset` | event asset create | 最多 1 次 | 资产存在并进入事件链核验 |
-| 事件配置 | `ensure_event_configs:baseline` | events/create | 最多 6 次 | baseline 6/6 + optimized_goal + dbt |
-
-当前仍只读或人工边界资源：
-
-| 资源 | 当前边界 |
-| --- | --- |
-| 品牌信息 | 只读核验目标账户可投品牌与行业；缺失不自动创建 |
-| 备用落地页 | 游戏默认来源页 `site/get` → 目标普通库存（诊断）+ 目标 `share_type=SHARE` 库存（权威）→ 同一 `site_id`、可用状态、实时 hash 一致才 READY；人工同站点共享后自动回查。`site/handsel` 为转赠复制而非同站点共享，明确不启用；来源页缺失须另建有 `bricks` 模板的来源创建专项 Task。 |
-| 小游戏实例 | 作为事件链核验结果落入 `micro_app_instance`；不单独猜测或自动创建 |
-
-## 3. 事件资产的当前唯一真实机制
-
-事件资产已升级为真实接口验证过的受控准备机制。当前机制以最终成功执行并回查通过的接口为准，分为两个受控准备环节：事件资产创建、资产下 baseline 事件配置。
-
-### 3.1 事件资产查找与创建
-
-```text
-目标账户 event_asset 准备
+~~~text
+入口：frontend / API / CLI（默认 idle；历史 Job 必须显式只读打开）
   ↓
-GET /open_api/2/tools/event/all_assets/list/
-  参数：advertiser_id + filtering.asset_type=MINI_PROGRAME
-  ↓
-候选分类
-  ├─ 0 个候选
-  │    → 若官方合同 + 模板 + 单次确认完整
-  │    → 计划 ensure_resource:event_asset
-  │
-  ├─ 1 个候选
-  │    → GET /open_api/2/tools/event/all_assets/detail/
-  │    → asset_ids 必须是 JSON 十进制数字数组：[1234567890123456]
-  │    → detail 通过后进入事件配置/目标链核验
-  │
-  └─ 多个候选 / App 不匹配 / detail 失败
-       → BLOCKED，不猜选
-```
-
-缺失创建：
-
-```text
-ensure_resource:event_asset
-  ↓
-确认 Plan ID/hash
-  ↓
-POST /open_api/2/event_manager/assets/create/
-  asset_type = MINI_PROGRAME
-  mini_program_asset.mini_program_id
-  mini_program_asset.mini_program_name
-  mini_program_asset.instance_id
-  mini_program_asset.mini_program_type = BYTE_GAME
-  ↓
-记录 oceanengine_event_asset_create 脱敏 platform_action
-  ↓
-重新 all_assets/list + detail
-  ↓
-找到唯一目标资产才继续
-```
-
-边界：
-
-```text
-最多 1 次资产创建
-不保存 raw payload / raw response / token / Cookie / 完整 URL
-创建成功但回查不到 → BLOCKED
-候选歧义 → BLOCKED
-```
-
-### 3.2 事件配置添加与配置核查
-
-baseline 事件集合：
-
-```text
-active
-active_register
-active_pay
-purchase_roi
-purchase_roi_7d
-purchase_roi_30d
-```
-
-执行链路：
-
-```text
-目标账户已有唯一 event_asset
-  ↓
-GET /open_api/2/event_manager/event_configs/get/
-  ↓
-判断 baseline 已配置数量
-  │
-  ├─ 已配置 6/6
-  │    → 不调用 events/create
-  │    → 进入 optimized_goal / dbt 回查
-  │
-  └─ 未配置 6/6
-       ↓
-     GET /open_api/2/event_manager/available_events/get/
-       只用于获取“当前资产可创建事件”的本账户 event_id
-       不复用旧库、旧账户或截图里的 event_id
-       ↓
-     对缺失项逐个执行：
-     POST /open_api/2/event_manager/events/create/
-       advertiser_id
-       asset_id
-       event_id
-       track_types=["MINI_PROGRAME_API"]
-       ↓
-     每个事件一条 oceanengine_event_config_create 审计
-       ↓
-     写后 GET /open_api/2/event_manager/event_configs/get/
-       必须 6/6
-```
-
-关键真实经验：
-
-```text
-available_events/get = 可创建事件列表
-event_configs/get    = 已配置事件列表
-
-因此：
-创建前：available_events 必须能提供缺失事件的 event_id
-创建后：available_events 可能不再返回这些 baseline
-最终 READY：只以 event_configs/get 6/6 作为配置核查
-```
-
-### 3.3 事件链最终 READY
-
-```text
-event_configs/get = baseline 6/6
-  ↓
-GET /open_api/v3.0/event_manager/optimized_goal/get/
-  必须命中 PAY + PURCHASE_ROI_7D
-  ↓
-GET /open_api/v3.0/event_manager/dbt/get/
-  必须命中 PER_AND_SEVEN_PAY_ROI
-  ↓
-account_resources.event_asset
-  visibility_status = visible
-  readback_status   = readback_verified
-  platform_resource_id = event asset id
-  ↓
-account_resources.micro_app_instance
-  visibility_status = visible
-  readback_status   = readback_verified
-  platform_resource_id = micro app instance id
-  ↓
-workflow_case_summary 清空事件链 root blocker
-```
-
-事件资产模块的职责边界：
-
-```text
-负责：
-  事件资产存在性
-  资产下 baseline 事件配置
-  PAY / PURCHASE_ROI_7D / PER_AND_SEVEN_PAY_ROI 可用性
-  micro_app_instance 与事件链共同 READY
-
-不负责：
-  std_project/create
-  Promotion 创建
-  预算 / 出价修改
-  token 刷新
-  DMP / 视频 / 产品图 / 头像 / 备用页准备
-  通过截图或旧账户经验直接认定 READY
-```
-
-## 4. Execution Plan 的唯一状态控制
-
-Node 4 持久化的 `launch_execution_plans` 是一次执行机会的唯一授权合同。
-
-```text
-Node 4 输出 Plan
-  ↓
-plan_status
-  ├─ ready
-  │    → 可请求人工确认
-  │    → planned_actions 列出所有允许动作
-  │    → 每个 action 有最大调用数、依赖、幂等键、模块引用
-  │
-  └─ blocked
-       → 只作审计
-       → 不可确认
-       → 不可平台写入
-```
-
-ready Plan 可以包含：
-
-```text
-0..N 个资源准备动作
-+ 恰好 1 个 std_project_create
-```
-
-或在单独资源补齐任务中只包含一个聚焦动作：
-
-```text
-ensure_resource:event_asset
-ensure_event_configs:baseline
-ensure_resource:avatar
-ensure_resource:dmp_audience_package
-ensure_resource:video_asset
-ensure_resource:product_image
-```
-
-Plan 绑定内容：
-
-```text
-job_id
-case_id
-route_id
-game_code
-advertiser_id
-plan_id
-plan_hash
-payload_hash / draft_hash
-planned_actions
-maximum_platform_calls
-retry_allowed=false
-official_contract hash
-resource states
-risk summary
-```
-
-Plan 变更规则：
-
-```text
-确认前：可重新编译 fresh Plan，旧 Plan 自动 stale
-确认后：Plan 不可变
-已消费/失败的 Plan：不覆盖、不删除，保留审计
-同一 hash 但新 plan_id/version：仍必须重新确认或在明确授权范围内续跑
-```
-
-## 5. 人工确认与平台写入闸门
-
-真实平台写入必须同时满足两层闸门。
-
-第一层：项目全局 guardrail
-
-```text
-project.state.json.guardrails.platform_write_allowed = true
-platform_write_scope.target_job_id       = 当前 job
-platform_write_scope.target_plan_id      = 当前 plan
-platform_write_scope.target_plan_hash    = 当前 hash
-platform_write_scope.allowed_actions     = 当前 action
-maximum_platform_calls                   = 当前上限
-retry_allowed                            = false
-```
-
-第二层：Postgres Plan-bound confirmation
-
-```text
-launch_confirmations.confirmation_status = confirmed_for_execution_plan
-confirmation.plan_id                     = 当前 plan_id
-confirmation.metadata.plan_hash          = 当前 plan_hash
-confirmation.confirm_variable            = 当前动作确认变量
-```
-
-任一不匹配：
-
-```text
-零平台写入
-→ platform_actions 只记录 internal failed_once / blocked
-→ 不调用真实 POST
-→ 不自动复用旧确认
-```
-
-## 6. Node 5 的执行边界
-
-确认后，Node 5 只做两类事：执行 Plan 内资源动作、生成确定性 Draft。
-
-```text
-confirmed-resource-orchestrator
-  ↓
-按正式 registry 顺序扫描 planned_actions
-  ↓
-每个 action：
-  1. 验证 Plan/Confirmation/hash/scope
-  2. internal action 原子 claim
-  3. 调用对应 executor
-  4. 写 platform_actions 脱敏记录
-  5. 写后只读回查
-  6. 成功才更新 account_resources
-  7. 失败立即停止
-```
-
-internal claim 规则：
-
-```text
-action_id 必须绑定 job + action + plan id
-idempotency_key 必须绑定 planned action + plan id
-同一 plan/action 不得重复消费
-不同 plan/version 不得被 stale plan 误挡
-```
-
-资源全部 READY 后才进入 Draft：
-
-```text
-payload-build
-→ payload-contract
-→ duplicate-check
-→ create-readiness
-```
-
-Draft 必须是已确认 Plan 的确定性派生：
-
-```text
-项目名 / 预算 / CPA / ROI 不漂移
-资源 ID 来自当前目标账户 READY 证据或本 Plan 写后回查
-payload 保存 derived_from_plan_id / derived_from_plan_hash
-字段合同、字段账本、wire body、查重、preflight 全部通过
-```
-
-## 7. Node 6-7：项目创建与回查闭环
-
-Node 6 只允许一次标准项目创建：
-
-```text
-POST /open_api/v3.0/std_project/create/
-× 1
-```
-
-执行前必须满足：
-
-```text
-workflow_case active
-ready Plan 已确认
-最终 Draft 派生校验通过
-action scope 与调用上限匹配
-当前 create attempt 尚未消费
-```
-
-执行后：
-
-```text
-无论成功、业务失败、超时或结果不确定
-→ 写入 scope 立即收回
-→ 不自动重发 create
-→ 不创建 Promotion
-→ 不修改预算 / 出价
-```
-
-Node 7：
-
-```text
-对精确项目名执行 std_project/list 回查
-  时间点：0 / 10 / 30 秒
-  命中：提前结束
-  未命中：停止人工复盘
-  持久化：最多一条汇总 readback_record
-```
-
-成功判定：
-
-```text
-create 返回项目 ID
-或
-readback 精确命中项目
-```
-
-两者都不能确认时，不补发 create。
-
-## 8. 数据库更新逻辑
-
-最小数据链：
-
-```text
 workflow_cases
-  持续业务 Case
+  一行 = route_id × game_code × advertiser_id 的持续业务闭环
   ↓
 launch_jobs
-  一次 fresh 运行
+  一行 = 一个 Case 下的一次 fresh 运行；runtime_truth 必须显式 case_id
   ↓
-launch_node_runs
-  Node 状态与摘要
-  ↓
-launch_skill_runs
-  Skill attempt 状态、blocker、module_ref
-  ↓
-launch_execution_plans
-  当前 Job 的 ready / blocked / stale Plan
-  ↓
+Node 01–04：只读发现、资源核验、Plan 编译
+  ├─ 有 blocker
+  │   → blocked Plan
+  │   → 平台写入=0；不可确认；定位一个最小修复；下一轮 fresh readonly
+  │
+  └─ Plan ready
+      → 人工确认 job + plan_id + plan_hash + actions + limits
+      → Node 05：资源 action 逐项 atomic claim → write once → authoritative readback
+      → 任一失败：停止、撤销 scope、不自动重试
+      → 全部 READY：fresh Draft / contract / ledger / duplicate / create-readiness
+      → 独立 Create Plan（仅 std_project_create）
+      → 再次人工确认
+      → Node 06：create × 1
+      → Node 07：list readonly 0 / 10 / 30 秒，命中提前结束
+      → 脱敏账本和 workflow_case_summary 收口
+~~~
+
+## 3. 7 个 Node 与所有注册 Skill
+
+| Node | 目的 | 注册 Skill | 产物 | 不做 |
+| --- | --- | --- | --- | --- |
+| 01 launch_intake | 规范化输入 | intake-normalize | route、game、advertiser | 平台读写 |
+| 02 creation_context | 账户上下文 | monitor-query、monitor-plan、monitor-ensure、monitor-readback、context-resolve-account、context-resolve-touchpoint、context-resolve-platform-app | 账户、触点、monitor、平台 App | 把 monitor 自动混入广告创建写入 |
+| 03 game_launch_pack | 游戏保底配置 | launch-pack-resolve-game、launch-pack-resolve-defaults、launch-pack-resolve-materials、launch-pack-resolve-backup-landing-page、launch-pack-resolve-resource-blueprints | 默认值、物料、备用页、资源蓝图 | 从旧账户复制动态资源 ID |
+| 04 account_resource_prepare | fresh readonly、三态、资源计划输入 | 见第 4 节完整矩阵 | READY / PLANNED / BLOCKED | 未确认平台写入 |
+| 05 std_project_draft_builder | 已确认资源执行和最终草稿 | confirmed-resource-orchestrator、payload-build、payload-contract、duplicate-check、create-readiness | Draft、payload hash、ledger、preflight | 创建项目 |
+| 06 std_project_create_executor | 单次创建 | create-once | 平台 action 和创建对象 | 重试、Promotion、预算/出价调整 |
+| 07 readback_closer | 回查收口 | readback-std-project | verified / mismatch / missing 证据 | 通过补发 create 修复 |
+
+调度模式由 00-runner.mjs 唯一决定：
+
+| mode | 范围 | 写边界 |
+| --- | --- | --- |
+| dry_run | Node 01–05 | 不真实写；可生成 Draft/Plan |
+| draft_readiness | Node 01–05 | 只读和草稿就绪 |
+| planned_actions | Node 01–04 与 monitor 计划路径 | 只限明确 planned action |
+| execute_once | Node 01–07 | 仅冻结 confirmed Plan 下的单次受限写 |
+| readback_only | readback-std-project | 只读，绝不创建 |
+| aweme_auth_readonly | 01、必要 02/03、授权核验 | 只读专项 |
+
+## 4. Node 04：资源三态、专项 Skill 与自动准备边界
+
+### 4.1 唯一三态
+
+~~~text
+游戏级资源蓝图 / 来源合同
+      + 目标账户 fresh readonly
+      ↓
+resource verifier
+  ├─ 已唯一命中、可用、字段合同和权威回查都通过
+  │   → READY（no-op，可作为 Draft 输入）
+  │
+  ├─ 目标缺失 + prepare_supported=true + executor 已注册
+  │   + 单次调用上限与写后回查合同齐全
+  │   → PLANNED（Plan 仅列该 ensure action）
+  │
+  └─ 只读/凭据失败、多候选、来源不完整、verify-only 缺失、
+      合同缺失、回查失败或 executor 不存在
+      → BLOCKED（Plan=blocked，不可确认，平台写入=0）
+~~~
+
+本轮实时状态决定 Node 4 与 Plan。account_resources 只保存最近一次权威回查成功的 visible + readback_verified；一次只读降级不能把历史 verified 覆盖为 missing，但历史 verified 也不能跳过本轮 verify-only Gate。
+
+### 4.2 资源能力注册表
+
+04-resource-action-registry.mjs 是唯一资源 prepare 支持表；正式受确认执行顺序：
+
+~~~text
+ensure_resource:avatar
+→ ensure_resource:dmp_audience_package
+→ ensure_resource:event_asset
+→ ensure_resource:video_asset
+→ ensure_resource:product_image
+→ ensure_event_configs:baseline
+~~~
+
+| 资源 | 可自动准备 | Plan action / executor | READY 的权威依据 | 固定边界 |
+| --- | ---: | --- | --- | --- |
+| avatar | 是 | ensure_resource:avatar / oceanengineAvatarExecutor.mjs | advertiser/avatar/get 回查 | 源图合同为 300×300 |
+| dmp_audience_package | 是 | ensure_resource:dmp_audience_package / oceanengineDmpExecutor.mjs | 指定 ID read 命中且可投 | read 成功未命中即 missing；select 仅辅助诊断 |
+| event_asset | 是 | ensure_resource:event_asset / oceanengineEventAssetExecutor.mjs | list/detail 唯一资产、App/实例绑定和事件链 | 多候选或绑定不明即 BLOCKED |
+| baseline event configs | 是 | ensure_event_configs:baseline / oceanengineEventConfigExecutor.mjs | event_configs/get baseline 6/6 + goal/dbt | available_events/get 只为待创建项取 event_id |
+| video_asset | 是 | ensure_resource:video_asset / oceanengineVideoMaterialExecutor.mjs | 视频、封面、目标账户回查 | 只批量绑定 Plan 的目标集合 |
+| product_image | 是 | ensure_resource:product_image / oceanengineProductImageExecutor.mjs | 108×108 PNG 的 file/image/get 签名/ID 回查 | 格式、尺寸、hash、文件不符不上传 |
+| brand_info | 否 | 无 | 品牌和行业只读 | 缺失只 blocker，不创建 |
+| micro_app_instance | 否 | 无 | 事件链中的目标实例只读 | 不猜测、不创建实例 |
+| backup_landing_page | 否 | 无 | 来源默认页 + 目标 share_type=SHARE 清单同 site、可用、URL hash 一致 | 普通库存仅诊断；site/handsel 被排除；只允许人工共享后回查 |
+
+### 4.3 Node 04 全部 Skill 映射
+
+| Skill | 模块 | 责任 |
+| --- | --- | --- |
+| aweme-authorization-readonly | 04-aweme-authorization-readonly.mjs | 核验固定默认抖音号的目标账户授权，不任意挑选候选 |
+| resource-bootstrap-from-blueprints | 04-resource-blueprint-bootstrap.mjs | 从蓝图物化资源候选，不将候选当 READY |
+| resource-live-readonly-reconcile | 04-platform-readonly-reconcile.mjs | 平台只读刷新资源与脱敏 evidence |
+| avatar-source-prepare | 04-avatar-source-prepare.mjs | 检查头像源文件、hash、格式、尺寸 |
+| avatar-submit-plan | 04-avatar-submit-plan.mjs | 形成头像提交合同，不自行授权写入 |
+| dmp-baseline-resolve | 04-dmp-readonly.mjs | 解析 DMP package set、成员和 payload 字段 |
+| dmp-source-readonly-verify | 04-dmp-readonly.mjs | 逐包验证来源人群 |
+| dmp-target-readonly-verify | 04-dmp-readonly.mjs | 逐包用目标 read 做权威分类 |
+| dmp-push-plan | 04-dmp-readonly.mjs | 只计划 target_readonly_status=missing 的成员 |
+| video-material-bind-plan | 04-video-material-bind-plan.mjs | 核验源视频、目标可见性和封面，输出绑定候选 |
+| product-image-source-prepare | 04-product-image-source-prepare.mjs | 核验 PNG、108×108、hash 与目标库存 |
+| event-chain-readonly | 04-event-chain-readiness.mjs | 核验 event asset、instance、baseline、goal、dbt |
+| event-configs-baseline | oceanengineEventConfigExecutor.mjs | 事件配置专项执行合同，仅在已确认 action 路径调用 |
+| backup-landing-page-material-inventory | 04-backup-landing-page-material-inventory.mjs | 目标 SHARE 清单为权威；515 等降级只能产生 site_get_target_shared_blocked |
+| backup-landing-page-source-prepare | 04-backup-landing-page-source-prepare.mjs | 检查备用页来源和共享合同，不创建/复制页面 |
+| resource-verify-avatar | 04-resource-verifiers.mjs | 归一头像三态 |
+| resource-verify-dmp-audience-package | 04-dmp-readonly.mjs | 归一 DMP 与 retargeting_tags_exclude 就绪性 |
+| resource-verify-event-asset | 04-event-chain-readiness.mjs | 归一事件资产准备资格 |
+| resource-verify-video-asset | 04-video-material-readiness.mjs | 归一视频、封面和目标可见性 |
+| resource-verify-product-image | 04-resource-verifiers.mjs | 归一产品图三态 |
+| resource-verify-brand-info | 04-resource-verifiers.mjs | 归一品牌只读状态 |
+| resource-verify-micro-app-instance | 04-event-chain-readiness.mjs | 归一小游戏实例事件链状态 |
+| resource-verify-backup-landing-page | 03-landing-page-readiness.mjs | 归一备用页共享库存状态 |
+
+### 4.4 共享备用页的一致性合同
+
+~~~text
+目标 share_type=SHARE 清单成功且命中 → READY
+目标 share_type=SHARE 清单成功但未命中 → missing / BLOCKED
+目标 share_type=SHARE 请求失败（如 515）→ degraded / BLOCKED
+
+degraded 不得伪造 target_site_missing 或 target_not_visible。
+本轮 Plan 必由 site_get_target_shared_blocked 阻断；
+上一次 account_resources 的 verified 不得被该临时故障覆盖。
+~~~
+
+## 5. Execution Plan、确认、scope 与资源执行
+
+~~~text
+Node 04 resource states
+  ├─ 任一 BLOCKED
+  │   → plan_status=blocked
+  │   → blocker_codes / root_blocker_codes
+  │   → 不可确认、零平台写
+  │
+  ├─ 存在 PLANNED
+  │   → ready Resource Plan
+  │   → planned_actions 仅为资源 ensure action
+  │   → maximum_create_calls=0
+  │
+  └─ 全部 READY
+      → fresh Draft / contract / duplicate / readiness
+      → ready Create Plan
+      → planned_actions=[std_project_create]
+      → maximum_create_calls=1
+~~~
+
+每份 Plan 都固定绑定：
+
+~~~text
+case_id + job_id + advertiser_id
++ plan_id + plan_hash + plan_version
++ planned_actions + action_grants + maximum_platform_calls
++ target_draft_id + target_payload_hash
++ resource_states + blocker_codes
++ retry_allowed=false
+~~~
+
+确认和写入必须同时经过双层 Gate：
+
+~~~text
+project.state.json.guardrails
+  platform_write_allowed=true
+  scope 的 target job / plan / hash / actions / call limits
+                         +
 launch_confirmations
-  Plan-bound 人工确认
+  confirmed_for_execution_plan
+  同一 plan_id + 同一 plan_hash
+                         +
+plannedActionGrant / executionGrantScope
+  action 在 Plan 内、次数未用尽、确认未漂移
+                         ↓
+atomic claim → write once → authoritative readback → redacted evidence
+~~~
+
+确认后的 confirmed-resource-orchestrator 只按资源注册表顺序执行 Plan 内 action。每项先 claimPlannedExecutionAction；并发调用也只能有一个获得执行权。任一 executor 非 READY，动作标记 failed_once、后续停止、scope 撤销；成功项不自动重做。
+
+Plan 生命周期：
+
+~~~text
+确认前：fresh readonly 可重编；旧版本 stale。
+确认后：immutable；同一 Plan/hash 只消费一次。
+资源 Plan：绝不包含 std_project_create。
+创建失败或回查失败：停止；下一次必须 fresh Job + new Plan + new confirmation。
+~~~
+
+## 6. Node 05：最终 Draft 与字段合同
+
+~~~text
+所有资源已 READY 或同一已确认 Plan 的写后回查通过
   ↓
-platform_actions
-  external POST / internal claim 的脱敏动作审计
+payload-build
+  ├─ 只读当前目标账户 READY 资源
+  ├─ 写 launch_drafts：payload_hash、payload manifest、derived_from_plan
+  └─ 不读历史 raw payload，不复制历史资源 ID
   ↓
-account_resources
-  目标账户资源 visible / readback_verified 状态
+payload-contract + nested contract + official evidence
   ↓
-created_objects
-  std_project 创建对象事实
+create-field-ledger
   ↓
-readback_records
-  std_project 最终回查摘要
+duplicate-check（目标账户 + 项目名 readonly list）
   ↓
-evidence_artifacts
-  脱敏证据与 hash
+create-readiness
   ↓
-mwb.workflow_case_summary
-  当前可行动状态投影
-```
+独立 std_project_create Plan
+~~~
 
-写入职责：
+Node 05 支撑模块：
 
-| 表 / View | 写入者 | 作用 | 不承担 |
-| --- | --- | --- | --- |
-| `workflow_cases` | Case/Job 入口 | 业务闭环身份 | 单次运行细节 |
-| `launch_jobs` | workflow 入口 | 一次运行 attempt | 资源真实性 |
-| `launch_node_runs` | runner | Node 结果 | 平台动作审计 |
-| `launch_skill_runs` | skill runner / 脚本 | Skill attempt 结果 | 原始请求响应 |
-| `launch_execution_plans` | Plan compiler | 授权合同 | 人工确认 |
-| `launch_confirmations` | 确认入口 | 绑定 plan hash | 自动授权 |
-| `platform_actions` | executor / orchestrator | 外部写入与 internal claim 审计 | raw payload/response |
-| `account_resources` | 只读 reconcile / resource executor | 账户资源当前可用性 | Job 全过程 |
-| `created_objects` | create executor | 创建对象事实 | 资源状态 |
-| `readback_records` | readback closer | std_project 回查结果 | 资源准备 |
-| `evidence_artifacts` | 各 Skill / executor | 脱敏证据 | 动态状态唯一来源 |
-| `workflow_case_summary` | View | UI/API/CLI 当前结论 | 反向写真值 |
-
-安全持久化只允许：
-
-```text
-状态
-字段路径
-类型 / 数量 / 枚举
-必要 ID
-hash
-request_id 是否存在
-证据引用
-脱敏错误分类
-```
-
-禁止持久化：
-
-```text
-token
-Cookie
-secret
-auth_code
-完整 URL
-raw payload
-raw request
-raw response
-完整 request_id
-```
-
-## 9. `workflow_case_summary` 的唯一读取方式
-
-UI、API、CLI、任务卡和后续自动化只读这个投影拿当前状态：
-
-```sql
-SELECT
-  latest_job_id,
-  latest_job_status,
-  latest_plan_status,
-  root_blocker_codes,
-  structural_blocker_codes,
-  current_gate,
-  suggested_next_action,
-  action_readback_state,
-  resource_readiness
-FROM mwb.workflow_case_summary
-WHERE case_id = $1;
-```
-
-字段语义：
-
-```text
-root_blocker_codes
-  当前唯一最前置 blocker，正常为 0 或 1 个。
-
-structural_blocker_codes
-  完整 forensic，用于诊断，不直接决定当前动作。
-
-current_gate
-  当前所处 Gate，例如等待确认、等待资源补齐、等待创建、完成等。
-
-suggested_next_action
-  与 current_gate 同源计算的下一步，不允许 UI/API/任务卡手写。
-
-resource_readiness
-  当前目标账户资源状态摘要。
-
-action_readback_state
-  创建动作和项目回查状态，不由调用方自行推导。
-```
-
-## 10. 当前 JSZC/BYTE_GAME 成功合同
-
-Node 5 当前成功字段合同：
-
-```text
-successProfileVersion
-= 2026-08-30.jszc-byte-game-success-profile-v1
-
-goldenFieldShapeHash
-= sha256:9203ddf077d05b51958e851dad86894f75fdf09884ffc99690ad459ce5dd1064
-
-createFieldLedgerPathCount
-= 82
-```
-
-核心创建形态：
-
-| 模块 | 当前合同 |
+| 模块 | 责任 |
 | --- | --- |
-| 受众排除 | `hide_if_converted=NO_EXCLUDE` 时完全省略 `filter_event` |
-| 转化时间 | `hide_if_converted=NO_EXCLUDE` 时完全省略 `converted_time_duration` |
-| 备用页 | `external_url_material_list` 恰好发送 1 条已核验 HTTPS 页面 |
-| 小游戏 | `mini_program_info` 只发送 `url`；省略 `app_id/start_path/params` |
-| 视频/标题/商品图/DMP | 2 条视频、3 条标题、1 张产品图、10 个排除人群 |
-| 普通图片 | `image_material_list=[]` |
-| 锚点/组件 | `anchor_related_type=OFF`；省略锚点和组件列表 |
-| 禁止字段 | 省略 `micro_promotion_type` |
+| 05-jszc-success-profile.mjs | 已验证 JSZC 成功字段形态、素材数、ledger 路径数 |
+| 05-payload.mjs | 从当前 bundle 构造最终 payload |
+| 05-payload-contract.mjs | Draft、payload hash、敏感字段禁存与 Plan 派生校验 |
+| 05-official-create-field-contract.mjs | 官方字段证据和 send / omit / block |
+| 05-nested-field-contract.mjs | 嵌套对象、数组、枚举、图文/视频约束 |
+| 05-title-materials-contract.mjs | 标题来源、数量、长度和安全形态 |
+| 05-selling-points-contract.mjs | 卖点字段合同 |
+| 05-create-field-ledger.mjs | 可审计字段 ledger |
+| 05-std-project-create-wire-body.mjs | int64 decimal JSON number token 的无损 wire body |
+| 05-create-preflight-diagnostics.mjs | 创建前字段、资源、contract、ledger、profile 总 Gate |
+| 05-duplicate-readonly.mjs | 创建前名称查重和脱敏 evidence |
 
-动态账户 ID、资源 ID、URL 和授权值永远从当前目标账户已核验的 Postgres 事实读取，不能从本文、历史请求或 lessons 复制。
+## 7. Node 06–07：一次创建、无损 ID、权威回查
 
-## 11. 正式操作入口
+~~~text
+独立 Create Plan 已确认
+  ↓
+create-once
+  ↓
+createStdProjectForTargetOnce
+  ├─ 校验 Case、Plan、confirmation、grant、payload hash、attempt
+  ├─ 原子 claim std_project_create
+  ├─ POST /open_api/v3.0/std_project/create/ × 1
+  └─ scope 立即撤销；无自动 retry
+  ↓
+readback-std-project
+  ├─ GET std_project/list：0 / 10 / 30 秒，命中提前结束
+  ├─ 名称必须匹配 Draft
+  ├─ create response ID 与 list ID 必须 exact string match
+  └─ mismatch / not-found / 未确认响应：停止，绝不补发 create
+~~~
 
-长期入口以 `package.json` 为准。
+长数字 ID 合同：
 
-```text
-只读发现：
-  npm run workflow:readonly-readiness -- <精确 target/case>
+~~~text
+平台 JSON bare decimal project_id / std_project_id / id
+→ oceanengineStdProjectResponse.mjs 仅对这些已知字段预转字符串
+→ JSON.parse
+→ create executor 与 readonly client
+→ created_objects.object_id / readback_records.object_id
+→ Node 7 逐字符比对
 
-合同检查：
-  npm run db:contract-check
+任何项目 ID 默认以字符串保存和比较。
+仅官方要求 JSON number token 的字段（如 instance_id）使用专用无损 wire 编码，
+绝不经 JavaScript Number 的安全整数截断。
+~~~
 
-确认后执行主创建：
-  npm run launch:execute-once -- --job-id <精确 Job>
+## 8. 数据、证据与唯一 Case Gate
 
-只读回查：
-  npm run workflow:readback-only -- --job-id <精确 Job>
+~~~text
+L1 业务配置
+platform_routes + games + game_route_defaults + game_platform_apps
++ game_assets + material_packs + landing_page_assets
++ game_route_resource_blueprints + game_route_launch_links
++ dmp_package_sets + dmp_package_members
+        ↓
+L2 账户事实
+advertiser_accounts + account_touchpoints + account_resources
++ dmp_package_member_account_states + qiankun_option_relations
+        ↓
+L3 持续业务闭环
+workflow_cases
+        ↓
+L4 一次运行证据
+launch_jobs → launch_node_runs → launch_skill_runs
+        ↓
+L5 写入与回查审计
+launch_execution_plans → launch_confirmations
+→ platform_actions → created_objects → readback_records → evidence_artifacts
+        ↓
+L6 唯一当前投影
+mwb.workflow_case_summary
+~~~
 
-事件资产单独补齐：
-  npm run resource:event-asset-api-create-once -- --job-id <Job> ...
+最小持久化：
 
-事件配置单独补齐：
-  npm run resource:event-configs-api-create-once -- --job-id <Job> ...
-```
+~~~text
+允许：状态、枚举、数量、必要 ID、字段路径、hash、request_id 是否存在、证据引用、脱敏错误分类。
+禁止：token、Cookie、secret、auth_code、完整 URL、raw request、raw payload、raw response、完整 request_id。
+~~~
 
-一次性脚本只服务受控 Task 和已确认 Plan。若某脚本成为长期入口，必须在 `package.json` 中显式声明；历史实验脚本完成后应归档，不进入 runtime import graph。
+workflow_case_summary 的 Gate 优先级：
 
-## 12. 当前状态控制的精简方向
+~~~text
+1. 已创建对象但未 verified readback
+   → created_object_readback_pending
+2. 已耗尽创建上限且未 verified
+   → std_project_create_attempt_limit_reached
+3. 创建失败、需要新 payload 版本
+   → corrective_attempt_requires_new_payload_version
+4. confirmed-resource-orchestrator 停止 blocker
+   → root blocker
+5. verify-only / resource / Plan blocker
+   → root blocker
+6. create action=1 + created object=1 + readback_verified
+   → first_std_project_create_completed
+7. 否则 Plan=ready
+   → await_job_write_authorization
+8. 否则
+   → run_fresh_readiness / review_latest_job
+~~~
 
-已经固定下来的主机制：
+## 9. src 模块地图
 
-```text
-Node 定义唯一
-→ READY / PLANNED / BLOCKED 三态唯一
-→ Plan 唯一
-→ Confirmation 唯一
-→ confirmed-resource-orchestrator 只消费 Plan 内动作
-→ 资源写后回查才 READY
-→ Draft 从已确认 Plan 确定性派生
-→ Node 6 一次 create
-→ Node 7 最多三次 readback
-→ workflow_case_summary 给唯一当前结论
-```
+### 9.1 入口、服务、仓储、控制
 
-仍可后续加固但不改变主链的点：
+| 文件 | 唯一职责 |
+| --- | --- |
+| src/agents/launchAgent.mjs | 从用户意图解析 route / game / advertiser，不授予写权限 |
+| src/server/index.mjs | 本地 HTTP/API 边界；默认不加载最后一次 Job |
+| src/repositories/postgresRepository.mjs | Postgres 读写、原子 claim、Plan/confirmation/证据与 View 查询 |
+| src/workflows/launchWorkflow.mjs | Case/Job 创建、runner 启动与公开 Job View |
+| src/workflows/executionPlan.mjs | Plan 编译、hash、stale、scope 和 Draft 派生验证 |
+| src/workflows/executeConfirmedLaunch.mjs | Node 6 的 Plan-bound 真实执行总入口和 scope 回收 |
+| src/workflows/executionGrantScope.mjs | create 的 scope、Plan、confirmation、attempt 校验 |
+| src/workflows/plannedActionGrant.mjs | 受确认资源 action 的权限与次数校验 |
+| src/workflows/avatarExecutionScope.mjs | 头像专项 scope 校验/撤销 |
+| src/workflows/dmpExecutionScope.mjs | DMP 专项 scope 校验/撤销 |
+| src/workflows/eventAssetExecutionScope.mjs | 事件资产专项 scope 校验/撤销 |
+| src/workflows/eventConfigExecutionScope.mjs | 事件配置专项 scope 校验/撤销 |
+| src/workflows/productImageExecutionScope.mjs | 产品图专项 scope 校验/撤销 |
+| src/workflows/videoMaterialExecutionScope.mjs | 视频专项 scope 校验/撤销 |
+| src/workflows/stdProjectNameBuilder.mjs | CST 日期、命名和名称序列保留 |
 
-```text
-1. 将排期、最终资源槽位和内容 hash 纳入更完整的 Plan → Draft 直接派生证明。
-2. 继续减少 blocked dry-run 的下游诊断噪声，但不能削弱 Node 4 root blocker Gate。
-3. 将已完成的 one-off 任务脚本按生命周期归档，同时保留 package.json 中必要的长期入口。
-```
+### 9.2 平台适配
+
+| 文件 | 唯一职责 |
+| --- | --- |
+| src/platforms/oceanengineCredentialStore.mjs | 本地凭据 scaffold、脱敏状态、token refresh scope |
+| src/platforms/oceanengineTokenRefresh.mjs | 单独授权的 OAuth refresh |
+| src/platforms/oceanengineReadonlyAdapter.mjs | OceanEngine 只读适配、摘要和脱敏 |
+| src/platforms/oceanengineReadonlyClient.mjs | 权威只读客户端；std_project/list 使用无损解析 |
+| src/platforms/oceanengineStdProjectResponse.mjs | 已知项目 ID 字段的无损 JSON token 解析 |
+| src/platforms/oceanengineStdProjectCreateExecutor.mjs | 项目单次创建、安全错误摘要与 readback |
+| src/platforms/oceanengineAvatarExecutor.mjs | 头像上传/提交/回查 |
+| src/platforms/oceanengineDmpReadonly.mjs | DMP read/select、可投性、轮询 readback |
+| src/platforms/oceanengineDmpExecutor.mjs | DMP push_v2 单次推送与逐包回查 |
+| src/platforms/oceanengineEventAssetExecutor.mjs | event asset 创建与 list/detail 回查 |
+| src/platforms/oceanengineEventConfigExecutor.mjs | baseline event config 创建与 config 回查 |
+| src/platforms/oceanengineVideoMaterialExecutor.mjs | 视频集合绑定、封面和目标回查 |
+| src/platforms/oceanengineProductImageExecutor.mjs | 产品图上传、签名/ID 回查 |
+| src/platforms/qiankunCredentialStore.mjs | 乾坤凭据和环境 scaffold |
+| src/platforms/qiankunMonitorClient.mjs | monitor provision 外部客户端 |
+
+### 9.3 所有 OE3 Skill 模块
+
+| 模块 | 对应 Skill / 职责 |
+| --- | --- |
+| 00-contracts.mjs | Skill definitions、资源类型、hash、脱敏、Skill Run 记录 |
+| 00-index.mjs | OE3 公开聚合出口 |
+| 00-readonly-permission.mjs | readonly dependency 明确许可边界 |
+| 00-result-mapping.mjs | Node 6/7 结果映射与 Job 收口 |
+| 00-runner.mjs | mode 调度、依赖顺序、Node Run 聚合 |
+| 00-workflow-node-registry.mjs | 唯一的 3 阶段 7 Node 与 child trace |
+| 01-intake-normalize.mjs | intake-normalize |
+| 02-context-resolvers.mjs | context-resolve-account / touchpoint / platform-app |
+| 02-monitor-cycle.mjs | monitor 周期状态计算 |
+| 02-monitor-provision.mjs | monitor-query / plan / ensure / readback 与 monitor CLI |
+| 02-qiankun-option-relation-sync.mjs | monitor 关联选项同步子能力 |
+| 03-launch-pack.mjs | 五个 launch-pack-resolve Skill |
+| 03-landing-page-readiness.mjs | resource-verify-backup-landing-page |
+| 04-resource-action-registry.mjs | 资源能力、prepare 支持、正式执行顺序 |
+| 04-resource-blueprint-bootstrap.mjs | resource-bootstrap-from-blueprints |
+| 04-platform-readonly-reconcile.mjs | resource-live-readonly-reconcile |
+| 04-resource-verifiers.mjs | 通用资源 verifier |
+| 04-avatar-source-prepare.mjs | avatar-source-prepare |
+| 04-avatar-submit-plan.mjs | avatar-submit-plan |
+| 04-dmp-readonly.mjs | DMP resolve / readonly / push-plan / verifier |
+| 04-video-material-bind-plan.mjs | video-material-bind-plan |
+| 04-video-material-readiness.mjs | resource-verify-video-asset |
+| 04-product-image-source-prepare.mjs | product-image-source-prepare |
+| 04-event-asset-provision-contract.mjs | event asset Plan 合同 |
+| 04-event-config-provision-contract.mjs | event config Plan 合同 |
+| 04-event-chain-readiness.mjs | event asset / micro app instance 事件链核验 |
+| 04-aweme-authorization-readonly.mjs | 抖音号授权关系 readonly |
+| 04-backup-landing-page-material-inventory.mjs | 来源/目标 SHARE 库存核验 |
+| 04-backup-landing-page-source-prepare.mjs | 备用页来源合同，不写平台 |
+| 05-confirmed-resource-orchestrator.mjs | 已确认资源 Plan 的 claim、顺序执行、失败停止 |
+| 05-payload.mjs | 最终 payload 构造 |
+| 05-payload-contract.mjs | Draft、hash、contract、reservation |
+| 05-official-create-field-contract.mjs | 官方字段 send / omit / block |
+| 05-nested-field-contract.mjs | 嵌套字段合同 |
+| 05-title-materials-contract.mjs | 标题素材合同 |
+| 05-selling-points-contract.mjs | 卖点合同 |
+| 05-create-field-ledger.mjs | 创建字段账本 |
+| 05-std-project-create-wire-body.mjs | 无损 JSON wire body |
+| 05-jszc-success-profile.mjs | JSZC 成功 profile |
+| 05-duplicate-readonly.mjs | 创建前只读查重 |
+| 05-create-preflight-diagnostics.mjs | Node 5 创建前总诊断 |
+| 06-create-once.mjs | create-once |
+| 07-readback.mjs | readback-std-project |
+
+## 10. scripts 完整入口地图
+
+说明：package.json 中的命令才是长期 CLI 入口。所有 smoke 使用 mock、test_run 或只读验证；test_run 必须清理。所有 once 脚本都必须由对应 fresh Plan 的人工确认约束。scripts/oneoff 不进入长期 runtime import graph。
+
+### 10.1 基础、只读、凭据和全局 smoke
+
+| 脚本 | 类型 / 作用 |
+| --- | --- |
+| scripts/00-create-result-mapping-smoke.mjs | smoke：Node 6/7、Job 状态与无真实写映射 |
+| scripts/00-execution-grant-smoke.mjs | smoke：Plan-bound create scope、原子单次 claim、回查、无损 ID、历史 ID reconcile |
+| scripts/00-execution-plan-smoke.mjs | smoke：资源/创建 Plan、hash、stale、单变量实验和授权边界 |
+| scripts/00-jszc-success-profile-contract-check.mjs | contract check：数据库 JSZC success profile |
+| scripts/00-oceanengine-token-refresh-scope-smoke.mjs | smoke：OAuth refresh 限于 scheduled scope 且不泄漏 secret |
+| scripts/00-oceanengine-token-refresh.mjs | 受控 CLI：单独授权的 token refresh |
+| scripts/00-oceanengine-token-status.mjs | 只读 CLI：脱敏凭据状态 |
+| scripts/00-oe3-readonly-readiness-cli-smoke.mjs | smoke：fresh readonly CLI 的 Case/Job/零写边界 |
+| scripts/00-oe3-readonly-readiness-cli.mjs | 长期 CLI：运行 fresh Node 01–04 readonly，输出 Plan 候选/审计摘要 |
+| scripts/00-oe3-workflow-cli.mjs | 长期 CLI：dry-run、readback-only、mock execute runner |
+| scripts/00-oe3-workflow-skills-smoke.mjs | smoke：7 Node、registry、公开 Job View |
+| scripts/00-readonly-oceanengine-smoke.mjs | smoke：OceanEngine readonly dependency 与无真实写 |
+| scripts/00-runtime-consistency-check.mjs | consistency check：既有 Job 节点、Draft、计数、脱敏 |
+| scripts/00-safe-platform-error-summary-smoke.mjs | smoke：安全错误分类/字段路径 |
+| scripts/00-schema-validation-smoke.mjs | schema check：数据库配置与授权 readiness 字段 |
+| scripts/00-smoke-api.mjs | smoke：API view、节点 children、dry-run 清理 |
+| scripts/00-workflow-case-smoke.mjs | smoke：Case、root blocker、完成 Gate、投影优先级 |
+
+### 10.2 Node 02 monitor
+
+| 脚本 | 类型 / 作用 |
+| --- | --- |
+| scripts/02-monitor-account-scope-smoke.mjs | smoke：monitor 显式目标账户范围 |
+| scripts/02-monitor-bootstrap-smoke.mjs | smoke：bootstrap、凭据、脱敏、回查 |
+| scripts/02-monitor-cycle-smoke.mjs | smoke：provision cycle / attempt 状态 |
+| scripts/02-monitor-formal-boundary-smoke.mjs | smoke：monitor 不属于资源 executor 正式 action |
+| scripts/02-monitor-planned-action-workflow-smoke.mjs | smoke：monitor planned action 与 scope |
+| scripts/02-monitor-provision-cli.mjs | 长期 CLI：status、preflight、plan、reconcile、ensure、report、relation sync；必须显式 Case/账户 |
+
+### 10.3 Node 03、备用页与资源蓝图
+
+| 脚本 | 类型 / 作用 |
+| --- | --- |
+| scripts/03-backup-landing-page-readonly-resolve.mjs | 只读 CLI：单独运行备用页 readiness |
+| scripts/03-baseline-resource-bootstrap-readonly-cli.mjs | 只读 CLI：物化/核验蓝图候选和 Plan 摘要 |
+| scripts/03-baseline-resource-inheritance-smoke.mjs | smoke：蓝图继承、DMP、launch pack、资源状态 |
+| scripts/03-landing-page-source-target-readonly-inventory.mjs | 只读 CLI：来源页、普通库存、目标 SHARE 库存 |
+
+### 10.4 Node 04 资源专项
+
+| 脚本 | 类型 / 作用 |
+| --- | --- |
+| scripts/04-avatar-ensure-once.mjs | 受控 once：头像 upload/submit/readback 后撤销 scope |
+| scripts/04-avatar-executor-smoke.mjs | smoke：头像成功、失败、已 READY |
+| scripts/04-avatar-submit-once.mjs | 受控 once：头像源与提交合同 Skill Run |
+| scripts/04-avatar-submit-smoke.mjs | smoke：头像源检查和提交 Plan 零写 |
+| scripts/04-aweme-authorization-readonly-smoke.mjs | smoke：抖音号授权 readonly 与 payload Gate |
+| scripts/04-backup-landing-page-material-inventory-smoke.mjs | smoke：共享清单命中、未命中、降级 |
+| scripts/04-dmp-ensure-once.mjs | 受控 once：逐包 DMP push/readback 后撤销 scope |
+| scripts/04-dmp-executor-smoke.mjs | smoke：DMP transport、单次、失败停止、回查 |
+| scripts/04-dmp-push-plan-smoke.mjs | smoke：DMP Plan 仅选择 missing 成员 |
+| scripts/04-dmp-push-plan.mjs | 只读 CLI：输出 DMP push Plan，不写平台 |
+| scripts/04-dmp-readback-smoke.mjs | smoke：read 权威分类、select 降级、可投性 |
+| scripts/04-event-asset-api-create-once.mjs | 受控 once：event asset 单动作 Plan 创建/回查 |
+| scripts/04-event-asset-executor-smoke.mjs | smoke：资产 executor、scope、list/detail 回查 |
+| scripts/04-event-asset-provision-contract-smoke.mjs | smoke：资产可计划性与 BLOCKED 合同 |
+| scripts/04-event-chain-readonly-smoke.mjs | smoke：资产、实例、baseline、goal、dbt readonly 链 |
+| scripts/04-event-configs-api-create-once.mjs | 受控 once：baseline configs 创建/回查 |
+| scripts/04-event-configs-executor-smoke.mjs | smoke：event config 请求、上限、失败停止、回查 |
+| scripts/04-node4-resource-prep-contracts-smoke.mjs | smoke：Node 04 源合同、readiness、schedule、verifier |
+| scripts/04-product-image-ensure-once.mjs | 受控 once：产品图 upload/readback 和撤销 scope |
+| scripts/04-product-image-executor-smoke.mjs | smoke：108×108 图片 executor、签名/ID 回查 |
+| scripts/04-resource-action-registry-smoke.mjs | smoke：资源注册表、Plan action、verify-only 边界 |
+| scripts/04-video-material-bind-plan.mjs | 只读 CLI：视频绑定候选 Plan |
+| scripts/04-video-material-ensure-once.mjs | 受控 once：视频批量绑定/回查和撤销 scope |
+| scripts/04-video-material-executor-smoke.mjs | smoke：视频绑定、封面、scope、失败停止 |
+| scripts/04-video-material-readback.mjs | 只读 CLI：指定视频集合目标账户回查 |
+
+### 10.5 Node 05–07、确认与创建
+
+| 脚本 | 类型 / 作用 |
+| --- | --- |
+| scripts/05-confirmed-resource-plan-execute-once.mjs | 长期受控 CLI：校验精确 Plan，记录一次确认，临时 scope，orchestrator，必撤销 |
+| scripts/05-game-route-launch-link-smoke.mjs | smoke：小游戏 link、nested contract、payload 形态 |
+| scripts/05-payload-contract-smoke.mjs | smoke：payload、字段合同、ledger、wire body、preflight |
+| scripts/05-runtime-reservations-smoke.mjs | smoke：项目名 reservation 与并发序列 |
+| scripts/05-single-confirmation-orchestrator-smoke.mjs | smoke：一份资源 Plan、一次确认、多个受限动作、失败停止 |
+| scripts/06-create-verification-series-prepare.mjs | 受控 CLI：有上限创建验证系列，仍须 new Plan/confirmation |
+| scripts/06-launch-execute-once.mjs | 长期受控 CLI：Node 06/07 Plan-bound 单次创建入口 |
+| scripts/06-std-project-create-wire-body-smoke.mjs | smoke：int64 wire body、字段合同、无损响应 ID |
+| scripts/07-create-field-ledger-attest.mjs | 人工 CLI：创建后字段 ledger attest |
+| scripts/oneoff/06-std-project-id-lossless-reconcile.mjs | one-off：严格条件下事务修复历史舍入 ID；不调用平台写 |
+
+## 11. 最小操作图与回归入口
+
+~~~text
+读取 workflow_case_summary
+  ↓
+├─ blocker
+│  → 只定位一个最小修复
+│  → fresh Node 01–04 readonly
+│
+├─ Resource Plan ready
+│  → 展示 action / limit / plan_id / plan_hash
+│  → 人工确认
+│  → confirmed-resource-orchestrator
+│  → 逐项 write/readback；失败停止或全部 READY
+│
+├─ Create Plan ready
+│  → 展示唯一 std_project_create / plan_id / plan_hash
+│  → 人工确认
+│  → create ×1 → Node 07 readonly
+│
+├─ readback pending / mismatch
+│  → 只 readback / 人工复盘
+│  → 不重复 create
+│
+└─ first_std_project_create_completed
+   → Case 完成；write scope 的 actions 和额度必须已撤销
+~~~
+
+最小回归集合：
+
+~~~text
+npm run validate:schemas
+npm run test:workflow-case
+npm run test:execution-plan
+npm run test:single-confirmation-orchestrator
+npm run test:execution-grant
+npm run test:std-project-create-wire-body
+npm run test:resource-action-registry
+npm run test:dmp-executor
+npm run test:video-material-executor
+npm run test:product-image-executor
+npm run test:event-chain-readonly
+npm run test:payload-contract
+git diff --check
+~~~
+
+最终不变量：
+
+~~~text
+一条主链
++ 一个 Node 注册表
++ 一份当轮 immutable Plan
++ 一次对应人工确认
++ 每项写后权威回查
++ 一个 workflow_case_summary 当前状态投影
+~~~

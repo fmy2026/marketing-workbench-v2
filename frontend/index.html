@@ -35,14 +35,17 @@
             <h2>对话</h2>
             <p id="agentStatus">加载中</p>
           </div>
-          <button class="icon-button" id="configButton" type="button" aria-label="LLM 配置" aria-describedby="configTip">
+          <button class="icon-button" id="configButton" type="button" aria-label="规范化解析" aria-describedby="configTip">
             <i data-lucide="settings-2" aria-hidden="true"></i>
           </button>
-          <span class="tooltip" id="configTip" role="tooltip">LLM 配置</span>
+          <span class="tooltip" id="configTip" role="tooltip">规范化解析</span>
         </div>
 
         <div class="identity-strip" id="intentCard" aria-label="识别结果"></div>
-        <div class="aweme-panel" id="awemePanel" aria-label="抖音号授权关系"></div>
+        <div class="intake-action" id="intakeAction" aria-live="polite">
+          <span class="intake-hint" id="intakeHint"></span>
+          <button class="start-button" id="startWorkflowButton" type="button" disabled>启动流程</button>
+        </div>
         <div class="chat-stream" id="chatStream" aria-live="polite"></div>
 
         <form class="chat-form" id="chatForm">
@@ -56,17 +59,18 @@
 
       <section class="workflow-panel" aria-label="Workflow">
         <div class="workflow-title">
-          <h2>Workflow · 3 阶段 · 7 节点</h2>
+          <h2 id="workflowHeading">Workflow</h2>
           <span class="status-pill" id="runState">待执行</span>
         </div>
 
+        <div class="case-gate" id="caseGate" aria-live="polite"></div>
         <div class="workflow-grid" id="workflowGrid"></div>
       </section>
     </section>
 
     <footer class="command-bar">
       <div class="progress-text" id="progressText">进度 0 / 7</div>
-      <div class="run-mode" id="runModeText">提交后自动执行</div>
+      <div class="run-mode" id="runModeText">等待规范化输入</div>
     </footer>
   </main>
 

@@ -1,11 +1,20 @@
 (function () {
   let job = null;
+  let workbench = null;
   let busy = false;
   let viewOnly = false;
   let polling = false;
+  let draftCaseId = "";
+  let draftCaseKey = "";
+  const chatMessages = [];
+  const focusedNodes = new Map();
+  const draftIntake = {
+    route_id: "",
+    game_code: "",
+    advertiser_id: ""
+  };
 
   const DONE_STATUSES = new Set(["passed"]);
-  const PUBLIC_STATUS = new Set(["waiting", "running", "passed", "needs_confirmation", "blocked", "repairable", "failed", "locked"]);
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -35,155 +44,228 @@
     return body;
   }
 
+  function phases() {
+    return job?.phases || workbench?.phases || [];
+  }
+
   function allNodes() {
-    return (job?.phases || []).flatMap((phase) => phase.nodes || []);
+    return phases().flatMap((phase) => phase.nodes || []);
   }
 
   function progressCount(nodes) {
     return nodes.filter((node) => DONE_STATUSES.has(node.status)).length;
   }
 
-  function setBusy(nextBusy) {
-    busy = nextBusy;
-    renderCommand();
+  function requiredFields() {
+    return job?.intake?.requiredFields || workbench?.intake?.requiredFields || [];
   }
 
-  function addMessage(role, text) {
-    const stream = document.getElementById("chatStream");
-    const message = el("div", `chat-message is-${role}`);
-    message.append(el("div", "message-bubble", text));
-    stream.append(message);
-    stream.scrollTop = stream.scrollHeight;
+  function fieldValue(intake, key) {
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    return intake?.[key] || intake?.[camelKey] || "";
+  }
+
+  function activeIntake() {
+    return job?.intake || draftIntake;
+  }
+
+  function missingFields() {
+    return requiredFields().filter((field) => !fieldValue(draftIntake, field.key));
+  }
+
+  function message(role, text) {
+    chatMessages.push({ role, text });
+    renderChat();
+  }
+
+  function appendRenderedMessage(stream, role, text) {
+    const messageNode = el("div", `chat-message is-${role}`);
+    messageNode.append(el("div", "message-bubble", text));
+    stream.append(messageNode);
+  }
+
+  function operationalMessage() {
+    if (!job?.caseGate?.currentGate) return "";
+    const gate = job.caseGate;
+    const blocker = gate.rootBlockerCodes?.[0] ? `；唯一阻断：${gate.rootBlockerCodes[0]}` : "";
+    if (job.isLatestCaseJob && !viewOnly) {
+      return `当前 Gate：${gate.currentGate}${blocker}；下一步：${gate.suggestedNextAction || "等待后端更新"}`;
+    }
+    return `历史运行，只读查看。当前 Case Gate：${gate.currentGate}${blocker}`;
   }
 
   function renderChat() {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
-    if (!job) return;
-    (job?.chat || []).slice(-4).forEach((message) => {
-      if (message?.text) addMessage(message.role === "user" ? "user" : "agent", message.text);
-    });
-  }
-
-  function renderAwemeAuthorization() {
-    const panel = document.getElementById("awemePanel");
-    panel.innerHTML = "";
-    if (!job?.awemeAuthorization) return;
-    const auth = job.awemeAuthorization;
-    const header = el("div", "aweme-panel-header");
-    header.append(el("strong", "", "抖音号授权关系"));
-    header.append(el("span", `status-chip status-${auth.verificationStatus || "waiting"}`, auth.verificationStatus || "not_verified"));
-    panel.append(header);
-
-    const meta = el("div", "aweme-meta");
-    [
-      ["要求", auth.required ? "需要" : "不需要"],
-      ["默认", auth.configured ? "已配置" : "未配置"],
-      ["核验", auth.ready ? "通过" : (auth.verifiedAt ? "未通过" : "未核验")],
-      ["阻断", auth.blockerCode || "无"],
-      ["下一步", auth.nextAction || "等待"]
-    ].forEach(([label, value]) => {
-      const item = el("span", "aweme-meta-item");
-      item.append(el("em", "", label));
-      item.append(el("b", "", value));
-      meta.append(item);
-    });
-    panel.append(meta);
-
-    if (auth.defaultAwemeIdHash) {
-      const item = el("span", "aweme-meta-item");
-      item.title = auth.defaultAwemeIdHash;
-      item.append(el("em", "", "默认ID"));
-      item.append(el("b", "", auth.defaultAwemeIdHash.slice(0, 18)));
-      meta.append(item);
+    const messages = [...chatMessages];
+    if (!messages.length && workbench?.intake?.prompt) {
+      messages.push({ role: "agent", text: workbench.intake.prompt });
     }
+    for (const item of messages) {
+      if (item?.text) appendRenderedMessage(stream, item.role === "user" ? "user" : "agent", item.text);
+    }
+    const current = operationalMessage();
+    if (current) appendRenderedMessage(stream, "agent", current);
+    stream.scrollTop = stream.scrollHeight;
   }
 
   function renderIntake() {
-    document.getElementById("agentStatus").textContent = job?.headline?.statusLabel || job?.agent?.statusText || "等待需求";
+    const intake = activeIntake();
+    const fields = requiredFields();
+    const agentStatus = document.getElementById("agentStatus");
+    const missing = job ? [] : missingFields();
+    agentStatus.textContent = viewOnly
+      ? "历史运行，只读"
+      : job?.headline?.statusLabel || (missing.length ? "等待补齐" : "已规范化");
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
-    [
-      ["推广路线", job?.intake?.routeId],
-      ["游戏", job?.intake?.gameCode],
-      ["账户", job?.intake?.advertiserId]
-    ].forEach(([label, value]) => {
-      if (!value) return;
+    for (const field of fields) {
+      const value = fieldValue(intake, field.key);
+      if (!value) continue;
       const item = el("div", "identity-item");
-      item.append(el("span", "", label));
+      item.append(el("span", "", field.label));
       item.append(el("strong", "", value));
       intentCard.append(item);
-    });
+    }
+
+    const startButton = document.getElementById("startWorkflowButton");
+    const hint = document.getElementById("intakeHint");
+    const action = document.getElementById("intakeAction");
+    const isDraftReady = !job && fields.length > 0 && missing.length === 0;
+    action.hidden = Boolean(job);
+    startButton.disabled = !isDraftReady || busy || viewOnly;
+    hint.textContent = isDraftReady
+      ? "输入已规范化，确认后启动只读流程。"
+      : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。");
+  }
+
+  function statusTitle(item) {
+    return item?.statusLabel || item?.status || "等待";
+  }
+
+  function statusDot(status, title) {
+    const dot = el("span", `status-dot${status === "passed" ? " status-passed" : ""}`);
+    dot.setAttribute("aria-label", title);
+    dot.title = title;
+    return dot;
+  }
+
+  function focusNode(phase) {
+    const nodes = phase.nodes || [];
+    const key = phase.id || phase.title || phase.phase || "";
+    const selected = nodes.find((node) => node.id === focusedNodes.get(key));
+    if (selected) return selected;
+    return nodes.find((node) => node.status !== "passed") || nodes.at(-1) || null;
+  }
+
+  function renderCaseGate() {
+    const panel = document.getElementById("caseGate");
+    panel.innerHTML = "";
+    if (!job?.caseGate?.currentGate) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    const gate = job.caseGate;
+    const currentCaseView = job.isLatestCaseJob && !viewOnly;
+    const scope = currentCaseView ? "当前 Case" : "历史 Job · 当前 Case";
+    panel.append(el("strong", "", `${scope} Gate：${gate.currentGate}`));
+    if (gate.rootBlockerCodes?.[0]) panel.append(el("span", "", `唯一阻断：${gate.rootBlockerCodes[0]}`));
+    if (currentCaseView && gate.suggestedNextAction) {
+      panel.append(el("span", "", `下一步：${gate.suggestedNextAction}`));
+    }
   }
 
   function renderWorkflow() {
+    const workflowPhases = phases();
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
 
-    (job?.phases || []).forEach((phase) => {
+    for (const phase of workflowPhases) {
+      const nodes = phase.nodes || [];
       const section = el("section", "phase-section");
-      section.append(el("h3", "phase-title", phase.title || phase.phase || ""));
+      const title = el("div", "phase-heading");
+      const complete = nodes.length > 0 && nodes.every((node) => node.status === "passed");
+      title.append(statusDot(complete ? "passed" : "waiting", complete ? "阶段通过" : "阶段未全部通过"));
+      title.append(el("h3", "phase-title", phase.title || phase.phase || ""));
+      section.append(title);
 
-      const list = el("div", `node-card-grid node-count-${(phase.nodes || []).length}`);
-      (phase.nodes || []).forEach((node) => {
-        const status = PUBLIC_STATUS.has(node.status) ? node.status : "waiting";
-        const card = el("article", `node-card status-${status}`);
-        const header = el("div", "node-card-header");
-        header.append(el("span", "node-marker", String(node.number || "")));
-        header.append(el("h4", "node-card-name", node.name || ""));
-        const nodeDot = el("span", "status-dot");
-        nodeDot.setAttribute("aria-label", node.statusLabel || status);
-        nodeDot.title = node.statusLabel || status;
-        header.append(nodeDot);
-        card.append(header);
-
-        const children = el("div", "child-list");
-        (node.children || []).forEach((child) => {
-          const childStatus = PUBLIC_STATUS.has(child.status) ? child.status : "waiting";
-          const item = el("div", `child-item status-${childStatus}`);
-          const childDot = el("span", "status-dot");
-          childDot.setAttribute("aria-label", child.statusLabel || childStatus);
-          childDot.title = child.statusLabel || childStatus;
-          item.append(childDot);
-          item.append(el("span", "child-label", child.label || ""));
-          children.append(item);
+      const flow = el("div", "node-flow");
+      nodes.forEach((node, index) => {
+        if (index) flow.append(el("span", "node-arrow", "→"));
+        const focused = focusNode(phase);
+        const nodeButton = el("button", "node-pill");
+        nodeButton.type = "button";
+        nodeButton.title = statusTitle(node);
+        nodeButton.setAttribute("aria-pressed", String(focused?.id === node.id));
+        if (focused?.id === node.id) nodeButton.classList.add("is-selected");
+        nodeButton.append(el("span", "node-marker", String(node.number || "")));
+        nodeButton.append(el("span", "node-pill-label", node.name || ""));
+        nodeButton.append(statusDot(node.status, statusTitle(node)));
+        nodeButton.addEventListener("click", () => {
+          focusedNodes.set(phase.id || phase.title || phase.phase || "", node.id);
+          renderWorkflow();
         });
-        card.append(children);
-        list.append(card);
+        flow.append(nodeButton);
       });
+      section.append(flow);
 
-      section.append(list);
+      const focused = focusNode(phase);
+      if (focused?.children?.length) {
+        const children = el("div", "subnode-panel");
+        const subnodeTitle = el("div", "subnode-heading");
+        subnodeTitle.append(el("span", "", focused.name));
+        subnodeTitle.append(el("span", "subnode-count", `${focused.children.length} 项`));
+        children.append(subnodeTitle);
+        const childList = el("div", "subnode-list");
+        for (const child of focused.children) {
+          const childItem = el("div", "subnode-item");
+          childItem.title = statusTitle(child);
+          childItem.append(statusDot(child.status, statusTitle(child)));
+          childItem.append(el("span", "", child.label || ""));
+          childList.append(childItem);
+        }
+        children.append(childList);
+        section.append(children);
+      }
       grid.append(section);
-    });
-
-    if (!job) {
-      grid.append(el("p", "empty-workflow", "等待新的投放需求"));
     }
 
-    document.getElementById("runState").textContent = job?.headline?.statusLabel || "空闲";
+    const nodeCount = allNodes().length;
+    document.getElementById("workflowHeading").textContent = `Workflow · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
+    document.getElementById("runState").textContent = viewOnly
+      ? "历史运行"
+      : (job?.headline?.statusLabel || (busy ? "运行中" : "等待启动"));
   }
 
   function renderCommand() {
     const nodes = allNodes();
-    document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length || 7}`;
-    document.getElementById("runModeText").textContent = busy ? "自动执行中" : (viewOnly ? "查看记录" : "提交后自动执行");
-    document.getElementById("chatInput").disabled = viewOnly;
-    document.querySelector(".send-button").disabled = viewOnly;
+    document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length}`;
+    document.getElementById("runModeText").textContent = busy
+      ? "只读流程执行中"
+      : (viewOnly ? "历史 Job · 只读" : (job ? "状态已由后端同步" : (missingFields().length ? "等待规范化输入" : "等待启动流程")));
+    document.getElementById("chatInput").disabled = viewOnly || busy || Boolean(job);
+    document.querySelector(".send-button").disabled = viewOnly || busy || Boolean(job);
     refreshIcons();
   }
 
   function renderAll() {
     renderIntake();
-    renderAwemeAuthorization();
     renderChat();
+    renderCaseGate();
     renderWorkflow();
     renderCommand();
     refreshIcons();
   }
 
+  function setBusy(nextBusy) {
+    busy = nextBusy;
+    renderAll();
+  }
+
   function showError(error) {
-    addMessage("agent", `唯一阻断：${error.message}`);
+    message("agent", `唯一阻断：${error.message}`);
   }
 
   async function refreshJob() {
@@ -202,16 +284,83 @@
       refreshJob().catch(() => {});
     }, 1200);
     try {
-      job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
+      await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
         method: "POST",
         body: JSON.stringify({ mode: "dry_run" })
       });
-      renderAll();
+      await refreshJob();
+    } finally {
+      window.clearInterval(refreshTimer);
+    }
+  }
+
+  function createCaseKey() {
+    if (draftCaseKey) return draftCaseKey;
+    const scope = [draftIntake.route_id, draftIntake.game_code.toLowerCase(), draftIntake.advertiser_id]
+      .map((value) => String(value).replace(/[^A-Za-z0-9._-]/g, ""))
+      .join(".");
+    const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "");
+    const nonce = window.crypto?.randomUUID?.().replace(/-/g, "").slice(0, 12) || Math.random().toString(36).slice(2, 14);
+    draftCaseKey = `workbench.${scope}.${stamp}.${nonce}`.slice(0, 127);
+    return draftCaseKey;
+  }
+
+  async function ensureWorkflowCase() {
+    if (draftCaseId) return draftCaseId;
+    try {
+      const workflowCase = await api("/api/workflow-cases", {
+        method: "POST",
+        body: JSON.stringify({
+          case_key: createCaseKey(),
+          route_id: draftIntake.route_id,
+          game_code: draftIntake.game_code,
+          advertiser_id: draftIntake.advertiser_id,
+          business_goal: "从工作台启动一次受控标准项目创建流程。",
+          source_usage: "runtime_truth"
+        })
+      });
+      draftCaseId = workflowCase.case_id;
+      return draftCaseId;
+    } catch (error) {
+      if (error.message === "workflow_case_key_already_exists" && error.details?.caseId) {
+        draftCaseId = error.details.caseId;
+        return draftCaseId;
+      }
+      throw error;
+    }
+  }
+
+  async function startWorkflow() {
+    if (busy || viewOnly || job || missingFields().length) return;
+    setBusy(true);
+    try {
+      const caseId = await ensureWorkflowCase();
+      const created = await api("/api/launch/jobs", {
+        method: "POST",
+        body: JSON.stringify({
+          route_id: draftIntake.route_id,
+          game_code: draftIntake.game_code,
+          advertiser_id: draftIntake.advertiser_id,
+          case_id: caseId,
+          source_usage: "runtime_truth",
+          source_record_ref: "workbench:normalized-input"
+        })
+      });
+      job = created;
+      await refreshJob();
+      message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
+      await runWorkflow(job.jobId);
     } catch (error) {
       showError(error);
     } finally {
-      window.clearInterval(refreshTimer);
       setBusy(false);
+    }
+  }
+
+  function mergeIntake(intake) {
+    for (const field of requiredFields()) {
+      const value = fieldValue(intake, field.key);
+      if (value) draftIntake[field.key] = value;
     }
   }
 
@@ -220,35 +369,28 @@
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (!text || busy || viewOnly) return;
-      addMessage("user", text);
+      if (!text || busy || viewOnly || job) return;
       input.value = "";
+      message("user", text);
       setBusy(true);
       try {
         const intake = await api("/api/launch/intake", {
           method: "POST",
           body: JSON.stringify({ user_intent: text })
         });
-        if (intake.missingFields?.length) {
-          addMessage("agent", `请补充：${intake.missingFields.join("、")}`);
-          return;
-        }
-        job = await api("/api/launch/jobs", {
-          method: "POST",
-          body: JSON.stringify({
-            user_intent: text,
-            route_id: intake.route_id,
-            game_code: intake.game_code,
-            advertiser_id: intake.advertiser_id
-          })
-        });
-        renderAll();
-        await runWorkflow(job.jobId);
+        mergeIntake(intake);
+        const missing = missingFields();
+        message("agent", missing.length
+          ? `已识别 ${requiredFields().length - missing.length}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
+          : "三项输入已规范化；请核对后点击“启动流程”。");
       } catch (error) {
         showError(error);
       } finally {
         setBusy(false);
       }
+    });
+    document.getElementById("startWorkflowButton").addEventListener("click", () => {
+      startWorkflow();
     });
   }
 
@@ -261,7 +403,7 @@
       if (jobId) {
         job = await api(`/api/launch/jobs/${encodeURIComponent(jobId)}`);
       } else {
-        await api("/api/launch/workbench");
+        workbench = await api("/api/launch/workbench");
       }
       renderAll();
     } catch (error) {

@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-08-28.project-control-plane-v2",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-08-31 13:26 CST",
+  "updated_at": "2026-08-31 15:03 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,16 +10,18 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
-    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
+    "task_id": "TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831",
+    "task_ref": "tasks/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.md",
+    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.json",
     "status": "completed",
     "read_order": [
       "AGENTS.md",
       "project.state.json",
-      "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
-      "docs/Solution Design.md"
+      "tasks/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.md",
+      "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DUAL-PANE-TRUTH-SYNC-20260831.json",
+      "docs/Solution Design.md",
+      "docs/project-现在的逻辑图.md",
+      "docs/project-数据与报表契约.md"
     ]
   },
   "guardrails": {

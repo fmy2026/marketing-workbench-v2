@@ -19,6 +19,12 @@ const PHASES = [
   { id: "execute", title: "创建执行", summary: "确认、执行、回查。" }
 ];
 
+const WORKBENCH_INTAKE_FIELDS = Object.freeze([
+  Object.freeze({ key: "route_id", label: "推广路线" }),
+  Object.freeze({ key: "game_code", label: "游戏标识" }),
+  Object.freeze({ key: "advertiser_id", label: "账户 ID" })
+]);
+
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed"]);
 
 const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|landing_url|mini_program_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
@@ -527,6 +533,61 @@ function childView(node, bundle, executionAvailability) {
   });
 }
 
+function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {}) {
+  return PHASES.map((phase) => ({
+    ...phase,
+    nodes: nodes.filter((node) => node.phase === phase.title).map((node) => ({
+      id: node.nodeKey,
+      number: node.number,
+      name: node.nodeName,
+      status: node.status || "waiting",
+      statusLabel: statusLabel(node.status || "waiting"),
+      subflows: node.subflows,
+      children: bundle
+        ? childView(node, bundle, executionAvailability)
+        : (node.children || []).map((child) => ({
+          id: child.id,
+          label: child.label,
+          status: "waiting",
+          statusLabel: statusLabel("waiting")
+        })),
+      detail: node.detail || "等待执行。",
+      output: node.output,
+      readonlyChecks: node.outputSummary?.checks || [],
+      outputSummary: node.outputSummary || {}
+    }))
+  }));
+}
+
+export function buildWorkbenchView() {
+  const nodes = WORKFLOW_NODES.map((node) => ({
+    ...node,
+    status: "waiting",
+    detail: "等待规范化输入。",
+    outputSummary: {}
+  }));
+  return publicView({
+    state: "idle",
+    workbenchUrl: "http://127.0.0.1:3000/",
+    intake: {
+      prompt: "请提供推广路线、游戏标识和账户 ID；可分多条消息输入。",
+      requiredFields: WORKBENCH_INTAKE_FIELDS
+    },
+    phases: workflowPhasesView(nodes)
+  });
+}
+
+function caseGateView(summary = null, jobId = "") {
+  const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
+  return {
+    currentGate: summary?.current_gate || "",
+    rootBlockerCodes: Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes : [],
+    suggestedNextAction: summary?.suggested_next_action || "",
+    lifecycleStatus: summary?.lifecycle_status || "",
+    isLatestCaseJob
+  };
+}
+
 function primaryActionView(bundle = {}, createReadiness = {}, executionAvailability = {}) {
   const alreadyAttempted = executionAvailability.alreadyAttempted || createReadiness.hasSingleCreateAttempt;
   if (alreadyAttempted) {
@@ -544,7 +605,7 @@ function primaryActionView(bundle = {}, createReadiness = {}, executionAvailabil
   };
 }
 
-export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null) {
+export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null) {
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
     const row = dbNodes.get(node.nodeKey) || {};
@@ -558,32 +619,21 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       evidenceRefs: row.evidence_refs || []
     };
   });
-  const phases = PHASES.map((phase) => ({
-    ...phase,
-    nodes: nodes.filter((node) => node.phase === phase.title).map((node) => ({
-      id: node.nodeKey,
-      number: node.number,
-      name: node.nodeName,
-      status: node.status,
-      statusLabel: statusLabel(node.status),
-      subflows: node.subflows,
-      children: childView(node, bundle, executionAvailability),
-      detail: node.detail,
-      output: node.output,
-      readonlyChecks: node.outputSummary?.checks || [],
-      outputSummary: node.outputSummary || {}
-    }))
-  }));
+  const phases = workflowPhasesView(nodes, bundle, executionAvailability);
   const diagnostics = diagnosticsFromNodes(nodes);
   const execution = executionView(bundle);
   const createReadiness = createReadinessView(bundle, runtimeChecks);
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
+  const caseGate = caseGateView(caseSummary, bundle.job.job_id);
+  const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
     status: bundle.job.job_status,
     statusLabel: statusLabel(bundle.job.job_status),
-    nextAction: createReadiness.nextAction || nextActionForBundle(bundle)
+    nextAction: caseGate.currentGate
+      ? (caseGate.isLatestCaseJob ? caseGate.suggestedNextAction : "历史运行，只读查看。")
+      : fallbackNextAction
   };
   const workflow = phases.map((phase) => ({
     phase: phase.title,
@@ -597,12 +647,16 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const summaryFields = [
     ...summaryFieldsView(bundle, execution),
     { label: "创建就绪", value: createReadiness.statusLabel || createReadiness.status, visible: true },
-    { label: "唯一阻断", value: createReadiness.uniqueBlocker || "无", visible: true },
-    { label: "下一步", value: createReadiness.nextAction || "", visible: true }
+    { label: "当前 Gate", value: caseGate.currentGate || "未投影", visible: true },
+    { label: "唯一阻断", value: caseGate.rootBlockerCodes[0] || "无", visible: true },
+    { label: "下一步", value: headline.nextAction, visible: true }
   ];
 
   return publicView({
     jobId: bundle.job.job_id,
+    caseId: bundle.job.case_id,
+    isLatestCaseJob: caseGate.isLatestCaseJob,
+    caseGate,
     updatedAt: bundle.job.updated_at || bundle.job.created_at,
     headline,
     agent: {
@@ -617,7 +671,8 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       gameCode: bundle.job.game_code,
       advertiserId: bundle.job.advertiser_id,
       sourceRecordRef: bundle.job.source_record_ref || "",
-      missingFields: []
+      missingFields: [],
+      requiredFields: WORKBENCH_INTAKE_FIELDS
     },
     touchpoint: {
       touchpointRef: bundle.touchpoint?.touchpoint_ref || "",
@@ -719,16 +774,17 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
 }
 
 async function buildPublicJobView(repo, bundle, { projectStatePath } = {}) {
-  const [runtimeChecks, executionAvailability, awemeReadiness] = await Promise.all([
+  const [runtimeChecks, executionAvailability, awemeReadiness, caseSummary] = await Promise.all([
     buildRuntimeChecks(repo, bundle),
     getExecutionGrantAvailability({ repo, bundle, projectStatePath }),
     repo.getAdvertiserAwemeAuthorizationReadiness({
       routeId: bundle.job.route_id,
       gameCode: bundle.job.game_code,
       advertiserId: bundle.job.advertiser_id
-    })
+    }),
+    repo.getWorkflowCaseSummary(bundle.job.case_id)
   ]);
-  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability, awemeReadiness);
+  return buildLaunchJobView(bundle, runtimeChecks, executionAvailability, awemeReadiness, caseSummary);
 }
 
 export async function getJobView(repo, jobId, options = {}) {
