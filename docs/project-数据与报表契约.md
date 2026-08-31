@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-08-31 17:37 CST |
-| 校验基线 | Git `24f9e1c`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `060_confirmed_resource_failure_case_gate.sql`；Postgres `mwb`：33 张基础表、4 个 View |
+| 最后更新时间 | 2026-08-31 18:20 CST |
+| 校验基线 | Git `592c5b2`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `061_case_gate_monitor_dependency_priority.sql`；Postgres `mwb`：33 张基础表、4 个 View |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -92,7 +92,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
+`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；其选择顺序为 confirmed-resource 停止、monitor 周期/上下文、Node 4 资源、Plan fallback。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
 
 | Gate 优先级 | 当前条件 | `current_gate` | `suggested_next_action` |
 | ---: | --- | --- | --- |

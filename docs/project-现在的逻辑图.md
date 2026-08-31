@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-08-31 17:37 CST |
-| 校验基线 | Git `24f9e1c`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `060_confirmed_resource_failure_case_gate.sql`；Postgres `mwb`：33 张基础表、4 个 View |
+| 最后更新时间 | 2026-08-31 18:20 CST |
+| 校验基线 | Git `592c5b2`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `061_case_gate_monitor_dependency_priority.sql`；Postgres `mwb`：33 张基础表、4 个 View |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -147,7 +147,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 1 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
 | 2 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
 | 3 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
-| 4 | confirmed-resource 执行停止或资源/Plan 根阻断 | `resolve_case_blocker` | 处理唯一 root blocker，再 fresh readonly |
+| 4 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker，再 fresh readonly |
 | 5 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
 | 6 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
 | 7 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
@@ -163,7 +163,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 仅精确“确认创建”且 plan_id + plan_hash 未漂移时，才进入既有执行器
 ```
 
-Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择平台动作、不扩大 Guardrail。对话、前端、API、CLI 和任务卡均不得持久化 raw transcript 或自行推导下一步。
+Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择平台动作、不扩大 Guardrail。对话、前端、API、CLI 和任务卡均不得持久化 raw transcript 或自行推导下一步。工作台只把 blocker code 映射为展示文案；Gate 与 suggested action 仍只来自 View。
 
 ## 6. 引用与边界
 

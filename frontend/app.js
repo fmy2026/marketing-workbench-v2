@@ -191,7 +191,7 @@
   }
 
   function statusDot(status, title) {
-    const dot = el("span", `status-dot${status === "passed" ? " status-passed" : ""}`);
+    const dot = el("span", `status-dot${status === "passed" ? " status-passed" : ""}${["blocked", "failed"].includes(status) ? " status-blocked" : ""}${status === "needs_confirmation" ? " status-needs-confirmation" : ""}`);
     dot.setAttribute("aria-label", title);
     dot.title = title;
     return dot;
@@ -217,7 +217,11 @@
     const currentCaseView = job.isLatestCaseJob && !viewOnly;
     const scope = currentCaseView ? "当前 Case" : "历史 Job · 当前 Case";
     panel.append(el("strong", "", `${scope} Gate：${gate.currentGate}`));
-    if (gate.rootBlockerCodes?.[0]) panel.append(el("span", "", `唯一阻断：${gate.rootBlockerCodes[0]}`));
+    if (gate.rootBlockerCodes?.[0]) {
+      panel.append(el("span", "", `唯一阻断：${gate.rootBlocker?.title || gate.rootBlockerCodes[0]}（${gate.rootBlockerCodes[0]}）`));
+      if (gate.rootBlocker?.reason) panel.append(el("span", "", gate.rootBlocker.reason));
+      if (gate.rootBlocker?.nextActionLabel) panel.append(el("span", "", `处理建议：${gate.rootBlocker.nextActionLabel}`));
+    }
     if (currentCaseView && gate.suggestedNextAction) {
       panel.append(el("span", "", `下一步：${gate.suggestedNextAction}`));
     }

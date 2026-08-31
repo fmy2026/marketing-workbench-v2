@@ -16,11 +16,11 @@ import {
   EVENT_ASSET_CREATE_FIELD_NAMES,
   EVENT_ASSET_CREATE_METHOD,
   EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
-  EVENT_ASSET_TEMPLATE_REF,
   assertNoSensitiveLeak,
   EVENT_CONFIG_BASELINE_EVENTS,
   EVENT_CONFIG_TRACK_TYPE,
   eventAssetOfficialCreateContractHash,
+  eventAssetTemplateRef,
   eventAssetTemplateHash
 } from "../src/workflows/skills/oe3/00-index.mjs";
 
@@ -28,7 +28,8 @@ function provisionFor(base) {
   return {
     version: "2026-08-30.event-asset-api-create-v2",
     template_status: "ready",
-    template_ref: EVENT_ASSET_TEMPLATE_REF,
+    target_advertiser_id: base.job.advertiser_id,
+    template_ref: eventAssetTemplateRef(base.job.advertiser_id),
     template_hash: eventAssetTemplateHash({ bundle: base }),
     asset_type: "MINI_PROGRAME",
     platform_app_ref: "GPA-JSZC-OE-BYTE-MINI-GAME",

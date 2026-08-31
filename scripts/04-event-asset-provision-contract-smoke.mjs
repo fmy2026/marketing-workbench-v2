@@ -4,9 +4,9 @@ import {
   EVENT_ASSET_CREATE_METHOD,
   EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
   EVENT_ASSET_PROVISION_ACTION,
-  EVENT_ASSET_TEMPLATE_REF,
   assertNoSensitiveLeak,
   eventAssetOfficialCreateContractHash,
+  eventAssetTemplateRef,
   eventAssetTemplateHash,
   evaluateEventAssetProvisionContract
 } from "../src/workflows/skills/oe3/00-index.mjs";
@@ -18,13 +18,17 @@ function assert(condition, message) {
 
 const HASH = `sha256:${"a".repeat(64)}`;
 
-function bundle({ provision = {}, eventContract = { status: "blocked", blocker_codes: ["event_asset_target_not_found"] } } = {}) {
+function bundle({
+  advertiserId = "1871922434025472",
+  provision = {},
+  eventContract = { status: "blocked", blocker_codes: ["event_asset_target_not_found"] }
+} = {}) {
   return {
     job: {
       job_id: "JOB-SMOKE-EVENT-ASSET-PROVISION",
       route_id: "oceanengine_3_byte_mini_game",
       game_code: "JSZC",
-      advertiser_id: "1871922434025472"
+      advertiser_id: advertiserId
     },
     defaults: {
       objective: "AD_CONVERT_TYPE_PAY",
@@ -86,13 +90,14 @@ const missingTemplate = evaluateEventAssetProvisionContract({
     }
   })
 });
-assert(missingTemplate.blockers.includes("event_asset_provision_template_ref_missing"), "missing_template_ref_not_blocked");
+assert(missingTemplate.blockers.includes("event_asset_provision_template_ref_mismatch"), "missing_template_ref_not_blocked");
 
 const verifiedBundle = bundle();
 const verifiedProvision = {
   version: "test",
   template_status: "ready",
-  template_ref: EVENT_ASSET_TEMPLATE_REF,
+  target_advertiser_id: verifiedBundle.job.advertiser_id,
+  template_ref: eventAssetTemplateRef(verifiedBundle.job.advertiser_id),
   template_hash: eventAssetTemplateHash({ bundle: verifiedBundle }),
   asset_type: "MINI_PROGRAME",
   platform_app_ref: "GPA-JSZC-OE-BYTE-MINI-GAME",
@@ -114,6 +119,14 @@ assert(eligible.outputSummary.proposedAction === EVENT_ASSET_PROVISION_ACTION, "
 assert(Boolean(eligible.outputSummary.idempotencyScope), "event_idempotency_scope_missing");
 assert(eligible.outputSummary.officialCreateEndpoint === EVENT_ASSET_CREATE_ENDPOINT, "event_create_endpoint_mismatch");
 assert(eligible.outputSummary.templateHashMatchesExpected === true, "event_template_hash_mismatch");
+
+const crossAccount = evaluateEventAssetProvisionContract({ bundle: bundle({
+  advertiserId: "1871922414575753",
+  provision: { ...verifiedProvision },
+  eventContract: { status: "blocked", blocker_codes: ["event_asset_target_not_found"] }
+}) });
+assert(crossAccount.status === "blocked", "cross_account_contract_must_fail_closed");
+assert(crossAccount.blockers.includes("event_asset_provision_advertiser_scope_mismatch"), "cross_account_scope_blocker_missing");
 
 const missingTargetReadiness = eventChainResourceReadiness({
   bundle: bundle({ provision: verifiedProvision }),

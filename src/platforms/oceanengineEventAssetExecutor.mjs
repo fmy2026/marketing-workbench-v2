@@ -10,9 +10,9 @@ import {
   EVENT_ASSET_CREATE_ENDPOINT,
   EVENT_ASSET_CREATE_FIELD_NAMES,
   EVENT_ASSET_CREATE_METHOD,
-  EVENT_ASSET_TEMPLATE_REF,
   buildEventAssetCreatePayload,
   eventAssetTemplateHash,
+  eventAssetTemplateRef,
   evaluateEventAssetProvisionContract
 } from "../workflows/skills/oe3/04-event-asset-provision-contract.mjs";
 import {
@@ -95,7 +95,7 @@ function requestFieldManifest({ bundle = {}, requestHash = "", templateHash = ""
     mini_program_name_hash: hashValue(payload.mini_program_asset?.mini_program_name || ""),
     instance_id_hash: hashValue(payload.mini_program_asset?.instance_id || ""),
     instance_id_wire_strategy: "decimal_bigint_json_number",
-    template_ref: EVENT_ASSET_TEMPLATE_REF,
+    template_ref: eventAssetTemplateRef(bundle.job?.advertiser_id),
     template_hash: templateHash,
     request_hash: requestHash,
     payload_persisted: false
@@ -132,7 +132,7 @@ export function buildEventAssetCreateRequestPlan({ bundle = {} } = {}) {
       asset_type: payload.asset_type,
       mini_program_id_hash: hashValue(payload.mini_program_asset?.mini_program_id || ""),
       instance_id_hash: hashValue(payload.mini_program_asset?.instance_id || ""),
-      template_ref: EVENT_ASSET_TEMPLATE_REF,
+      template_ref: eventAssetTemplateRef(bundle.job?.advertiser_id),
       template_hash: templateHash,
       instance_id_wire_number_token_present: /"instance_id":\d+/.test(wire.body),
       payload_persisted: false,
@@ -364,7 +364,7 @@ export async function ensureEventAssetForTargetOnce({
       route_id: bundle.job.route_id,
       game_code: bundle.job.game_code,
       advertiser_id_hash: hashValue(bundle.job.advertiser_id),
-      template_ref: EVENT_ASSET_TEMPLATE_REF,
+      template_ref: eventAssetTemplateRef(bundle.job?.advertiser_id),
       template_hash: eventAssetTemplateHash({ bundle }),
       idempotency_scope_hash: provision.outputSummary?.idempotencyScope || "",
       retry_allowed: false,

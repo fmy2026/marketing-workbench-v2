@@ -178,6 +178,30 @@ export class PostgresRepository {
           ORDER BY t.updated_at DESC
           LIMIT 1
         ),
+        'monitorProvision', (
+          SELECT jsonb_build_object(
+            'provision_id', v.provision_id,
+            'cycle_id', v.cycle_id,
+            'cycle_status', v.cycle_status,
+            'provision_status', v.provision_status,
+            'monitor_id_present', v.monitor_id_present,
+            'touchpoint_url_present', v.touchpoint_url_present,
+            'blocker', CASE
+              WHEN v.provision_status = 'terminal_failed' THEN coalesce(nullif(v.error_summary, ''), 'monitor_create_busy_retry_exhausted')
+              ELSE ''
+            END,
+            'latest_attempt_status', v.latest_attempt_status,
+            'latest_attempt_error_category', v.latest_attempt_error_category,
+            'latest_attempt_error_summary', v.latest_attempt_error_summary,
+            'updated_at', v.updated_at
+          )
+          FROM mwb.v_monitor_provision_status_report v
+          WHERE v.route_id = r.route_id
+            AND v.game_code = g.game_code
+            AND v.advertiser_id = a.advertiser_id
+          ORDER BY v.updated_at DESC
+          LIMIT 1
+        ),
         'defaults', (
           SELECT to_jsonb(d)
           FROM mwb.game_route_defaults d
@@ -582,6 +606,30 @@ export class PostgresRepository {
             AND t.game_code = j.game_code
             AND t.advertiser_id = j.advertiser_id
           ORDER BY t.updated_at DESC
+          LIMIT 1
+        ),
+        'monitorProvision', (
+          SELECT jsonb_build_object(
+            'provision_id', v.provision_id,
+            'cycle_id', v.cycle_id,
+            'cycle_status', v.cycle_status,
+            'provision_status', v.provision_status,
+            'monitor_id_present', v.monitor_id_present,
+            'touchpoint_url_present', v.touchpoint_url_present,
+            'blocker', CASE
+              WHEN v.provision_status = 'terminal_failed' THEN coalesce(nullif(v.error_summary, ''), 'monitor_create_busy_retry_exhausted')
+              ELSE ''
+            END,
+            'latest_attempt_status', v.latest_attempt_status,
+            'latest_attempt_error_category', v.latest_attempt_error_category,
+            'latest_attempt_error_summary', v.latest_attempt_error_summary,
+            'updated_at', v.updated_at
+          )
+          FROM mwb.v_monitor_provision_status_report v
+          WHERE v.route_id = j.route_id
+            AND v.game_code = j.game_code
+            AND v.advertiser_id = j.advertiser_id
+          ORDER BY v.updated_at DESC
           LIMIT 1
         ),
         'defaults', (

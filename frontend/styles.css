@@ -627,6 +627,14 @@ p {
   background: var(--green);
 }
 
+.status-dot.status-blocked {
+  background: #dc2626;
+}
+
+.status-dot.status-needs-confirmation {
+  background: #d97706;
+}
+
 .subnode-count {
   padding: 2px 6px;
   border-radius: 999px;

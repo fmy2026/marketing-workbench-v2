@@ -11,6 +11,14 @@
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
 
+## 已批准设计：Case Gate 真值与账户级事件资产合同
+
+当同一 Case 同时缺少 monitor、触点和账户资源时，唯一 root blocker 必须按依赖顺序选择：已创建对象回查、创建尝试上限、人工修正、monitor/上下文、游戏包、Node 4 资源、Plan 兜底。View、Execution Plan 和工作台只消费这一排序结果，不各自选择不同 blocker。
+
+事件资产保持 fail-closed：正式 action 只能使用与当前 route、game、advertiser 相同的账户级合同，合同必须带目标账户、版本化模板引用、动态模板 hash、官方接口合同与目标 App/实例只读前提。不得以移除校验的方式开放到所有账户。
+
+本设计只修复本地真值、展示和计划资格；monitor、事件资产及投放创建仍须分别建立专项 Task、冻结 Plan 并取得明确写入授权。
+
 ## 何时使用
 
 以下情况必须读取：

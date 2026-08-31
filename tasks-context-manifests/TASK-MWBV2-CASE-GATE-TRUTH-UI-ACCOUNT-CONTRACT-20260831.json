@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831",
+  "task_ref": "tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "updated_at": "2026-08-31 18:20 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的“当前 Case 卡点解读与下一步方案”",
+    "objective": "Correct case-gate truth, workbench status fidelity, and account-scoped event asset contracts without platform writes.",
+    "current_truth": "mwb.workflow_case_summary selects event_asset_provision_not_plan_eligible while the target account monitor cycle is terminal_failed and unresolved.",
+    "stop_condition": "No real platform write is authorized by this task."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/060_confirmed_resource_failure_case_gate.sql",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-event-asset-provision-contract.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/app.js"
+  ],
+  "allowed_writes": [
+    "Solution Design and current logic/data-contract documentation",
+    "Task and context manifest",
+    "idempotent Postgres migration and schema/view tests",
+    "workflow, repository, API and frontend source",
+    "focused smoke tests"
+  ],
+  "forbidden_actions": [
+    "monitor create or retry",
+    "event asset create",
+    "material upload",
+    "DMP push",
+    "std_project/create or promotion create",
+    "budget or bid update",
+    "OAuth token refresh",
+    "raw request, raw response, raw payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "npm run test:workflow-case",
+    "npm run test:workbench-conversation",
+    "npm run test:execution-plan",
+    "npm run test:event-asset-provision-contract",
+    "npm run validate:schemas",
+    "npm run smoke:api",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "Any code path would invoke a platform write without a new user-approved Task and Plan.",
+    "A migration would change dynamic account, Case, Job, Plan or resource facts beyond the read-only projection."
+  ],
+  "result": {
+    "status": "completed_without_platform_write",
+    "migration": "db/061_case_gate_monitor_dependency_priority.sql",
+    "current_case_root_blocker": "monitor_create_busy_retry_exhausted",
+    "platform_write_called": false,
+    "validation": [
+      "test:event-asset-provision-contract",
+      "test:execution-plan",
+      "test:resource-action-registry",
+      "test:workflow-case",
+      "test:workbench-conversation",
+      "validate:schemas",
+      "smoke:api",
+      "test:event-asset-executor",
+      "test:node4-resource-prep-contracts",
+      "smoke:workflow-skills",
+      "git diff --check"
+    ]
+  }
+}

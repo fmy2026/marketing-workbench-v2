@@ -57,13 +57,12 @@ export {
   EVENT_ASSET_CREATE_FIELD_NAMES,
   EVENT_ASSET_CREATE_METHOD,
   EVENT_ASSET_OFFICIAL_CREATE_SOURCE_REFS,
-  EVENT_ASSET_TARGET_ADVERTISER_ID,
-  EVENT_ASSET_TEMPLATE_REF,
   EVENT_ASSET_TYPE,
   buildEventAssetCreatePayload,
   buildEventAssetCreateTemplateManifest,
   eventAssetCreateContractShape,
   eventAssetOfficialCreateContractHash,
+  eventAssetTemplateRef,
   eventAssetTemplateHash,
   evaluateEventAssetProvisionContract
 } from "./04-event-asset-provision-contract.mjs";

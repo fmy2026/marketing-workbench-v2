@@ -1077,24 +1077,22 @@ export async function runOe3WorkflowSkills({
     skillOutputs: new Map(),
     payloadContract: null
   };
+  const persistNodeSnapshot = async () => {
+    const nodes = mode === "aweme_auth_readonly"
+      ? aggregateAwemeAuthorizationReadonlyNodeRuns({ bundle: context.bundle, skillOutputs: context.skillOutputs })
+      : aggregateNodeRuns({ bundle: context.bundle, mode, skillOutputs: context.skillOutputs });
+    await repo.upsertNodeRuns(jobId, nodes);
+    return nodes;
+  };
   try {
     for (const skillKey of skillsForMode(mode)) {
       await executeSkill({ repo, context, skillKey });
       bundle = await repo.getLaunchJobBundle(jobId);
       context.bundle = bundle;
       context.touchpointVerification = await getTouchpointVerification(repo, bundle);
+      await persistNodeSnapshot();
     }
-    const nodes = mode === "aweme_auth_readonly"
-      ? aggregateAwemeAuthorizationReadonlyNodeRuns({
-        bundle: context.bundle,
-        skillOutputs: context.skillOutputs
-      })
-      : aggregateNodeRuns({
-        bundle: context.bundle,
-        mode,
-        skillOutputs: context.skillOutputs
-      });
-    await repo.upsertNodeRuns(jobId, nodes);
+    const nodes = await persistNodeSnapshot();
     if (EXECUTION_PLAN_MODES.has(mode) && !(mode === "execute_once" && expectedPlanId && expectedPlanHash)) {
       await compileAndSaveExecutionPlan({
         repo,
@@ -1150,6 +1148,9 @@ export async function runOe3WorkflowSkills({
     };
     assertNoSensitiveLeak(summary);
     return { bundle: latest, nodes, summary };
+  } catch (error) {
+    if (context.skillOutputs.size) await persistNodeSnapshot();
+    throw error;
   } finally {
     if (restoreMockAwemeAuthorization) {
       await repo.updateAdvertiserAwemeAuthorization({

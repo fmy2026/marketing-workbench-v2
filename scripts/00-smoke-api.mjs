@@ -52,11 +52,20 @@ function assertWorkflowShape(view) {
   const node4 = nodeById(view, "account_resource_prepare");
   const expectedNode4 = (WORKFLOW_NODES.find((node) => node.nodeKey === "account_resource_prepare")?.children || [])
     .map(({ id, label }) => ({ id, label }));
-  assert(JSON.stringify(node4.children.map(({ id, label }) => ({ id, label }))) === JSON.stringify(expectedNode4), "node4 resource children mismatch");
+  assert(node4.children.map(({ id }) => id).join(",") === expectedNode4.map(({ id }) => id).join(","), "node4 resource child ids mismatch");
+  for (const child of node4.children) {
+    const expected = expectedNode4.find((item) => item.id === child.id);
+    assert(expected, `unexpected node4 child:${child.id}`);
+    assert(child.id === "resource-video_asset"
+      ? child.label === expected.label || /^视频 × [2-9]\d*$/.test(child.label)
+      : child.label === expected.label, `node4 child label mismatch:${child.id}`);
+  }
   const node4ResourceLabels = node4.children
     .filter((child) => child.id.startsWith("resource-"))
     .map((child) => child.label);
-  assert(JSON.stringify(node4ResourceLabels) === JSON.stringify(OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => OE3_RESOURCE_LABELS[resourceType])), "node4 resource child labels mismatch");
+  assert(node4ResourceLabels.every((label, index) => index === OE3_REQUIRED_RESOURCE_TYPES.indexOf("video_asset")
+    ? label === OE3_RESOURCE_LABELS.video_asset || /^视频 × [2-9]\d*$/.test(label)
+    : label === OE3_RESOURCE_LABELS[OE3_REQUIRED_RESOURCE_TYPES[index]]), "node4 resource child labels mismatch");
   assert(nodes.every((node) => Array.isArray(node.subflows) && node.subflows.every((item) => typeof item === "string")), "legacy subflows compatibility changed");
 }
 
@@ -79,7 +88,7 @@ function assertInitialWorkflow(view) {
   assert(intake.status === "passed", "initial intake node must be passed");
   assert(intake.children.every((child) => child.status === "passed"), "initial intake children must be passed");
   const downstream = workflowNodes(view).filter((node) => node.id !== "launch_intake");
-  assert(downstream.every((node) => node.children.every((child) => child.status === "waiting")), "initial downstream children must be waiting");
+  assert(downstream.every((node) => node.children.every((child) => child.id === "monitor" || child.status === "waiting")), "initial downstream children must be waiting except a persisted monitor blocker");
   assert(view.primaryAction?.kind === "run" && view.primaryAction?.enabled === true, "initial action must be safe dry-run");
   assert(view.caseId, "initial_view_case_id_missing");
   assert(view.isLatestCaseJob === true, "initial_view_must_be_latest_case_job");
@@ -95,7 +104,9 @@ function expectedMonitorStatus(monitorChild) {
     skill.skillKey,
     skill.latestRun?.status
   ]));
-  return priority.map((key) => statuses.get(key)).find(Boolean) || "waiting";
+  const latest = priority.map((key) => statuses.get(key)).find(Boolean) || "waiting";
+  const query = (monitorChild?.trace?.skills || []).find((skill) => skill.skillKey === "monitor-query")?.latestRun?.outputSummary || {};
+  return query.latestRunStatus === "terminal_failed" ? "blocked" : latest;
 }
 
 function assertDryRunWorkflow(view) {

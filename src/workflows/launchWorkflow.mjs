@@ -147,7 +147,7 @@ function statusLabel(status) {
     waiting: "等待",
     running: "执行中",
     failed: "失败",
-    created: "已创建",
+    created: "运行已建立",
     diagnosed: "诊断完成",
     draft_ready: "草稿待确认",
     confirm_placeholder_recorded: "确认占位已记录",
@@ -500,6 +500,16 @@ function childStatus({ descriptor, node, bundle, executionAvailability }) {
   const source = descriptor.statusSource || {};
   const nodeFallback = publicWorkflowStatus(node.status, "waiting");
   if (source.kind === "node_status") return nodeFallback;
+  if (descriptor.id === "monitor") {
+    const monitor = bundle.monitorProvision || {};
+    const monitorResolved = Boolean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id) &&
+      bundle.touchpoint?.touchpoint_url_present === true;
+    if (monitorResolved) return "passed";
+    if (monitor.provision_status === "terminal_failed" || monitor.blocker) return "blocked";
+    const latestMonitorRun = latestSkillRun(bundle.skillRuns || [], source.skillKeys || []);
+    if (latestMonitorRun?.output_summary?.latestRunStatus === "terminal_failed") return "blocked";
+    return nodeFallback;
+  }
   if (source.kind === "latest_skill") {
     const run = latestSkillRun(bundle.skillRuns || [], source.skillKeys || []);
     return run ? publicWorkflowStatus(run.status, nodeFallback) : nodeFallback;
@@ -525,9 +535,12 @@ function childStatus({ descriptor, node, bundle, executionAvailability }) {
 function childView(node, bundle, executionAvailability) {
   return (node.children || []).map((descriptor) => {
     const status = childStatus({ descriptor, node, bundle, executionAvailability });
+    const videoCount = descriptor.id === "resource-video_asset"
+      ? (bundle.resources || []).filter((resource) => resource.resource_type === "video_asset").length
+      : 0;
     return {
       id: descriptor.id,
-      label: descriptor.label,
+      label: videoCount > 1 ? `${descriptor.label} × ${videoCount}` : descriptor.label,
       status,
       statusLabel: statusLabel(status),
       trace: childTraceView(descriptor, bundle)
@@ -579,11 +592,43 @@ export function buildWorkbenchView() {
   });
 }
 
+function rootBlockerPresentation(code = "") {
+  const catalog = {
+    monitor_create_busy_retry_exhausted: {
+      title: "monitor 创建周期已耗尽",
+      reason: "目标账户尚无 monitor 与触点；历史周期的两次创建均因服务端繁忙失败。",
+      nextActionLabel: "先执行 fresh readonly 查询；若仍缺失，另建 monitor 专项 Task 并取得单次写入授权。"
+    },
+    monitor_id_missing: {
+      title: "缺少 monitor ID",
+      reason: "创建上下文未获得目标账户的 monitor。",
+      nextActionLabel: "执行 monitor 只读核验或进入受控 monitor 专项流程。"
+    },
+    touchpoint_url_missing: {
+      title: "缺少触点",
+      reason: "当前 monitor 尚未回查出受控触点。",
+      nextActionLabel: "完成 monitor 回查后重新执行只读就绪检查。"
+    },
+    event_asset_provision_not_plan_eligible: {
+      title: "事件资产尚无当前账户合同",
+      reason: "目标账户事件资产的模板或账户绑定未通过校验。",
+      nextActionLabel: "建立账户级合同并完成只读前提核验后，再生成单次事件资产 Plan。"
+    }
+  };
+  return { code, ...(catalog[code] || {
+    title: code ? "存在待处理阻断" : "无阻断",
+    reason: code ? "请按当前 Case 的建议动作完成修复后重新只读核验。" : "",
+    nextActionLabel: code ? "查看 Gate 建议动作。" : ""
+  }) };
+}
+
 function caseGateView(summary = null, jobId = "") {
   const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
+  const rootBlockerCode = Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes[0] || "" : "";
   return {
     currentGate: summary?.current_gate || "",
     rootBlockerCodes: Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes : [],
+    rootBlocker: rootBlockerPresentation(rootBlockerCode),
     suggestedNextAction: summary?.suggested_next_action || "",
     lifecycleStatus: summary?.lifecycle_status || "",
     isLatestCaseJob

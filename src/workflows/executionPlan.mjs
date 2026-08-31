@@ -382,6 +382,11 @@ function monitorPresent(bundle = {}) {
   return Boolean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id);
 }
 
+function monitorBlocker(bundle = {}) {
+  if (monitorPresent(bundle)) return "";
+  return String(bundle.monitorProvision?.blocker || "").trim() || "monitor_prepare_not_in_formal_executor_registry";
+}
+
 function resourceReady(resource = {}) {
   return READY_RESOURCE_VISIBILITY.has(resource.visibility_status) &&
     READY_RESOURCE_READBACK.has(resource.readback_status);
@@ -439,9 +444,8 @@ function compilePlannedActions(bundle = {}, {
   const verifierStates = resourceVerifierStates(bundle);
   const resourceStates = [];
 
-  if (!monitorPresent(bundle)) {
-    blockers.push("monitor_prepare_not_in_formal_executor_registry");
-  }
+  const unresolvedMonitorBlocker = monitorBlocker(bundle);
+  if (unresolvedMonitorBlocker) blockers.push(unresolvedMonitorBlocker);
 
   const byType = resourcesByType(bundle);
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
