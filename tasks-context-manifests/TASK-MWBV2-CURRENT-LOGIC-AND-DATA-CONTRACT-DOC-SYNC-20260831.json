@@ -1,0 +1,95 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831",
+  "task_ref": "tasks/TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 17:30 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Synchronize the current logic and data/report contract documents with verified static project truth.",
+    "mode": "documentation_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/server/index.mjs",
+    "db/060_confirmed_resource_failure_case_gate.sql"
+  ],
+  "scope": {
+    "documentation": [
+      "docs/project-现在的逻辑图.md",
+      "docs/project-数据与报表契约.md"
+    ],
+    "control_plane": [
+      "project.state.json",
+      "tasks/TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831.md",
+      "tasks-context-manifests/TASK-MWBV2-CURRENT-LOGIC-AND-DATA-CONTRACT-DOC-SYNC-20260831.json"
+    ]
+  },
+  "allowed_writes": [
+    "Task, Context Manifest and project control-plane updates",
+    "The two scoped static documentation files"
+  ],
+  "forbidden_actions": [
+    "all external platform reads and writes",
+    "all database schema and business-fact writes",
+    "workflow, API, frontend or type changes",
+    "OAuth refresh, resource preparation, std_project/create, retry, budget or bid changes",
+    "persisting dynamic account IDs, credentials, complete URLs, raw payloads, raw requests or raw responses"
+  ],
+  "validation_plan": [
+    "read-only Postgres inventory: 33 base tables and 4 views",
+    "static registry and resource capability check",
+    "npm run validate:schemas",
+    "npm run smoke:workflow-skills",
+    "npm run test:workflow-case",
+    "npm run test:workbench-conversation",
+    "documentation stale/sensitive-content scan",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "the requested documentation cannot be reconciled without changing runtime code or database schema",
+    "a required source would expose dynamic or sensitive platform data",
+    "any step requires platform or business-fact mutation"
+  ],
+  "completed_at": "2026-08-31 17:37 CST",
+  "result": {
+    "platform_reads": 0,
+    "platform_writes": 0,
+    "database_schema_changes": 0,
+    "business_fact_writes": 0,
+    "documentation": [
+      "current logic and execution Gate diagram",
+      "current data and read-only report contract"
+    ],
+    "verified_baseline": {
+      "git_commit": "24f9e1c",
+      "latest_migration": "060_confirmed_resource_failure_case_gate.sql",
+      "base_table_count": 33,
+      "view_count": 4
+    },
+    "validation": [
+      "static registry/resource/action-order check",
+      "npm run validate:schemas",
+      "npm run smoke:workflow-skills",
+      "npm run test:workflow-case",
+      "npm run test:workbench-conversation",
+      "documentation sensitive/dynamic-content scan",
+      "git diff --check"
+    ]
+  }
+}

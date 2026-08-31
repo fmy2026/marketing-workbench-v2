@@ -1,333 +1,118 @@
-# marketing-workbench-v2｜project-现状数据与报表契约
+# marketing-workbench-v2｜当前数据与报表契约
+
+| 元信息 | 值 |
+| --- | --- |
+| 文档状态 | 当前有效；静态数据与只读报表契约 |
+| 最后更新时间 | 2026-08-31 17:37 CST |
+| 校验基线 | Git `24f9e1c`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `060_confirmed_resource_failure_case_gate.sql`；Postgres `mwb`：33 张基础表、4 个 View |
+| 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
+| 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
+| 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
+
+> 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
+
+## 1. 六层数据流
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│ 权威：当前 PostgreSQL marketing_workbench_v2.mwb 数据 / 报表现状 │
-│ DDL / 约束 / 迁移：db/*.sql                                      │
-│ 动态运行事实：mwb schema                                         │
-│ 当前节点与 Skill 合同：src/workflows/skills/oe3/                  │
-└──────────────────────────────────────────────────────────────────┘
-
-======================================================================
-A｜当前数据流：业务真值 → 运行证据 → 当前运营报表
-======================================================================
-
-┌──────────────────────────────────────────────────────────────────┐
-│ L1 业务配置真值                                                   │
-│ platform_routes                                                   │
-│   + games                                                         │
-│   + game_route_defaults                                           │
-│   + game_platform_apps                                            │
-│   + game_assets                                                   │
-│   + material_packs + material_pack_items                          │
-│   + landing_page_assets                                           │
-│   + game_route_resource_blueprints                               │
-│   + game_route_launch_links                                      │
-│   + dmp_package_sets + dmp_package_members                       │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  作用：定义“哪个游戏、走哪条路线、默认使用什么配置 / 资产 / 资源蓝图”。
-  主定位：route_id + game_code。
-  不承担：一次账户执行状态、Job 状态、统计报表。
-                              ↓
-┌──────────────────────────────────────────────────────────────────┐
-│ L2 账户业务真值                                                   │
-│ advertiser_accounts                                               │
-│   + account_touchpoints                                           │
-│   + account_resources                                             │
-│   + dmp_package_member_account_states                             │
-│   + qiankun_option_relations                                      │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  作用：定义“指定账户当前有什么资源、触点、授权关系和账户级状态”。
-  主定位：route_id + game_code + advertiser_id。
-  不承担：某次执行的过程和历史尝试。
-                              ↓
-┌──────────────────────────────────────────────────────────────────┐
-│ L3 业务闭环真值                                                   │
-│ workflow_cases                                                    │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  一行粒度：一个 route × game × advertiser 的独立业务闭环 Case。
-  核心字段：case_id + case_key + route_id + game_code + advertiser_id。
-  作用：绑定同一业务目标下的 fresh job、只读复核、回查与后续修正。
-                              ↓
-┌──────────────────────────────────────────────────────────────────┐
-│ L4 一次运行与过程证据                                             │
-│ launch_jobs                                                       │
-│   ↓                                                               │
-│ launch_node_runs                                                  │
-│   ↓                                                               │
-│ launch_skill_runs                                                 │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  launch_jobs
-    一行粒度：一个 Case 中的一次运行尝试。
-    核心字段：job_id + case_id + route_id + game_code + advertiser_id
-              + source_usage + job_status + current_node。
-                              ↓
-  launch_node_runs
-    一行粒度：一个 job 的一个 Workflow Node 执行结果。
-    核心字段：job_id + node_key + status + output_summary + evidence_refs。
-                              ↓
-  launch_skill_runs
-    一行粒度：一个 job 中某个 Skill 的一次 attempt。
-    核心字段：job_id + node_key + skill_key + attempt_no + status
-              + input_summary + output_summary + module_ref。
-                              ↓
-┌──────────────────────────────────────────────────────────────────┐
-│ L5 写入授权、外部动作与回查证据                                   │
-│ launch_execution_plans + launch_confirmations                     │
-│   ↓                                                               │
-│ platform_actions                                                  │
-│   ↓                                                               │
-│ created_objects                                                   │
-│   ↓                                                               │
-│ readback_records + evidence_artifacts                             │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  作用：证明“为何允许写、执行了什么、是否创建成功、是否已回查”。
-  约束：仅保存脱敏摘要、hash、必要 ID、状态和证据引用。
-  不保存：token、secret、Cookie、auth_code、完整 URL、raw request / response。
-                              ↓
-┌──────────────────────────────────────────────────────────────────┐
-│ L6 当前运营状态报表 / 只读投影                                    │
-│ workflow_case_summary                                             │
-│ v_monitor_provision_status_report                                 │
-│ v_monitor_provision_blocker_report                                │
-│ v_advertiser_aweme_authorization_readiness                        │
-└──────────────────────────────────────────────────────────────────┘
-                              ↓
-  作用：面向 UI / API / CLI 输出当前可行动结论。
-  约束：报表 / View 不替代业务真值；不反向写 workflow / account / job 状态。
-
-
-======================================================================
-B｜当前数据分层与责任边界
-======================================================================
-
-[L1 业务配置真值]
-  platform_routes
-    ↓
-  games
-    ↓
-  game_route_defaults ───────────────→ 路线默认目标 / 预算 / 出价 / 基线配置
-    ↓
-  game_platform_apps ────────────────→ 游戏对应平台 App
-    ↓
-  game_assets ───────────────────────→ 游戏级资产主档：视频、图片、头像、标题等可复用素材
-    ↓
-  material_packs / material_pack_items → 创建所需保底物料集合；把游戏素材绑定到具体路线
-    ↓
-  landing_page_assets ───────────────→ 备用落地页资产
-    ↓
-  game_route_resource_blueprints ────→ 游戏级资源蓝图
-    ↓
-  dmp_package_sets / members ────────→ DMP 基线包与成员定义
-    ↓
-  game_route_launch_links ───────────→ 受控小游戏启动链接
-
-  输入：项目配置、经验证的游戏 / 路线 / 资产定义。
-  输出：Node 03 游戏保底包、Node 04 资源蓝图、Node 05 草稿默认值。
-  写入者：受控 migration、种子或明确的配置维护流程。
-  不可作为：账户实时状态、Job 运行事实、投放效果指标。
-
-  标题素材约定：
-    `game_assets.asset_type = 'title_material'`
-      一行一条可投放标题，`asset_name` 保存标题正文，`asset_ref` / `asset_hash`
-      保存稳定素材身份与内容 hash。
-    `material_pack_items.item_type = 'title_material'`
-      负责把标题资产装入具体路线物料包；Node 05 只消费该类型，不从视频 /
-      图片 `asset_name` 或路线默认 JSON 回退生成标题。
-    官方合同：
-      `POST /open_api/v3.0/std_project/create/` 的
-      `project_materials.title_material_list[].title`，数量 0-30，标题长度
-      5-55，2 个英文字符占 1 个字符。V2 创建前策略要求至少 1 条明确
-      标题资产。
-    未来汇总：
-      `games → game_assets(title_material) → material_pack_items → material_packs
-      → 后续效果事实`。当前不新增标题报表；接入效果事实后按 `asset_id`
-      聚合标题表现，避免迁移历史 JSON 文案。
-
-[L2 账户业务真值]
-  advertiser_accounts
-    ↓
-  account_touchpoints ───────────────→ monitor / 受控触点事实
-    ↓
-  account_resources ─────────────────→ 目标账户每种资源的可见 / 回查 / 就绪状态
-    ↓
-  dmp_package_member_account_states ─→ DMP 成员在来源 / 目标账户的状态
-    ↓
-  qiankun_option_relations ──────────→ 乾坤选项与账户关系
-
-  输入：平台只读回查、资源准备流程、已授权的账户级写入。
-  输出：Node 02 创建上下文、Node 04 资源就绪、Node 05 payload 输入。
-  写入者：只读 reconcile、受控资源准备、账户配置维护流程。
-  不可作为：报表聚合源的唯一替代；一次 Job 的完整执行证据。
-
-[L3 业务闭环真值]
+L1 业务配置真值
+  route / game / 默认值 / 素材 / 蓝图 / DMP / 启动链接
+        ↓
+L2 账户业务真值
+  账户 / 触点 / 资源 / DMP 成员账户状态 / 乾坤关系
+        ↓
+L3 业务闭环
   workflow_cases
-    ↓
-  case_id
-    ↓
-  绑定多个 launch_jobs
-
-  输入：route_id + game_code + advertiser_id + case_key。
-  输出：一个持续业务目标的 Case 身份与范围。
-  写入者：创建 Case / Job 的运行入口。
-  不可作为：某一次最新执行的唯一细节；需结合最新 job 和运行证据读取。
-
-[L4 运行证据]
-  workflow_case
-    ↓
-  launch_job
-    ↓
-  Node 01 … Node 07
-    ↓
-  launch_node_runs
-    ↓
-  子能力 / attempt
-    ↓
-  launch_skill_runs
-
-  输入：每次 Workflow 与 Skill 的脱敏输入摘要。
-  输出：状态、输出摘要、错误 / blocker、模块版本与证据引用。
-  写入者：Workflow runner、Skill runner、只读或受控写入执行器。
-  不可作为：业务配置主档、最终账户资源真值、投放效果报表。
-
-[L5 写入与回查证据]
-  launch_execution_plan
-    ↓ 授权范围 / plan hash / attempt 规则
-  launch_confirmation
-    ↓ 人工确认
-  platform_action
-    ↓ 一次外部写入的状态 / 脱敏结果
-  created_object
-    ↓ 创建对象事实
-  readback_record
-    ↓ 平台只读核验
-  evidence_artifact
-
-  输入：已通过的草稿、payload hash、权限、计划与确认。
-  输出：可审计的创建与回查证据。
-  写入者：Node 06 / Node 07。
-  不可作为：再次创建的自动授权；失败后必须由新 fresh job 决定后续。
-
-[L6 当前运营状态报表]
-  业务 / 运行真值
-    ↓ 只读聚合
-  report / view
-    ↓ 当前操作结论
-  UI / API / CLI / 任务卡
-
-  输入：L1-L5 的真值与运行证据。
-  输出：当前状态、blocker、建议下一步。
-  写入者：无；View 只读。
-  不可作为：动态真值写入源、自动创建的直接触发器。
-
-
-======================================================================
-A｜现有报表逻辑图
-======================================================================
-
-┌──────────────────────────────────────────────────────────────────┐
-│ RPT-01｜mwb.workflow_case_summary                                │
-└──────────────────────────────────────────────────────────────────┘
-                              ↑ INPUT
-  workflow_cases
-  + 每个 Case 最新 launch_job
-  + launch_node_runs
-  + account_resources
-  + account_touchpoints
-  + launch_execution_plans / launch_confirmations
-  + platform_actions / created_objects / readback_records
-                              ↓ AGGREGATE
-  Case 当前最新运行 + 当前 Node + 资源就绪 + 根 blocker + 建议动作
-                              ↓ OUTPUT
-  case_id + case_key + route_id + game_code + advertiser_id
-  + latest job / current_node / current Gate
-  + latest_node_states + resource_readiness + monitor_resolved
-  + blocker + next_action
-                              ↓ USE
-  UI / API / CLI / 任务卡读取当前业务下一步
-                              ↓ BOUNDARY
-  一行粒度：一个 workflow_case 的当前状态。
-  不保存：历史 attempt 细节、完整平台响应、投放效果指标。
-  不写回：workflow_cases、launch_jobs、account_resources。
-
-
-┌──────────────────────────────────────────────────────────────────┐
-│ RPT-02｜mwb.v_monitor_provision_status_report                    │
-└──────────────────────────────────────────────────────────────────┘
-                              ↑ INPUT
-  monitor_provision_runs
-  + monitor_provision_attempts
-  + account_touchpoints
-  + game_route_defaults
-                              ↓ AGGREGATE
-  monitor provision 周期、尝试、回查和账户触点状态
-                              ↓ OUTPUT
-  route_id + game_code + advertiser_id + provision_id + cycle_id
-  + 当前状态 + attempt + readback / touchpoint 状态 + 脱敏证据状态
-                              ↓ USE
-  Node 02 monitor 子链、诊断与人工排障
-                              ↓ BOUNDARY
-  一行粒度：一个 monitor provision cycle。
-  不写回：monitor、触点或 Job 真值；不触发新的 monitor 创建。
-
-
-┌──────────────────────────────────────────────────────────────────┐
-│ RPT-03｜mwb.v_monitor_provision_blocker_report                   │
-└──────────────────────────────────────────────────────────────────┘
-                              ↑ INPUT
-  monitor_provision_runs / attempts / 状态报告依赖事实
-                              ↓ AGGREGATE
-  未通过 monitor 的 blocker 分类
-                              ↓ OUTPUT
-  route_id + game_code + advertiser_id + provision / cycle
-  + blocker_code + blocker 相关状态
-                              ↓ USE
-  Node 02 失败分流、人工排障与下一次 fresh plan 判断
-                              ↓ BOUNDARY
-  一行粒度：一个 monitor provision blocker。
-  不写回：任何运行或账户真值。
-
-
-┌──────────────────────────────────────────────────────────────────┐
-│ RPT-04｜mwb.v_advertiser_aweme_authorization_readiness           │
-└──────────────────────────────────────────────────────────────────┘
-                              ↑ INPUT
-  advertiser_accounts + 已验证抖音号授权关系 / 只读状态
-                              ↓ AGGREGATE
-  账户的抖音号授权可用性
-                              ↓ OUTPUT
-  advertiser_id + 授权就绪状态 + 活跃候选 / 选择结论 + 脱敏证据
-                              ↓ USE
-  Node 04 aweme-authorization、Node 05 payload-build
-                              ↓ BOUNDARY
-  一行粒度：一个 advertiser 的当前授权就绪状态。
-  不写回：授权真值；不替代 Node 04 的新鲜只读核验。
-
-
-======================================================================
-当前未建立的数据 / 报表边界
-======================================================================
-
-  投放效果原始接入
-    [未建立]
-      ↓
-  标准投放事实表
-    [未建立]
-      ↓
-  日期 × 游戏 × 渠道 × 账户 × 广告对象 × 投放形式
-    [未建立]
-      ↓
-  消耗 / 曝光 / 点击 / 转化 / 收入 / ROI 指标报表
-    [未建立]
-
-  规则：
-    当前 workflow_case_summary 等运营状态 View
-      ≠ 投放效果报表
-      ≠ 业务配置真值
-      ≠ 自动策略输入的唯一依据
+        ↓
+L4 一次运行与过程证据
+  Job / Node / Skill / Draft / 名称预留 / monitor / DMP push plan
+        ↓
+L5 授权、外部动作与回查证据
+  Execution Plan / confirmation / action / object / readback / evidence
+        ↓
+L6 当前运营状态只读投影
+  workflow_case_summary + 3 个专项 readiness / monitor View
 ```
+
+## 2. 基础表契约（33 张）
+
+| 层 | 表 | 行粒度 / 主关联 | 写入者 | 主要消费者 |
+| --- | --- | --- | --- | --- |
+| L1 配置（13） | `platform_routes`、`games`、`game_route_defaults`、`game_platform_apps` | 路线、游戏、路线×游戏、游戏×平台 App | migration、种子、受控配置维护 | Node 01–03、Node 05 |
+|  | `game_assets`、`material_packs`、`material_pack_items` | 游戏资产、路线物料包、物料包条目 | 同上 | Node 03、Node 05 |
+|  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
+|  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
+|  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
+| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、受控触点 | 账户维护、只读 reconcile、已授权 monitor 流程 | Node 02、Node 05、专项 View |
+|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
+|  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
+| L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id` | Case / Job 入口 | Case summary、UI、API、CLI |
+| L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
+|  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
+|  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
+|  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation | Plan 编译与显式确认 | 执行 scope、Case summary |
+|  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
+|  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
+
+### 核心关联
+
+```text
+route_id + game_code
+  ├─ L1 默认值 / 素材 / 蓝图 / DMP / 启动链接
+  └─ + advertiser_id → L2 账户、触点、资源
+                         ↓
+                    workflow_cases.case_id
+                         ↓
+                    launch_jobs.job_id
+                         ↓
+  node / skill / draft / plan / confirmation / action / object / readback / evidence
+```
+
+- `workflow_cases` 是业务闭环总控；`runtime_truth` Job 必须显式绑定 `case_id`。
+- `source_usage` 用于区分真实运行、测试和种子来源；`test_run` 必须由 smoke/CLI 清理，不能作为业务报表事实。
+- 所有平台长数字 ID 按字符串存储与比较；摘要 JSON 只保存脱敏状态、hash、必要 ID 和证据引用。
+
+## 3. 只读 View 与报表边界（4 个）
+
+| View | 行粒度 | 输入 | 核心输出 | 消费者 | 禁止 |
+| --- | --- | --- | --- | --- | --- |
+| `workflow_case_summary` | 一个 `workflow_case` 的当前状态 | Case、最新 Job/Node/Skill、账户资源/触点、Plan/confirmation/action/object/readback | 当前 Gate、唯一 root blocker、建议动作、节点/资源摘要、动作回查状态 | UI、API、CLI、任务卡、Gate Action Policy | 写回 Case/Job/资源；自行推导 next gate |
+| `v_monitor_provision_status_report` | 一个 monitor provision cycle | monitor run/attempt、账户、触点、路线默认值 | cycle、attempt、账户/触点、脱敏回查与错误摘要 | Node 02、人工诊断 | 创建 monitor、写回触点或运行状态 |
+| `v_monitor_provision_blocker_report` | 一个 monitor provision blocker | monitor run/attempt | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
+| `v_advertiser_aweme_authorization_readiness` | 一个 route×game×advertiser 授权就绪状态 | advertiser account 的脱敏抖音授权关系 | ready、blocker、next action、脱敏探测证据 | Node 04、Node 05 | 替代 fresh readonly 或修改授权 |
+
+## 4. `workflow_case_summary` 合同
+
+该 View 的 24 列按以下消费分组；它只投影当前状态，不保存完整历史，也不反向写入。
+
+| 输出组 | 字段 | 含义 |
+| --- | --- | --- |
+| Case 身份（10） | `case_id`、`case_key`、`route_id`、`game_code`、`advertiser_id`、`business_goal`、`lifecycle_status`、`source_usage`、`created_at`、`updated_at` | 当前业务闭环与范围 |
+| 最新运行（5） | `latest_job_id`、`latest_job_status`、`latest_current_node`、`latest_job_updated_at`、`latest_plan_status` | Case 下最新 Job 与 Plan 状态 |
+| 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
+| 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
+
+`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
+
+| Gate 优先级 | 当前条件 | `current_gate` | `suggested_next_action` |
+| ---: | --- | --- | --- |
+| 1 | 已创建对象但尚未 verified readback | `run_readback_only` | `perform_readback_only` |
+| 2 | 创建次数已达上限且未 verified | `manual_review_after_attempt_limit` | `manual_review_attempt_limit_reached` |
+| 3 | Job 为 `failed_waiting_manual_review` | `prepare_corrective_attempt` | `correct_payload_then_build_next_attempt_version` |
+| 4 | 有唯一 root blocker | `resolve_case_blocker` | `resolve_root_blocker:<code>` |
+| 5 | 首次创建对象且 readback verified | `first_std_project_create_completed` | `first_std_project_create_completed` |
+| 6 | 最新 Plan 为 ready | `await_job_write_authorization` | `obtain_single_plan_confirmation` |
+| 7 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
+| 8 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
+
+## 5. 读写、安全与未建边界
+
+| 主题 | 合同 |
+| --- | --- |
+| 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表 |
+| 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
+| 历史查看 | `?case_id=` 恢复活动 Case 的最新 Job；`?job_id=` 仅历史只读 |
+| 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
+| 授权 | `project.state.json` 只给全局 Guardrail；真实写入还须匹配当前 Plan、confirmation、action grant 与调用上限 |
+
+投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 4 个 View 是运营流程就绪状态投影，不是投放效果报表，也不是自动策略的唯一输入。
