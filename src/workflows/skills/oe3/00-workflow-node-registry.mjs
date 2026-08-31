@@ -131,7 +131,7 @@ const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((res
     : resourceType === "video_asset"
       ? { kind: "latest_skill", skillKeys: ["resource-live-readonly-reconcile", "video-material-bind-plan", "resource-verify-video-asset"] }
     : ["event_asset", "micro_app_instance"].includes(resourceType)
-      ? { kind: "latest_skill", skillKeys: ["event-chain-readonly", `resource-verify-${resourceType.replace(/_/g, "-")}`] }
+      ? { kind: "latest_skill", skillKeys: ["micro-app-instance-authority-readonly", "event-chain-readonly", `resource-verify-${resourceType.replace(/_/g, "-")}`] }
     : resourceType === "backup_landing_page"
       ? { kind: "latest_skill", skillKeys: ["backup-landing-page-material-inventory", "backup-landing-page-source-prepare", "resource-verify-backup-landing-page"] }
     : { kind: "latest_skill", skillKeys: [`resource-verify-${resourceType.replace(/_/g, "-")}`] }
@@ -283,13 +283,13 @@ export function validateWorkflowNodeRegistry({
   const invalidChildTraces = childEntries.flatMap(({ nodeKey, child: descriptor }) => {
     const trace = descriptor.trace || {};
     const issues = [];
-    if (!["skill", "pipeline", "derived"].includes(trace.type)) issues.push("trace_type_invalid");
+    if (!["skill", "pipeline", "derived", "derived_with_historical_skill_trace"].includes(trace.type)) issues.push("trace_type_invalid");
     if (!trace.resolverRef) issues.push("resolver_ref_missing");
     if (!Array.isArray(trace.inputContract) || !Array.isArray(trace.outputContract) || !Array.isArray(trace.stopConditions)) {
       issues.push("contract_shape_invalid");
     }
     if (trace.type === "derived" && (trace.skills || []).length) issues.push("derived_skill_ref_unexpected");
-    if (["skill", "pipeline"].includes(trace.type) && !(trace.skills || []).length) issues.push("skill_trace_empty");
+    if (["skill", "pipeline", "derived_with_historical_skill_trace"].includes(trace.type) && !(trace.skills || []).length) issues.push("skill_trace_empty");
     for (const skill of trace.skills || []) {
       const definition = knownSkillDefinitions.get(skill.skillKey);
       if (!definition) {

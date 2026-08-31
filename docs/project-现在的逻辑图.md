@@ -91,7 +91,7 @@ v_monitor_readiness（唯一状态读取）
   └─ 只读失败、多候选、来源或合同缺失、executor 缺失、回查失败 → BLOCKED
 ```
 
-事件资产是账户级受控合同，不是通用模板开关：readonly 先核验同账户平台 App、目标小游戏实例的权威回查证据与事件链，再生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许编译一个未确认的 `resource_prepare` Plan，且动作仅可为 `ensure_resource:event_asset`、调用上限为一次、禁止重试；引用型实例候选或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
+事件资产是账户级受控合同，不是通用模板开关：若目标账户尚无事件资产，先以当前账户、当前小游戏 App 和唯一受控实例候选调用 `optimized_goal/get` 做独立权威只读回查（不携带 `asset_id`），仅当业务码、request ID、作用域以及 `PAY + PURCHASE_ROI_7D` 均通过时，写入脱敏 `target_instance_readback_verified` 证据；随后再核验事件资产与完整事件链。readonly 才可生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许编译一个未确认的 `resource_prepare` Plan，且动作仅可为 `ensure_resource:event_asset`、调用上限为一次、禁止重试；引用型实例候选、独立回查失败或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
 
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
 
@@ -103,7 +103,7 @@ v_monitor_readiness（唯一状态读取）
 | video_asset | 是 | `ensure_resource:video_asset` | 视频、封面和目标账户可见性回查 |
 | product_image | 是 | `ensure_resource:product_image` | 108×108 PNG、hash 与目标素材回查 |
 | brand_info | 否 | — | 品牌与行业只读；缺失即 blocker |
-| micro_app_instance | 否 | — | 实例与事件链只读；不猜测、不创建 |
+| micro_app_instance | 否 | — | 先做目标账户独立 `optimized_goal/get` 回查，再进入事件链；不猜测、不创建 |
 | backup_landing_page | 否 | — | 仅人工共享后读取目标 `SHARE` 清单；不使用普通库存或非正式共享接口替代 |
 
 已确认资源动作严格按以下顺序消费；每项均需 Plan 内授权、原子 claim、一次写入与权威回查：

@@ -140,6 +140,12 @@ function appAndInstanceCandidate(bundle = {}) {
   };
 }
 
+function microAppInstanceAuthorityReadbackVerified(bundle = {}) {
+  const item = resource(bundle, "micro_app_instance");
+  return resourceReady(item) || item.metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true ||
+    item.metadata?.micro_app_instance_authority_readonly_contract?.target_instance_readback_verified === true;
+}
+
 function routeQuery(bundle = {}, { assetId = "", instanceId = "" } = {}) {
   const raw = bundle.defaults?.raw_defaults || {};
   const project = raw.payload_defaults?.project || {};
@@ -159,7 +165,7 @@ function routeQuery(bundle = {}, { assetId = "", instanceId = "" } = {}) {
       micro_promotion_type: clean(strategy.micro_promotion_type) || "BYTE_GAME",
       mini_program_id: appAndInstanceCandidate(bundle).appId,
       micro_app_instance_id: instanceId,
-      asset_id: assetId
+      ...(assetId ? { asset_id: assetId } : {})
     },
     objective,
     deepObjective,
@@ -196,6 +202,175 @@ function safeProbe(probe = {}) {
     requestIdPresent: probe.requestIdPresent === true,
     responseHashPresent: Boolean(probe.responseHash)
   };
+}
+
+function microAppInstanceAuthorityContract({ status, blockers = [], instance, probe, goalSummary = {}, evidenceRef = "" } = {}) {
+  return sanitizeForPublic({
+    status,
+    blocker_codes: [...new Set(blockers)].filter(Boolean),
+    target_instance_candidate_present: Boolean(instance?.instanceId),
+    target_instance_candidate_count: Number(instance?.instanceCandidateCount || 0),
+    target_instance_reference_only: instance?.instanceReferenceOnly === true,
+    target_instance_readback_verified: status === "passed",
+    platform_app_ready: Boolean(instance?.appId) && instance?.appType === "byte_mini_game" && instance?.appStatus === "active",
+    optimized_goal_status: safeProbe(probe).status || "not_called",
+    optimized_goal: safeProbe(probe),
+    optimized_goal_count: Number(goalSummary?.goalCount || 0),
+    objective_found: goalSummary?.objectiveFound === true,
+    deep_objective_found: goalSummary?.deepObjectiveFound === true,
+    evidence_ref: clean(evidenceRef),
+    platform_write_called: false,
+    token_refresh_called: false,
+    raw_request_stored: false,
+    raw_response_stored: false
+  });
+}
+
+async function writeMicroAppInstanceAuthorityEvidence({ repo, bundle, contract }) {
+  if (!repo?.upsertEvidence || !bundle?.job) return "";
+  const artifactId = `EV-${bundle.job.job_id}-MICRO-APP-INSTANCE-AUTHORITY-READONLY`;
+  const summary = [
+    `status=${contract.status}`,
+    `candidate_present=${contract.target_instance_candidate_present}`,
+    `candidate_count=${contract.target_instance_candidate_count}`,
+    `objective_found=${contract.objective_found}`,
+    `deep_objective_found=${contract.deep_objective_found}`,
+    `request_id_present=${contract.optimized_goal?.requestIdPresent === true}`,
+    "raw_response_stored=false"
+  ].join("; ");
+  await repo.upsertEvidence({
+    artifactId,
+    jobId: bundle.job.job_id,
+    artifactType: "micro_app_instance_authority_readonly",
+    title: "JSZC 小游戏实例独立权威只读回查",
+    summary,
+    contentHash: hashValue(contract),
+    storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
+    sourceRef: "oceanengine:optimized_goal:get:micro_app_instance_authority",
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  });
+  return artifactId;
+}
+
+export async function runMicroAppInstanceAuthorityReadonlySkill({
+  repo,
+  bundle,
+  client = createOceanEngineReadonlyClient(),
+  allowReadonlyDependency = false,
+  mockReady = false
+} = {}) {
+  if (!repo || !bundle?.job) throw new Error("launch_job_bundle_required");
+  if (mockReady) {
+    return sanitizeForPublic({
+      status: "mock_passed",
+      blockers: [],
+      outputSummary: {
+        targetInstanceReadbackVerified: true,
+        objectiveFound: true,
+        deepObjectiveFound: true,
+        platformWriteCalled: false,
+        tokenRefreshCalled: false,
+        rawRequestStored: false,
+        rawResponseStored: false
+      }
+    });
+  }
+  const permission = readonlyPermissionState({ allowReadonlyDependency });
+  if (!permission.allowed) {
+    return sanitizeForPublic({
+      status: "blocked",
+      blockers: ["readonly_permission_required"],
+      outputSummary: { targetInstanceReadbackVerified: false, platformWriteCalled: false, tokenRefreshCalled: false, rawRequestStored: false, rawResponseStored: false }
+    });
+  }
+  const credential = client.credentialState();
+  if (credential.status !== "ready") {
+    return sanitizeForPublic({
+      status: "blocked",
+      blockers: ["credential_required", ...(credential.blockers || [])],
+      outputSummary: { targetInstanceReadbackVerified: false, platformWriteCalled: false, tokenRefreshCalled: false, rawRequestStored: false, rawResponseStored: false }
+    });
+  }
+
+  const instance = appAndInstanceCandidate(bundle);
+  const blockers = [
+    ...(bundle.job.route_id === "oceanengine_3_byte_mini_game" && bundle.job.game_code === "JSZC" ? [] : ["micro_app_instance_authority_scope_invalid"]),
+    ...(instance.appId && instance.appType === "byte_mini_game" && instance.appStatus === "active" ? [] : ["micro_app_platform_app_unverified"]),
+    ...(instance.instanceCandidateAmbiguous ? ["micro_app_instance_candidate_ambiguous"] : []),
+    ...(instance.instanceId ? [] : ["micro_app_instance_candidate_missing"])
+  ];
+  let probe = null;
+  let goalSummary = {};
+  if (!blockers.length) {
+    const route = routeQuery(bundle, { instanceId: instance.instanceId });
+    probe = await client.get({
+      label: "micro_app_instance_authority_optimized_goal",
+      endpoint: "/open_api/v3.0/event_manager/optimized_goal/get/",
+      query: route.query,
+      requestFieldManifest: {
+        fieldNames: Object.keys(route.query).filter((key) => key !== "asset_id"),
+        longIdTransport: "http_get_query_string",
+        rawQueryStored: false
+      },
+      summarize: (payload) => summarizeGoals(payload, {
+        objective: route.objective,
+        deepObjective: route.deepObjective,
+        assetId: ""
+      })
+    });
+    goalSummary = probe.summary || {};
+    if (probe.status !== "passed") blockers.push("micro_app_instance_authority_readonly_failed");
+    if (probe.status === "passed" && probe.requestIdPresent !== true) blockers.push("micro_app_instance_authority_request_id_missing");
+    if (probe.status === "passed" && goalSummary.objectiveFound !== true) blockers.push("optimized_goal_not_available");
+    if (probe.status === "passed" && goalSummary.deepObjectiveFound !== true) blockers.push("deep_objective_not_available");
+  }
+
+  const status = blockers.length ? "blocked" : "passed";
+  let contract = microAppInstanceAuthorityContract({ status, blockers, instance, probe, goalSummary });
+  if (status === "passed") {
+    const evidenceRef = await writeMicroAppInstanceAuthorityEvidence({ repo, bundle, contract });
+    contract = microAppInstanceAuthorityContract({ status, blockers, instance, probe, goalSummary, evidenceRef });
+    await repo.updateAccountResourceReadonly({
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id,
+      resourceType: "micro_app_instance",
+      visibilityStatus: "visible",
+      readbackStatus: "readback_verified",
+      platformResourceId: instance.instanceId,
+      inheritanceStatus: "target_readonly_verified",
+      metadata: {
+        status: "passed",
+        key: "micro_app_instance_authority_readonly",
+        gap: "",
+        next_action: "实例权威只读回查已通过；可继续事件资产账户合同核验。",
+        checked_at: new Date().toISOString(),
+        evidence_refs: evidenceRef ? [evidenceRef] : []
+      },
+      resourceMetadata: { micro_app_instance_authority_readonly_contract: contract }
+    });
+  }
+  const result = sanitizeForPublic({
+    status,
+    blockers: contract.blocker_codes,
+    evidenceRefs: contract.evidence_ref ? [contract.evidence_ref] : [],
+    outputSummary: {
+      targetInstanceCandidatePresent: contract.target_instance_candidate_present,
+      targetInstanceReferenceOnly: contract.target_instance_reference_only,
+      targetInstanceReadbackVerified: contract.target_instance_readback_verified,
+      objectiveFound: contract.objective_found,
+      deepObjectiveFound: contract.deep_objective_found,
+      optimizedGoalStatus: contract.optimized_goal_status,
+      requestIdPresent: contract.optimized_goal?.requestIdPresent === true,
+      evidenceRef: contract.evidence_ref,
+      platformWriteCalled: false,
+      tokenRefreshCalled: false,
+      rawRequestStored: false,
+      rawResponseStored: false
+    }
+  });
+  assertNoSensitiveLeak(result);
+  return result;
 }
 
 function eventContractFor({
@@ -451,7 +626,8 @@ async function writeEvidence({ repo, bundle, contract }) {
 export function eventChainResourceReadiness({ bundle = {}, resourceType }) {
   const item = resource(bundle, resourceType);
   const contract = item.metadata?.event_chain_readonly_contract || {};
-  const passed = contract.status === "passed" && resourceReady(item);
+  const instanceAuthorityPassed = resourceType === "micro_app_instance" && microAppInstanceAuthorityReadbackVerified(bundle);
+  const passed = (contract.status === "passed" && resourceReady(item)) || instanceAuthorityPassed;
   const fallback = resourceType === "event_asset" ? "event_asset_target_not_found" : "micro_app_instance_target_unverified";
   const provision = resourceType === "event_asset" ? evaluateEventAssetProvisionContract({ bundle }) : null;
   const blockers = passed
@@ -469,17 +645,17 @@ export function eventChainResourceReadiness({ bundle = {}, resourceType }) {
       label: resourceType === "event_asset" ? "事件资产" : "小程序实例",
       visibilityStatus: item.visibility_status || "missing",
       readbackStatus: item.readback_status || "missing",
-      readonlyStatus: clean(item.metadata?.readonly_check?.status || contract.status || "not_run"),
+      readonlyStatus: clean(item.metadata?.readonly_check?.status || contract.status || (instanceAuthorityPassed ? "passed" : "not_run")),
       ready: passed,
       platformResourceIdPresent: Boolean(item.platform_resource_id),
-      eventChainStatus: clean(contract.status || "not_run"),
+      eventChainStatus: clean(contract.status || (instanceAuthorityPassed ? "instance_authority_readonly_passed" : "not_run")),
       eventAssetTargetReadbackVerified: contract.event_asset_target_readback_verified === true,
       targetAppBindingVerified: contract.target_app_binding_verified === true,
       targetInstanceCandidatePresent: contract.target_instance_candidate_present === true,
       instanceBindingObservable: contract.instance_binding_observable === true,
       instanceBoundCandidateCount: Number(contract.instance_bound_candidate_count || 0),
       targetInstanceReferenceOnly: contract.target_instance_reference_only === true,
-      targetInstanceReadbackVerified: contract.target_instance_readback_verified === true,
+      targetInstanceReadbackVerified: microAppInstanceAuthorityReadbackVerified(bundle),
       availableEventsStatus: contract.available_events_status || "not_run",
       available_events_status: contract.available_events_status || "not_run",
       baselineAvailableEventCount: Number(contract.baseline_available_event_count || 0),
@@ -649,8 +825,7 @@ export async function runEventChainReadonlySkill({
 
   blockers = [...new Set(blockers)];
   const status = blockers.length ? "blocked" : "passed";
-  const priorInstanceReadbackVerified = resource(bundle, "micro_app_instance")
-    .metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true;
+  const priorInstanceReadbackVerified = microAppInstanceAuthorityReadbackVerified(bundle);
   const contract = eventContractFor({
     status,
     blockers,

@@ -82,7 +82,8 @@ function microAppInstanceId(bundle = {}) {
 
 export function eventAssetInstanceReadbackVerified(bundle = {}) {
   const item = resource(bundle, "micro_app_instance");
-  return resourceReady(item) || item.metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true;
+  return resourceReady(item) || item.metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true ||
+    item.metadata?.micro_app_instance_authority_readonly_contract?.target_instance_readback_verified === true;
 }
 
 export function buildEventAssetCreateTemplateManifest({ bundle = {} } = {}) {

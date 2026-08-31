@@ -44,6 +44,7 @@ import {
 } from "./04-resource-verifiers.mjs";
 import {
   eventChainResourceReadiness,
+  runMicroAppInstanceAuthorityReadonlySkill,
   runEventChainReadonlySkill
 } from "./04-event-chain-readiness.mjs";
 import { runPlatformReadonlyReconcileSkill } from "./04-platform-readonly-reconcile.mjs";
@@ -149,6 +150,7 @@ function skillsForMode(mode) {
       "dmp-push-plan",
       "video-material-bind-plan",
       "product-image-source-prepare",
+      "micro-app-instance-authority-readonly",
       "event-chain-readonly",
       "backup-landing-page-source-prepare",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
@@ -177,6 +179,7 @@ function skillsForMode(mode) {
     "dmp-push-plan",
     "video-material-bind-plan",
     "product-image-source-prepare",
+    "micro-app-instance-authority-readonly",
     "event-chain-readonly",
     "backup-landing-page-source-prepare",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
@@ -594,6 +597,14 @@ async function executeSkill({ repo, context, skillKey }) {
               token_refresh_called: false
             }
           };
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+  } else if (skillKey === "micro-app-instance-authority-readonly") {
+    result = await runMicroAppInstanceAuthorityReadonlySkill({
+      repo,
+      bundle: context.bundle,
+      mockReady: context.mockReady,
+      allowReadonlyDependency: context.allowReadonlyDependency === true
+    });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "event-chain-readonly") {
     result = await runEventChainReadonlySkill({

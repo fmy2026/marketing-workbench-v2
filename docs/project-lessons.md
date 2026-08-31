@@ -164,10 +164,10 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 项 | 经验结论 |
 | --- | --- |
 | 归属与流转 | 目标账户实例事实；未验证跨账户共享或自动创建路径。 |
-| 官方接口 | 小程序实例可用性通过 `GET /open_api/v3.0/event_manager/optimized_goal/get/` 做路线、小游戏、实例 ID、事件资产与优化目标组合校验；`GET /open_api/v3.0/event_manager/dbt/get/` 用于深度优化方式合同。`std_project/create` 的 `instance_id` 字段合同只证明创建 payload 字段，不等于实例可用性回查接口。 |
-| 只读判定 | 实例 ID、资源可见性、readback 以及 `instance_id` 字段名、类型、适用条件、长 ID 传输证据均通过。 |
+| 官方接口 | 零事件资产账户先以当前路线、小游戏 App 与唯一实例候选调用 `GET /open_api/v3.0/event_manager/optimized_goal/get/`，且不携带 `asset_id`；仅业务码、request ID、目标账户作用域和 `PAY + PURCHASE_ROI_7D` 同时命中时，才形成独立实例权威证据。事件资产存在后再以实例、事件资产与优化目标组合校验；`GET /open_api/v3.0/event_manager/dbt/get/` 用于完整事件链的深度优化方式合同。`std_project/create` 的 `instance_id` 字段合同只证明创建 payload 字段，不等于实例可用性回查接口。 |
+| 只读判定 | 独立阶段只核验实例 ID、当前账户作用域、优化目标与脱敏 evidence；事件资产、事件配置和 DBT 仍须在后续事件链分别通过。 |
 | 写入边界 | `prepare_supported=false`；缺实例或合同证据时停止。 |
-| 回查证据 | 目标资源 metadata 与官方创建字段合同。 |
+| 回查证据 | 独立阶段只保存当前账户作用域、实例已核验标记、优化目标命中、request ID 存在性和脱敏 evidence 引用；完整事件链另保存目标资源 metadata 与官方创建字段合同。 |
 | 验证状态 | 当前为待验证资源准备路径。 |
 | 不适用边界 | 不猜测实例 ID，也不将其他小程序实例映射到当前目标账户。 |
 

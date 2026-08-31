@@ -19,6 +19,12 @@
 
 本设计只修复本地真值、展示和计划资格；monitor、事件资产及投放创建仍须分别建立专项 Task、冻结 Plan 并取得明确写入授权。
 
+## 已批准设计：零事件资产账户的小游戏实例独立只读回查
+
+当目标账户尚无 `MINI_PROGRAME` 事件资产时，Node 04 不得把“事件资产详情中观察到实例”作为小游戏实例唯一的权威来源。对唯一、受控的候选 `micro_app_instance_id`，可单独调用官方 `optimized_goal/get`，以当前账户、`BYTE_GAME`、小游戏 App 和实例候选执行只读 eligibility 回查；该调用不带事件资产前提，也不创建任何资源。
+
+只有业务码成功、request ID 存在、候选不歧义，并且当前路线的主/深度优化目标均命中时，才可把 `micro_app_instance` 落为 `visible + readback_verified`，并保存脱敏 probe 摘要和 evidence 引用。失败、歧义或缺少候选一律保持 `micro_app_instance_target_unverified`。事件资产创建仍要求账户级合同、独立 Plan/hash、人工确认、单次调用与权威回查；该只读 Skill 不产生 Plan 或写授权。
+
 ## 已批准设计：Monitor 单轨真值与 Plan-bound Bootstrap
 
 保持既有 3 阶段 7 Node、Case/Job、Postgres 真值、`workflow_case_summary` 唯一 Gate 与 Plan-bound executor 不变。monitor 仍属于 Node 02 `creation_context` 的独立 bootstrap，不能与资源或广告项目创建混合授权。

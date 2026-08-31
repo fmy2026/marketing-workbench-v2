@@ -212,6 +212,8 @@ const bundle = {
 const schedule = workflowSkillScheduleForMode("dry_run");
 assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("product-image-source-prepare"), "product_skill_after_readonly_wrong");
 assert(schedule.indexOf("product-image-source-prepare") < schedule.indexOf("resource-verify-product-image"), "product_verifier_dependency_order_wrong");
+assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("micro-app-instance-authority-readonly"), "micro_app_authority_before_readonly_wrong");
+assert(schedule.indexOf("micro-app-instance-authority-readonly") < schedule.indexOf("event-chain-readonly"), "event_chain_before_micro_app_authority_wrong");
 assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-event-asset"), "event_verifier_dependency_order_wrong");
 assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-micro-app-instance"), "micro_verifier_dependency_order_wrong");
 assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("backup-landing-page-material-inventory"), "backup_inventory_after_readonly_wrong");
@@ -296,6 +298,7 @@ const result = {
   status: "passed",
   newSkills: [
     "product-image-source-prepare",
+    "micro-app-instance-authority-readonly",
     "event-chain-readonly",
     "backup-landing-page-material-inventory",
     "backup-landing-page-source-prepare"

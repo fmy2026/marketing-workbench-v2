@@ -263,9 +263,19 @@ export const OE3_SKILL_DEFINITIONS = [
     moduleRef: "src/workflows/skills/oe3/04-product-image-source-prepare.mjs"
   },
   {
-    skillKey: "event-chain-readonly",
+    skillKey: "micro-app-instance-authority-readonly",
     nodeKey: "account_resource_prepare",
     dependsOn: ["context-resolve-platform-app", "launch-pack-resolve-defaults", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile"],
+    inputContract: ["route_id", "game_code", "advertiser_id", "platform_app", "micro_app_instance", "payload_defaults", "optimization"],
+    outputContract: ["target_instance_readback_verified", "objective_found", "deep_objective_found", "request_id_present", "blocker_codes", "evidence_ref"],
+    stopConditions: ["micro_app_instance_candidate_missing", "micro_app_instance_candidate_ambiguous", "micro_app_instance_authority_readonly_failed", "optimized_goal_not_available", "deep_objective_not_available"],
+    writeScope: "launch_skill_runs_account_resources_evidence_artifacts",
+    moduleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs"
+  },
+  {
+    skillKey: "event-chain-readonly",
+    nodeKey: "account_resource_prepare",
+    dependsOn: ["micro-app-instance-authority-readonly"],
     inputContract: ["route_id", "game_code", "advertiser_id", "platform_app", "event_asset", "micro_app_instance", "payload_defaults", "optimization"],
     outputContract: ["event_asset_target_readback_verified", "target_app_binding_verified", "target_instance_readback_verified", "available_events_readback_verified", "event_configs_readback_verified", "objective_found", "deep_objective_found", "deep_bid_type_found", "blocker_codes", "evidence_ref"],
     stopConditions: ["event_asset_target_not_found", "event_asset_app_binding_unverified", "event_asset_target_ambiguous", "micro_app_instance_candidate_missing", "available_events_baseline_missing", "event_configs_baseline_missing", "optimized_goal_not_available", "deep_objective_not_available", "deep_bid_type_not_available"],
@@ -305,7 +315,7 @@ export const OE3_SKILL_DEFINITIONS = [
   ...OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => ({
     skillKey: `resource-verify-${resourceType.replace(/_/g, "-")}`,
     nodeKey: "account_resource_prepare",
-    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(["event_asset", "micro_app_instance"].includes(resourceType) ? ["event-chain-readonly"] : []), ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : []), ...(resourceType === "video_asset" ? ["video-material-bind-plan"] : []), ...(resourceType === "product_image" ? ["product-image-source-prepare"] : []), ...(resourceType === "backup_landing_page" ? ["backup-landing-page-material-inventory", "backup-landing-page-source-prepare"] : [])],
+    dependsOn: ["launch-pack-resolve-materials", "resource-bootstrap-from-blueprints", "resource-live-readonly-reconcile", ...(["event_asset", "micro_app_instance"].includes(resourceType) ? ["micro-app-instance-authority-readonly", "event-chain-readonly"] : []), ...(resourceType === "avatar" ? ["avatar-source-prepare", "avatar-submit-plan"] : []), ...(resourceType === "dmp_audience_package" ? ["dmp-push-plan"] : []), ...(resourceType === "video_asset" ? ["video-material-bind-plan"] : []), ...(resourceType === "product_image" ? ["product-image-source-prepare"] : []), ...(resourceType === "backup_landing_page" ? ["backup-landing-page-material-inventory", "backup-landing-page-source-prepare"] : [])],
     inputContract: ["route_id", "game_code", "advertiser_id", resourceType],
     outputContract: resourceType === "dmp_audience_package"
       ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "readonly_status", "readiness_status", "custom_audience_id[]", "audience.retargeting_tags_exclude"]
@@ -464,6 +474,7 @@ export function moduleRefForSkill(skillKey) {
   if (skillKey.startsWith("dmp-")) return "src/workflows/skills/oe3/04-dmp-readonly.mjs";
   if (skillKey === "video-material-bind-plan") return "src/workflows/skills/oe3/04-video-material-bind-plan.mjs";
   if (skillKey === "product-image-source-prepare") return "src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
+  if (skillKey === "micro-app-instance-authority-readonly") return "src/workflows/skills/oe3/04-event-chain-readiness.mjs";
   if (skillKey === "event-chain-readonly") return "src/workflows/skills/oe3/04-event-chain-readiness.mjs";
   if (skillKey === "backup-landing-page-source-prepare") return "src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
   if (skillKey === "backup-landing-page-material-inventory") return "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs";
