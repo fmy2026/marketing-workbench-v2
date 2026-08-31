@@ -1,0 +1,82 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831",
+  "task_ref": "tasks/TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 17:50 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Synchronize the project startup protocol and solution design standard with current static project truth.",
+    "mode": "documentation_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831.json",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/Solution Design.md"
+  ],
+  "scope": {
+    "documentation": [
+      "AGENTS.md",
+      "docs/Solution Design.md"
+    ],
+    "control_plane": [
+      "project.state.json",
+      "tasks/TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831.md",
+      "tasks-context-manifests/TASK-MWBV2-AGENTS-SOLUTION-DESIGN-SYNC-20260831.json"
+    ]
+  },
+  "allowed_writes": [
+    "The two scoped static documentation files",
+    "Task, Context Manifest and project control-plane updates"
+  ],
+  "forbidden_actions": [
+    "runtime, API, frontend, database schema or View changes",
+    "all external platform reads and writes",
+    "business-fact mutation",
+    "resource preparation, create, retry, budget, bid or OAuth actions",
+    "Git commit or push",
+    "persisting dynamic identifiers, credentials, complete touchpoint URLs or raw platform payloads"
+  ],
+  "validation_plan": [
+    "compare against current logic and data/report contracts",
+    "validate JSON and Markdown references",
+    "scan stale and sensitive content",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "synchronization requires runtime or database changes",
+    "a required rule conflicts with current logic or data/report contracts",
+    "any step requires platform or business-fact mutation"
+  ],
+  "completed_at": "2026-08-31 17:53 CST",
+  "result": {
+    "platform_reads": 0,
+    "platform_writes": 0,
+    "database_schema_changes": 0,
+    "business_fact_writes": 0,
+    "git_commit_or_push": false,
+    "verified_baseline": {
+      "git_commit": "70f1fbc",
+      "project_schema_version": "2026-08-28.project-control-plane-v2"
+    },
+    "documentation": [
+      "project startup protocol",
+      "solution design standard"
+    ],
+    "validation": [
+      "current logic and data/report contract comparison",
+      "Task/Manifest JSON and reference path validation",
+      "Case/Job, Gate, Plan and readback rule scan",
+      "dynamic identifier and sensitive-value scan",
+      "git diff --check"
+    ]
+  }
+}
