@@ -10,15 +10,15 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
-    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.json",
-    "status": "completed_backup_landing_page_ready",
+    "task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
+    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
+    "status": "awaiting_dmp_single_plan_confirmation",
     "read_order": [
       "AGENTS.md",
       "project.state.json",
-      "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.json",
+      "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
       "docs/Solution Design.md"
     ]
   },
@@ -26,54 +26,28 @@
     "platform_write_allowed": false,
     "platform_write_scope": {
       "binding_mode": "single_confirmation_plan",
-      "target_job_id": "JOB-MWBV2-20260830140153-667873",
+      "target_job_id": "JOB-MWBV2-20260831031113-7FDB77",
       "target_advertiser_id": "1871922434025472",
-      "target_draft_id": "DRAFT-JOB-MWBV2-20260830140153-667873",
-      "target_payload_hash": "sha256:fe97a0b0498a9c6026886b85945871ac76a94b8cb0f920d527aeda1a73a57aff",
-      "target_plan_id": "PLAN-JOB-MWBV2-20260830140153-667873-V8",
-      "target_plan_hash": "sha256:0ec98922195eba2b4fca8971251e7520c043097ec2cb5fba938cf96fcc7b741b",
+      "target_draft_id": "DRAFT-JOB-MWBV2-20260831031113-7FDB77",
+      "target_payload_hash": "sha256:b77ea4e3c66e4b5a533f058f2429476d13dbd64f4427e3e4cc66ce22bdc2bdaa",
+      "target_plan_id": "PLAN-JOB-MWBV2-20260831031113-7FDB77-V2",
+      "target_plan_hash": "sha256:bca5ef2fa34f4e6fee7317b6a7c30473c6decd9fabad39411f527f7a106b4811",
       "allowed_actions": [],
       "allowed_plan_actions": [
-        "ensure_event_configs:baseline"
+        "ensure_resource:dmp_audience_package"
       ],
       "maximum_actions": 0,
       "maximum_platform_calls": 0,
       "action_grants": {
-        "ensure_event_configs:baseline": {
-          "maximum_platform_calls": 6,
-          "retry_allowed": false,
-          "official_contract": {
-            "source_ref": "official:oceanengine:2.0:19-asset:event_manager/events/create:196-203",
-            "content_hash": "sha256:e5f319eaa96df41d8c5118c3f5f4b46ca9f57c752b4d3233a4c87905c17079b0",
-            "method": "POST",
-            "endpoint": "/open_api/2/event_manager/events/create/",
-            "request_field_manifest": [
-              "advertiser_id",
-              "asset_id",
-              "event_id",
-              "track_types"
-            ],
-            "baseline_event_types": [
-              "active",
-              "active_register",
-              "active_pay",
-              "purchase_roi",
-              "purchase_roi_7d",
-              "purchase_roi_30d"
-            ],
-            "track_types": [
-              "MINI_PROGRAME_API"
-            ],
-            "event_id_source": "target_asset_available_events_get",
-            "payload_persisted": false,
-            "response_persisted": false
-          }
+        "ensure_resource:dmp_audience_package": {
+          "maximum_platform_calls": 10,
+          "retry_allowed": false
         }
       },
       "maximum_create_calls": 0,
       "retry_allowed": false,
-      "granted_by_task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
-      "granted_at": "2026-08-30T16:31:50.890Z"
+      "granted_by_task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
+      "granted_at": "2026-08-31T10:50:00+08:00"
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {

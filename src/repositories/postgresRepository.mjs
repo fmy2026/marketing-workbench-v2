@@ -2429,6 +2429,54 @@ export class PostgresRepository {
     return saved;
   }
 
+  async consumeConfirmedResourceExecutionPlan({ jobId, planId }) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    const result = await queryJson(`
+      WITH target AS (
+        SELECT
+          p.plan_id,
+          array_agg(action.value->>'action_type' ORDER BY action.ordinality) AS action_types
+        FROM mwb.launch_execution_plans p
+        CROSS JOIN LATERAL jsonb_array_elements(p.planned_actions) WITH ORDINALITY AS action(value, ordinality)
+        WHERE p.job_id = ${sqlLiteral(jobId)}
+          AND p.plan_id = ${sqlLiteral(planId)}
+          AND p.plan_status = 'ready'
+        GROUP BY p.plan_id
+        HAVING count(*) > 0
+          AND bool_and(action.value->>'action_type' <> 'std_project_create')
+      ), consumed AS (
+        UPDATE mwb.launch_execution_plans p
+        SET plan_status = 'consumed',
+            updated_at = now()
+        FROM target t
+        WHERE p.plan_id = t.plan_id
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations c
+            WHERE c.job_id = ${sqlLiteral(jobId)}
+              AND c.plan_id = t.plan_id
+              AND c.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM unnest(t.action_types) AS expected(action_type)
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM mwb.platform_actions action
+              WHERE action.job_id = ${sqlLiteral(jobId)}
+                AND action.plan_id = t.plan_id
+                AND action.action_type = expected.action_type
+                AND action.action_status = 'succeeded'
+            )
+          )
+        RETURNING p.plan_id
+      )
+      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed))::text;
+    `, this.database);
+    return result || { consumed: false };
+  }
+
   async getLaunchExecutionPlan(planId) {
     assertId("plan_id", planId);
     return queryJson(`

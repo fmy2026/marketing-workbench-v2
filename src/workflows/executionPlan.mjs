@@ -501,7 +501,10 @@ function compilePlannedActions(bundle = {}, {
     for (const blocker of readiness.blockers || []) blockers.push(blocker);
   }
 
-  if (blockers.length === 0) {
+  // A resource-preparation confirmation must never also authorize project
+  // creation. Once all prepared resources have passed their own readbacks, a
+  // fresh compilation emits the separate single-create plan.
+  if (blockers.length === 0 && !plannedResourceActionsPresent) {
     const grant = actionGrantDefaults(ACTION_STD_PROJECT_CREATE, actionCallLimits);
     actions.push({
       action_type: ACTION_STD_PROJECT_CREATE,
@@ -514,7 +517,7 @@ function compilePlannedActions(bundle = {}, {
       reason: draftReady(bundle) ? "draft_ready_for_single_create" : "final_draft_pending_confirmed_resource_actions",
       maximum_platform_calls: grant.maximum_platform_calls
     });
-  } else if (draft?.draft_id) {
+  } else if (blockers.length > 0 && draft?.draft_id) {
     blockers.push("draft_not_ready_for_std_project_create");
   }
 
@@ -575,11 +578,9 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
   const hasCreateAction = plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
   const planStatus = blockerCodes.length
     ? "blocked"
-    : hasCreateAction
+    : plannedActions.length
       ? "ready"
-      : plannedActions.length
-        ? "planned"
-        : "blocked";
+      : "blocked";
   const plan = {
     planId: planId(job.job_id, planVersion),
     jobId: job.job_id,
@@ -624,7 +625,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
           action.action_type,
           actionGrantDefaults(action.action_type, actionCallLimits)
         ])),
-        maximum_create_calls: 1,
+        maximum_create_calls: hasCreateAction ? 1 : 0,
         retry_allowed: false
       },
       root_blocker_codes: rootBlockerCodes,
@@ -639,7 +640,8 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
 export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
   planVersion = 2,
   resourceType = "event_asset",
-  planningIntent = {}
+  planningIntent = {},
+  actionCallLimits = {}
 } = {}) {
   const job = bundle.job || {};
   if (!job.job_id) throw new Error("job_id_required");
@@ -650,7 +652,10 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
     ...(capability.prepare_supported ? [] : [`resource_prepare_unsupported:${resourceType}`]),
     ...(actionType && FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(actionType)
       ? []
-      : [`resource_prepare_executor_not_registered:${resourceType}`])
+      : [`resource_prepare_executor_not_registered:${resourceType}`]),
+    ...(resourceType === "dmp_audience_package" && Object.hasOwn(actionCallLimits, actionType) && Number(actionCallLimits[actionType]) < 1
+      ? ["dmp_push_plan_missing"]
+      : [])
   ];
 
   let provision = null;
@@ -667,9 +672,7 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
   }
 
   const uniqueBlockers = [...new Set(blockers)].filter(Boolean);
-  const grant = actionGrantDefaults(actionType, {
-    [actionType]: 1
-  });
+  const grant = actionGrantDefaults(actionType, actionCallLimits);
   const idempotencyScope = resourceType === "event_asset"
     ? hashValue({
       route_id: job.route_id,
@@ -789,7 +792,8 @@ export async function compileAndSaveSingleResourceExecutionPlan({
   resourceType = "event_asset",
   expectedPlanId = "",
   expectedPlanHash = "",
-  planningIntent = null
+  planningIntent = null,
+  actionCallLimits = null
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
@@ -802,10 +806,17 @@ export async function compileAndSaveSingleResourceExecutionPlan({
   if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
     throw new Error("confirmed_execution_plan_immutable");
   }
+  const dmpPushPlans = resourceType === "dmp_audience_package" && typeof repo.getDmpPackagePushPlans === "function"
+    ? await repo.getDmpPackagePushPlans(bundle.job.job_id)
+    : [];
+  const effectiveActionCallLimits = actionCallLimits || (resourceType === "dmp_audience_package"
+    ? { "ensure_resource:dmp_audience_package": Number(dmpPushPlans?.length || 0) }
+    : {});
   const plan = buildSingleResourceExecutionPlanFromBundle(bundle, {
     planVersion,
     resourceType,
-    planningIntent: planningIntent || {}
+    planningIntent: planningIntent || {},
+    actionCallLimits: effectiveActionCallLimits
   });
   if (expectedPlanId && plan.planId !== expectedPlanId) {
     throw new Error("confirmed_plan_id_drift");
@@ -1019,7 +1030,11 @@ export async function compileAndSaveExecutionPlan({
     }
   });
   let effectivePlanningIntent = planningIntent || preliminary.metadata?.planning_intent || {};
-  if (preliminary.planStatus === "ready" && !effectivePlanningIntent.project_name) {
+  if (
+    preliminary.planStatus === "ready" &&
+    preliminary.plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE) &&
+    !effectivePlanningIntent.project_name
+  ) {
     const { reserveStdProjectPlanningIntent } = await import("./skills/oe3/05-payload-contract.mjs");
     effectivePlanningIntent = await reserveStdProjectPlanningIntent({ repo, bundle, attemptNo: createAttemptNo });
   }

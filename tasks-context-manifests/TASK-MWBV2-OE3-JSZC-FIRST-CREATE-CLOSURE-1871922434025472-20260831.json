@@ -1,0 +1,130 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
+  "status": "awaiting_dmp_single_plan_confirmation",
+  "created_at": "2026-08-31 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Complete the fastest controlled first JSZC standard-project creation for advertiser 1871922434025472.",
+    "mode": "first_create_closure_fresh_readonly_then_plan_bound_execution",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions_before_hash_confirmation": 0,
+    "maximum_platform_actions_after_resource_plan_confirmation": 10
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/skills/oe3/06-create-once.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "fresh_job_id": "JOB-MWBV2-20260831031113-7FDB77",
+    "resource_plan_id": "PLAN-JOB-MWBV2-20260831031113-7FDB77-V2",
+    "resource_plan_hash": "sha256:bca5ef2fa34f4e6fee7317b6a7c30473c6decd9fabad39411f527f7a106b4811",
+    "create_plan_id": "",
+    "create_plan_hash": ""
+  },
+  "expected_resource_outcomes": {
+    "verify_only": [
+      "brand_info",
+      "event_asset",
+      "micro_app_instance",
+      "backup_landing_page",
+      "ensure_event_configs:baseline"
+    ],
+    "prepare_if_fresh_readonly_missing": [
+      "ensure_resource:avatar",
+      "ensure_resource:dmp_audience_package",
+      "ensure_resource:video_asset",
+      "ensure_resource:product_image"
+    ]
+  },
+  "fresh_readonly_result": {
+    "node_4_status": "passed",
+    "verify_only_resources": [
+      "brand_info",
+      "event_asset",
+      "micro_app_instance",
+      "backup_landing_page"
+    ],
+    "resource_plan_actions": [
+      { "action_type": "ensure_resource:dmp_audience_package", "maximum_platform_calls": 10 }
+    ],
+    "std_project_create_calls": 0,
+    "platform_write_audit_before_confirmation": 0
+  },
+  "execution_result": {
+    "previous_resource_plan_id": "PLAN-JOB-MWBV2-20260831024256-F7C17F-V3",
+    "previous_resource_plan_hash": "sha256:9c79e4b482ca5fe6b06a2d925b9011d841140d0d64a3e0bda513c20968a5afd4",
+    "avatar": "visible/readback_verified",
+    "dmp": "fresh_readonly_confirmed_missing:10; dmp_plan_pending_confirmation",
+    "dmp_post_count": 0,
+    "video": "not_executed",
+    "product_image": "not_executed",
+    "std_project_create_count": 0,
+    "retry_allowed": false,
+    "platform_write_scope_revoked": true
+  },
+  "allowed_writes": [
+    "Task/Manifest/project control-plane updates",
+    "one fresh runtime_truth launch Job and redacted readonly evidence",
+    "a fresh immutable execution plan and draft after readonly validation",
+    "after exact human confirmation only: actions contained in the exact confirmed plan",
+    "redacted execution, readback and resource evidence"
+  ],
+  "forbidden_actions": [
+    "all platform writes before exact plan hash confirmation",
+    "backup landing page creation, copy, handsel or update",
+    "micro app instance creation",
+    "duplicate event asset or baseline event-config creation when fresh readonly is ready",
+    "Promotion, monitor, budget, bid or OAuth token refresh",
+    "automatic retry after any resource/create/readback failure",
+    "raw payload, raw response, complete URL, token, Cookie, secret or auth_code persistence"
+  ],
+  "validation_plan": [
+    "test:resource-action-registry",
+    "test:avatar-executor",
+    "test:dmp-executor",
+    "test:video-material-executor",
+    "test:product-image-executor",
+    "test:event-chain-readonly",
+    "test:payload-contract",
+    "test:std-project-create-wire-body",
+    "test:single-confirmation-orchestrator",
+    "workflow:readonly-readiness with explicit case and target advertiser",
+    "git diff --check"
+  ],
+  "human_gate": {
+    "before_resource_writes": [
+      "Fresh DMP-only Plan V2 is ready, blocker-free and immutable.",
+      "User must explicitly confirm exact resource plan id PLAN-JOB-MWBV2-20260831031113-7FDB77-V2 and its plan hash.",
+      "project.state.json may grant only ensure_resource:dmp_audience_package with 10 bounded calls and retry_allowed=false."
+    ],
+    "before_std_project_create": [
+      "Fresh create Plan must be ready, blocker-free and immutable after all resource readbacks pass.",
+      "User must confirm exact create plan id and plan hash.",
+      "project.state.json must grant only std_project_create, one call and retry_allowed=false."
+    ]
+  },
+  "stop_conditions": [
+    "fresh readonly finds a blocked verify-only resource or event chain",
+    "resource plan changes after confirmation candidate is presented",
+    "any planned write fails, exceeds its call limit or fails post-write readback",
+    "final Draft, payload contract or wire body is blocked",
+    "std_project/create is unsuccessful or Node 7 cannot verify it",
+    "credential unavailable without a separately authorized refresh"
+  ]
+}

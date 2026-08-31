@@ -222,6 +222,10 @@ export async function runConfirmedResourceOrchestratorSkill({
       return blocked;
     }
   }
+  const planId = plan.plan_id || plan.planId || "";
+  const consumed = typeof repo.consumeConfirmedResourceExecutionPlan === "function"
+    ? await repo.consumeConfirmedResourceExecutionPlan({ jobId: bundle.job.job_id, planId })
+    : { consumed: false };
   const passed = {
     status: "passed",
     blockers: [],
@@ -229,6 +233,7 @@ export async function runConfirmedResourceOrchestratorSkill({
       orchestratorStatus: "all_planned_resources_ready",
       executedActionCount: results.length,
       actionResults: results,
+      planConsumed: consumed.consumed === true,
       createCalled: false,
       retryAllowed: false
     }

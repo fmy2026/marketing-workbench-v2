@@ -202,7 +202,8 @@ assert(actionTypes(videoMissingPlan).includes("ensure_resource:video_asset"), "v
 const videoAction = videoMissingPlan.plannedActions.find((action) => action.action_type === "ensure_resource:video_asset");
 assert(videoAction.module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_action_module_ref_wrong");
 assert(Boolean(videoAction.idempotency_key), "video_action_idempotency_key_missing");
-assert(actionTypes(videoMissingPlan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_waiting_action_missing");
+assert(!actionTypes(videoMissingPlan).includes(ACTION_STD_PROJECT_CREATE), "resource_plan_must_not_include_std_project_create");
+assert(videoMissingPlan.metadata.execution_scope.maximum_create_calls === 0, "resource_only_plan_create_calls_must_be_zero");
 
 const avatarMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
   allReadyResources.filter((item) => item.resource_type !== "avatar")
@@ -321,6 +322,22 @@ assert(eventSinglePlan.planStatus === "ready", "event_single_resource_plan_shoul
 assert(JSON.stringify(actionTypes(eventSinglePlan)) === JSON.stringify(["ensure_resource:event_asset"]), "event_single_resource_plan_must_only_contain_event_action");
 assert(eventSinglePlan.metadata.execution_scope.maximum_platform_calls === 1, "event_single_resource_plan_call_limit_wrong");
 
+const dmpSinglePlan = buildSingleResourceExecutionPlanFromBundle(eventEligibleBundle, {
+  planVersion: 2,
+  resourceType: "dmp_audience_package",
+  actionCallLimits: { "ensure_resource:dmp_audience_package": 10 }
+});
+assert(dmpSinglePlan.planStatus === "ready", "dmp_single_resource_plan_should_be_ready");
+assert(JSON.stringify(actionTypes(dmpSinglePlan)) === JSON.stringify(["ensure_resource:dmp_audience_package"]), "dmp_single_resource_plan_must_only_contain_dmp_action");
+assert(dmpSinglePlan.metadata.execution_scope.maximum_platform_calls === 10, "dmp_single_resource_plan_call_limit_wrong");
+const dmpSinglePlanWithoutPushPlans = buildSingleResourceExecutionPlanFromBundle(eventEligibleBundle, {
+  planVersion: 2,
+  resourceType: "dmp_audience_package",
+  actionCallLimits: { "ensure_resource:dmp_audience_package": 0 }
+});
+assert(dmpSinglePlanWithoutPushPlans.planStatus === "blocked", "dmp_single_resource_plan_without_push_plans_must_block");
+assert(dmpSinglePlanWithoutPushPlans.blockerCodes.includes("dmp_push_plan_missing"), "dmp_single_resource_plan_missing_push_blocker_wrong");
+
 const eventConfigsPlan = buildEventConfigsExecutionPlanFromBundle(eventEligibleBundle, {
   planVersion: 3,
   assetIdHint: "1874962943118532"
@@ -368,6 +385,7 @@ const result = {
   eventAssetPrepareAction: eventCapability.prepare_action_type,
   eventAssetProvisionGuardBlocker: "event_asset_provision_not_plan_eligible",
   eventSingleResourcePlan: eventSinglePlan.planId,
+  dmpSingleResourcePlan: dmpSinglePlan.planId,
   eventConfigsPlan: eventConfigsPlan.planId,
   backupLandingPageBlockers: backupBlocked.blockers,
   microAppInstanceBlockers: microBlocked.blockers,

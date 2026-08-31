@@ -75,7 +75,8 @@ const repo = {
   getLaunchConfirmationForPlan: async () => confirmation,
   getCreateAttemptState: async () => ({ createActionCount: 0, createdObjectCount: 0 }),
   claimPlannedExecutionAction: async () => ({ claimed: true }),
-  finishPlannedExecutionAction: async () => undefined
+  finishPlannedExecutionAction: async () => undefined,
+  consumeConfirmedResourceExecutionPlan: async () => ({ consumed: true })
 };
 
 const directory = await mkdtemp(join(tmpdir(), "mwbv2-single-confirm-"));
@@ -99,6 +100,10 @@ try {
       source_usage: "test_run"
     },
     account: { monitor_id: "245828" },
+    draft: {
+      draft_id: `DRAFT-${jobId}`,
+      payload_hash: `sha256:${"f".repeat(64)}`
+    },
     resources: [
       resourceReady("event_asset"),
       resourceReady("brand_info"),
@@ -113,7 +118,9 @@ try {
     actionCallLimits: { "ensure_resource:dmp_audience_package": 10 }
   });
   assert(compiledMultiAction.planStatus === "ready", "multi_action_plan_not_ready");
-  assert(compiledMultiAction.plannedActions.length === 5, "multi_action_plan_action_count_wrong");
+  assert(compiledMultiAction.plannedActions.length === 4, "multi_action_plan_action_count_wrong");
+  assert(!compiledMultiAction.plannedActions.some((action) => action.action_type === "std_project_create"), "resource_plan_must_not_include_create_action");
+  assert(compiledMultiAction.metadata.execution_scope.maximum_create_calls === 0, "resource_plan_create_calls_must_be_zero");
   assert(compiledMultiAction.metadata.resource_states.filter((item) => item.state === "PLANNED").length === 4, "node4_planned_state_count_wrong");
   assert(compiledMultiAction.metadata.resource_states.filter((item) => item.state === "READY").length === 4, "node4_ready_state_count_wrong");
 
@@ -206,6 +213,7 @@ try {
   assert(passed.status === "passed", "confirmed_resource_orchestrator_not_passed");
   assert(order.join(",") === resourceActions.join(","), "resource_action_order_mismatch");
   assert(passed.outputSummary.createCalled === false, "orchestrator_must_not_call_create");
+  assert(passed.outputSummary.planConsumed === true, "resource_plan_not_consumed_after_all_readbacks");
 
   const consumedActions = new Set();
   const atomicRepo = {

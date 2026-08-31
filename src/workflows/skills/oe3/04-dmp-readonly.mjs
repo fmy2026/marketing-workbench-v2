@@ -68,6 +68,7 @@ function evidenceSummaryLine(item = {}) {
     `status=${item.status || "not_run"}`,
     `read_api=${item.read?.apiCode || ""}`,
     `select_api=${item.select?.apiCode || ""}`,
+    `select_verification=${item.selectVerification || "not_run"}`,
     `read_hash_present=${Boolean(item.read?.responseHash)}`,
     `select_hash_present=${Boolean(item.select?.responseHash)}`
   ].join(",");
@@ -226,9 +227,10 @@ async function runDmpReadonlyVerify({
 
   const results = await probeAudienceSet({ client, advertiserId, customAudienceIds: ids });
   const passedIds = results.filter((item) => item.status === "passed").map((item) => item.customAudienceId);
-  const missingIds = ids.filter((id) => !passedIds.includes(id));
+  const missingIds = results.filter((item) => item.status === "missing").map((item) => item.customAudienceId);
+  const blockedIds = results.filter((item) => !["passed", "missing"].includes(item.status)).map((item) => item.customAudienceId);
   const visibleNotAvailableIds = results.filter((item) => item.status === "visible_not_available").map((item) => item.customAudienceId);
-  const status = missingIds.length ? "blocked" : "passed";
+  const status = blockedIds.length || (stage === "source-readonly-verify" && missingIds.length) ? "blocked" : "passed";
   const evidenceRef = await recordDmpEvidence({
     repo,
     bundle,
@@ -254,6 +256,7 @@ async function runDmpReadonlyVerify({
           status: item.status,
           read_api_code: item.read?.apiCode || "",
           select_api_code: item.select?.apiCode || "",
+          select_verification: item.selectVerification || "not_run",
           request_id_present: Boolean(item.read?.requestIdPresent || item.select?.requestIdPresent),
           response_hashes: [item.read?.responseHash || "", item.select?.responseHash || ""].filter(Boolean),
           delivery_status: item.deliveryStatus || "",
@@ -265,7 +268,7 @@ async function runDmpReadonlyVerify({
       }
     });
   }
-  if (stage === "target-readonly-verify" && status === "passed") {
+  if (stage === "target-readonly-verify" && status === "passed" && missingIds.length === 0) {
     await repo.updateDmpPackageSetStatus({
       packageSetId,
       status: "target_readonly_verified",
@@ -312,13 +315,18 @@ async function runDmpReadonlyVerify({
       passedCount: passedIds.length,
       missingCount: missingIds.length,
       missingIdHash: missingIds.length ? hashValue(missingIds) : "",
+      blockedCount: blockedIds.length,
+      blockedIdHash: blockedIds.length ? hashValue(blockedIds) : "",
+      selectDegradedCount: results.filter((item) => item.selectVerification === "degraded").length,
       visibleNotAvailableCount: visibleNotAvailableIds.length,
       visibleNotAvailableIdHash: visibleNotAvailableIds.length ? hashValue(visibleNotAvailableIds) : "",
       ready: status === "passed",
       evidenceRef,
       rawRequestStored: false,
       rawResponseStored: false,
-      nextAction: status === "passed" ? "继续下一 DMP 子节点。" : "停止于 DMP 只读缺失证据；不得猜测替代包。"
+      nextAction: status === "passed"
+        ? missingIds.length && stage === "target-readonly-verify" ? "目标户缺失已确认，继续生成 DMP 逐包推送计划。" : "继续下一 DMP 子节点。"
+        : "停止于 DMP 只读未分类或来源缺失；不得猜测替代包。"
     }
   });
 }
@@ -414,7 +422,13 @@ export async function runDmpPushPlanSkill({ repo, bundle, previousOutputs } = {}
   const targetPassedIds = ids.filter((id) =>
     (packageSet.members || []).some((member) => member.custom_audience_id === id && member.target_readonly_status === "passed")
   );
-  const missingTargetIds = ids.filter((id) => sourcePassedIds.includes(id) && !targetPassedIds.includes(id));
+  const missingTargetIds = ids.filter((id) =>
+    sourcePassedIds.includes(id) &&
+    (packageSet.members || []).some((member) => member.custom_audience_id === id && member.target_readonly_status === "missing")
+  );
+  const targetUnclassifiedIds = ids.filter((id) => !["passed", "missing"].includes(
+    (packageSet.members || []).find((member) => member.custom_audience_id === id)?.target_readonly_status || "not_checked"
+  ));
   const sourceComplete = ids.length > 0 && sourcePassedIds.length === ids.length;
   const targetComplete = ids.length > 0 && targetPassedIds.length === ids.length;
   if (!sourceComplete) {
@@ -479,6 +493,32 @@ export async function runDmpPushPlanSkill({ repo, bundle, previousOutputs } = {}
         pushPlanCount: 0,
         ready: true,
         nextAction: "目标户 DMP 已全部可用，无需推送。"
+      }
+    });
+  }
+  if (targetUnclassifiedIds.length) {
+    const evidenceRef = await recordDmpEvidence({
+      repo,
+      bundle,
+      stage: "push-plan",
+      title: "DMP 逐包推送计划",
+      status: "blocked",
+      packageSetId,
+      members: targetUnclassifiedIds.map((id) => ({ customAudienceId: id, status: "target_unclassified" }))
+    });
+    return sanitizeForPublic({
+      status: "blocked",
+      blockers: ["dmp_target_readonly_not_classified"],
+      evidenceRefs: [evidenceRef],
+      outputSummary: {
+        packageSetId,
+        sourcePassedCount: sourcePassedIds.length,
+        targetPassedCount: targetPassedIds.length,
+        targetUnclassifiedCount: targetUnclassifiedIds.length,
+        targetUnclassifiedIdHash: hashValue(targetUnclassifiedIds),
+        pushPlanCount: 0,
+        ready: false,
+        nextAction: "先完成目标户 DMP 逐包只读分类；不得对 blocked 成员生成推送计划。"
       }
     });
   }

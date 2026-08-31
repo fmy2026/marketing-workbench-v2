@@ -56,6 +56,10 @@ function apiProbeDigest(probe = {}) {
   };
 }
 
+function selectVerificationStatus({ visible, available }) {
+  return visible.status === "passed" && available.status === "passed" ? "passed" : "degraded";
+}
+
 export function summarizeDmpAudiencePayload(payload = {}) {
   const items = [...collectAudienceItems(payload?.data || payload).values()];
   return {
@@ -149,6 +153,7 @@ export async function probeDmpAudienceSet({ client, advertiserId, customAudience
   const apiStatus = [read.status, visible.status, available.status].includes("transport_failed")
     ? "transport_failed"
     : [read.status, visible.status, available.status].every((status) => status === "passed") ? "passed" : "blocked";
+  const selectVerification = selectVerificationStatus({ visible, available });
   const members = ids.map((id) => {
     const readItem = readItems.get(id);
     const visibleItem = visible.items.get(id);
@@ -157,13 +162,22 @@ export async function probeDmpAudienceSet({ client, advertiserId, customAudience
     const readHit = Boolean(readItem);
     const visibleHit = Boolean(visibleItem);
     const availableHit = Boolean(availableItem);
+    const readSucceeded = read.status === "passed";
     const usable = apiStatus === "passed" && readHit && visibleHit && availableHit && isDmpAudienceAvailable(item);
+    const readConfirmedMissing = readSucceeded && !readHit && !visibleHit && !availableHit;
     return {
       customAudienceId: id,
-      status: apiStatus !== "passed" ? apiStatus : usable ? "passed" : !readHit && !visibleHit ? "missing" : "visible_not_available",
+      // `read` is authoritative for absence of an explicitly requested ID.  A
+      // degraded `select` probe is retained as evidence, but must not turn a
+      // confirmed absence into an unclassified/blocked member.
+      status: !readSucceeded ? read.status === "transport_failed" ? "transport_failed" : "blocked"
+        : readConfirmedMissing ? "missing"
+          : usable ? "passed"
+            : "visible_not_available",
       readHit,
       visibleHit,
       availableHit,
+      selectVerification,
       deliveryStatus: clean(item.deliveryStatus),
       pushStatus: clean(item.pushStatus),
       isDeleted: clean(item.isDeleted),
@@ -174,6 +188,7 @@ export async function probeDmpAudienceSet({ client, advertiserId, customAudience
     status: apiStatus,
     members,
     read: apiProbeDigest(read),
+    selectVerification,
     selectVisible: { status: visible.status, pages: visible.pages, totalNum: visible.totalNum, probes: visible.probes },
     selectAvailable: { status: available.status, pages: available.pages, totalNum: available.totalNum, probes: available.probes }
   };

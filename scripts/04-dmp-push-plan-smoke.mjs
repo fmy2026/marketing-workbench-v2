@@ -114,10 +114,19 @@ assert(pushPlan.blockers.includes("dmp_target_push_plan_pending"), "dmp_push_pla
 assert(pushPlan.outputSummary.pushPlanCount === 2, "dmp_push_plan_count_wrong");
 assert(pushPlan.outputSummary.requestFieldManifest.fieldNames.includes("custom_audience_id"), "dmp_push_plan_field_manifest_missing");
 
+packageSet.members[1].target_readonly_status = "blocked";
+pushPlanRows.length = 0;
+const unclassifiedTarget = await runDmpPushPlanSkill({ repo, bundle, previousOutputs });
+assert(unclassifiedTarget.status === "blocked", "dmp_unclassified_target_must_block");
+assert(unclassifiedTarget.blockers.includes("dmp_target_readonly_not_classified"), "dmp_unclassified_target_blocker_missing");
+assert(unclassifiedTarget.outputSummary.pushPlanCount === 0, "dmp_unclassified_target_must_not_plan_push");
+packageSet.members[1].target_readonly_status = "missing";
+
 const summary = {
   status: "passed",
   single,
   pushPlan: pushPlan.outputSummary,
+  unclassifiedTarget: unclassifiedTarget.outputSummary,
   pushPlanReport: summarizeDmpPushPlans(pushPlanRows),
   noRealPlatformWrite: true,
   noTokenRefresh: true
