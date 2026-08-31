@@ -91,10 +91,15 @@ export async function handleWorkbenchCommand({
       fetchImpl: fetchImpl || globalThis.fetch
     });
     const nextView = await getJobViewFn(repo, jobId, { projectStatePath });
-    const resolved = reconcile?.runStatus === "touchpoint_resolved";
-    const blocker = clean((reconcile?.blockers || [])[0]);
+    const resolved = nextView?.caseGate?.monitorResolved === true;
+    const reconcileBlocker = clean((reconcile?.blockers || [])[0]);
+    const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0] || reconcileBlocker);
+    const monitorFound = Boolean(clean(reconcile?.resolvedMonitor?.monitorId)) ||
+      clean(reconcile?.runStatus) === "monitor_resolved_touchpoint_pending";
     const message = resolved
       ? "fresh readonly monitor 回查已确认 monitor 与受控触点，Case 状态已刷新。"
+      : monitorFound
+        ? `fresh readonly monitor 回查已找到 monitor，但受控触点回查未完成：${blocker || "touchpoint_url_missing"}。未创建、未重试。`
       : blocker
         ? `fresh readonly monitor 回查未确认 monitor：${blocker}。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。`
         : "fresh readonly monitor 回查未确认 monitor。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。";

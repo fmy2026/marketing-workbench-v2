@@ -93,18 +93,19 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；其选择顺序为 confirmed-resource 停止、monitor 周期/上下文、Node 4 资源、Plan fallback。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
+`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；当 monitor 为 `needs_readonly` 或 `needs_touchpoint_readback` 时，必须优先使用 `v_monitor_readiness.actionable_blocker_code`，再选择 confirmed-resource 停止、其他 monitor/上下文、Node 4 资源和 Plan fallback。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
 
 | Gate 优先级 | 当前条件 | `current_gate` | `suggested_next_action` |
 | ---: | --- | --- | --- |
 | 1 | 已创建对象但尚未 verified readback | `run_readback_only` | `perform_readback_only` |
 | 2 | 创建次数已达上限且未 verified | `manual_review_after_attempt_limit` | `manual_review_attempt_limit_reached` |
 | 3 | Job 为 `failed_waiting_manual_review` | `prepare_corrective_attempt` | `correct_payload_then_build_next_attempt_version` |
-| 4 | 有唯一 root blocker | `resolve_case_blocker` | `resolve_root_blocker:<code>` |
-| 5 | 首次创建对象且 readback verified | `first_std_project_create_completed` | `first_std_project_create_completed` |
-| 6 | 最新 Plan 为 ready | `await_job_write_authorization` | `obtain_single_plan_confirmation` |
-| 7 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
-| 8 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
+| 4 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | `run_monitor_readonly_reconcile` |
+| 5 | 有唯一 root blocker | `resolve_case_blocker` | `resolve_root_blocker:<code>` |
+| 6 | 首次创建对象且 readback verified | `first_std_project_create_completed` | `first_std_project_create_completed` |
+| 7 | 最新 Plan 为 ready | `await_job_write_authorization` | `obtain_single_plan_confirmation` |
+| 8 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
+| 9 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
 
 ## 5. 读写、安全与未建边界
 

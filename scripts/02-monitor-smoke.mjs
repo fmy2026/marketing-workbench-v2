@@ -10,6 +10,7 @@ import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.
 import { buildMonitorBootstrapContract } from "../src/workflows/skills/oe3/02-monitor/readonly-reconcile.mjs";
 import { monitorReadinessFromBundle } from "../src/workflows/skills/oe3/02-monitor/readiness.mjs";
 import { executeConfirmedMonitorBootstrap } from "../src/workflows/skills/oe3/02-monitor/executor.mjs";
+import { resolveMonitorTouchpointState } from "../src/workflows/skills/oe3/02-monitor/index.mjs";
 
 const target = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -66,6 +67,28 @@ const bundle = {
 const readiness = monitorReadinessFromBundle(bundle);
 assert.equal(readiness.monitorReady, false);
 assert.equal(readiness.actionableBlockerCode, "monitor_plan_required");
+
+const resolvedTouchpoint = resolveMonitorTouchpointState({
+  monitor: { monitorId: "MONITOR-SYNTHETIC", touchpointUrl: "controlled-touchpoint-value", touchpointUrlHash: "a".repeat(64) },
+  verification: { touchpointRef: "TP-SYNTHETIC", touchpointUrlPresent: true, urlHashMatches: true }
+});
+assert.equal(resolvedTouchpoint.verified, true, "touchpoint must require post-write integrity verification");
+assert.equal(resolvedTouchpoint.runStatus, "touchpoint_resolved");
+
+const hashOnlyTouchpoint = resolveMonitorTouchpointState({
+  monitor: { monitorId: "MONITOR-SYNTHETIC", touchpointUrlHash: "a".repeat(64) },
+  verification: { touchpointRef: "TP-SYNTHETIC", touchpointUrlPresent: false, urlHashMatches: false }
+});
+assert.equal(hashOnlyTouchpoint.verified, false, "hash-only touchpoint must not be ready");
+assert.equal(hashOnlyTouchpoint.runStatus, "monitor_resolved_touchpoint_pending");
+assert.equal(hashOnlyTouchpoint.blocker, "touchpoint_url_missing");
+
+const mismatchedTouchpoint = resolveMonitorTouchpointState({
+  monitor: { monitorId: "MONITOR-SYNTHETIC", touchpointUrl: "controlled-touchpoint-value", touchpointUrlHash: "a".repeat(64) },
+  verification: { touchpointRef: "TP-SYNTHETIC", touchpointUrlPresent: true, urlHashMatches: false }
+});
+assert.equal(mismatchedTouchpoint.verified, false, "hash mismatch must not be ready");
+assert.equal(mismatchedTouchpoint.blocker, "touchpoint_url_hash_mismatch");
 
 const monitorPlan = buildMonitorBootstrapExecutionPlanFromBundle(bundle, {
   planVersion: 4,

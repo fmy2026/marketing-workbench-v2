@@ -10,6 +10,12 @@ const TARGET = Object.freeze({
   advertiserId: "1871922434025472"
 });
 
+const TOUCHPOINT_TARGET = Object.freeze({
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  advertiserId: "1871922414575753"
+});
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -28,7 +34,32 @@ async function makeCase(suffix) {
   });
 }
 
+async function makeCaseForTarget(target, suffix) {
+  return createWorkflowCase(repo, {
+    case_key: `smoke.case-monitor-touchpoint.${suffix}.${Date.now()}`,
+    route_id: target.routeId,
+    game_code: target.gameCode,
+    advertiser_id: target.advertiserId,
+    business_goal: "Disposable monitor touchpoint projection smoke.",
+    source_usage: "test_run"
+  });
+}
+
 try {
+  const touchpointCase = await makeCaseForTarget(TOUCHPOINT_TARGET, "canonical-root");
+  const touchpointJob = await createJob(repo, {
+    route_id: TOUCHPOINT_TARGET.routeId,
+    game_code: TOUCHPOINT_TARGET.gameCode,
+    advertiser_id: TOUCHPOINT_TARGET.advertiserId,
+    case_id: touchpointCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:monitor-touchpoint:${Date.now()}`
+  });
+  cleanupJobIds.push(touchpointJob.jobId);
+  const touchpointSummary = await repo.getWorkflowCaseSummary(touchpointCase.case_id);
+  assert(touchpointSummary.monitor_resolved === true, "monitor_readonly_reconcile_must_promote_verified_touchpoint");
+  assert(touchpointSummary.root_blocker_codes?.[0] !== "monitor_id_missing", "verified_monitor_must_not_fall_back_to_stale_skill");
+
   const [firstCase, secondCase] = await Promise.all([makeCase("first"), makeCase("second")]);
   assert(firstCase.case_id !== secondCase.case_id, "case_ids_must_differ");
 
@@ -114,6 +145,22 @@ try {
   assert(resourceBlockedSummary.suggested_next_action === "resolve_root_blocker:resource_prepare_unsupported:event_asset", "resource_next_action_not_aligned");
   assert(node5BlockedSummary.root_blocker_codes?.length === 1, "node5_root_blocker_cardinality_invalid");
   assert(node5BlockedSummary.root_blocker_codes[0] === "nested_audience_contract_invalid", "node5_root_fallback_missing");
+
+  await repo.upsertLaunchSkillRun({
+    skillRunId: `SR-${firstJob.jobId}-STALE-MONITOR-ID`,
+    jobId: firstJob.jobId,
+    nodeKey: "creation_context",
+    skillKey: "context-resolve-account",
+    attemptNo: 1,
+    status: "blocked",
+    inputHash: `sha256:${"9".repeat(64)}`,
+    outputSummary: { monitorIdPresent: false },
+    blockers: ["monitor_id_missing"],
+    evidenceRefs: [],
+    sourceUsage: "test_run"
+  });
+  const staleMonitorSkillSummary = await repo.getWorkflowCaseSummary(firstCase.case_id);
+  assert(staleMonitorSkillSummary.root_blocker_codes?.[0] === "resource_prepare_unsupported:event_asset", "ready_monitor_must_ignore_stale_monitor_skill_blocker");
 
   await repo.upsertLaunchSkillRun({
     skillRunId: `SR-${secondJob.jobId}-BACKUP-LANDING-INVENTORY`,

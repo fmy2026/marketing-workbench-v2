@@ -1834,7 +1834,10 @@ export class PostgresRepository {
         url_hash = EXCLUDED.url_hash,
         status = EXCLUDED.status,
         source = EXCLUDED.source,
-        touchpoint_url = EXCLUDED.touchpoint_url,
+        touchpoint_url = CASE
+          WHEN EXCLUDED.touchpoint_url IS NULL THEN mwb.account_touchpoints.touchpoint_url
+          ELSE EXCLUDED.touchpoint_url
+        END,
         updated_at = now();
     `, this.database);
   }

@@ -231,6 +231,53 @@ assert(readonlyReconcileCalls === 1, "exact terminal monitor command must call r
 assert(terminalResponse.interaction.kind === "run_monitor_readonly", "terminal monitor response effect changed");
 assert(terminalResponse.interaction.message.includes("未创建、未重试"), "terminal monitor no-write outcome missing");
 
+const pendingTouchpointView = {
+  ...terminalView,
+  caseGate: {
+    ...terminalView.caseGate,
+    currentGate: "run_monitor_readonly",
+    rootBlockerCodes: ["touchpoint_url_missing"],
+    suggestedNextAction: "run_monitor_readonly_reconcile",
+    monitorResolved: false
+  }
+};
+const pendingTouchpointResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return terminalBundle; },
+    async getWorkflowCaseSummary() { return terminalMonitorCase; }
+  },
+  jobId: "JOB-TEST-1",
+  message: "重新只读回查 monitor",
+  getJobViewFn: async () => pendingTouchpointView,
+  monitorReadonlyReconcile: async () => ({
+    runStatus: "monitor_resolved_touchpoint_pending",
+    resolvedMonitor: { monitorId: "MONITOR-SYNTHETIC" },
+    blockers: ["touchpoint_url_missing"]
+  })
+});
+assert(pendingTouchpointResponse.interaction.message.includes("已找到 monitor，但受控触点回查未完成"), "pending touchpoint must not report monitor readiness");
+assert(pendingTouchpointResponse.interaction.message.includes("未创建、未重试"), "pending touchpoint must remain zero-write");
+
+const verifiedTouchpointView = {
+  ...pendingTouchpointView,
+  caseGate: { ...pendingTouchpointView.caseGate, monitorResolved: true }
+};
+const verifiedTouchpointResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return terminalBundle; },
+    async getWorkflowCaseSummary() { return terminalMonitorCase; }
+  },
+  jobId: "JOB-TEST-1",
+  message: "重新只读回查 monitor",
+  getJobViewFn: async () => verifiedTouchpointView,
+  monitorReadonlyReconcile: async () => ({
+    runStatus: "monitor_resolved_touchpoint_pending",
+    resolvedMonitor: { monitorId: "MONITOR-SYNTHETIC" },
+    blockers: ["touchpoint_url_missing"]
+  })
+});
+assert(verifiedTouchpointResponse.interaction.message.includes("已确认 monitor 与受控触点"), "success message must use refreshed canonical monitor readiness");
+
 console.log(JSON.stringify({
   deterministicIntent: deterministic.intent,
   fakeAdapterIntent: fakeResolved.intent,

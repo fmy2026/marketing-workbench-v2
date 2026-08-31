@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-08-31 20:40 CST |
-| 校验基线 | Git `4c0a737`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-08-31 21:32 CST |
+| 校验基线 | Git `62d6893`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -34,6 +34,14 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 `workflow_case_summary` 的 Gate、根阻断和排序不变。仅当 active Case 的最新 Job 处于 `resolve_case_blocker`、唯一 root blocker 为 `monitor_create_busy_retry_exhausted` 且 `monitor_resolved=false` 时，工作台允许精确指令“重新只读回查 monitor”。该指令复用 Node 02 的 fresh readonly reconcile，不生成 Plan、confirmation、action grant 或平台写入。
 
 普通“继续执行”保持只展示 blocker，避免误触发外部查询；历史 Job、非 active Case、其他 blocker 均不得触发该动作。回查发现唯一 monitor 并完成触点回查时，只落脱敏证据并刷新既有 Case 投影；未发现、查询失败或结果不唯一时保留原终态 blocker，不重试、不创建、不改写旧 cycle/attempt/Plan。工作台文案只提示精确指令及安全错误码，不展示完整 URL 或 raw 响应。
+
+## 已批准设计：Monitor 触点只读回查收口
+
+Node 02 fresh readonly reconcile 必须以平台返回的受控触点 URL 与其 hash 的一致性作为完成条件，不能仅凭 URL hash 判定 `touchpoint_resolved`。受控 URL 只允许在内存中传递并写入既有 `mwb.account_touchpoints.touchpoint_url` 字段；对外 API、工作台、普通日志与 evidence 只保存存在性、hash、状态和脱敏引用。
+
+回查写入后必须调用既有触点完整性校验；只有 monitor ID、受控触点引用、完整受控 URL、hash 一致性和回查证据均存在时，才可把本次 run 标为 `touchpoint_resolved`，并由 canonical `monitor_ready` 推进 Case。缺 URL、hash 或完整性不一致时只标记 `monitor_resolved_touchpoint_pending`，保留 `needs_touchpoint_readback` 与 `touchpoint_url_missing`，不创建、不重试、不生成 Plan。
+
+`workflow_case_summary` 在 `run_monitor_readonly` 状态必须直接选择 `v_monitor_readiness.actionable_blocker_code`，不得以历史 Skill blocker 回退覆盖它。monitor 已 READY 后，`monitor_id_missing`、`touchpoint_url_missing` 和 `touchpoint_url_hash_mismatch` 等历史 Node 02 Skill blocker 必须从 root 排序中排除，让 Case 进入下一项真实非 monitor blocker。工作台回查成功提示必须读取刷新后的 canonical `monitor_ready=true`；否则只说明“已找到 monitor，但受控触点回查未完成”，并不暗示可继续创建。
 
 ## 何时使用
 

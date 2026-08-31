@@ -1,0 +1,76 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-MONITOR-TOUCHPOINT-READONLY-CLOSURE-20260831",
+  "task_ref": "tasks/TASK-MWBV2-MONITOR-TOUCHPOINT-READONLY-CLOSURE-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 21:05 CST",
+  "updated_at": "2026-08-31 21:32 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的 Monitor 触点只读回查收口修复方案",
+    "objective": "Make canonical monitor readiness, Case root blocker, and workbench outcome agree after a zero-write readonly reconcile.",
+    "current_truth": "The readonly reconcile currently treats a touchpoint hash as a resolved touchpoint, while canonical readiness requires a stored controlled touchpoint and hash integrity.",
+    "stop_condition": "No external platform write, retry, confirmation, action grant, or credential refresh is authorized."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MONITOR-TOUCHPOINT-READONLY-CLOSURE-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-MONITOR-TOUCHPOINT-READONLY-CLOSURE-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/062_monitor_canonical_readiness.sql",
+    "db/064_monitor_bootstrap_plan_gate.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs",
+    "src/workflows/workbenchConversation.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest and current mechanism documentation",
+    "idempotent workflow_case_summary migration",
+    "Node 02 readonly reconcile, workbench response and focused smoke tests",
+    "existing test_run records created by smoke tests only"
+  ],
+  "forbidden_actions": [
+    "monitor create or retry",
+    "resource or std_project platform write",
+    "token refresh",
+    "new execution Plan, confirmation or action grant",
+    "historical attempt, plan or evidence deletion",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence outside the existing controlled database field"
+  ],
+  "validation_plan": [
+    "test:monitor",
+    "test:workbench-conversation",
+    "test:workflow-case",
+    "smoke:api",
+    "validate:schemas",
+    "git diff --check",
+    "Postgres test_run cleanup and runtime ensure_monitor count"
+  ],
+  "stop_conditions": [
+    "A real platform write or retry would be required.",
+    "A complete controlled touchpoint URL would be exposed beyond its existing protected Postgres storage.",
+    "The Case Gate would need computation outside workflow_case_summary."
+  ],
+  "result": {
+    "status": "completed_with_single_readonly_reconcile",
+    "migrations": [
+      "db/065_monitor_touchpoint_readonly_closure.sql",
+      "db/066_monitor_ready_stale_skill_projection.sql"
+    ],
+    "runtime_monitor_platform_actions": 0,
+    "test_run_jobs_remaining": 0,
+    "validation": [
+      "test:monitor",
+      "test:workbench-conversation",
+      "test:workflow-case",
+      "smoke:api",
+      "validate:schemas",
+      "db:contract-check",
+      "git diff --check"
+    ]
+  }
+}

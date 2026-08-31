@@ -598,6 +598,8 @@ async function persistReadonlyReconcile({
     monitorId
   });
   let touchpointWritten = false;
+  let touchpointVerification = null;
+  let touchpointState = resolveMonitorTouchpointState({ monitor });
   const touchpointRef = monitorId ? monitorTouchpointRef({ ...target, monitorId }) : "";
   if (monitorId) {
     await repo.upsertAccountTouchpoint({
@@ -608,17 +610,43 @@ async function persistReadonlyReconcile({
       monitorId,
       touchpointRef,
       urlHash: monitor.touchpointUrlHash || "",
-      status: monitor.touchpointUrl ? "stored_in_database" : monitor.touchpointUrlHash ? "hash_only_touchpoint_url_unverified" : "touchpoint_url_unresolved_after_monitor_list",
+      status: monitor.touchpointUrl ? "touchpoint_integrity_pending" : monitor.touchpointUrlHash ? "hash_only_touchpoint_url_unverified" : "touchpoint_url_unresolved_after_monitor_list",
       source: monitor.source || "qiankun_monitor_readonly_reconcile",
       touchpointUrl: monitor.touchpointUrl || ""
     });
     touchpointWritten = true;
+    if (typeof repo.getTouchpointVerification === "function") {
+      touchpointVerification = await repo.getTouchpointVerification({
+        routeId: target.routeId,
+        gameCode: target.gameCode,
+        advertiserId: target.advertiserId,
+        monitorId
+      });
+      touchpointState = resolveMonitorTouchpointState({ monitor, verification: touchpointVerification });
+      await repo.upsertAccountTouchpoint({
+        touchpointId: touchpointRef,
+        advertiserId: target.advertiserId,
+        routeId: target.routeId,
+        gameCode: target.gameCode,
+        monitorId,
+        touchpointRef,
+        urlHash: monitor.touchpointUrlHash || "",
+        status: touchpointState.verified ? "readback_verified" : touchpointState.blocker,
+        source: monitor.source || "qiankun_monitor_readonly_reconcile",
+        touchpointUrl: monitor.touchpointUrl || ""
+      });
+    }
   }
+  const effectiveStatus = monitorId ? touchpointState.runStatus : status;
+  const effectiveCycleStatus = monitorId ? "resolved" : cycleStatus;
+  const effectiveErrorSummary = [clean(errorSummary), clean(touchpointState.blocker)]
+    .filter((item, index, values) => item && values.indexOf(item) === index)
+    .join(";");
   await repo.upsertMonitorProvisionRun({
     provisionId,
     cycleId,
     cycleNo,
-    cycleStatus,
+    cycleStatus: effectiveCycleStatus,
     supersedesCycleId,
     reissueReason,
     preflightHash,
@@ -627,7 +655,7 @@ async function persistReadonlyReconcile({
     routeId: target.routeId,
     gameCode: target.gameCode,
     advertiserId: target.advertiserId,
-    status,
+    status: effectiveStatus,
     requestFingerprint,
     technicalConfig: defaults?.monitor_provision || {},
     ownerKey: account?.ownerKey || "",
@@ -644,7 +672,7 @@ async function persistReadonlyReconcile({
     touchpointUrlHash: monitor?.touchpointUrlHash || "",
     requestHash: monitor?.requestHash || createAudit.requestHash || "",
     responseHash: monitor?.responseHash || createAudit.responseHash || "",
-    errorSummary,
+    errorSummary: effectiveErrorSummary,
     evidenceArtifactId,
     createCalled: createAudit.createCalled === true || monitor?.createCalled === true,
     createAttemptNo: Number(createAudit.createAttemptNo || 0) || (createAudit.createCalled === true || monitor?.createCalled === true ? 1 : 0),
@@ -656,7 +684,16 @@ async function persistReadonlyReconcile({
     accountWritten: true,
     accountIdentityWritten: Boolean(account),
     touchpointWritten,
-    provisionRunWritten: true
+    provisionRunWritten: true,
+    provisionStatus: effectiveStatus,
+    touchpointVerified: touchpointState.verified,
+    touchpointBlocker: touchpointState.blocker,
+    touchpointVerification: touchpointVerification ? {
+      status: clean(touchpointVerification.status),
+      touchpointRefPresent: Boolean(clean(touchpointVerification.touchpointRef)),
+      touchpointUrlPresent: touchpointVerification.touchpointUrlPresent === true,
+      urlHashMatches: touchpointVerification.urlHashMatches === true
+    } : null
   };
 }
 
@@ -794,6 +831,29 @@ function monitorFromRow(item = {}, { requestHash = "", responseHash = "", source
     createCalled,
     createConfirmedAt,
     createCompletedAt
+  };
+}
+
+function monitorTouchpointCandidateReady(monitor = {}) {
+  return Boolean(clean(monitor.monitorId) && clean(monitor.touchpointUrl) && clean(monitor.touchpointUrlHash));
+}
+
+export function resolveMonitorTouchpointState({ monitor = null, verification = null } = {}) {
+  if (!clean(monitor?.monitorId)) {
+    return { verified: false, runStatus: "", blocker: "" };
+  }
+  const verified = monitorTouchpointCandidateReady(monitor) &&
+    verification?.touchpointUrlPresent === true &&
+    verification?.urlHashMatches === true &&
+    Boolean(clean(verification?.touchpointRef));
+  return {
+    verified,
+    runStatus: verified ? "touchpoint_resolved" : "monitor_resolved_touchpoint_pending",
+    blocker: verified
+      ? ""
+      : verification?.touchpointUrlPresent === true
+        ? "touchpoint_url_hash_mismatch"
+        : "touchpoint_url_missing"
   };
 }
 
@@ -1055,7 +1115,11 @@ export async function runMonitorProvisionReadonlyReconcile({
       technicalConfig: defaults?.monitor_provision || {},
       exact: exactMatchingEnabled
     });
-    monitorResult = await client.queryMonitorIndex({ ownerKey: effectiveOwnerKey, params });
+    monitorResult = await client.queryMonitorIndex({
+      ownerKey: effectiveOwnerKey,
+      params,
+      includeControlledTouchpointUrl: true
+    });
     monitorRows = compactMonitorRows(monitorResult);
     exactRows = exactMatchingEnabled ? exactMonitorRows(monitorResult, defaults?.monitor_provision || {}) : [];
     if (monitorResult.status !== "passed") {
@@ -1064,15 +1128,12 @@ export async function runMonitorProvisionReadonlyReconcile({
       blockers.push(exactRows.length === 0 ? "monitor_exact_match_missing" : "monitor_exact_match_ambiguous");
     } else if (exactMatchingEnabled) {
       const item = exactRows[0];
-      monitor = {
-        id: clean(item.id),
-        monitorId: clean(item.monitorId),
-        touchpointUrlPresent: item.touchpointUrlPresent === true,
-        touchpointUrlHash: clean(item.touchpointUrlHash),
+      monitor = monitorFromRow(item, {
         requestHash: hashValue(params),
-        responseHash: monitorResult.responseHash
-      };
-      if (!monitor.touchpointUrlHash) blockers.push("touchpoint_url_unresolved_after_monitor_list");
+        responseHash: monitorResult.responseHash,
+        source: "qiankun_monitor_readonly_reconcile"
+      });
+      if (!monitorTouchpointCandidateReady(monitor)) blockers.push("touchpoint_url_unresolved_after_monitor_list");
     }
   }
 
@@ -1151,12 +1212,12 @@ export async function runMonitorProvisionReadonlyReconcile({
   const priorTerminalWithoutMonitor = !foundMonitor && (
     priorCycle?.cycle_status === "stopped" || priorCycle?.status === "terminal_failed"
   );
-  const runStatus = priorTerminalWithoutMonitor
+  const proposedRunStatus = priorTerminalWithoutMonitor
     ? "terminal_failed"
     : monitor
-    ? monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved"
+    ? monitorTouchpointCandidateReady(monitor) ? "touchpoint_resolved" : "monitor_resolved_touchpoint_pending"
     : account ? "account_resolved" : "failed";
-  const cycleStatus = runStatus === "touchpoint_resolved" ? "resolved" : priorTerminalWithoutMonitor ? "stopped" : "active";
+  const cycleStatus = monitor ? "resolved" : priorTerminalWithoutMonitor ? "stopped" : "active";
   const writes = await persistReadonlyReconcile({
     repo,
     jobId,
@@ -1171,10 +1232,12 @@ export async function runMonitorProvisionReadonlyReconcile({
     credential,
     account,
     monitor,
-    status: runStatus,
+    status: proposedRunStatus,
     errorSummary: blockers.join(";"),
     evidenceArtifactId
   });
+  if (writes.touchpointBlocker && !blockers.includes(writes.touchpointBlocker)) blockers.push(writes.touchpointBlocker);
+  const runStatus = writes.provisionStatus || proposedRunStatus;
   const monitorBootstrapContract = !foundMonitor && !priorTerminalWithoutMonitor && account &&
     readiness.readyForReadonlyReconcile && blockers.length === 1 && blockers[0] === "monitor_exact_match_missing"
     ? buildMonitorBootstrapContract({
@@ -1193,6 +1256,7 @@ export async function runMonitorProvisionReadonlyReconcile({
     ...safeSummary,
     status: blockers.length ? "blocked" : "passed",
     runStatus,
+    blockers: [...blockers],
     evidenceArtifactId,
     monitorBootstrapContract,
     writes
@@ -1492,8 +1556,8 @@ async function runMonitorProvisionPlanOnly({
       qiankunIdentityStatus: "observed"
     });
   }
-  const runStatus = monitor
-    ? monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved"
+  const proposedRunStatus = monitor
+    ? monitorTouchpointCandidateReady(monitor) ? "touchpoint_resolved" : "monitor_resolved_touchpoint_pending"
     : account ? "planned" : "failed";
   const writes = await persistReadonlyReconcile({
     repo,
@@ -1510,7 +1574,7 @@ async function runMonitorProvisionPlanOnly({
     credential,
     account,
     monitor,
-    status: runStatus,
+    status: proposedRunStatus,
     errorSummary: blockers.join(";"),
     evidenceArtifactId,
     createAudit: {
@@ -1518,10 +1582,13 @@ async function runMonitorProvisionPlanOnly({
       createAttemptNo: 0
     }
   });
+  if (writes.touchpointBlocker && !blockers.includes(writes.touchpointBlocker)) blockers.push(writes.touchpointBlocker);
+  const runStatus = writes.provisionStatus || proposedRunStatus;
   const output = {
     ...safeSummary,
     status: blockers.length ? "blocked" : "passed",
     runStatus,
+    blockers: [...blockers],
     evidenceArtifactId,
     writes
   };
@@ -1936,7 +2003,7 @@ export async function runMonitorIdsReadonlyVerify({
         credential,
         account,
         monitor,
-        status: monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved",
+        status: monitorTouchpointCandidateReady(monitor) ? "touchpoint_resolved" : "monitor_resolved_touchpoint_pending",
         errorSummary: "monitor_resolved_by_monitor_id_readonly",
         evidenceArtifactId,
         createAudit: {
@@ -2606,8 +2673,8 @@ async function runMonitorProvisionEnsure({
       completedAt: createCompletedAt
     });
   }
-  const runStatus = monitor
-    ? monitor.touchpointUrl ? "resolved" : "monitor_resolved_touchpoint_pending"
+  const proposedRunStatus = monitor
+    ? monitorTouchpointCandidateReady(monitor) ? "touchpoint_resolved" : "monitor_resolved_touchpoint_pending"
     : finalAttemptCount >= MONITOR_MAX_ATTEMPTS ? "terminal_failed" : account ? "account_resolved" : "failed";
   const finalCycleStatus = monitor
     ? "resolved"
@@ -2628,7 +2695,7 @@ async function runMonitorProvisionEnsure({
     credential,
     account,
     monitor,
-    status: runStatus,
+    status: proposedRunStatus,
     errorSummary: finalLifecycleSummary,
     evidenceArtifactId,
     createAudit: {
@@ -2640,11 +2707,14 @@ async function runMonitorProvisionEnsure({
       createCompletedAt
     }
   });
+  if (writes.touchpointBlocker && !blockers.includes(writes.touchpointBlocker)) blockers.push(writes.touchpointBlocker);
+  const runStatus = writes.provisionStatus || proposedRunStatus;
 
   const output = {
     ...safeSummary,
     status: blockers.length ? "blocked" : "passed",
     runStatus,
+    blockers: [...blockers],
     evidenceArtifactId,
     writes: {
       ...writes,

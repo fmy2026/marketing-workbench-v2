@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-08-31 19:20 CST |
-| 校验基线 | Git `9d52b89` + 当前 Monitor 单轨 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `064_monitor_bootstrap_plan_gate.sql` |
+| 最后更新时间 | 2026-08-31 21:20 CST |
+| 校验基线 | Git `62d6893` + 当前 Monitor 触点只读收口 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -164,11 +164,12 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 1 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
 | 2 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
 | 3 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
-| 4 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；仅终态 `monitor_create_busy_retry_exhausted` 可由精确只读指令回查 |
-| 5 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
-| 6 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
-| 7 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
-| 8 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
+| 4 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
+| 5 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；仅终态 `monitor_create_busy_retry_exhausted` 可由精确只读指令回查 |
+| 6 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
+| 7 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
+| 8 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
+| 9 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
 
 ```text
 工作台默认 idle
@@ -178,6 +179,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡
 → 仅 active Case 的最新 Job、唯一 `monitor_create_busy_retry_exhausted` blocker 且 `monitor_resolved=false` 时，精确“重新只读回查 monitor”可调用 Node 02 fresh readonly reconcile
+→ 回查后若 Case Gate 为 `run_monitor_readonly`，普通“继续执行”只调用一次 fresh readonly reconcile；成功文案只以刷新后的 `monitor_resolved=true` 为准
 → 仅精确“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 ```
 

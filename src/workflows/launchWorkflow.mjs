@@ -610,6 +610,11 @@ function rootBlockerPresentation(code = "") {
       reason: "当前 monitor 尚未回查出受控触点。",
       nextActionLabel: "完成 monitor 回查后重新执行只读就绪检查。"
     },
+    touchpoint_url_hash_mismatch: {
+      title: "触点完整性校验未通过",
+      reason: "已读取到触点，但受控触点与平台 hash 未通过一致性校验。",
+      nextActionLabel: "执行一次 fresh readonly monitor 回查；不得创建或重试。"
+    },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",
@@ -632,6 +637,7 @@ function caseGateView(summary = null, jobId = "") {
     rootBlocker: rootBlockerPresentation(rootBlockerCode),
     suggestedNextAction: summary?.suggested_next_action || "",
     lifecycleStatus: summary?.lifecycle_status || "",
+    monitorResolved: summary?.monitor_resolved === true,
     isLatestCaseJob
   };
 }
