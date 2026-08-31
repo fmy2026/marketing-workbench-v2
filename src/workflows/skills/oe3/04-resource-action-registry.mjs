@@ -57,12 +57,11 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     verifyModuleRef: "src/workflows/skills/oe3/03-landing-page-readiness.mjs",
     prepareSupported: false,
     prepareModuleRef: "",
-    reservedPrepareActionType: "ensure_resource:backup_landing_page",
-    reservedPrepareModuleRef: "src/platforms/oceanengineBackupLandingPageShareExecutor.mjs#reserved",
-    reservedPrepareScope: "source_material_account_to_target_account_designated_share_only",
-    reservedConfirmationModel: "single_explicit_confirmation_plus_write_readback",
-    reservedIdempotencyScope: "route_id:game_code:source_advertiser_id:site_id:target_advertiser_id",
-    evidenceRequirement: "material source account default site, target ordinary/shared inventory visibility, source asset id, and url hash match evidence"
+    manualShareOnly: true,
+    manualShareReadbackModuleRef: "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs",
+    futureApiSlot: "same_site_share_api_contract_required",
+    excludedWriteEndpoint: "/open_api/2/tools/site/handsel/",
+    evidenceRequirement: "material source account default site, target SHARE inventory visibility, source asset id, and url hash match evidence"
   }
 });
 
@@ -92,11 +91,10 @@ export function getResourceActionCapability(resourceType) {
     prepare_supported: capability.prepareSupported === true,
     prepare_module_ref: capability.prepareModuleRef || "",
     prepare_action_type: capability.prepareSupported === true ? prepareActionType : "",
-    reserved_prepare_action_type: capability.reservedPrepareActionType || "",
-    reserved_prepare_module_ref: capability.reservedPrepareModuleRef || "",
-    reserved_prepare_scope: capability.reservedPrepareScope || "",
-    reserved_confirmation_model: capability.reservedConfirmationModel || "",
-    reserved_idempotency_scope: capability.reservedIdempotencyScope || "",
+    manual_share_only: capability.manualShareOnly === true,
+    manual_share_readback_module_ref: capability.manualShareReadbackModuleRef || "",
+    future_api_slot: capability.futureApiSlot || "",
+    excluded_write_endpoint: capability.excludedWriteEndpoint || "",
     prepare_stop_conditions: defaultStopConditions(resourceType),
     evidence_requirement: capability.evidenceRequirement || "account_resources readonly evidence"
   };

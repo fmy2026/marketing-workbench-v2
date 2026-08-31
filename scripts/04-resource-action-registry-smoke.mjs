@@ -124,8 +124,10 @@ assert(getResourceActionCapability("product_image").prepare_module_ref === "src/
 const backupCapability = getResourceActionCapability("backup_landing_page");
 assert(backupCapability.prepare_supported === false, "backup_landing_page_prepare_must_remain_disabled");
 assert(backupCapability.prepare_action_type === "", "backup_landing_page_prepare_action_must_not_be_active");
-assert(backupCapability.reserved_prepare_action_type === "ensure_resource:backup_landing_page", "backup_landing_page_reserved_action_missing");
-assert(backupCapability.reserved_prepare_scope === "source_material_account_to_target_account_designated_share_only", "backup_landing_page_reserved_scope_wrong");
+assert(backupCapability.manual_share_only === true, "backup_landing_page_manual_share_only_missing");
+assert(backupCapability.manual_share_readback_module_ref === "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs", "backup_landing_page_readback_module_wrong");
+assert(backupCapability.future_api_slot === "same_site_share_api_contract_required", "backup_landing_page_future_api_slot_missing");
+assert(backupCapability.excluded_write_endpoint === "/open_api/2/tools/site/handsel/", "backup_landing_page_handsel_exclusion_missing");
 const eventCapability = getResourceActionCapability("event_asset");
 assert(eventCapability.prepare_supported === true, "event_asset_prepare_should_be_supported_when_contract_eligible");
 assert(eventCapability.prepare_action_type === "ensure_resource:event_asset", "event_asset_prepare_action_missing");

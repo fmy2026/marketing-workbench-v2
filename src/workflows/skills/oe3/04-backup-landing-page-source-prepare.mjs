@@ -125,9 +125,9 @@ export async function runBackupLandingPageSourcePrepareSkill({ repo, bundle } = 
     asset_file_names: local.asset_file_names,
     source_account_present: sourceAccountPresent,
     source_account_id_present: sourceAccountPresent,
-    source_publish_stage_required: true,
-    target_push_or_authorization_required: true,
-    target_transport_contract_verified: false,
+    source_publish_stage_verified: targetResolvedByReadback,
+    manual_same_site_share_required_when_missing: !targetResolvedByReadback,
+    target_transport_contract_verified: targetResolvedByReadback,
     target_transport_resolved_by_readback: targetResolvedByReadback,
     landing_page_asset_id_present: defaultPresent,
     site_id_present: Boolean(clean(asset.site_id || item?.platform_resource_id)),
@@ -135,7 +135,7 @@ export async function runBackupLandingPageSourcePrepareSkill({ repo, bundle } = 
     target_visible: targetVisible,
     target_readback_verified: targetReadbackVerified,
     platform_write_called: false,
-    flow: "local_folder_to_material_account_to_target_account",
+    flow: "local_folder_to_material_account_to_target_same_site_share",
     next_action: targetResolvedByReadback
       ? "目标账户已只读回查通过；无需落地页写入动作。"
       : "确认备用落地页官方发布/推送/授权合同后，再建立单次写入与目标户回查任务。",

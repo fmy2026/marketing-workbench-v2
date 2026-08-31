@@ -10,15 +10,15 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "task_id": "TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830",
-    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
-    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.json",
-    "status": "completed_event_chain_ready",
+    "task_id": "TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831",
+    "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
+    "manifest_ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.json",
+    "status": "completed_backup_landing_page_ready",
     "read_order": [
       "AGENTS.md",
       "project.state.json",
-      "tasks/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.md",
-      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-EVENT-CONFIGS-CREATE-1871922434025472-20260830.json",
+      "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
+      "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.json",
       "docs/Solution Design.md"
     ]
   },

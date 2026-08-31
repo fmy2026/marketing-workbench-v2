@@ -9,10 +9,8 @@ import {
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
 
 export const BACKUP_LANDING_PAGE_INVENTORY_SKILL_KEY = "backup-landing-page-material-inventory";
-export const BACKUP_LANDING_PAGE_INVENTORY_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-MATERIAL-INVENTORY-1871922346964041";
-export const BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922346964041";
-export const CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID = "LPA-JSZC-OE3-BACKUP-001";
-export const DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT = "1760246749825031";
+export const BACKUP_LANDING_PAGE_INVENTORY_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-INVENTORY";
+export const BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID = "TASK-MWBV2-OE3-BACKUP-LANDING-PAGE-SHARE-READBACK";
 
 const SITE_GET_ENDPOINT = "https://ad.oceanengine.com/open_api/2/tools/site/get/";
 const ORANGE_SITE_GET_ENDPOINT = "/open_api/v3.0/tools/orange_site/get/";
@@ -64,6 +62,18 @@ function sameHash(left, right) {
   const normalizedLeft = normalizedHash(left);
   const normalizedRight = normalizedHash(right);
   return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function blockedInventory(blocker) {
+  return {
+    status: "blocked",
+    page_count: 0,
+    site_count: 0,
+    sites: [],
+    response_hash: "",
+    page_summaries: [],
+    blockers: [blocker]
+  };
 }
 
 function siteIdFromItem(item = {}) {
@@ -218,11 +228,15 @@ async function fetchTargetOrangeSiteProbe({ client, advertiserId }) {
 }
 
 function targetResolution(targetSite = null, targetSharedSite = null, expectedHash = "") {
-  const resolvedSite = targetSharedSite || targetSite || null;
+  // Same-site manual sharing is the only verified cross-account path. A site in
+  // ordinary inventory is intentionally diagnostic-only: it cannot substitute
+  // for the target's explicit SHARE record.
+  const resolvedSite = targetSharedSite || null;
   const targetHash = normalizedHash(resolvedSite?.url_hash || "");
   const hashMatches = sameHash(expectedHash, targetHash);
-  const exactMatch = Boolean(resolvedSite);
+  const exactMatch = Boolean(targetSharedSite);
   const usable = resolvedSite?.usable === true;
+  const sharedTypeMatches = upper(targetSharedSite?.share_type) === "SHARE";
   return {
     target_match: Boolean(targetSite),
     target_status: clean(targetSite?.status || ""),
@@ -232,13 +246,14 @@ function targetResolution(targetSite = null, targetSharedSite = null, expectedHa
     target_shared_status: clean(targetSharedSite?.status || ""),
     target_shared_usable: targetSharedSite?.usable === true,
     target_shared_share_type: clean(targetSharedSite?.share_type || ""),
-    target_resolution_source: targetSharedSite ? "shared_inventory" : targetSite ? "ordinary_inventory" : "",
+    target_resolution_source: targetSharedSite ? "shared_inventory" : "",
     target_exact_match: exactMatch,
     target_resolved_status: clean(resolvedSite?.status || ""),
     target_resolved_usable: usable,
     target_url_hash: targetHash,
     target_hash_matches: hashMatches,
-    target_verified: exactMatch && usable && hashMatches
+    target_shared_share_type_matches: sharedTypeMatches,
+    target_verified: exactMatch && sharedTypeMatches && usable && hashMatches
   };
 }
 
@@ -279,13 +294,12 @@ function selectConclusion({ candidates, sourceInventory, targetInventory, target
     targetById.get(clean(candidate.site_id)),
     targetSharedById.get(clean(candidate.site_id))
   ));
-  const defaultRows = candidateRows.filter((item) => item.landing_page_asset_id === CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID);
+  const defaultRows = candidateRows.filter((item) => item.is_default === true);
   const defaultRow = defaultRows[0] || null;
   const defaultSourceVerified = defaultRows.length === 1 && defaultRow.source_match && defaultRow.source_usable;
   const targetAlreadyUsable = defaultSourceVerified && defaultRow.target_verified === true;
   const defaultTargetSeen = defaultRows.length === 1 && defaultRow.target_exact_match === true;
   const blockers = [
-    ...(candidates.length !== 4 ? ["backup_landing_page_candidate_count_unexpected"] : []),
     ...(defaultRows.length !== 1 ? ["backup_landing_page_default_candidate_not_unique"] : []),
     ...(sourceInventory.status === "passed" ? [] : sourceInventory.blockers),
     ...(targetInventory.status === "passed" ? [] : targetInventory.blockers),
@@ -293,6 +307,7 @@ function selectConclusion({ candidates, sourceInventory, targetInventory, target
     ...(defaultRows.length === 1 && !defaultRow.source_match ? ["backup_landing_page_default_source_missing"] : []),
     ...(defaultRows.length === 1 && defaultRow.source_match && !defaultRow.source_usable ? ["backup_landing_page_default_source_not_usable"] : []),
     ...(defaultSourceVerified && !defaultTargetSeen ? ["backup_landing_page_target_site_missing"] : []),
+    ...(defaultSourceVerified && defaultTargetSeen && !defaultRow.target_shared_share_type_matches ? ["backup_landing_page_target_share_type_invalid"] : []),
     ...(defaultSourceVerified && defaultTargetSeen && !defaultRow.target_resolved_usable ? ["backup_landing_page_target_site_not_usable"] : []),
     ...(defaultSourceVerified && defaultTargetSeen && defaultRow.target_resolved_usable && !defaultRow.target_hash_matches ? ["backup_landing_page_target_url_hash_mismatch"] : [])
   ];
@@ -396,24 +411,35 @@ export async function runBackupLandingPageMaterialInventorySkill({
   repo,
   bundle,
   readonlyClient = createOceanEngineReadonlyClient(),
-  sourceAdvertiserId = DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT,
+  sourceAdvertiserId = "",
   pageSize = DEFAULT_PAGE_SIZE,
   record = true,
   recordSkillRunResult = true
 } = {}) {
   if (!repo || !bundle?.job) throw new Error("launch_job_bundle_required");
   const startedAt = new Date().toISOString();
-  const candidates = (await repo.getBackupLandingPageCandidates({
+  const allCandidates = await repo.getBackupLandingPageCandidates({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code
-  }) || []).filter((item) => clean(item.source_advertiser_id) === clean(sourceAdvertiserId));
+  }) || [];
+  const defaultSourceAdvertisers = [...new Set(allCandidates
+    .filter((item) => item.is_default === true)
+    .map((item) => clean(item.source_advertiser_id))
+    .filter(Boolean))];
+  const resolvedSourceAdvertiserId = clean(sourceAdvertiserId) ||
+    (defaultSourceAdvertisers.length === 1 ? defaultSourceAdvertisers[0] : "");
+  const candidates = allCandidates.filter((item) =>
+    clean(item.source_advertiser_id) === resolvedSourceAdvertiserId
+  );
 
-  const sourceInventory = await fetchSitePages({
-    client: readonlyClient,
-    advertiserId: sourceAdvertiserId,
-    label: "source",
-    pageSize
-  });
+  const sourceInventory = resolvedSourceAdvertiserId
+    ? await fetchSitePages({
+        client: readonlyClient,
+        advertiserId: resolvedSourceAdvertiserId,
+        label: "source",
+        pageSize
+      })
+    : blockedInventory("backup_landing_page_default_source_account_missing_or_ambiguous");
   const targetInventory = await fetchSitePages({
     client: readonlyClient,
     advertiserId: bundle.job.advertiser_id,
@@ -437,8 +463,8 @@ export async function runBackupLandingPageMaterialInventorySkill({
     task_id: BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
     resource_type: "backup_landing_page",
     conclusion: conclusion.conclusion,
-    controlled_default_asset_id: CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
-    source_advertiser_id: clean(sourceAdvertiserId),
+    default_landing_page_asset_id: clean(conclusion.defaultRow?.landing_page_asset_id || ""),
+    source_advertiser_id: resolvedSourceAdvertiserId,
     target_advertiser_id_present: Boolean(clean(bundle.job.advertiser_id)),
     candidate_count: candidates.length,
     source_candidate_count: conclusion.candidateRows.filter((item) => item.source_match).length,
@@ -475,16 +501,19 @@ export async function runBackupLandingPageMaterialInventorySkill({
     candidates: conclusion.candidateRows,
     cross_account_path: {
       source_chain: "local_folder_to_material_account_to_target_account",
-      allowed_transfer_mode: "manual_share_designated_account_only",
+      allowed_transfer_mode: "manual_same_site_share_only",
       local_folder_required_for_this_inventory: false,
-      screenshot_share_scope_confirmed: true,
+      manual_share_required_when_target_missing: true,
       target_account_readback_model: "tools/site/get ordinary inventory plus share_type=SHARE inventory",
-      target_pass_requires: ["site_id_exact_match", "target_status_usable", "source_asset_id_exact_match", "url_hash_match"],
-      handsel_contract_present_in_local_official_docs: false,
-      copy_or_rebuild_allowed: false,
-      content_retention_contract_verified: false,
+      target_pass_requires: ["site_id_exact_match", "target_share_type_SHARE", "target_status_usable", "source_asset_id_exact_match", "url_hash_match"],
+      same_site_share_api_contract_status: "unverified",
+      handsel_transfer_contract_status: "known_but_excluded",
+      handsel_transfer_endpoint: "/open_api/2/tools/site/handsel/",
+      handsel_transfer_not_same_site_share: true,
       write_allowed_this_cycle: false,
-      next_action: "User manually shares the controlled source site to the target account, then rerun readonly target inventory."
+      next_action: conclusion.targetAlreadyUsable
+        ? "共享库存回查已通过；无需备用页平台写入。"
+        : "人工将游戏默认来源站点共享到目标账户后，重新执行只读库存回查。"
     },
     platform_write_called: false,
     create_called: false,
@@ -506,7 +535,7 @@ export async function runBackupLandingPageMaterialInventorySkill({
       conclusion,
       outputSummary: outputWithEvidence,
       evidenceRef,
-      sourceAdvertiserId
+      sourceAdvertiserId: resolvedSourceAdvertiserId
     });
     const resultForRecord = {
       status: conclusion.status,
@@ -523,8 +552,8 @@ export async function runBackupLandingPageMaterialInventorySkill({
           route_id: bundle.job.route_id,
           game_code: bundle.job.game_code,
           advertiser_id: bundle.job.advertiser_id,
-          source_advertiser_id: sourceAdvertiserId,
-          controlled_default_asset_id: CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
+          source_advertiser_id: resolvedSourceAdvertiserId,
+          default_source_selection: "game_route_default",
           readonly: true
         },
         result: resultForRecord,

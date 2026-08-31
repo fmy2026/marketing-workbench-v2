@@ -2,18 +2,17 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import {
   BACKUP_LANDING_PAGE_INVENTORY_TASK_ID,
   BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID,
-  CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
-  DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT,
   assertNoSensitiveLeak,
   createBackupLandingPageInventoryJob,
+  runBackupLandingPageSourcePrepareSkill,
   runBackupLandingPageMaterialInventorySkill
 } from "../src/workflows/skills/oe3/00-index.mjs";
 
 const DEFAULTS = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
   gameCode: "JSZC",
-  advertiserId: "1871922346964041",
-  sourceAdvertiserId: DEFAULT_BACKUP_LANDING_PAGE_SOURCE_ACCOUNT
+  advertiserId: "",
+  sourceAdvertiserId: ""
 });
 
 function arg(name, fallback = "") {
@@ -51,6 +50,7 @@ async function main() {
     advertiserId: arg("--advertiser-id", DEFAULTS.advertiserId),
     sourceAdvertiserId: arg("--source-advertiser-id", DEFAULTS.sourceAdvertiserId)
   };
+  if (!target.advertiserId) throw new Error("advertiser_id_required");
   const record = !flag("--no-record") && !flag("--dry-run");
   const caseId = await resolveCaseId(repo, target, arg("--case-id", ""));
   const sourceRecordRef = arg("--source-record-ref", BACKUP_LANDING_PAGE_SHARE_READBACK_TASK_ID);
@@ -85,6 +85,12 @@ async function main() {
     sourceAdvertiserId: target.sourceAdvertiserId,
     record
   });
+  const sourcePreparation = record
+    ? await runBackupLandingPageSourcePrepareSkill({
+        repo,
+        bundle: await repo.getLaunchJobBundle(jobId)
+      })
+    : null;
   if (record) {
     await repo.updateJob(jobId, {
       status: "completed_readonly_inventory",
@@ -99,7 +105,7 @@ async function main() {
     caseId,
     status: result.status,
     conclusion: result.outputSummary?.conclusion || "",
-    controlledDefaultAssetId: CONTROLLED_BACKUP_LANDING_PAGE_ASSET_ID,
+    defaultLandingPageAssetId: result.outputSummary?.default_landing_page_asset_id || "",
     candidateCount: result.outputSummary?.candidate_count || 0,
     sourceCandidateCount: result.outputSummary?.source_candidate_count || 0,
     targetMatchCount: result.outputSummary?.target_match_count || 0,
@@ -115,6 +121,8 @@ async function main() {
     defaultTargetSeen: result.outputSummary?.default_target_seen === true,
     defaultTargetResolutionSource: result.outputSummary?.default_target_resolution_source || "",
     defaultTargetHashMatches: result.outputSummary?.default_target_hash_matches === true,
+    sourcePreparationStatus: sourcePreparation?.status || "not_recorded",
+    sourcePreparationBlockers: sourcePreparation?.blockers || [],
     blockers: result.blockers || [],
     default: {
       siteId: result.outputSummary?.default_site_id || "",

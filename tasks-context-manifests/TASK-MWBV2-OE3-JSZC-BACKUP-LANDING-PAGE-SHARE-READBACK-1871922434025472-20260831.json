@@ -1,0 +1,100 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831",
+  "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
+  "status": "completed_backup_landing_page_ready",
+  "created_at": "2026-08-31 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Close JSZC backup landing page readiness after an external same-site manual share by authoritative readonly inventory.",
+    "mode": "single_backup_landing_page_manual_share_readback",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "credential_refresh_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-BACKUP-LANDING-PAGE-SHARE-READBACK-1871922434025472-20260831.json",
+    "docs/Solution Design.md",
+    "src/workflows/skills/oe3/04-backup-landing-page-material-inventory.mjs",
+    "src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs"
+  ],
+  "scope": {
+    "case_id": "CASE-MWBV2-3CDAF4E9202381253E",
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "advertiser_id": "1871922434025472",
+    "target_resource_type": "backup_landing_page",
+    "expected_transfer_mode": "manual_same_site_share_only",
+    "authoritative_readback_endpoint": "/open_api/2/tools/site/get/",
+    "authoritative_target_filter": "share_type=SHARE"
+  },
+  "allowed_writes": [
+    "backup landing page readonly-contract code, smoke tests and static documentation",
+    "one readonly-inventory launch Job and its launch_skill_runs",
+    "account_resources.backup_landing_page only after readonly success",
+    "redacted evidence_artifacts and Job status"
+  ],
+  "forbidden_actions": [
+    "all platform POST/PUT/PATCH/DELETE calls",
+    "site/handsel, site/create, site/update, site/update_status or site/copy",
+    "std_project/create, Promotion, monitor, budget or bid changes",
+    "OAuth token refresh",
+    "raw payload, raw response, complete URL, token, Cookie, secret, auth_code or screenshot persistence"
+  ],
+  "local_sources": [
+    "docs/Solution Design.md",
+    "docs/project-lessons.md",
+    "official:oceanengine:2.0:15-site:tools/site/get",
+    "official:oceanengine:2.0-copy:13-site:tools/site/handsel:excluded_transfer_copy",
+    "Postgres marketing_workbench_v2.mwb"
+  ],
+  "validation_plan": [
+    "test:backup-landing-page-material-inventory",
+    "test:resource-action-registry",
+    "test:workflow-case",
+    "validate:schemas",
+    "git diff --check",
+    "check:oe3-landing-page-inventory with explicit case and target advertiser"
+  ],
+  "human_gate": {
+    "before_real_platform_post": [
+      "Not applicable: this task forbids all platform write methods."
+    ],
+    "external_state": [
+      "User completed same-site manual share before this readonly task."
+    ]
+  },
+  "stop_conditions": [
+    "source default landing page missing, ambiguous or unusable",
+    "target SHARE inventory does not contain the same site id",
+    "target share type is not SHARE",
+    "target status is not usable or source/target hash differs",
+    "source, target or target_shared site/get fails",
+    "credential unavailable without separately authorized refresh"
+  ],
+  "completion": {
+    "completed_at": "2026-08-31 CST",
+    "job_id": "JOB-MWBV2-BACKUP-LANDING-INVENTORY-20260831022446-99236A",
+    "readonly_conclusion": "target_already_usable",
+    "platform_write_called": false,
+    "platform_action_count": 0,
+    "source_default_verified": true,
+    "target_normal_inventory_count": 0,
+    "target_shared_inventory_count": 1,
+    "target_share_type": "SHARE",
+    "target_status": "AUDIT_ACCEPTED",
+    "source_target_hash_matched": true,
+    "resource_status": "visible + readback_verified",
+    "evidence_types": [
+      "backup_landing_page_material_inventory_readonly",
+      "backup_landing_page_source_prepare"
+    ],
+    "auxiliary_orange_site_result": "nonblocking_business_error"
+  }
+}

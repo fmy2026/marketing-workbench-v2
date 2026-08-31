@@ -175,15 +175,14 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 
 | 项 | 经验结论 |
 | --- | --- |
-| 归属与流转 | 先在物料户确认游戏/路线默认页，再由人工在后台选择“指定账户可用”共享到目标账户；系统只做目标户只读回查。 |
-| 官方接口 | 橙子建站库存回查使用 `GET /open_api/2/tools/site/get/`，目标户需同时查普通库存与 `share_type=SHARE` 共享库存；辅助接口 `GET /open_api/v3.0/tools/orange_site/get/` 只用于按优化目标查询候选，官方资料明确其不能区分自建或共享来源。 |
-| 官方合同边界 | 官方资料存在站点转赠/复制类接口，但当前项目未沉淀可执行的“指定账户共享站点”写入合同；自动共享执行器只能预留，不得启用。 |
-| 只读判定 | 默认项唯一且源户状态可用；目标账户普通库存或 `share_type=SHARE` 库存精确命中同一站点，目标状态可用。 |
+| 归属与流转 | 游戏级默认页先在物料户确认；由人工在平台完成“指定账户可用”的**同站点共享**；系统自动发现并只读收口。 |
+| 官方接口 | 主判定均为 `GET /open_api/2/tools/site/get/`：来源物料户、目标普通库存（诊断）和目标共享库存（`share_type=SHARE`，权威）。`GET /open_api/v3.0/tools/orange_site/get/` 仅辅助候选诊断，不能区分自建/共享；其业务码失败不覆盖三次主库存回查。 |
+| 只读判定 | 默认来源页唯一且可用；只接受目标 `share_type=SHARE` 库存精确命中**同一** `site_id`，目标状态可用且本轮来源/目标脱敏 hash 一致。普通库存同 ID 只保留诊断，不可替代共享证明。 |
 | hash 规则 | 目标通过优先比较本轮源户只读返回 hash 与目标户只读返回 hash；历史 DB/构造 hash 只作兜底，不能单独阻断已验证共享。 |
-| 写入边界 | `prepare_supported=false`；不复制、不重建、不拼接 URL、不调用落地页共享/复制/创建写接口。 |
+| 写入边界 | capability 为 `manual_share_only`，`prepare_supported=false`；不复制、不重建、不拼接 URL、不生成 `ensure_resource:backup_landing_page`。`site/handsel` 是转赠复制（会生成目标新站点并清空资产），不是同站点共享，明确排除为 executor。 |
 | 通过标准 | `account_resources.backup_landing_page` 写为 `visible + readback_verified`；evidence 只留状态、ID、hash、request id/response hash 是否存在。 |
-| 失败分流 | 源户缺失/不可用直接 blocked；目标未命中、目标状态不可用或源/目标实时 hash 不一致时保持 blocker，不补写、不猜 URL。 |
-| 验证状态 | 已闭环；人工共享后，目标 `share_type=SHARE` 库存可命中默认页，源户实时 hash 与目标共享 hash 一致即可通过。 |
+| 失败分流 | 源户缺失/不可用、共享库存未命中、share type 非 `SHARE`、状态不可用或 hash 不一致即 `BLOCKED`，不补写、不猜 URL。来源页缺失时只能另建“来源页创建”专项 Task；必须先具备受控 `name + bricks` 模板、本地素材映射与发布合同，单有图片文件不得调用 `site/create`。 |
+| 验证状态 | 已以真实手动共享后的只读回查闭环：来源默认页可用、目标普通库存未命中、目标共享库存同站点命中且 `AUDIT_ACCEPTED`，来源/目标 hash 一致；全程 0 次平台写入。 |
 | 创建字段边界 | 备用落地页资源可作为路线候选准备事实；`external_url_material_list` 是否发送由 `official_create_field_contract.nested_rules` 决定。已验证成功的受控场景发送 1 条，但该成功事实不应被泛化为所有 JSZC/BYTE_GAME 场景必填。 |
 | 不适用边界 | 不在文档、日志、API 或前端保存完整落地页 URL；不把落地页通过替代产品图或小程序实例 Gate，也不因资源存在就默认进入创建字段。 |
 

@@ -133,17 +133,16 @@ assert(success.result.outputSummary.candidate_count === 4, "candidate count shou
 assert(success.result.blockers.includes("backup_landing_page_target_site_missing"), "target missing blocker absent");
 assert(success.result.outputSummary.prepare_supported === false, "prepare_supported must stay false");
 assert(success.result.outputSummary.cross_account_path.local_folder_required_for_this_inventory === false, "local folder should not block inventory");
-assert(success.result.outputSummary.cross_account_path.allowed_transfer_mode === "manual_share_designated_account_only", "manual share mode not recorded");
+assert(success.result.outputSummary.cross_account_path.allowed_transfer_mode === "manual_same_site_share_only", "manual share mode not recorded");
 
-const targetOrdinaryExisting = await runCase("target_already_usable_from_ordinary_inventory", {
+const targetOrdinaryExisting = await runCase("target_ordinary_inventory_cannot_replace_manual_share", {
   sourceSites: sourceFour,
   targetSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED")],
   targetSharedSites: []
 });
-assert(targetOrdinaryExisting.result.status === "passed", "target ordinary existing should pass");
-assert(targetOrdinaryExisting.result.outputSummary.conclusion === "target_already_usable", "target ordinary conclusion wrong");
-assert(targetOrdinaryExisting.result.outputSummary.default_target_resolution_source === "ordinary_inventory", "ordinary resolution source wrong");
-assert(targetOrdinaryExisting.result.outputSummary.default_target_hash_matches === true, "ordinary target hash should match");
+assert(targetOrdinaryExisting.result.status === "needs_confirmation", "ordinary inventory must not replace manual share");
+assert(targetOrdinaryExisting.result.outputSummary.conclusion === "default_source_verified", "ordinary-only conclusion wrong");
+assert(targetOrdinaryExisting.result.outputSummary.default_target_resolution_source === "", "ordinary inventory must remain diagnostic only");
 
 const targetSharedExisting = await runCase("target_already_usable_from_shared_inventory", {
   sourceSites: sourceFour,
@@ -153,6 +152,14 @@ const targetSharedExisting = await runCase("target_already_usable_from_shared_in
 assert(targetSharedExisting.result.status === "passed", "target shared existing should pass");
 assert(targetSharedExisting.result.outputSummary.conclusion === "target_already_usable", "target shared conclusion wrong");
 assert(targetSharedExisting.result.outputSummary.default_target_resolution_source === "shared_inventory", "shared resolution source wrong");
+
+const targetSharedWrongType = await runCase("target_shared_inventory_requires_share_type", {
+  sourceSites: sourceFour,
+  targetSites: [],
+  targetSharedSites: [site(candidates[0].site_id, "AUDIT_ACCEPTED", { share_type: "MY_CREATIONS" })]
+});
+assert(targetSharedWrongType.result.status === "needs_confirmation", "wrong share type must not pass");
+assert(targetSharedWrongType.result.blockers.includes("backup_landing_page_target_share_type_invalid"), "wrong share type blocker absent");
 
 const staleDbHashRows = [
   { ...candidates[0], url_hash: "sha256:stale-controlled-db-hash" },
@@ -222,6 +229,7 @@ const output = {
     success.name,
     targetOrdinaryExisting.name,
     targetSharedExisting.name,
+    targetSharedWrongType.name,
     staleDbHashButLiveSourceMatches.name,
     missingDefault.name,
     unusableDefault.name,
