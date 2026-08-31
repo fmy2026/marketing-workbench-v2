@@ -5,6 +5,7 @@ import {
   resolveConversationIntent
 } from "../src/agents/conversationIntentResolver.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
+import { handleWorkbenchCommand } from "../src/workflows/workbenchConversation.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -53,6 +54,13 @@ const deterministic = await resolveConversationIntent({
 });
 assert(deterministic.intent === "continue_workflow", "continue intent not normalized");
 assert(deterministic.source === "deterministic", "deterministic source missing");
+
+const terminalMonitorIntent = await resolveConversationIntent({
+  message: "重新只读回查 monitor",
+  jobView,
+  resolver: createConversationIntentResolver()
+});
+assert(terminalMonitorIntent.intent === "request_monitor_readonly_reconcile", "terminal monitor readonly intent not normalized");
 
 const fakeResolver = createConversationIntentResolver({
   provider: "fake",
@@ -150,11 +158,85 @@ const blockerDecision = evaluateGateAction({
 });
 assert(blockerDecision.effect === "blocker", "blocker gate must not execute");
 
+const terminalMonitorCase = {
+  lifecycle_status: "active",
+  current_gate: "resolve_case_blocker",
+  suggested_next_action: "resolve_root_blocker:monitor_create_busy_retry_exhausted",
+  root_blocker_codes: ["monitor_create_busy_retry_exhausted"],
+  monitor_resolved: false,
+  latest_job_id: "JOB-TEST-1"
+};
+const terminalMonitorDecision = evaluateGateAction({
+  intent: terminalMonitorIntent,
+  caseSummary: terminalMonitorCase,
+  isLatestCaseJob: true
+});
+assert(terminalMonitorDecision.effect === "run_monitor_readonly", "exact terminal monitor command must run readonly reconcile");
+const terminalMonitorContinue = evaluateGateAction({
+  intent: deterministic,
+  caseSummary: terminalMonitorCase,
+  isLatestCaseJob: true
+});
+assert(terminalMonitorContinue.effect === "blocker", "continue must not trigger terminal monitor reconcile");
+assert(terminalMonitorContinue.message.includes("重新只读回查 monitor"), "terminal monitor hint missing");
+const terminalMonitorHistorical = evaluateGateAction({
+  intent: terminalMonitorIntent,
+  caseSummary: terminalMonitorCase,
+  isLatestCaseJob: false
+});
+assert(terminalMonitorHistorical.effect === "history_readonly", "historical terminal monitor command must remain readonly");
+const unrelatedBlocker = evaluateGateAction({
+  intent: terminalMonitorIntent,
+  caseSummary: { ...terminalMonitorCase, root_blocker_codes: ["resource_product_image_not_ready"] },
+  isLatestCaseJob: true
+});
+assert(unrelatedBlocker.effect === "monitor_readonly_unavailable", "other blocker must not trigger monitor reconcile");
+
+const terminalBundle = {
+  job: {
+    job_id: "JOB-TEST-1",
+    case_id: "CASE-TEST-1",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922414575753"
+  },
+  executionPlan: null
+};
+const terminalView = {
+  ...jobView,
+  caseGate: {
+    currentGate: terminalMonitorCase.current_gate,
+    suggestedNextAction: terminalMonitorCase.suggested_next_action,
+    rootBlockerCodes: terminalMonitorCase.root_blocker_codes,
+    lifecycleStatus: terminalMonitorCase.lifecycle_status
+  }
+};
+let readonlyReconcileCalls = 0;
+const terminalResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return terminalBundle; },
+    async getWorkflowCaseSummary() { return terminalMonitorCase; }
+  },
+  jobId: "JOB-TEST-1",
+  message: "重新只读回查 monitor",
+  getJobViewFn: async () => terminalView,
+  monitorReadonlyReconcile: async ({ target, jobId }) => {
+    readonlyReconcileCalls += 1;
+    assert(jobId === "JOB-TEST-1", "readonly reconcile job binding changed");
+    assert(target.advertiserId === "1871922414575753", "readonly reconcile advertiser binding changed");
+    return { runStatus: "terminal_failed", blockers: ["monitor_exact_match_missing"] };
+  }
+});
+assert(readonlyReconcileCalls === 1, "exact terminal monitor command must call readonly reconcile once");
+assert(terminalResponse.interaction.kind === "run_monitor_readonly", "terminal monitor response effect changed");
+assert(terminalResponse.interaction.message.includes("未创建、未重试"), "terminal monitor no-write outcome missing");
+
 console.log(JSON.stringify({
   deterministicIntent: deterministic.intent,
   fakeAdapterIntent: fakeResolved.intent,
   invalidAdapterIntent: invalid.intent,
   confirmationEffect: continueDecision.effect,
   exactConfirmationEffect: confirmationDecision.effect,
-  historyEffect: historicalDecision.effect
+  historyEffect: historicalDecision.effect,
+  terminalMonitorEffect: terminalMonitorDecision.effect
 }, null, 2));

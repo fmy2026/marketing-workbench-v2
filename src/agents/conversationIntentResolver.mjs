@@ -4,6 +4,7 @@ export const CONVERSATION_INTENT_SCHEMA_VERSION = "2026-08-31.conversation-inten
 export const CONVERSATION_INTENTS = Object.freeze([
   "intake_update",
   "continue_workflow",
+  "request_monitor_readonly_reconcile",
   "request_status",
   "request_confirmation",
   "cancel",
@@ -102,6 +103,9 @@ export function deterministicIntent({ message = "" } = {}) {
   }
   if (["继续", "继续执行", "下一步", "继续流程", "开始执行"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "continue_workflow", confidence: 1, slots: {}, source: "deterministic", issues: [] };
+  }
+  if (command === "重新只读回查monitor") {
+    return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_monitor_readonly_reconcile", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (["确认创建", "确认创建项目", "确认创建monitor"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_confirmation", confidence: 1, slots: {}, source: "deterministic", issues: [] };

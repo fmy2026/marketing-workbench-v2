@@ -44,7 +44,9 @@ export async function handleWorkbenchCommand({
   expectedPlanHash = "",
   resolver,
   projectStatePath,
-  fetchImpl
+  fetchImpl,
+  getJobViewFn = getJobView,
+  monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!clean(jobId)) throw new Error("job_id_required");
@@ -55,7 +57,7 @@ export async function handleWorkbenchCommand({
     throw error;
   }
   const [view, caseSummary] = await Promise.all([
-    getJobView(repo, jobId, { projectStatePath }),
+    getJobViewFn(repo, jobId, { projectStatePath }),
     repo.getWorkflowCaseSummary(bundle.job.case_id)
   ]);
   const intent = await resolveConversationIntent({ message, jobView: view, resolver });
@@ -78,7 +80,7 @@ export async function handleWorkbenchCommand({
     return response({ view: nextView, interaction: { ...interaction, message: "只读回查已完成。" } });
   }
   if (interaction.effect === "run_monitor_readonly") {
-    await runMonitorProvisionReadonlyReconcile({
+    const reconcile = await monitorReadonlyReconcile({
       repo,
       target: {
         routeId: bundle.job.route_id,
@@ -88,8 +90,15 @@ export async function handleWorkbenchCommand({
       jobId,
       fetchImpl: fetchImpl || globalThis.fetch
     });
-    const nextView = await getJobView(repo, jobId, { projectStatePath });
-    return response({ view: nextView, interaction: { ...interaction, message: "fresh readonly monitor 回查已完成。" } });
+    const nextView = await getJobViewFn(repo, jobId, { projectStatePath });
+    const resolved = reconcile?.runStatus === "touchpoint_resolved";
+    const blocker = clean((reconcile?.blockers || [])[0]);
+    const message = resolved
+      ? "fresh readonly monitor 回查已确认 monitor 与受控触点，Case 状态已刷新。"
+      : blocker
+        ? `fresh readonly monitor 回查未确认 monitor：${blocker}。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。`
+        : "fresh readonly monitor 回查未确认 monitor。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。";
+    return response({ view: nextView, interaction: { ...interaction, message } });
   }
   if (interaction.effect !== "execute_confirmed_plan") return response({ view, interaction });
 
@@ -130,7 +139,7 @@ export async function handleWorkbenchCommand({
   const executionBlocked = isMonitorBootstrap
     ? executed.status === "blocked"
     : executed.executionGrant?.status === "blocked";
-  const nextView = isMonitorBootstrap ? await getJobView(repo, jobId, { projectStatePath }) : executed;
+  const nextView = isMonitorBootstrap ? await getJobViewFn(repo, jobId, { projectStatePath }) : executed;
   return response({
     view: nextView,
     interaction: {

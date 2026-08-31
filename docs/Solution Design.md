@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-08-31 17:53 CST |
-| 校验基线 | Git `70f1fbc`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-08-31 20:40 CST |
+| 校验基线 | Git `4c0a737`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -28,6 +28,12 @@
 monitor 写入使用现有 `launch_execution_plans`、`launch_confirmations`、`platform_actions` 与 action grant；新增的 `monitor_bootstrap` Plan 只能包含一次 `ensure_monitor`。执行前必须匹配全局 Guardrail、active Case、精确 Plan/hash、confirmation 和单动作 grant；创建前 fresh readonly、创建一次、创建后权威回查。失败不得自动重试；下一次尝试必须使用新 Plan/hash/confirmation，cycle 内最多两次。
 
 Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly reconcile 和只读配置同步；Plan、确认和真实执行不再由 CLI 环境变量直接授权。实施与测试不调用真实 monitor、资源或广告平台写接口。
+
+## 已批准设计：终态失败 Monitor 的受控只读回查
+
+`workflow_case_summary` 的 Gate、根阻断和排序不变。仅当 active Case 的最新 Job 处于 `resolve_case_blocker`、唯一 root blocker 为 `monitor_create_busy_retry_exhausted` 且 `monitor_resolved=false` 时，工作台允许精确指令“重新只读回查 monitor”。该指令复用 Node 02 的 fresh readonly reconcile，不生成 Plan、confirmation、action grant 或平台写入。
+
+普通“继续执行”保持只展示 blocker，避免误触发外部查询；历史 Job、非 active Case、其他 blocker 均不得触发该动作。回查发现唯一 monitor 并完成触点回查时，只落脱敏证据并刷新既有 Case 投影；未发现、查询失败或结果不唯一时保留原终态 blocker，不重试、不创建、不改写旧 cycle/attempt/Plan。工作台文案只提示精确指令及安全错误码，不展示完整 URL 或 raw 响应。
 
 ## 何时使用
 

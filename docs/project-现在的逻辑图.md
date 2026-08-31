@@ -164,7 +164,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 1 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
 | 2 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
 | 3 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
-| 4 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker，再 fresh readonly |
+| 4 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；仅终态 `monitor_create_busy_retry_exhausted` 可由精确只读指令回查 |
 | 5 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
 | 6 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
 | 7 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
@@ -177,6 +177,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡
+→ 仅 active Case 的最新 Job、唯一 `monitor_create_busy_retry_exhausted` blocker 且 `monitor_resolved=false` 时，精确“重新只读回查 monitor”可调用 Node 02 fresh readonly reconcile
 → 仅精确“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 ```
 
