@@ -145,6 +145,89 @@ try {
   assert(sharedReadonlyDegradedSummary.root_blocker_codes?.[0] === "site_get_target_shared_blocked", "shared_readonly_root_blocker_not_prioritized");
   assert(sharedReadonlyDegradedSummary.suggested_next_action === "resolve_root_blocker:site_get_target_shared_blocked", "shared_readonly_next_action_not_aligned");
 
+  await repo.upsertLaunchSkillRun({
+    skillRunId: `SR-${secondJob.jobId}-CONFIRMED-RESOURCE-STOP`,
+    jobId: secondJob.jobId,
+    nodeKey: "std_project_draft_builder",
+    skillKey: "confirmed-resource-orchestrator",
+    attemptNo: 1,
+    status: "blocked",
+    inputHash: `sha256:${"5".repeat(64)}`,
+    outputSummary: { orchestratorStatus: "stopped_after_resource_failure" },
+    blockers: ["credential:token_status_not_valid"],
+    evidenceRefs: [],
+    sourceUsage: "test_run"
+  });
+  const confirmedResourceStopSummary = await repo.getWorkflowCaseSummary(secondCase.case_id);
+  assert(confirmedResourceStopSummary.root_blocker_codes?.[0] === "credential:token_status_not_valid", "confirmed_resource_stop_not_prioritized");
+  assert(confirmedResourceStopSummary.suggested_next_action === "resolve_root_blocker:credential:token_status_not_valid", "confirmed_resource_stop_next_action_not_aligned");
+
+  const completionCase = await makeCase("completed");
+  const completionJob = await createJob(repo, {
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: completionCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:completed:${Date.now()}`
+  });
+  cleanupJobIds.push(completionJob.jobId);
+  const completionPlanId = `PLAN-${completionJob.jobId}-V1`;
+  const completionActionId = `ACTION-${completionJob.jobId}-CREATE`;
+  const completionObjectId = "900000001";
+  await repo.upsertLaunchExecutionPlan({
+    planId: completionPlanId,
+    jobId: completionJob.jobId,
+    planVersion: 1,
+    planStatus: "ready",
+    planHash: `sha256:${"6".repeat(64)}`,
+    plannedActions: [{ action_type: "std_project_create", status: "ready" }],
+    blockerCodes: [],
+    sourceUsage: "test_run",
+    metadata: { resource_states: [], root_blocker_codes: [] }
+  });
+  await repo.upsertPlatformAction({
+    actionId: completionActionId,
+    jobId: completionJob.jobId,
+    planId: completionPlanId,
+    actionType: "oceanengine_std_project_create",
+    endpoint: "test:std_project/create",
+    method: "POST",
+    actionStatus: "succeeded",
+    attemptNo: 1,
+    idempotencyKey: `IDEMP-${completionJob.jobId}`,
+    objectIdPresent: true,
+    responseHash: `sha256:${"7".repeat(64)}`,
+    finishedAt: new Date().toISOString()
+  });
+  await repo.upsertCreatedObject({
+    createdObjectId: `CO-${completionJob.jobId}-STD-PROJECT-${completionObjectId}`,
+    jobId: completionJob.jobId,
+    actionId: completionActionId,
+    objectType: "std_project",
+    objectId: completionObjectId,
+    objectName: "workflow-case-completion-smoke",
+    objectStatus: "ENABLE",
+    readbackStatus: "readback_verified",
+    evidenceRef: `EV-${completionJob.jobId}-READBACK`,
+    readbackAt: new Date().toISOString()
+  });
+  await repo.upsertReadbackRecord({
+    readbackId: `RB-${completionJob.jobId}-STD-PROJECT-REAL`,
+    jobId: completionJob.jobId,
+    objectType: "std_project",
+    objectId: completionObjectId,
+    objectName: "workflow-case-completion-smoke",
+    readbackStatus: "readback_verified",
+    fieldDiffSummary: { project_id_matches_create: true },
+    evidenceRef: `EV-${completionJob.jobId}-READBACK`
+  });
+  await repo.updateJob(completionJob.jobId, { status: "created", currentNode: "7" });
+  const completionSummary = await repo.getWorkflowCaseSummary(completionCase.case_id);
+  assert(completionSummary.current_gate === "first_std_project_create_completed", "verified_create_must_close_case_before_ready_plan_gate");
+  assert(completionSummary.suggested_next_action === "first_std_project_create_completed", "verified_create_next_action_not_closed");
+  assert(completionSummary.root_blocker_codes?.length === 0, "verified_create_must_not_have_root_blocker");
+
   let runtimeCaseRequired = false;
   try {
     await createJob(repo, {
@@ -169,6 +252,8 @@ try {
     resourceRootBlocker: resourceBlockedSummary.root_blocker_codes[0],
     node5RootBlocker: node5BlockedSummary.root_blocker_codes[0],
     sharedReadonlyRootBlocker: sharedReadonlyDegradedSummary.root_blocker_codes[0],
+    confirmedResourceStopRootBlocker: confirmedResourceStopSummary.root_blocker_codes[0],
+    completedCreateGate: completionSummary.current_gate,
     structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,
     platformWrites: 0
   }, null, 2));

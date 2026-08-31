@@ -4,6 +4,7 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
+import { parseOceanEngineStdProjectResponse } from "./oceanengineStdProjectResponse.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 
@@ -143,7 +144,9 @@ export class OceanEngineReadonlyClient {
       const text = await response.text();
       let payload = {};
       try {
-        payload = JSON.parse(text);
+        payload = key === "std_project/list"
+          ? parseOceanEngineStdProjectResponse(text)
+          : JSON.parse(text);
       } catch {
         payload = {};
       }

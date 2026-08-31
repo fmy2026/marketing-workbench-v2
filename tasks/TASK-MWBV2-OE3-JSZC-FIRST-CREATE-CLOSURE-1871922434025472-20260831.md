@@ -1,6 +1,6 @@
 # TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831
 
-状态：backup_landing_page_shared_readonly_degraded
+状态：completed
 
 ## 目标
 
@@ -85,6 +85,27 @@ plan_hash: sha256:36b159f68f09136c8e8c51bb2c1ceebbe944533dd7d175de76bf5640513539
 - 一致性修正后，`account_resources` 已仅从既有成功 readonly evidence 恢复为 `visible + readback_verified`；当前 Case 的唯一 root blocker 为 `site_get_target_shared_blocked`。该历史 verified 状态不替代下一次 fresh shared-inventory 回查。
 
 最小修复边界：仅恢复或验证 `site_get_target_shared` 的只读合同/平台可用性；随后重新运行 fresh Node 1–4。恢复后必须证明默认站点的目标共享可见性、`share_type=SHARE`、可用状态及 URL hash 一致。禁止以该失败推断站点缺失，也禁止自动创建、复制或 handsel 备用落地页。
+
+## 当前资源停止 Gate
+
+OAuth 已恢复有效。新资源 Plan 已消费：两条视频和产品图均为 `visible + readback_verified`，且写权限已撤销；旧合并 Plan 在视频写前凭据核验停止、未调用任何外部平台写接口，保持不可重用。最终 fresh Job 已完成单次 `std_project/create` 与 Node 7 权威回查；写权限已再次撤销。
+
+## 标准项目 ID 无损合同
+
+- `std_project/create` 与 `std_project/list` 的响应项目 ID 现在在 JSON 解析前保留为原样字符串；Node 7 会逐字符比对创建响应与 list 回查 ID，不一致即以 `readback_project_id_mismatch` 停止，禁止自动重试。
+- 历史项目的 fresh `std_project/list` 只读已精确命中权威 ID，但项目状态未满足“可用”条件；因此历史 `created_objects`、`readback_records` 未写入、历史修复事务未执行、平台写入为零。
+- 因响应合同变更，旧 Create Plan 已标记为 `stale`，不得确认或复用。
+- fresh Job `JOB-MWBV2-20260831050504-F412EF` 的独立单动作 Plan 已由用户确认并消费：
+
+```text
+plan_id:   PLAN-JOB-MWBV2-20260831050504-F412EF-V1
+plan_hash: sha256:f23977bc694ea9896847b50a62d7177add5dabae1b17838195af55cad5ebeaaf
+
+std_project_create  = 1 call
+retry_allowed        false
+```
+
+该 Job 的 Node 1–4、Draft、字段 ledger、wire-body 与查重均已 fresh readonly 通过；创建响应与 Node 7 `std_project/list` 回查 ID 逐字符一致，创建对象为 `readback_verified`。`workflow_case_summary` 无资源 blocker，当前 Gate 为 `first_std_project_create_completed`；Case 已收口，所有平台写权限和动作额度均为零。
 
 ## Solution Link
 

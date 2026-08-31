@@ -60,11 +60,13 @@ function debugCreateBlock(label, view, fakeFetch) {
 
 function fakeFetchFactory({
   projectId,
+  listProjectId = projectId,
   createApiCode = "0",
   createObjectIdPresent = true,
   listMatch = true,
   createMessage = "",
-  createTransportThrows = false
+  createTransportThrows = false,
+  numericProjectIdTokens = false
 }) {
   const calls = [];
   async function fakeFetch(url, options = {}) {
@@ -81,6 +83,10 @@ function fakeFetchFactory({
     });
     if (href.includes("/std_project/create/")) {
       if (createTransportThrows) throw new Error("synthetic_create_transport_error");
+      if (numericProjectIdTokens && createObjectIdPresent) {
+        return new Response(`{"code":${JSON.stringify(createApiCode)},"request_id":"fake-request-create","data":{"project_id":${String(projectId)}}}`,
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
       return new Response(JSON.stringify({
         code: createApiCode,
         request_id: "fake-request-create",
@@ -96,12 +102,16 @@ function fakeFetchFactory({
       } catch {
         name = "";
       }
+      if (numericProjectIdTokens && listMatch) {
+        return new Response(`{"code":"0","request_id":"fake-request-list","data":{"list":[{"project_id":${String(listProjectId)},"name":${JSON.stringify(name)},"status":"ENABLE"}]}}`,
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
       return new Response(JSON.stringify({
         code: "0",
         request_id: "fake-request-list",
         data: {
           list: listMatch ? [
-            { project_id: projectId, name, status: "ENABLE" }
+            { project_id: listProjectId, name, status: "ENABLE" }
           ] : []
         }
       }), { status: 200, headers: { "content-type": "application/json" } });
@@ -337,6 +347,90 @@ try {
   assert(successStateAfter.guardrails.platform_write_allowed === false, "scope should be revoked after create");
   assert(successStateAfter.guardrails.platform_write_scope.maximum_actions === 0, "scope maximum actions should be reset");
   assertNoSensitiveLeak(result);
+
+  const longProjectId = "7679693367995088902";
+  const losslessView = await createReadyTestJob("execution-grant-smoke:lossless-numeric-project-id");
+  const losslessState = await writeProjectStateForScope(losslessView);
+  const losslessFetch = fakeFetchFactory({ projectId: longProjectId, numericProjectIdTokens: true });
+  const losslessResult = await executeConfirmedLaunch({
+    repo,
+    jobId: losslessView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: losslessFetch,
+    projectStatePath: losslessState
+  });
+  assertOneCreateOneReadback(losslessFetch);
+  assert(losslessResult.readback?.status === "readback_verified", "numeric long project ID should pass Node 7");
+  const losslessBundle = await repo.getLaunchJobBundle(losslessView.jobId);
+  assert(losslessBundle.createdObject?.object_id === longProjectId, "created_objects must retain exact numeric response project ID as string");
+  assert(losslessBundle.readback?.object_id === longProjectId, "readback_records must retain exact numeric response project ID as string");
+
+  const mismatchView = await createReadyTestJob("execution-grant-smoke:project-id-mismatch-stops");
+  const mismatchState = await writeProjectStateForScope(mismatchView);
+  const mismatchFetch = fakeFetchFactory({
+    projectId: longProjectId,
+    listProjectId: "7679693367995088903",
+    numericProjectIdTokens: true
+  });
+  const mismatchResult = await executeConfirmedLaunch({
+    repo,
+    jobId: mismatchView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: mismatchFetch,
+    projectStatePath: mismatchState
+  });
+  assertOneCreateOneReadback(mismatchFetch);
+  const mismatchReadbackSkill = latestSkill(mismatchResult, "readback-std-project");
+  assert(mismatchReadbackSkill.blockers?.includes("readback_project_id_mismatch"), "Node 7 must expose project ID mismatch blocker");
+  assert(mismatchResult.readback?.status === "project_id_mismatch", "Node 7 must not verify a mismatched project ID");
+  assert(mismatchResult.executionGrant.createCalled === true, "mismatch must preserve the one create call");
+
+  const reconciliationLegacyId = "7679693367995089000";
+  const reconciliationView = await createReadyTestJob("execution-grant-smoke:lossless-id-db-reconciliation");
+  const reconciliationState = await writeProjectStateForScope(reconciliationView);
+  const reconciliationFetch = fakeFetchFactory({ projectId: reconciliationLegacyId });
+  const reconciliationCreated = await executeConfirmedLaunch({
+    repo,
+    jobId: reconciliationView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: reconciliationFetch,
+    projectStatePath: reconciliationState
+  });
+  assert(reconciliationCreated.readback?.status === "readback_verified", "reconciliation fixture must create a verified legacy object");
+  const reconciliationEvidenceRef = `EV-${reconciliationView.jobId}-LOSSLESS-ID-REPAIR`;
+  await repo.upsertEvidence({
+    artifactId: reconciliationEvidenceRef,
+    jobId: reconciliationView.jobId,
+    artifactType: "std_project_id_lossless_reconciliation",
+    title: "std project ID lossless reconciliation smoke",
+    summary: "fresh_readonly_exact_id_match=true raw_response_stored=false",
+    contentHash: `sha256:${"1".repeat(64)}`,
+    storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+    sourceRef: "test:std_project/list",
+    sourceUsage: "test_run"
+  });
+  const reconciliationBefore = await repo.getLaunchJobAuditCounts(reconciliationView.jobId);
+  const reconciliationBeforeBundle = await repo.getLaunchJobBundle(reconciliationView.jobId);
+  const reconciliation = await repo.reconcileStdProjectObjectId({
+    jobId: reconciliationView.jobId,
+    legacyObjectId: reconciliationLegacyId,
+    verifiedObjectId: longProjectId
+  });
+  const reconciliationAfter = await repo.getLaunchJobAuditCounts(reconciliationView.jobId);
+  const reconciledBundle = await repo.getLaunchJobBundle(reconciliationView.jobId);
+  assert(reconciliation.status === "reconciled", "lossless project ID reconciliation should complete");
+  assert(reconciliation.object_id_matches_verified === true, "created object primary ID must be corrected");
+  assert(reconciliation.readback_id_matches_verified === true, "readback project ID must be corrected");
+  assert(reconciledBundle.createdObject?.object_id === longProjectId, "reconciliation must correct created_objects.object_id");
+  assert(reconciledBundle.readback?.object_id === longProjectId, "reconciliation must correct readback_records.object_id");
+  assert(reconciledBundle.createdObject?.evidence_ref === reconciliationBeforeBundle.createdObject?.evidence_ref, "reconciliation must preserve created object evidence reference");
+  assert(reconciledBundle.readback?.evidence_ref === reconciliationBeforeBundle.readback?.evidence_ref, "reconciliation must preserve readback evidence reference");
+  ["launchConfirmations", "platformActions", "createdObjects", "readbackRecords"].forEach((key) => {
+    assert(reconciliationAfter[key] === reconciliationBefore[key], `reconciliation must preserve ${key} count`);
+  });
 
   const boundView = await createReadyTestJob("execution-grant-smoke:single-variable-plan-binding");
   const boundExperiment = {

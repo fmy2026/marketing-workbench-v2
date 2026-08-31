@@ -5,6 +5,7 @@ import {
   INSTANCE_ID_WIRE_STRATEGY,
   INT64_MAX_DECIMAL
 } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
+import { parseOceanEngineStdProjectResponse } from "../src/platforms/oceanengineStdProjectResponse.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { CREATE_FIELD_LEDGER_VERSION } from "../src/workflows/skills/oe3/05-create-field-ledger.mjs";
 import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
@@ -19,6 +20,13 @@ import {
 } from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
 
 const FIELD_SHAPE_HASH = JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+
+const responseLongProjectId = "7679693367995088902";
+const parsedNumericProjectResponse = parseOceanEngineStdProjectResponse(`{"code":"0","data":{"project_id":${responseLongProjectId}}}`);
+assert.equal(parsedNumericProjectResponse.data.project_id, responseLongProjectId);
+assert.equal(typeof parsedNumericProjectResponse.data.project_id, "string");
+const parsedStringProjectResponse = parseOceanEngineStdProjectResponse(`{"code":"0","data":{"std_project_id":"${responseLongProjectId}"}}`);
+assert.equal(parsedStringProjectResponse.data.std_project_id, responseLongProjectId);
 
 function passedCreateFieldLedger() {
   return {

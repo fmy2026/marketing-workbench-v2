@@ -2,7 +2,7 @@
   "schema_version": "2026-08-31.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831",
   "task_ref": "tasks/TASK-MWBV2-OE3-JSZC-FIRST-CREATE-CLOSURE-1871922434025472-20260831.md",
-  "status": "backup_landing_page_shared_readonly_degraded",
+  "status": "completed",
   "created_at": "2026-08-31 CST",
   "owner_agent": "codex",
   "brief": {
@@ -31,11 +31,11 @@
     "route_id": "oceanengine_3_byte_mini_game",
     "game_code": "JSZC",
     "advertiser_id": "1871922434025472",
-    "fresh_job_id": "JOB-MWBV2-20260831032433-79D808",
-    "resource_plan_id": "PLAN-JOB-MWBV2-20260831032433-79D808-V1",
-    "resource_plan_hash": "sha256:36b159f68f09136c8e8c51bb2c1ceebbe944533dd7d175de76bf564051353941",
-    "create_plan_id": "",
-    "create_plan_hash": ""
+    "fresh_job_id": "JOB-MWBV2-20260831050504-F412EF",
+    "resource_plan_id": "PLAN-JOB-MWBV2-20260831040725-B1B6F1-V1",
+    "resource_plan_hash": "sha256:72605faaa22298af2d6519ade8b38f45362364cd47e52fce36053570890090ab",
+    "create_plan_id": "PLAN-JOB-MWBV2-20260831050504-F412EF-V1",
+    "create_plan_hash": "sha256:f23977bc694ea9896847b50a62d7177add5dabae1b17838195af55cad5ebeaaf"
   },
   "expected_resource_outcomes": {
     "verify_only": [
@@ -53,13 +53,12 @@
     ]
   },
   "fresh_readonly_result": {
-    "job_id": "JOB-MWBV2-20260831032433-79D808",
-    "node_4_status": "blocked",
-    "unique_verify_only_blocker": "site_get_target_shared_blocked",
-    "backup_landing_page_status": "target shared inventory HTTP 515 without request-id; target visibility cannot be verified",
-    "account_resource_reconciliation": "last verified readonly evidence restored visible/readback_verified; it does not satisfy this fresh Job",
-    "case_root_blocker": "site_get_target_shared_blocked",
-    "candidate_resource_plan_status": "blocked",
+    "job_id": "JOB-MWBV2-20260831040725-B1B6F1",
+    "node_4_status": "passed",
+    "backup_landing_page_status": "target shared inventory passed; default site matched with SHARE, usable status and URL hash",
+    "backup_landing_page_execution": "READY/no-op; prepare_supported=false; no backup landing page action",
+    "credential_status": "valid",
+    "candidate_resource_plan_status": "ready",
     "candidate_resource_plan_actions": [
       { "action_type": "ensure_resource:video_asset", "maximum_platform_calls": 1 },
       { "action_type": "ensure_resource:product_image", "maximum_platform_calls": 1 }
@@ -76,11 +75,51 @@
     "dmp": "visible/readback_verified; 10_of_10_pushes_verified",
     "dmp_post_count": 10,
     "dmp_plan_consumed": true,
-    "video": "not_executed",
-    "product_image": "not_executed",
-    "std_project_create_count": 0,
+    "merged_resource_plan": "confirmed_once; non_reusable_after_video_prewrite_stop",
+    "merged_resource_plan_confirmation_id": "CONFIRM-JOB-MWBV2-20260831035722-380787-RESOURCE-PLAN",
+    "video": "prewrite_blocked:credential_token_status_not_valid; external_platform_write=0",
+    "product_image": "not_started_due_to_video_stop; external_platform_write=0",
+    "video_plan_action_status": "failed_once_internal_claim_only",
+    "std_project_create_count": 1,
     "retry_allowed": false,
     "platform_write_scope_revoked": true
+  },
+  "create_readiness_result": {
+    "job_id": "JOB-MWBV2-20260831050504-F412EF",
+    "node_4_status": "passed",
+    "video_asset": "two_of_two_visible/readback_verified; cover contract passed",
+    "product_image": "visible/readback_verified",
+    "backup_landing_page": "READY/no-op",
+    "draft_id": "DRAFT-JOB-MWBV2-20260831050504-F412EF",
+    "payload_hash": "sha256:d82df37b0c1b5efed6b814c26adc6216c7c2ea438e739efbb97ae477846a0ade",
+    "payload_contract": "passed",
+    "create_wire_body": "passed",
+    "duplicate_check": "platform_not_duplicate",
+    "create_plan_status": "ready",
+    "create_plan_actions": [
+      { "action_type": "std_project_create", "maximum_platform_calls": 1 }
+    ],
+    "platform_write_audit_before_confirmation": 0,
+    "launch_confirmation_audit_before_confirmation": 0,
+    "created_object_audit_before_confirmation": 0
+  },
+  "create_execution_result": {
+    "confirmation_count": 1,
+    "std_project_create_platform_action_count": 1,
+    "created_object_count": 1,
+    "node_7_readback": "readback_verified",
+    "create_response_id_matches_readback_id": true,
+    "retry_allowed": false,
+    "platform_write_scope_revoked": true,
+    "workflow_case_gate": "first_std_project_create_completed"
+  },
+  "std_project_id_lossless_contract": {
+    "response_project_id_storage": "exact_decimal_string",
+    "node_7_create_to_list_comparison": "exact_string_match_required",
+    "id_mismatch_blocker": "readback_project_id_mismatch",
+    "historical_reconciliation": "fresh_readonly_exact_id_match_but_project_status_not_usable; database_repair_not_run",
+    "replaced_create_plan": "stale_due_to_response_contract_update",
+    "platform_write_called": true
   },
   "allowed_writes": [
     "Task/Manifest/project control-plane updates",
@@ -107,6 +146,7 @@
     "test:event-chain-readonly",
     "test:payload-contract",
     "test:std-project-create-wire-body",
+    "test:execution-grant",
     "test:single-confirmation-orchestrator",
     "workflow:readonly-readiness with explicit case and target advertiser",
     "git diff --check"
@@ -114,14 +154,14 @@
   "human_gate": {
     "before_resource_writes": [
       "DMP-only Plan V2 has been consumed after 10 verified readbacks and cannot be reused.",
-      "The fresh video/product candidate Plan V1 is blocked by backup_landing_page target shared-inventory readonly degradation and is not confirmable.",
-      "Restore the exact target shared-inventory readonly contract, then create a new fresh Job and Plan before any remaining video or product-image write.",
-      "project.state.json remains platform_write_allowed=false until the user confirms the next exact Plan hash."
+      "The prior confirmed merged resource Plan stopped at the video credential prewrite; it is immutable and non-reusable, and product_image was not started.",
+      "OAuth is now valid and fresh Node 1-4 readonly produced a new candidate Plan. Confirm only the new exact Plan ID and hash in scope; do not retry or confirm the stopped Plan.",
+      "The new resource Plan was consumed successfully: two videos and the product image are visible/readback_verified; its scope was revoked."
     ],
     "before_std_project_create": [
-      "Fresh create Plan must be ready, blocker-free and immutable after all resource readbacks pass.",
-      "User must confirm exact create plan id and plan hash.",
-      "project.state.json must grant only std_project_create, one call and retry_allowed=false."
+      "The fresh Create Plan was confirmed once and consumed by exactly one std_project_create call.",
+      "Node 7 readback verified the exact response project ID; the Case is complete.",
+      "All platform write grants, action grants and call limits are revoked; no further confirmation is authorized for this Plan."
     ]
   },
   "stop_conditions": [

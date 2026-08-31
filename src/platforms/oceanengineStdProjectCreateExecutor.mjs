@@ -11,6 +11,7 @@ import {
   OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS
 } from "../workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { buildStdProjectCreateWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
+import { parseOceanEngineStdProjectResponse } from "./oceanengineStdProjectResponse.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
@@ -545,7 +546,7 @@ export async function createStdProjectForTargetOnce({
   }
   let payload = {};
   try {
-    payload = JSON.parse(text);
+    payload = parseOceanEngineStdProjectResponse(text);
   } catch {
     payload = {};
   }
@@ -685,6 +686,11 @@ export async function readbackStdProjectOnce({
   url.searchParams.set("page", "1");
   url.searchParams.set("page_size", "20");
   const attempts = [];
+  const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
+    bundle.platformAction?.object_id_present === true;
+  const createResponseObjectId = responseConfirmedByCreate
+    ? clean(bundle.createdObject?.object_id)
+    : "";
   let response = null;
   let text = "";
   let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
@@ -722,11 +728,13 @@ export async function readbackStdProjectOnce({
     }
     let payload = {};
     try {
-      payload = JSON.parse(text);
+      payload = parseOceanEngineStdProjectResponse(text);
     } catch {
       payload = {};
     }
     summary = summarizeListPayload(payload, runtimeTarget.projectName);
+    const projectIdMatchesCreate = !createResponseObjectId ||
+      (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
     attempts.push({
       delay_ms: delayMs,
       http_status: response.status,
@@ -734,6 +742,7 @@ export async function readbackStdProjectOnce({
       request_id_present: summary.requestIdPresent === true,
       object_id_present: Boolean(summary.objectId),
       object_name_matches: summary.objectNameMatches === true,
+      project_id_matches_create: projectIdMatchesCreate,
       response_hash: `sha256:${sha256(text)}`
     });
     if (summary.objectId && summary.objectNameMatches) break;
@@ -750,9 +759,10 @@ export async function readbackStdProjectOnce({
     sourceRef: `oceanengine:${LIST_ENDPOINT}`,
     sourceUsage: "runtime_truth"
   });
-  const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
-    bundle.platformAction?.object_id_present === true;
-  if (summary.objectId && summary.objectNameMatches) {
+  const projectIdMatchesCreate = !createResponseObjectId ||
+    (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
+  const readbackVerified = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate;
+  if (readbackVerified) {
     if (!responseConfirmedByCreate && bundle.platformAction?.action_id && typeof repo.mergePlatformActionMetadata === "function") {
       await repo.mergePlatformActionMetadata(bundle.platformAction.action_id, {
         recovered_by_readback: true,
@@ -797,20 +807,22 @@ export async function readbackStdProjectOnce({
       evidenceRef
     });
   } else {
+    const projectIdMismatch = Boolean(summary.objectId) && summary.objectNameMatches && !projectIdMatchesCreate;
     await repo.upsertReadbackRecord({
       readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
       jobId,
       objectType: "std_project",
-      objectId: "NOT_FOUND_AFTER_CREATE",
+      objectId: projectIdMismatch ? (createResponseObjectId || "PROJECT_ID_MISMATCH") : "NOT_FOUND_AFTER_CREATE",
       objectName: runtimeTarget.projectName,
-      readbackStatus: "not_found_after_create",
+      readbackStatus: projectIdMismatch ? "project_id_mismatch" : "not_found_after_create",
       fieldDiffSummary: {
-        object_name_matches_draft: false,
+        object_name_matches_draft: summary.objectNameMatches === true,
         source: "oceanengine_std_project_list",
         real_platform_readback_called: true,
         request_id_present: summary.requestIdPresent === true,
         api_code: summary.apiCode || "",
         create_response_confirmed: responseConfirmedByCreate,
+        create_response_id_matches_readback: projectIdMatchesCreate,
         readback_attempts: attempts,
         raw_response_stored: false
       },
@@ -818,7 +830,11 @@ export async function readbackStdProjectOnce({
     });
   }
   return {
-    status: summary.objectId && summary.objectNameMatches ? "readback_verified" : "not_found_or_mismatch",
+    status: readbackVerified
+      ? "readback_verified"
+      : summary.objectId && summary.objectNameMatches && !projectIdMatchesCreate
+        ? "project_id_mismatch"
+        : "not_found_or_mismatch",
     httpStatus: response?.status || null,
     apiCode: summary.apiCode,
     requestIdPresent: summary.requestIdPresent,
@@ -826,6 +842,7 @@ export async function readbackStdProjectOnce({
     objectName: summary.objectName,
     objectStatus: summary.objectStatus,
     objectNameMatches: summary.objectNameMatches,
+    projectIdMatchesCreate,
     readbackAttempts: attempts,
     evidenceRef
   };

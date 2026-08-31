@@ -2429,6 +2429,34 @@ export class PostgresRepository {
     return saved;
   }
 
+  async staleExecutionPlanForContractChange({ planId, blockerCode }) {
+    assertId("plan_id", planId);
+    assertId("blocker_code", blockerCode);
+    const saved = await queryJson(`
+      WITH changed AS (
+        UPDATE mwb.launch_execution_plans ep
+        SET plan_status = 'stale',
+            blocker_codes = jsonb_build_array(${sqlLiteral(blockerCode)}),
+            metadata = ep.metadata || jsonb_build_object(
+              'stale_reason', ${sqlLiteral(blockerCode)}
+            ),
+            updated_at = now()
+        WHERE ep.plan_id = ${sqlLiteral(planId)}
+          AND ep.plan_status = 'ready'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations lc
+            WHERE lc.plan_id = ep.plan_id
+              AND lc.confirmation_status = 'confirmed_for_execution_plan'
+          )
+        RETURNING ep.plan_id, ep.plan_status, ep.blocker_codes
+      )
+      SELECT coalesce((SELECT to_jsonb(changed) FROM changed), 'null'::jsonb)::text;
+    `, this.database);
+    if (!saved) throw new Error("execution_plan_not_staleable_for_contract_change");
+    return saved;
+  }
+
   async consumeConfirmedResourceExecutionPlan({ jobId, planId }) {
     assertId("job_id", jobId);
     assertId("plan_id", planId);
@@ -3440,6 +3468,123 @@ export class PostgresRepository {
         evidence_ref = EXCLUDED.evidence_ref,
         metadata = EXCLUDED.metadata,
         readback_at = EXCLUDED.readback_at;
+    `, this.database);
+  }
+
+  async reconcileStdProjectObjectId({
+    jobId,
+    legacyObjectId,
+    verifiedObjectId
+  } = {}) {
+    assertId("job_id", jobId);
+    assertId("legacy_object_id", legacyObjectId, /^\d+$/);
+    assertId("verified_object_id", verifiedObjectId, /^\d+$/);
+    if (legacyObjectId === verifiedObjectId) throw new Error("std_project_id_reconciliation_no_change");
+
+    const correctedCreatedObjectId = `CO-${jobId}-STD-PROJECT-${verifiedObjectId}`;
+    await runPsql(`
+      BEGIN;
+      DO $$
+      DECLARE
+        created_total integer;
+        legacy_created integer;
+        corrected_created integer;
+        verified_readback_total integer;
+        legacy_verified_readback integer;
+        corrected_readback integer;
+      BEGIN
+        PERFORM 1
+        FROM mwb.created_objects
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+        FOR UPDATE;
+        PERFORM 1
+        FROM mwb.readback_records
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+        FOR UPDATE;
+
+        SELECT count(*) INTO created_total
+        FROM mwb.created_objects
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project';
+        SELECT count(*) INTO legacy_created
+        FROM mwb.created_objects
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND object_id = ${sqlLiteral(legacyObjectId)};
+        SELECT count(*) INTO corrected_created
+        FROM mwb.created_objects
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND (object_id = ${sqlLiteral(verifiedObjectId)} OR created_object_id = ${sqlLiteral(correctedCreatedObjectId)});
+        SELECT count(*) INTO verified_readback_total
+        FROM mwb.readback_records
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND readback_status = 'readback_verified';
+        SELECT count(*) INTO legacy_verified_readback
+        FROM mwb.readback_records
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND object_id = ${sqlLiteral(legacyObjectId)}
+          AND readback_status = 'readback_verified';
+        SELECT count(*) INTO corrected_readback
+        FROM mwb.readback_records
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND object_id = ${sqlLiteral(verifiedObjectId)};
+
+        IF created_total <> 1 OR legacy_created <> 1 OR corrected_created <> 0
+          OR verified_readback_total <> 1 OR legacy_verified_readback <> 1 OR corrected_readback <> 0 THEN
+          RAISE EXCEPTION 'std_project_id_reconciliation_precondition_failed';
+        END IF;
+
+        UPDATE mwb.created_objects
+        SET created_object_id = ${sqlLiteral(correctedCreatedObjectId)},
+            object_id = ${sqlLiteral(verifiedObjectId)}
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND object_id = ${sqlLiteral(legacyObjectId)};
+
+        UPDATE mwb.readback_records
+        SET object_id = ${sqlLiteral(verifiedObjectId)}
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND object_type = 'std_project'
+          AND object_id = ${sqlLiteral(legacyObjectId)}
+          AND readback_status = 'readback_verified';
+      END $$;
+      COMMIT;
+    `, this.database);
+
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'status', 'reconciled',
+        'created_object_count', (
+          SELECT count(*) FROM mwb.created_objects
+          WHERE job_id = ${sqlLiteral(jobId)} AND object_type = 'std_project'
+        ),
+        'verified_readback_count', (
+          SELECT count(*) FROM mwb.readback_records
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND object_type = 'std_project'
+            AND readback_status = 'readback_verified'
+        ),
+        'object_id_matches_verified', EXISTS (
+          SELECT 1 FROM mwb.created_objects
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND object_type = 'std_project'
+            AND object_id = ${sqlLiteral(verifiedObjectId)}
+            AND created_object_id = ${sqlLiteral(correctedCreatedObjectId)}
+        ),
+        'readback_id_matches_verified', EXISTS (
+          SELECT 1 FROM mwb.readback_records
+          WHERE job_id = ${sqlLiteral(jobId)}
+            AND object_type = 'std_project'
+            AND object_id = ${sqlLiteral(verifiedObjectId)}
+            AND readback_status = 'readback_verified'
+        )
+      )::text;
     `, this.database);
   }
 

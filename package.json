@@ -17,6 +17,7 @@
     "resource:video-material-ensure-once": "node scripts/04-video-material-ensure-once.mjs",
     "resource:video-material-readback": "node scripts/04-video-material-readback.mjs",
     "resource:product-image-ensure-once": "node scripts/04-product-image-ensure-once.mjs",
+    "resource:execute-confirmed-plan-once": "node scripts/05-confirmed-resource-plan-execute-once.mjs",
     "resource:event-asset-api-create-once": "node scripts/04-event-asset-api-create-once.mjs",
     "resource:event-configs-api-create-once": "node scripts/04-event-configs-api-create-once.mjs",
     "workflow:readback-only": "node scripts/00-oe3-workflow-cli.mjs --mode readback_only",
