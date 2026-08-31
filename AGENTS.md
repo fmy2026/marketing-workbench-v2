@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-08-31 17:53 CST |
-| 校验基线 | Git `70f1fbc`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
+| 最后更新时间 | 2026-08-31 19:20 CST |
+| 校验基线 | Git `9d52b89` + 当前 Monitor 单轨 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -89,6 +89,7 @@ frontend / API
 ```
 
 - 3 阶段 7 Node 的唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。
+- Node 02 monitor 的唯一公开入口是 `src/workflows/skills/oe3/02-monitor/index.mjs`；CLI 只允许状态、readonly reconcile 和配置只读同步。monitor 写入必须消费 `monitor_bootstrap` Plan，不能由 CLI 或环境变量直接授权。
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
 - `package.json` 是长期命令入口；一次性脚本完成后移入 `.archive/` 并删除入口。

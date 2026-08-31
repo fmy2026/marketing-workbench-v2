@@ -1,7 +1,7 @@
-import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../platforms/qiankunCredentialStore.mjs";
-import { createQiankunMonitorClient } from "../../../platforms/qiankunMonitorClient.mjs";
-import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
-import { ACTION_ENSURE_MONITOR } from "../../executionPlan.mjs";
+import { credentialStatusForDatabase, redactedQiankunCredentialStatus } from "../../../../platforms/qiankunCredentialStore.mjs";
+import { createQiankunMonitorClient } from "../../../../platforms/qiankunMonitorClient.mjs";
+import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "../00-contracts.mjs";
+import { ACTION_ENSURE_MONITOR } from "../../../executionPlan.mjs";
 import {
   MONITOR_MAX_ATTEMPTS,
   MONITOR_RETRY_INTERVAL_SECONDS,
@@ -12,7 +12,7 @@ import {
   monitorAttemptPolicy,
   monitorReissuePolicy,
   secondsSince
-} from "./02-monitor-cycle.mjs";
+} from "./cycle-policy.mjs";
 import {
   QIANKUN_CATE_VEST_TARGET,
   QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET,
@@ -26,20 +26,11 @@ import {
   runQiankunMonitorTechnicalCombinationReadonlySync,
   runQiankunPackageBaseInfoReadonlySync,
   runQiankunVestPackageReadonlySync
-} from "./02-qiankun-option-relation-sync.mjs";
+} from "./config-sync.mjs";
 
 export const EXPLICIT_ACCOUNT_SCOPE_BLOCKER = "explicit_account_scope_required";
 
-export const MONITOR_RETRY_CONFIRM_ENV = "MWBV2_MONITOR_RETRY_CONFIRM";
-export const MONITOR_RETRY_CONFIRM_VALUE = "RETRY_ONE_BUSY_MONITOR_CREATE";
-export const MONITOR_CREATE_CONFIRM_ENV = "MWBV2_MONITOR_CREATE_CONFIRM";
-export const MONITOR_CREATE_CONFIRM_VALUE = "CREATE_ONE_MONITOR";
-export const MONITOR_PROVISION_ID_ENV = "MWBV2_MONITOR_PROVISION_ID";
-export const MONITOR_ROUTE_ID_ENV = "MWBV2_MONITOR_ROUTE_ID";
-export const MONITOR_GAME_CODE_ENV = "MWBV2_MONITOR_GAME_CODE";
-export const MONITOR_ADVERTISER_ID_ENV = "MWBV2_MONITOR_ADVERTISER_ID";
-export const MONITOR_CREATE_PLAN_HASH_ENV = "MWBV2_MONITOR_CREATE_PLAN_HASH";
-export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./02-monitor-cycle.mjs";
+export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./cycle-policy.mjs";
 export const MONITOR_L3_OVERRIDE_CONFIRM_ENV = "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM";
 export const MONITOR_L3_OVERRIDE_CONFIRM_VALUE = "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR";
 export const QIANKUN_CURRENT_API_DOC_REF = "docs/.参考文档/乾坤系统/api-docs-20260827.md";
@@ -126,64 +117,48 @@ function monitorClient({ fetchImpl = globalThis.fetch } = {}) {
   return createQiankunMonitorClient({ fetchImpl });
 }
 
-export function monitorEnsureConfirmed({ env = process.env, provisionId = "" } = {}) {
-  return env[MONITOR_RETRY_CONFIRM_ENV] === MONITOR_RETRY_CONFIRM_VALUE &&
-    env[MONITOR_PROVISION_ID_ENV] === provisionId;
-}
-
-function confirmationBindingChecks({ env = process.env, target = {}, provisionId = "", createPlanHash = "" } = {}) {
-  return [
-    ["provision_id", MONITOR_PROVISION_ID_ENV, provisionId],
-    ["route_id", MONITOR_ROUTE_ID_ENV, target.routeId],
-    ["game_code", MONITOR_GAME_CODE_ENV, target.gameCode],
-    ["advertiser_id", MONITOR_ADVERTISER_ID_ENV, target.advertiserId],
-    ["create_plan_hash", MONITOR_CREATE_PLAN_HASH_ENV, createPlanHash]
-  ].map(([field, envName, expected]) => {
-    const expectedValue = clean(expected);
-    const actualValue = clean(env[envName]);
-    return {
-      field,
-      envName,
-      expectedPresent: Boolean(expectedValue),
-      actualPresent: Boolean(actualValue),
-      matched: Boolean(expectedValue) && actualValue === expectedValue
-    };
-  });
-}
-
-function monitorActionConfirmationState({
-  env = process.env,
+// The monitor writer is intentionally not authorized by a shell variable. This
+// binding object is constructed only after the shared Plan/confirmation/action
+// grant validator has passed and is checked again against the runtime request.
+function monitorPlanAuthorizationState({
+  authorization = null,
   target = {},
   provisionId = "",
+  cycleId = "",
+  attemptNo = 0,
   createPlanHash = "",
   action = ""
 } = {}) {
-  const bindingChecks = confirmationBindingChecks({ env, target, provisionId, createPlanHash });
-  const scopeBindingsMatched = bindingChecks
-    .filter((item) => item.field !== "create_plan_hash")
-    .every((item) => item.matched);
-  const allBindingsMatched = bindingChecks.every((item) => item.matched);
-  const createConfirmValuePresent = env[MONITOR_CREATE_CONFIRM_ENV] === MONITOR_CREATE_CONFIRM_VALUE;
-  const retryConfirmValuePresent = env[MONITOR_RETRY_CONFIRM_ENV] === MONITOR_RETRY_CONFIRM_VALUE;
-  const actionValuePresent = action === "first_create"
-    ? createConfirmValuePresent
-    : action === "server_busy_retry" ? retryConfirmValuePresent : false;
+  const grant = authorization || {};
+  const targetBinding = grant.target || {};
+  const createRequestHash = clean(grant.createRequestHash || grant.create_request_hash);
+  const checks = [
+    ["provision_id", provisionId, grant.provisionId || grant.provision_id],
+    ["route_id", target.routeId, targetBinding.routeId || targetBinding.route_id],
+    ["game_code", target.gameCode, targetBinding.gameCode || targetBinding.game_code],
+    ["advertiser_id", target.advertiserId, targetBinding.advertiserId || targetBinding.advertiser_id],
+    ["cycle_id", cycleId, grant.cycleId || grant.cycle_id],
+    ["attempt_no", String(attemptNo || ""), String(grant.attemptNo || grant.attempt_no || "")]
+  ].map(([field, expected, actual]) => ({
+    field,
+    expectedPresent: Boolean(clean(expected)),
+    actualPresent: Boolean(clean(actual)),
+    matched: Boolean(clean(expected)) && clean(expected) === clean(actual)
+  }));
+  const scopeBindingsMatched = checks.every((item) => item.matched);
+  const createPlanHashValuePresent = createRequestHash.startsWith("sha256:");
+  const requestHashMatches = !clean(createPlanHash) || createRequestHash === clean(createPlanHash);
+  const actionValuePresent = grant.status === "passed" && Boolean(clean(grant.planId || grant.plan_id)) &&
+    Boolean(clean(grant.planHash || grant.plan_hash)) && Boolean(clean(grant.confirmationId || grant.confirmation_id));
   return {
     action,
-    requiredEnv: action === "first_create" ? MONITOR_CREATE_CONFIRM_ENV : MONITOR_RETRY_CONFIRM_ENV,
-    expectedValue: action === "first_create" ? MONITOR_CREATE_CONFIRM_VALUE : MONITOR_RETRY_CONFIRM_VALUE,
-    createConfirmValuePresent,
-    retryConfirmValuePresent,
     actionValuePresent,
-    provisionValuePresent: bindingChecks.find((item) => item.field === "provision_id")?.matched === true,
-    routeValuePresent: bindingChecks.find((item) => item.field === "route_id")?.matched === true,
-    gameCodeValuePresent: bindingChecks.find((item) => item.field === "game_code")?.matched === true,
-    advertiserIdValuePresent: bindingChecks.find((item) => item.field === "advertiser_id")?.matched === true,
-    createPlanHashValuePresent: bindingChecks.find((item) => item.field === "create_plan_hash")?.matched === true,
+    provisionValuePresent: checks.find((item) => item.field === "provision_id")?.matched === true,
+    createPlanHashValuePresent,
     scopeBindingsMatched,
-    allBindingsMatched,
-    confirmed: Boolean(actionValuePresent && allBindingsMatched),
-    bindingChecks
+    requestHashMatches,
+    confirmed: Boolean(actionValuePresent && scopeBindingsMatched && createPlanHashValuePresent && requestHashMatches),
+    bindingChecks: checks
   };
 }
 
@@ -711,6 +686,52 @@ function monitorCreateParams({ target = {}, account = {}, ownerKey = "", technic
   }));
 }
 
+// Pure contract builder shared by the readonly reconcile hand-off and the
+// Execution Plan compiler. It exposes only hashes and structural metadata, not
+// a raw create payload or a controlled touchpoint URL.
+export function buildMonitorBootstrapContract({
+  target = {},
+  account = {},
+  technicalConfig = {},
+  provisionId = "",
+  cycleId = "",
+  cycleNo = 0,
+  attemptNo = 0,
+  readonlyEvidenceRef = ""
+} = {}) {
+  const effectiveConfig = monitorPlanConfig({ monitor_provision: technicalConfig });
+  const params = monitorCreateParams({
+    target,
+    account,
+    ownerKey: clean(account.ownerKey || account.owner_key),
+    technicalConfig: effectiveConfig
+  });
+  const contract = {
+    target: {
+      routeId: clean(target.routeId || target.route_id),
+      gameCode: clean(target.gameCode || target.game_code),
+      advertiserId: clean(target.advertiserId || target.advertiser_id)
+    },
+    provisionId: clean(provisionId),
+    cycleId: clean(cycleId),
+    cycleNo: Number(cycleNo || 0),
+    attemptNo: Number(attemptNo || 0),
+    createRequestHash: hashValue(params),
+    configContractHash: hashValue({
+      route_id: clean(target.routeId || target.route_id),
+      game_code: clean(target.gameCode || target.game_code),
+      advertiser_id: clean(target.advertiserId || target.advertiser_id),
+      technical_config: effectiveConfig,
+      request_field_manifest: requestFieldManifest(params)
+    }),
+    readonlyEvidenceRef: clean(readonlyEvidenceRef),
+    requestFieldManifest: requestFieldManifest(params)
+  };
+  const safe = sanitizeMonitorPublicSummary(contract);
+  assertNoSensitiveLeak(safe);
+  return safe;
+}
+
 function requestFieldManifest(params = {}) {
   const callbackContract = callbackContractState({
     server_callback_required: Boolean(params.server_callback_type || params.server_callback_data_types),
@@ -819,21 +840,6 @@ function monitorSkillResult({ skillKey, status = "passed", blockers = [], output
   return safe;
 }
 
-function monitorCreateConfirmationEnv({ baseEnv = process.env, target, provisionId, planHash, createPlanHash, attemptAction }) {
-  const env = { ...(baseEnv || {}) };
-  env[MONITOR_PROVISION_ID_ENV] = provisionId;
-  env[MONITOR_ROUTE_ID_ENV] = target.routeId;
-  env[MONITOR_GAME_CODE_ENV] = target.gameCode;
-  env[MONITOR_ADVERTISER_ID_ENV] = target.advertiserId;
-  env[MONITOR_CREATE_PLAN_HASH_ENV] = createPlanHash || planHash || "mock-plan-hash";
-  if (attemptAction === "server_busy_retry") {
-    env[MONITOR_RETRY_CONFIRM_ENV] = MONITOR_RETRY_CONFIRM_VALUE;
-  } else {
-    env[MONITOR_CREATE_CONFIRM_ENV] = MONITOR_CREATE_CONFIRM_VALUE;
-  }
-  return env;
-}
-
 export async function runMonitorWorkflowSkill({
   repo,
   bundle,
@@ -846,6 +852,9 @@ export async function runMonitorWorkflowSkill({
   env = process.env,
   previousOutputs = new Map()
 } = {}) {
+  if (["monitor-query", "monitor-plan", "monitor-ensure"].includes(skillKey)) {
+    throw new Error(`obsolete_monitor_skill_key:${skillKey}`);
+  }
   const target = targetFromBundle(bundle);
   const jobId = bundle.job?.job_id || "";
   const provisionId = monitorProvisionId(target);
@@ -857,14 +866,17 @@ export async function runMonitorWorkflowSkill({
   const actionAllowed = Array.isArray(allowedPlanActions) && allowedPlanActions.includes(ACTION_ENSURE_MONITOR);
   const idempotencyKey = clean(action?.idempotency_key);
 
-  if (skillKey === "monitor-query") {
+  if (skillKey === "monitor-state-read") {
     const latestRun = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
     return monitorSkillResult({
       skillKey,
       outputSummary: {
         target,
         provisionId,
-        monitorIdPresent: Boolean(monitorId),
+        monitorIdPresent: bundle.monitorReadiness?.monitor_id_present === true || Boolean(monitorId),
+        monitorReady: bundle.monitorReadiness?.monitor_ready === true,
+        readinessStatus: bundle.monitorReadiness?.readiness_status || "",
+        actionableBlockerCode: bundle.monitorReadiness?.actionable_blocker_code || "",
         planActionPresent,
         latestRunStatus: latestRun?.status || "",
         createCalled: false,
@@ -874,133 +886,55 @@ export async function runMonitorWorkflowSkill({
     });
   }
 
-  if (skillKey === "monitor-plan") {
-    if (monitorId || !planActionPresent) {
-      return monitorSkillResult({
-        skillKey,
-        outputSummary: {
-          target,
-          provisionId,
-          monitorIdPresent: Boolean(monitorId),
-          ensureMonitorPlanned: false,
-          planId,
-          planHash,
-          reason: monitorId ? "monitor_id_already_present" : "ensure_monitor_not_in_execution_plan",
-          createCalled: false
-        }
-      });
-    }
-    const planOnly = await runMonitorProvisionPlanOnly({
-      repo,
-      ownerKey,
-      target,
-      jobId,
-      planId,
-      fetchImpl
-    });
+  if (skillKey === "monitor-readonly-reconcile") {
     return monitorSkillResult({
       skillKey,
-      status: planOnly.status,
-      blockers: planOnly.blockers || [],
       outputSummary: {
         target,
         provisionId,
-        ensureMonitorPlanned: true,
-        planId,
-        planHash,
-        idempotencyKeyPresent: Boolean(idempotencyKey),
-        attemptPolicy: planOnly.attemptPolicy || {},
-        createPlanHash: planOnly.createPlan?.requestHash || planOnly.confirmationSnapshot?.createPlanHash || "",
-        createCalled: false,
-        accountApiCalled: planOnly.accountApiCalled === true,
-        monitorListApiCalled: planOnly.monitorListApiCalled === true,
-        evidenceArtifactId: planOnly.evidenceArtifactId || ""
-      },
-      evidenceRefs: planOnly.evidenceArtifactId ? [planOnly.evidenceArtifactId] : []
+        mode: "delegated_to_gate_action",
+        freshReadonlyCalled: false,
+        createCalled: false
+      }
     });
   }
 
-  if (skillKey === "monitor-ensure") {
-    if (monitorId || !planActionPresent) {
-      return monitorSkillResult({
-        skillKey,
-        outputSummary: {
-          target,
-          provisionId,
-          monitorIdPresent: Boolean(monitorId),
-          ensureMonitorPlanned: false,
-          planId,
-          planHash,
-          createCalled: false,
-          reason: monitorId ? "monitor_id_already_present" : "ensure_monitor_not_in_execution_plan"
-        }
-      });
-    }
-    const blockers = [];
-    if (mode !== "planned_actions") blockers.push("monitor_ensure_requires_planned_actions_mode");
-    if (!actionAllowed) blockers.push(`planned_action_not_allowed:${ACTION_ENSURE_MONITOR}`);
-    if (mockMonitorEnsure !== true) blockers.push("mock_monitor_ensure_required_for_current_task");
-    if (blockers.length) {
-      return monitorSkillResult({
-        skillKey,
-        status: "blocked",
-        blockers,
-        outputSummary: {
-          target,
-          provisionId,
-          planId,
-          planHash,
-          ensureMonitorPlanned: true,
-          actionAllowed,
-          createCalled: false
-        }
-      });
-    }
-    const planOutput = previousOutputs.get("monitor-plan") || {};
-    const attemptAction = planOutput.outputSummary?.attemptPolicy?.action || "first_create";
-    const createPlanHash = planOutput.outputSummary?.createPlanHash || "";
-    const ensureResult = await runMonitorProvisionEnsure({
-      repo,
-      ownerKey,
-      target,
-      env: monitorCreateConfirmationEnv({
-        baseEnv: env,
-        target,
-        provisionId,
-        planHash,
-        createPlanHash,
-        attemptAction
-      }),
-      jobId,
-      planId,
-      idempotencyKey,
-      fetchImpl
-    });
+  if (skillKey === "monitor-plan-compile") {
     return monitorSkillResult({
       skillKey,
-      status: ensureResult.status,
-      blockers: ensureResult.blockers || [],
+      status: monitorId ? "passed" : "blocked",
+      blockers: monitorId ? [] : ["monitor_plan_requires_fresh_readonly_contract"],
+      outputSummary: {
+        target,
+        provisionId,
+        monitorIdPresent: Boolean(monitorId),
+        planCompiler: "pure_execution_plan_compiler",
+        platformCalled: false,
+        createCalled: false
+      }
+    });
+  }
+
+  if (skillKey === "monitor-execute-once") {
+    return monitorSkillResult({
+      skillKey,
+      status: "blocked",
+      blockers: ["monitor_execute_requires_confirmed_monitor_bootstrap_plan"],
       outputSummary: {
         target,
         provisionId,
         planId,
         planHash,
-        ensureMonitorPlanned: true,
-        actionAllowed,
-        createCalled: ensureResult.createCalled === true,
-        runStatus: ensureResult.runStatus || "",
-        attemptState: ensureResult.attemptState || {},
-        monitorIdPresent: Boolean(ensureResult.resolvedMonitor?.monitorId),
-        evidenceArtifactId: ensureResult.evidenceArtifactId || ""
-      },
-      evidenceRefs: ensureResult.evidenceArtifactId ? [ensureResult.evidenceArtifactId] : []
+        createCalled: false,
+        retryAllowed: false
+      }
     });
   }
 
   if (skillKey === "monitor-readback") {
     const latestRun = repo ? await repo.getLatestMonitorProvisionRun(target) : null;
     const currentMonitorId = clean(latestRun?.monitor_id || monitorId);
-    const ensureOutput = previousOutputs.get("monitor-ensure") || {};
+    const ensureOutput = previousOutputs.get("monitor-execute-once") || {};
     const blockers = [];
     if (planActionPresent && !currentMonitorId) blockers.push("monitor_readback_missing");
     if ((ensureOutput.blockers || []).length) blockers.push(...ensureOutput.blockers);
@@ -1037,6 +971,11 @@ export async function runMonitorProvisionReadonlyReconcile({
   fetchImpl = globalThis.fetch
 } = {}) {
   const provisionId = monitorProvisionId(target);
+  const priorAttemptState = repo ? await repo.getMonitorProvisionAttemptState({ provisionId }) : null;
+  const priorCycle = priorAttemptState?.run || null;
+  const priorCycleNo = Number(priorCycle?.cycle_no || 1);
+  const priorCycleId = clean(priorCycle?.cycle_id) || buildMonitorCycleId(provisionId, priorCycleNo);
+  const priorAttemptCount = Number(priorAttemptState?.attemptCount || 0);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
@@ -1208,16 +1147,24 @@ export async function runMonitorProvisionReadonlyReconcile({
     summary: safeSummary,
     jobId
   });
-  const runStatus = monitor
+  const foundMonitor = Boolean(monitor);
+  const priorTerminalWithoutMonitor = !foundMonitor && (
+    priorCycle?.cycle_status === "stopped" || priorCycle?.status === "terminal_failed"
+  );
+  const runStatus = priorTerminalWithoutMonitor
+    ? "terminal_failed"
+    : monitor
     ? monitor.touchpointUrlHash ? "touchpoint_resolved" : "monitor_resolved"
     : account ? "account_resolved" : "failed";
-  const cycleStatus = runStatus === "touchpoint_resolved" ? "resolved" : "active";
+  const cycleStatus = runStatus === "touchpoint_resolved" ? "resolved" : priorTerminalWithoutMonitor ? "stopped" : "active";
   const writes = await persistReadonlyReconcile({
     repo,
     jobId,
     planId,
     target,
     provisionId,
+    cycleId: priorCycleId,
+    cycleNo: priorCycleNo,
     requestFingerprint,
     cycleStatus,
     defaults,
@@ -1228,19 +1175,33 @@ export async function runMonitorProvisionReadonlyReconcile({
     errorSummary: blockers.join(";"),
     evidenceArtifactId
   });
+  const monitorBootstrapContract = !foundMonitor && !priorTerminalWithoutMonitor && account &&
+    readiness.readyForReadonlyReconcile && blockers.length === 1 && blockers[0] === "monitor_exact_match_missing"
+    ? buildMonitorBootstrapContract({
+      target,
+      account,
+      technicalConfig: defaults.monitor_provision || {},
+      provisionId,
+      cycleId: priorCycleId,
+      cycleNo: priorCycleNo,
+      attemptNo: priorAttemptCount + 1,
+      readonlyEvidenceRef: evidenceArtifactId
+    })
+    : null;
 
   const output = {
     ...safeSummary,
     status: blockers.length ? "blocked" : "passed",
     runStatus,
     evidenceArtifactId,
+    monitorBootstrapContract,
     writes
   };
   assertNoSensitiveLeak(output);
   return output;
 }
 
-export async function runMonitorProvisionPlanOnly({
+async function runMonitorProvisionPlanOnly({
   repo,
   ownerKey = "",
   target = {},
@@ -1388,13 +1349,6 @@ export async function runMonitorProvisionPlanOnly({
       blockers: ["account_not_resolved_for_manual_contract_compare"]
     };
   if (account) blockers.push(...manualContractComparison.blockers);
-  const firstCreateAuthorization = monitorActionConfirmationState({
-    env: {},
-    target,
-    provisionId,
-    createPlanHash,
-    action: attemptPolicy.action || "first_create"
-  });
   const publicSummary = {
     mode: "plan_only",
     target,
@@ -1468,14 +1422,9 @@ export async function runMonitorProvisionPlanOnly({
       createCalled: false
     },
     firstCreateAuthorization: {
-      requiredEnv: MONITOR_CREATE_CONFIRM_ENV,
-      expectedValue: MONITOR_CREATE_CONFIRM_VALUE,
-      requiredBindings: firstCreateAuthorization.bindingChecks.map((item) => ({
-        field: item.field,
-        envName: item.envName,
-        expectedPresent: item.expectedPresent
-      })),
-      retryEnvRejectedForFirstCreate: true
+      authorizationModel: "plan_bound_confirmation_and_action_grant",
+      eligibleForMonitorBootstrapPlan: blockers.length === 0 && !monitor && attemptPolicy.createEligible === true,
+      directExecutionAllowed: false
     },
     confirmationSnapshot: {
       advertiserId: target.advertiserId,
@@ -1580,7 +1529,7 @@ export async function runMonitorProvisionPlanOnly({
   return output;
 }
 
-export async function runMonitorProvisionReissuePlan({
+async function runMonitorProvisionReissuePlan({
   repo,
   ownerKey = "",
   target = {},
@@ -1609,7 +1558,7 @@ export async function runMonitorProvisionReissuePlan({
       attemptPolicy: {},
       existingMonitorStatus: latestCycle?.monitor_id ? "monitor_id_already_present" : "not_resolved",
       blockerCodes: policy.blockers,
-      moduleRef: "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+      moduleRef: "src/workflows/skills/oe3/02-monitor/cycle-policy.mjs",
       evidenceRefs: [],
       createCalled: false,
       rawRequestStored: false,
@@ -1679,7 +1628,7 @@ export async function runMonitorProvisionReissuePlan({
     attemptPolicy: plan.attemptPolicy || {},
     existingMonitorStatus: plan.resolvedMonitor?.monitorId ? "monitor_id_already_present" : "not_found",
     blockerCodes: plan.blockers || [],
-    moduleRef: "src/workflows/skills/oe3/02-monitor-cycle.mjs",
+    moduleRef: "src/workflows/skills/oe3/02-monitor/cycle-policy.mjs",
     evidenceRefs: plan.evidenceArtifactId ? [plan.evidenceArtifactId] : [],
     plan,
     createCalled: false,
@@ -2013,11 +1962,11 @@ export async function runMonitorIdsReadonlyVerify({
   return output;
 }
 
-export async function runMonitorProvisionEnsure({
+async function runMonitorProvisionEnsure({
   repo,
   ownerKey = "",
   target = {},
-  env = process.env,
+  authorization = null,
   planOnly = false,
   jobId = "",
   planId = "",
@@ -2026,7 +1975,7 @@ export async function runMonitorProvisionEnsure({
 } = {}) {
   if (planOnly) return runMonitorProvisionPlanOnly({ repo, ownerKey, target, jobId, planId, fetchImpl });
   const provisionId = monitorProvisionId(target);
-  let actionConfirmation = monitorActionConfirmationState({ env, target, provisionId, action: "" });
+  let actionConfirmation = monitorPlanAuthorizationState({ authorization, target, provisionId, action: "" });
   let confirmationPresent = false;
   let confirmValuePresent = false;
   let provisionValuePresent = actionConfirmation.provisionValuePresent;
@@ -2094,21 +2043,23 @@ export async function runMonitorProvisionEnsure({
     latestRun: currentCycle,
     retryElapsedSeconds
   });
-  actionConfirmation = monitorActionConfirmationState({
-    env,
+  actionConfirmation = monitorPlanAuthorizationState({
+    authorization,
     target,
     provisionId,
+    cycleId,
+    attemptNo: attemptPolicy.nextAttemptNo,
     action: attemptPolicy.action
   });
   confirmValuePresent = actionConfirmation.actionValuePresent;
   provisionValuePresent = actionConfirmation.provisionValuePresent;
-  const createPlanHashValueProvided = clean(env[MONITOR_CREATE_PLAN_HASH_ENV]) !== "";
+  const createPlanHashValueProvided = actionConfirmation.createPlanHashValuePresent;
   const preliminaryConfirmationPresent = actionConfirmation.actionValuePresent &&
     actionConfirmation.scopeBindingsMatched &&
     createPlanHashValueProvided;
 
   const blockers = [];
-  if (!preliminaryConfirmationPresent) blockers.push("confirm_variable_missing_or_invalid");
+  if (!preliminaryConfirmationPresent) blockers.push("monitor_plan_authorization_missing_or_invalid");
   if (!effectiveOwnerKey) blockers.push("owner_key_missing_or_not_persisted");
   if (effectiveOwnerKey && credential.status !== "active") blockers.push(`credential_not_active:${credential.status}`);
   if (!readiness.readyForReadonlyReconcile) {
@@ -2193,7 +2144,7 @@ export async function runMonitorProvisionEnsure({
     return safe;
   }
 
-  const hardBlockers = blockers.filter((blocker) => blocker !== "confirm_variable_missing_or_invalid");
+  const hardBlockers = blockers.filter((blocker) => blocker !== "monitor_plan_authorization_missing_or_invalid");
   if (hardBlockers.length) {
     const output = {
       status: "blocked",
@@ -2366,10 +2317,12 @@ export async function runMonitorProvisionEnsure({
     createRequestHash = hashValue(createParams);
     manualContractComparison = manualSuccessContractComparison({ createParams });
     if (!monitor) blockers.push(...manualContractComparison.blockers);
-    actionConfirmation = monitorActionConfirmationState({
-      env,
+    actionConfirmation = monitorPlanAuthorizationState({
+      authorization,
       target,
       provisionId,
+      cycleId,
+      attemptNo: attemptPolicy.nextAttemptNo,
       createPlanHash: createRequestHash,
       action: attemptPolicy.action
     });
@@ -2378,8 +2331,8 @@ export async function runMonitorProvisionEnsure({
     provisionValuePresent = actionConfirmation.provisionValuePresent;
     if (!monitor && !confirmationPresent) {
       blockers.push(actionConfirmation.createPlanHashValuePresent
-        ? "confirm_variable_missing_or_invalid"
-        : "create_plan_hash_missing_or_invalid");
+        ? "monitor_plan_authorization_request_hash_mismatch"
+        : "monitor_create_request_hash_missing_or_invalid");
     }
   }
 
@@ -2703,6 +2656,13 @@ export async function runMonitorProvisionEnsure({
   return output;
 }
 
+// Only the Plan-bound executor imports this public bridge. The low-level writer
+// remains private to Node 02 and rejects any authorization that does not carry
+// the exact persisted Plan/confirmation/action-grant bindings.
+export async function executeMonitorBootstrapWithAuthorization(input = {}) {
+  return runMonitorProvisionEnsure(input);
+}
+
 export async function runMonitorProvisionFoundationStatus({
   repo,
   ownerKey = "",
@@ -2806,7 +2766,7 @@ export async function runMonitorProvisionFoundationStatus({
       error: attemptStateError
     },
     createAllowedInCurrentTask: false,
-    createConfirmationPresent: monitorEnsureConfirmed({ provisionId: monitorProvisionId(target) }),
+    createConfirmationPresent: false,
     allowedReadonlyEndpoints: [
       "POST /tf/account_info/accountIndex",
       "POST /tf/ad/index"
@@ -2820,7 +2780,7 @@ export async function runMonitorProvisionFoundationStatus({
   return safe;
 }
 
-export async function runMonitorProvisionCommand({
+async function runMonitorProvisionCommand({
   mode = "status",
   repo,
   ownerKey = "",

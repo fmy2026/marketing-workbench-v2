@@ -8,7 +8,7 @@ const cleanupJobIds = [];
 
 async function createDraft(sourceRecordRef) {
   const initial = await createJob(repo, {
-    user_intent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922175825993",
+    user_intent: "推广路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922434025472",
     source_usage: "test_run",
     source_record_ref: sourceRecordRef
   });
@@ -99,13 +99,13 @@ function assertInitialWorkflow(view) {
 }
 
 function expectedMonitorStatus(monitorChild) {
-  const priority = ["monitor-readback", "monitor-ensure", "monitor-plan", "monitor-query"];
+  const priority = ["monitor-readback", "monitor-execute-once", "monitor-plan-compile", "monitor-readonly-reconcile", "monitor-state-read"];
   const statuses = new Map((monitorChild?.trace?.skills || []).map((skill) => [
     skill.skillKey,
     skill.latestRun?.status
   ]));
   const latest = priority.map((key) => statuses.get(key)).find(Boolean) || "waiting";
-  const query = (monitorChild?.trace?.skills || []).find((skill) => skill.skillKey === "monitor-query")?.latestRun?.outputSummary || {};
+  const query = (monitorChild?.trace?.skills || []).find((skill) => skill.skillKey === "monitor-state-read")?.latestRun?.outputSummary || {};
   return query.latestRunStatus === "terminal_failed" ? "blocked" : latest;
 }
 

@@ -103,7 +103,7 @@ export function deterministicIntent({ message = "" } = {}) {
   if (["继续", "继续执行", "下一步", "继续流程", "开始执行"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "continue_workflow", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
-  if (["确认创建", "确认创建项目"].includes(command)) {
+  if (["确认创建", "确认创建项目", "确认创建monitor"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_confirmation", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (/^(状态|当前状态|查看状态|进度|卡点|查看卡点)$/.test(command)) {
@@ -205,5 +205,5 @@ export async function resolveConversationIntent({ message = "", jobView = {}, re
 }
 
 export function isExplicitCreateConfirmation(message = "") {
-  return ["确认创建", "确认创建项目"].includes(normalizedCommand(message));
+  return ["确认创建", "确认创建项目", "确认创建monitor"].includes(normalizedCommand(message));
 }

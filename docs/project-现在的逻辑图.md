@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-08-31 18:20 CST |
-| 校验基线 | Git `592c5b2`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `061_case_gate_monitor_dependency_priority.sql`；Postgres `mwb`：33 张基础表、4 个 View |
+| 最后更新时间 | 2026-08-31 19:20 CST |
+| 校验基线 | Git `9d52b89` + 当前 Monitor 单轨 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `064_monitor_bootstrap_plan_gate.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -64,6 +64,21 @@ Case
 | 创建执行 | 07 `readback_closer` | 创建对象和 Draft | 权威回查与证据 | 不补发 create 修复 |
 
 运行模式由 runner 决定：`dry_run` 与 `draft_readiness` 不真实写入；`planned_actions` 仅限明确计划动作；`execute_once` 只能消费冻结且已确认的 Plan；`readback_only` 绝不创建。
+
+### Node 02 Monitor 单轨 Bootstrap
+
+```text
+v_monitor_readiness（唯一状态读取）
+→ fresh readonly reconcile
+→ monitor_bootstrap Plan（仅 ensure_monitor）
+→ 精确 Plan ID/hash 的独立“确认创建 monitor”
+→ Guardrail + confirmation + action grant
+→ fresh readonly 查重 → atomic claim → 单次创建 → 权威回查
+→ 脱敏证据与触点落账
+→ 下一次继续执行创建 fresh runtime Job，进入正常 01–07
+```
+
+`monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
 
 ## 3. Node 04：资源状态与准备边界
 
@@ -127,6 +142,8 @@ launch_confirmations 的同一 plan_id + plan_hash 确认
 plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 attempt 校验
 ```
 
+`plan_kind` 只允许 `monitor_bootstrap`、`resource_prepare`、`std_project_create`、`readiness_blocked`。`monitor_bootstrap` 的 Draft/payload 为空、最大平台调用为 1、`retry_allowed=false`，且不得混入资源或广告项目动作。
+
 | 场景 | 行为 |
 | --- | --- |
 | 确认前 | fresh readonly 可生成新 Plan；旧版失效 |
@@ -160,7 +177,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡
-→ 仅精确“确认创建”且 plan_id + plan_hash 未漂移时，才进入既有执行器
+→ 仅精确“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 ```
 
 Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择平台动作、不扩大 Guardrail。对话、前端、API、CLI 和任务卡均不得持久化 raw transcript 或自行推导下一步。工作台只把 blocker code 映射为展示文案；Gate 与 suggested action 仍只来自 View。

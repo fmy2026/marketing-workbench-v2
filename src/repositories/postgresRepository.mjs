@@ -202,6 +202,31 @@ export class PostgresRepository {
           ORDER BY v.updated_at DESC
           LIMIT 1
         ),
+        'monitorReadiness', (
+          SELECT jsonb_build_object(
+            'readiness_status', mr.readiness_status,
+            'monitor_ready', mr.monitor_ready,
+            'monitor_id_present', mr.monitor_id_present,
+            'touchpoint_ref_present', mr.touchpoint_ref_present,
+            'touchpoint_url_present', mr.touchpoint_url_present,
+            'readback_verified', mr.readback_verified,
+            'actionable_blocker_code', mr.actionable_blocker_code,
+            'diagnostic_codes', mr.diagnostic_codes,
+            'suggested_action', mr.suggested_action,
+            'provision_id', mr.provision_id,
+            'cycle_id', mr.cycle_id,
+            'cycle_no', mr.cycle_no,
+            'cycle_status', mr.cycle_status,
+            'attempt_count', mr.attempt_count,
+            'evidence_artifact_id', mr.evidence_artifact_id,
+            'updated_at', mr.updated_at
+          )
+          FROM mwb.v_monitor_readiness mr
+          WHERE mr.route_id = r.route_id
+            AND mr.game_code = g.game_code
+            AND mr.advertiser_id = a.advertiser_id
+          LIMIT 1
+        ),
         'defaults', (
           SELECT to_jsonb(d)
           FROM mwb.game_route_defaults d
@@ -630,6 +655,31 @@ export class PostgresRepository {
             AND v.game_code = j.game_code
             AND v.advertiser_id = j.advertiser_id
           ORDER BY v.updated_at DESC
+          LIMIT 1
+        ),
+        'monitorReadiness', (
+          SELECT jsonb_build_object(
+            'readiness_status', mr.readiness_status,
+            'monitor_ready', mr.monitor_ready,
+            'monitor_id_present', mr.monitor_id_present,
+            'touchpoint_ref_present', mr.touchpoint_ref_present,
+            'touchpoint_url_present', mr.touchpoint_url_present,
+            'readback_verified', mr.readback_verified,
+            'actionable_blocker_code', mr.actionable_blocker_code,
+            'diagnostic_codes', mr.diagnostic_codes,
+            'suggested_action', mr.suggested_action,
+            'provision_id', mr.provision_id,
+            'cycle_id', mr.cycle_id,
+            'cycle_no', mr.cycle_no,
+            'cycle_status', mr.cycle_status,
+            'attempt_count', mr.attempt_count,
+            'evidence_artifact_id', mr.evidence_artifact_id,
+            'updated_at', mr.updated_at
+          )
+          FROM mwb.v_monitor_readiness mr
+          WHERE mr.route_id = j.route_id
+            AND mr.game_code = j.game_code
+            AND mr.advertiser_id = j.advertiser_id
           LIMIT 1
         ),
         'defaults', (
@@ -1798,6 +1848,20 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getMonitorReadiness({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    return queryJson(`
+      SELECT to_jsonb(v)::text
+      FROM mwb.v_monitor_readiness v
+      WHERE v.route_id = ${sqlLiteral(routeId)}
+        AND v.game_code = ${sqlLiteral(gameCode)}
+        AND v.advertiser_id = ${sqlLiteral(advertiserId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
   async getMonitorProvisionBlockerReport({ provisionId = "" } = {}) {
     const filters = [
       "coalesce(cycle_status, '') <> 'resolved'",
@@ -2421,6 +2485,7 @@ export class PostgresRepository {
           plan_id,
           job_id,
           plan_version,
+          plan_kind,
           plan_status,
           plan_hash,
           planned_actions,
@@ -2436,6 +2501,7 @@ export class PostgresRepository {
           ${sqlLiteral(plan.planId)},
           ${sqlLiteral(plan.jobId)},
           ${Number(plan.planVersion || 1)},
+          ${sqlLiteral(plan.planKind || plan.plan_kind || "readiness_blocked")},
           ${sqlLiteral(plan.planStatus)},
           ${sqlLiteral(plan.planHash)},
           ${sqlJson(plan.plannedActions || [])},
@@ -2449,6 +2515,7 @@ export class PostgresRepository {
         FROM stale_barrier
         WHERE NOT EXISTS (SELECT 1 FROM confirmed)
         ON CONFLICT (job_id, plan_version) DO UPDATE SET
+          plan_kind = EXCLUDED.plan_kind,
           plan_status = EXCLUDED.plan_status,
           plan_hash = EXCLUDED.plan_hash,
           planned_actions = EXCLUDED.planned_actions,

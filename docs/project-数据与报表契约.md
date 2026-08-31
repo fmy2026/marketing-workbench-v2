@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-08-31 18:20 CST |
-| 校验基线 | Git `592c5b2`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `061_case_gate_monitor_dependency_priority.sql`；Postgres `mwb`：33 张基础表、4 个 View |
+| 最后更新时间 | 2026-08-31 19:20 CST |
+| 校验基线 | Git `9d52b89` + 当前 Monitor 单轨 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `064_monitor_bootstrap_plan_gate.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -30,7 +30,7 @@ L5 授权、外部动作与回查证据
   Execution Plan / confirmation / action / object / readback / evidence
         ↓
 L6 当前运营状态只读投影
-  workflow_case_summary + 3 个专项 readiness / monitor View
+workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 ```
 
 ## 2. 基础表契约（33 张）
@@ -50,7 +50,7 @@ L6 当前运营状态只读投影
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation | Plan 编译与显式确认 | 执行 scope、Case summary |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked | Plan 编译与显式确认 | 执行 scope、Case summary |
 |  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -72,11 +72,12 @@ route_id + game_code
 - `source_usage` 用于区分真实运行、测试和种子来源；`test_run` 必须由 smoke/CLI 清理，不能作为业务报表事实。
 - 所有平台长数字 ID 按字符串存储与比较；摘要 JSON 只保存脱敏状态、hash、必要 ID 和证据引用。
 
-## 3. 只读 View 与报表边界（4 个）
+## 3. 只读 View 与报表边界（5 个）
 
 | View | 行粒度 | 输入 | 核心输出 | 消费者 | 禁止 |
 | --- | --- | --- | --- | --- | --- |
 | `workflow_case_summary` | 一个 `workflow_case` 的当前状态 | Case、最新 Job/Node/Skill、账户资源/触点、Plan/confirmation/action/object/readback | 当前 Gate、唯一 root blocker、建议动作、节点/资源摘要、动作回查状态 | UI、API、CLI、任务卡、Gate Action Policy | 写回 Case/Job/资源；自行推导 next gate |
+| `v_monitor_readiness` | route×game×advertiser | 最新 monitor cycle、受控触点、脱敏 readonly evidence | `monitor_ready`、readiness status、唯一 actionable blocker、诊断集合和建议动作 | Node 02、Plan、Case summary、API/UI | 直接创建 monitor、把历史诊断当作当前 blocker |
 | `v_monitor_provision_status_report` | 一个 monitor provision cycle | monitor run/attempt、账户、触点、路线默认值 | cycle、attempt、账户/触点、脱敏回查与错误摘要 | Node 02、人工诊断 | 创建 monitor、写回触点或运行状态 |
 | `v_monitor_provision_blocker_report` | 一个 monitor provision blocker | monitor run/attempt | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
 | `v_advertiser_aweme_authorization_readiness` | 一个 route×game×advertiser 授权就绪状态 | advertiser account 的脱敏抖音授权关系 | ready、blocker、next action、脱敏探测证据 | Node 04、Node 05 | 替代 fresh readonly 或修改授权 |
@@ -115,4 +116,4 @@ route_id + game_code
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
 | 授权 | `project.state.json` 只给全局 Guardrail；真实写入还须匹配当前 Plan、confirmation、action grant 与调用上限 |
 
-投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 4 个 View 是运营流程就绪状态投影，不是投放效果报表，也不是自动策略的唯一输入。
+投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 5 个 View 是运营流程就绪状态投影，不是投放效果报表，也不是自动策略的唯一输入。

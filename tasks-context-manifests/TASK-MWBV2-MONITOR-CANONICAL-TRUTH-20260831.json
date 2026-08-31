@@ -1,0 +1,58 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-MONITOR-CANONICAL-TRUTH-20260831",
+  "task_ref": "tasks/TASK-MWBV2-MONITOR-CANONICAL-TRUTH-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "updated_at": "2026-08-31 18:48 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的 V2 Monitor 单轨机制修复与收敛方案",
+    "objective": "Create canonical monitor readiness truth and correct Case Gate projection without platform writes.",
+    "current_truth": "Resolved monitor cycles currently leak policy diagnostics into v_monitor_provision_blocker_report and workflow_case_summary.",
+    "stop_condition": "No platform write is authorized by this task."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MONITOR-CANONICAL-TRUTH-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-MONITOR-CANONICAL-TRUTH-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/029_monitor_provision_cycles.sql",
+    "db/061_case_gate_monitor_dependency_priority.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, task/manifest and current mechanism documentation",
+    "idempotent Postgres view migration",
+    "repository, workflow, UI and focused tests"
+  ],
+  "forbidden_actions": [
+    "monitor create or retry",
+    "resource or std_project platform write",
+    "token refresh",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "test:workflow-case",
+    "test:workbench-conversation",
+    "smoke:api",
+    "validate:schemas",
+    "focused monitor truth smoke",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "Any change would invoke a real platform write.",
+    "Historical monitor attempts or error evidence would need deletion or mutation."
+  ],
+  "result": {
+    "status": "completed_without_platform_write",
+    "migration": "db/062_monitor_canonical_readiness.sql",
+    "verified_accounts": ["1871922346964041", "1871922414575753", "1871922434025472"],
+    "validation": ["test:workflow-case", "test:workbench-conversation", "smoke:api", "validate:schemas", "git diff --check"]
+  }
+}

@@ -35,6 +35,10 @@ import {
 export const EXECUTION_PLAN_VERSION = 1;
 export const ACTION_ENSURE_MONITOR = "ensure_monitor";
 export const ACTION_STD_PROJECT_CREATE = "std_project_create";
+export const PLAN_KIND_MONITOR_BOOTSTRAP = "monitor_bootstrap";
+export const PLAN_KIND_RESOURCE_PREPARE = "resource_prepare";
+export const PLAN_KIND_STD_PROJECT_CREATE = "std_project_create";
+export const PLAN_KIND_READINESS_BLOCKED = "readiness_blocked";
 
 const SINGLE_VARIABLE_CANDIDATE_RULES = Object.freeze({
   "audience.filter_event": Object.freeze({
@@ -97,6 +101,65 @@ function stablePlanInput({
     ...(Object.keys(singleVariableExperiment).length ? { single_variable_experiment: singleVariableExperiment } : {}),
     planned_actions: plannedActions.map(compactAction),
     blocker_codes: blockerCodes
+  };
+}
+
+function planKindForActions(plannedActions = []) {
+  const actionTypes = new Set(plannedActions.map((action) => action.action_type));
+  if (actionTypes.has(ACTION_STD_PROJECT_CREATE)) return PLAN_KIND_STD_PROJECT_CREATE;
+  if (actionTypes.size > 0) return PLAN_KIND_RESOURCE_PREPARE;
+  return PLAN_KIND_READINESS_BLOCKED;
+}
+
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
+function monitorBootstrapPlanId(jobId, planVersion) {
+  return `PLAN-${jobId}-MONITOR-V${Number(planVersion)}`;
+}
+
+function monitorContractForPlan(bundle = {}, contract = {}) {
+  const target = contract.target || {};
+  const readiness = bundle.monitorReadiness || {};
+  const job = bundle.job || {};
+  const provisionId = clean(contract.provisionId || contract.provision_id || readiness.provision_id);
+  const cycleId = clean(contract.cycleId || contract.cycle_id || readiness.cycle_id);
+  const cycleNo = Number(contract.cycleNo || contract.cycle_no || readiness.cycle_no || 0);
+  const attemptNo = Number(contract.attemptNo || contract.attempt_no || 0);
+  const createRequestHash = clean(contract.createRequestHash || contract.create_request_hash);
+  const configContractHash = clean(contract.configContractHash || contract.config_contract_hash);
+  const readonlyEvidenceRef = clean(contract.readonlyEvidenceRef || contract.readonly_evidence_ref || readiness.evidence_artifact_id);
+  const readinessStatus = clean(readiness.readiness_status);
+  const blockers = [
+    ...(job.job_id ? [] : ["job_id_required"]),
+    ...(job.case_id ? [] : ["monitor_bootstrap_case_id_required"]),
+    ...(target.routeId && target.routeId !== job.route_id ? ["monitor_contract_route_mismatch"] : []),
+    ...(target.gameCode && target.gameCode !== job.game_code ? ["monitor_contract_game_mismatch"] : []),
+    ...(target.advertiserId && target.advertiserId !== job.advertiser_id ? ["monitor_contract_advertiser_mismatch"] : []),
+    ...(provisionId ? [] : ["monitor_provision_id_missing"]),
+    ...(cycleId && cycleNo > 0 ? [] : ["monitor_cycle_missing"]),
+    ...(attemptNo > 0 && attemptNo <= 2 ? [] : ["monitor_attempt_not_plan_eligible"]),
+    ...(createRequestHash.startsWith("sha256:") ? [] : ["monitor_create_request_hash_missing"]),
+    ...(configContractHash.startsWith("sha256:") ? [] : ["monitor_config_contract_hash_missing"]),
+    ...(readonlyEvidenceRef ? [] : ["monitor_readonly_evidence_missing"]),
+    ...(readinessStatus === "needs_plan" ? [] : ["monitor_readiness_not_plan_eligible"])
+  ];
+  return {
+    target: {
+      routeId: job.route_id,
+      gameCode: job.game_code,
+      advertiserId: job.advertiser_id
+    },
+    provisionId,
+    cycleId,
+    cycleNo,
+    attemptNo,
+    createRequestHash,
+    configContractHash,
+    readonlyEvidenceRef,
+    readinessStatus,
+    blockers
   };
 }
 
@@ -379,12 +442,19 @@ function actionKey(jobId, actionType, suffix = "") {
 }
 
 function monitorPresent(bundle = {}) {
-  return Boolean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id);
+  return bundle.monitorReadiness?.monitor_ready === true ||
+    Boolean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id);
 }
 
 function monitorBlocker(bundle = {}) {
   if (monitorPresent(bundle)) return "";
-  return String(bundle.monitorProvision?.blocker || "").trim() || "monitor_prepare_not_in_formal_executor_registry";
+  if (clean(bundle.monitorReadiness?.actionable_blocker_code)) {
+    return clean(bundle.monitorReadiness.actionable_blocker_code);
+  }
+  if (["needs_readonly", "needs_touchpoint_readback"].includes(clean(bundle.monitorReadiness?.readiness_status))) {
+    return "monitor_readonly_reconcile_required";
+  }
+  return String(bundle.monitorProvision?.blocker || "").trim() || "monitor_readiness_contract_missing";
 }
 
 function resourceReady(resource = {}) {
@@ -589,6 +659,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
     planId: planId(job.job_id, planVersion),
     jobId: job.job_id,
     planVersion,
+    planKind: planKindForActions(plannedActions),
     planStatus,
     planHash,
     plannedActions,
@@ -602,6 +673,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
       game_code: job.game_code,
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs",
+      plan_kind: planKindForActions(plannedActions),
       create_attempt_no: numericAttemptNo,
       maximum_create_attempts: numericMaximumAttempts,
       confirmation_model: "one_plan_one_confirmation_many_bounded_actions",
@@ -730,6 +802,7 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
     planId: targetPlanId,
     jobId: job.job_id,
     planVersion,
+    planKind: PLAN_KIND_RESOURCE_PREPARE,
     planStatus: uniqueBlockers.length ? "blocked" : "ready",
     planHash,
     plannedActions,
@@ -743,6 +816,7 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
       game_code: job.game_code,
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs#buildSingleResourceExecutionPlanFromBundle",
+      plan_kind: PLAN_KIND_RESOURCE_PREPARE,
       confirmation_model: "one_plan_one_confirmation_single_bounded_resource_action",
       planning_intent: effectivePlanningIntent,
       remediation_scope: {
@@ -786,6 +860,152 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
   };
   assertNoSensitiveLeak(plan);
   return plan;
+}
+
+// This compiler is deliberately pure. A fresh readonly reconcile is responsible
+// for producing the redacted, account-bound monitor contract consumed here; the
+// compiler must never query the platform or create a monitor as a side effect.
+export function buildMonitorBootstrapExecutionPlanFromBundle(bundle = {}, {
+  planVersion = EXECUTION_PLAN_VERSION,
+  monitorContract = {},
+  planningIntent = {}
+} = {}) {
+  const job = bundle.job || {};
+  if (!job.job_id) throw new Error("job_id_required");
+  const contract = monitorContractForPlan(bundle, monitorContract);
+  const targetPlanId = monitorBootstrapPlanId(job.job_id, planVersion);
+  const blockerCodes = [...new Set(contract.blockers)].filter(Boolean);
+  const plannedActions = blockerCodes.length ? [] : [{
+    action_type: ACTION_ENSURE_MONITOR,
+    target_ref: `monitor:${contract.provisionId}:cycle:${contract.cycleId}`,
+    idempotency_key: actionKey(job.job_id, ACTION_ENSURE_MONITOR, `${contract.cycleNo}-${contract.attemptNo}`),
+    status: "ready",
+    module_ref: "src/workflows/skills/oe3/02-monitor/executor.mjs",
+    depends_on: ["monitor-readonly-reconcile"],
+    writes_to: ["platform_actions", "monitor_provision_attempts", "monitor_provision_runs", "account_touchpoints", "evidence_artifacts"],
+    reason: "single_confirmed_monitor_bootstrap",
+    maximum_platform_calls: 1
+  }];
+  const effectivePlanningIntent = Object.keys(planningIntent || {}).length ? planningIntent : {
+    mode: PLAN_KIND_MONITOR_BOOTSTRAP,
+    no_resource_prepare: true,
+    no_std_project_create: true
+  };
+  const monitorMetadata = {
+    provision_id: contract.provisionId,
+    cycle_id: contract.cycleId,
+    cycle_no: contract.cycleNo,
+    attempt_no: contract.attemptNo,
+    create_request_hash: contract.createRequestHash,
+    config_contract_hash: contract.configContractHash,
+    readonly_evidence_ref: contract.readonlyEvidenceRef,
+    readiness_status: contract.readinessStatus
+  };
+  const planHash = hashValue({
+    plan_kind: PLAN_KIND_MONITOR_BOOTSTRAP,
+    job_id: job.job_id,
+    case_id: job.case_id || "",
+    route_id: job.route_id,
+    game_code: job.game_code,
+    advertiser_id: job.advertiser_id,
+    monitor: monitorMetadata,
+    planning_intent: effectivePlanningIntent,
+    planned_actions: plannedActions.map(compactAction),
+    blocker_codes: blockerCodes
+  });
+  const plan = {
+    planId: targetPlanId,
+    jobId: job.job_id,
+    planVersion,
+    planKind: PLAN_KIND_MONITOR_BOOTSTRAP,
+    planStatus: blockerCodes.length ? "blocked" : "ready",
+    planHash,
+    plannedActions,
+    blockerCodes,
+    draftId: "",
+    payloadHash: "",
+    sourceUsage: job.source_usage || "runtime_truth",
+    metadata: {
+      case_id: job.case_id || "",
+      route_id: job.route_id,
+      game_code: job.game_code,
+      object_type: job.object_type,
+      plan_kind: PLAN_KIND_MONITOR_BOOTSTRAP,
+      compiler: "src/workflows/executionPlan.mjs#buildMonitorBootstrapExecutionPlanFromBundle",
+      confirmation_model: "one_plan_one_confirmation_single_monitor_bootstrap",
+      planning_intent: effectivePlanningIntent,
+      monitor_bootstrap: monitorMetadata,
+      execution_scope: {
+        binding_mode: "single_confirmation_plan",
+        target_job_id: job.job_id,
+        target_advertiser_id: job.advertiser_id,
+        target_plan_id: targetPlanId,
+        target_plan_hash: planHash,
+        allowed_actions: plannedActions.map((action) => action.action_type),
+        allowed_plan_actions: plannedActions.map((action) => action.action_type),
+        maximum_actions: plannedActions.length,
+        maximum_platform_calls: 1,
+        maximum_create_calls: 0,
+        retry_allowed: false,
+        action_grants: {
+          [ACTION_ENSURE_MONITOR]: {
+            maximum_platform_calls: 1,
+            retry_allowed: false,
+            target_ref: plannedActions[0]?.target_ref || "",
+            create_request_hash: contract.createRequestHash,
+            config_contract_hash: contract.configContractHash,
+            payload_persisted: false,
+            response_persisted: false
+          }
+        }
+      },
+      root_blocker_codes: blockerCodes.slice(0, 1),
+      unique_root_blocker: blockerCodes[0] || "",
+      real_platform_write_called: false,
+      payload_persisted: false,
+      response_persisted: false
+    }
+  };
+  assertNoSensitiveLeak(plan);
+  return plan;
+}
+
+export async function compileAndSaveMonitorBootstrapExecutionPlan({
+  repo,
+  jobId,
+  bundleOverride,
+  planVersion = null,
+  monitorContract,
+  expectedPlanId = "",
+  expectedPlanHash = "",
+  planningIntent = null
+} = {}) {
+  if (!repo) throw new Error("repo_required");
+  if (!jobId && !bundleOverride?.job?.job_id) throw new Error("job_id_required");
+  const bundle = bundleOverride || await repo.getLaunchJobBundle(jobId);
+  if (!bundle) throw new Error("job_not_found");
+  const latest = typeof repo.getLatestLaunchExecutionPlan === "function"
+    ? await repo.getLatestLaunchExecutionPlan(bundle.job.job_id)
+    : null;
+  const effectivePlanVersion = Number(planVersion || Number(latest?.plan_version || latest?.planVersion || 0) + 1 || 1);
+  const targetPlanId = monitorBootstrapPlanId(bundle.job.job_id, effectivePlanVersion);
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(targetPlanId)
+    : null;
+  if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
+    throw new Error("confirmed_execution_plan_immutable");
+  }
+  const plan = buildMonitorBootstrapExecutionPlanFromBundle(bundle, {
+    planVersion: effectivePlanVersion,
+    monitorContract,
+    planningIntent: planningIntent || {}
+  });
+  if (expectedPlanId && plan.planId !== expectedPlanId) throw new Error("confirmed_plan_id_drift");
+  if (expectedPlanHash && plan.planHash !== expectedPlanHash) throw new Error("confirmed_plan_hash_drift");
+  await repo.upsertLaunchExecutionPlan(plan);
+  const stored = await repo.getLaunchExecutionPlan(plan.planId);
+  assertNoSensitiveLeak(stored || plan);
+  return { plan, stored };
 }
 
 export async function compileAndSaveSingleResourceExecutionPlan({
@@ -897,6 +1117,7 @@ export function buildEventConfigsExecutionPlanFromBundle(bundle = {}, {
     planId: targetPlanId,
     jobId: job.job_id,
     planVersion,
+    planKind: PLAN_KIND_RESOURCE_PREPARE,
     planStatus: uniqueBlockers.length ? "blocked" : "ready",
     planHash,
     plannedActions,
@@ -910,6 +1131,7 @@ export function buildEventConfigsExecutionPlanFromBundle(bundle = {}, {
       game_code: job.game_code,
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs#buildEventConfigsExecutionPlanFromBundle",
+      plan_kind: PLAN_KIND_RESOURCE_PREPARE,
       confirmation_model: "one_plan_one_confirmation_single_bounded_event_config_action",
       planning_intent: effectivePlanningIntent,
       event_config_provision: provision.outputSummary || {},

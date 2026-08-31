@@ -501,13 +501,9 @@ function childStatus({ descriptor, node, bundle, executionAvailability }) {
   const nodeFallback = publicWorkflowStatus(node.status, "waiting");
   if (source.kind === "node_status") return nodeFallback;
   if (descriptor.id === "monitor") {
-    const monitor = bundle.monitorProvision || {};
-    const monitorResolved = Boolean(bundle.account?.monitor_id || bundle.touchpoint?.monitor_id) &&
-      bundle.touchpoint?.touchpoint_url_present === true;
-    if (monitorResolved) return "passed";
-    if (monitor.provision_status === "terminal_failed" || monitor.blocker) return "blocked";
-    const latestMonitorRun = latestSkillRun(bundle.skillRuns || [], source.skillKeys || []);
-    if (latestMonitorRun?.output_summary?.latestRunStatus === "terminal_failed") return "blocked";
+    const readiness = bundle.monitorReadiness || {};
+    if (readiness.monitor_ready === true) return "passed";
+    if (readiness.actionable_blocker_code) return "blocked";
     return nodeFallback;
   }
   if (source.kind === "latest_skill") {
@@ -603,6 +599,11 @@ function rootBlockerPresentation(code = "") {
       title: "缺少 monitor ID",
       reason: "创建上下文未获得目标账户的 monitor。",
       nextActionLabel: "执行 monitor 只读核验或进入受控 monitor 专项流程。"
+    },
+    monitor_readonly_reconcile_required: {
+      title: "需要刷新 monitor 只读状态",
+      reason: "当前账户缺少可验证的 monitor 回查证据。",
+      nextActionLabel: "执行一次 fresh readonly monitor 回查。"
     },
     touchpoint_url_missing: {
       title: "缺少触点",

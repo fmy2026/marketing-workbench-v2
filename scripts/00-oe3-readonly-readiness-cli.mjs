@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
-import { runMonitorProvisionCommand } from "../src/workflows/skills/oe3/02-monitor-provision.mjs";
+import { runMonitorProvisionReadonlyReconcile } from "../src/workflows/skills/oe3/02-monitor/index.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { runOe3WorkflowSkills } from "../src/workflows/skills/oe3/00-runner.mjs";
 
@@ -264,8 +264,7 @@ export async function runReadonlyReadiness({ repo = new PostgresRepository(), ar
     gameCode: job.bundle.job.game_code,
     advertiserId: job.bundle.job.advertiser_id
   };
-  const monitorPreflight = await runMonitorProvisionCommand({
-    mode: "plan",
+  const monitorPreflight = await runMonitorProvisionReadonlyReconcile({
     repo,
     target,
     jobId: job.jobId

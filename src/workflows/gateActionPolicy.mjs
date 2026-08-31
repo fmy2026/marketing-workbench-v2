@@ -1,4 +1,4 @@
-import { ACTION_STD_PROJECT_CREATE } from "./executionPlan.mjs";
+import { ACTION_ENSURE_MONITOR, ACTION_STD_PROJECT_CREATE, PLAN_KIND_MONITOR_BOOTSTRAP } from "./executionPlan.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -24,17 +24,27 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   const actionTypes = actions.map(actionType).filter(Boolean);
   const isSingleCreatePlan = plan.plan_status === "ready" &&
     actionTypes.length === 1 && actionTypes[0] === ACTION_STD_PROJECT_CREATE;
-  if (gate !== "await_job_write_authorization" || !isSingleCreatePlan) return null;
+  const isMonitorBootstrapPlan = plan.plan_status === "ready" &&
+    clean(plan.plan_kind || metadata.plan_kind) === PLAN_KIND_MONITOR_BOOTSTRAP &&
+    actionTypes.length === 1 && actionTypes[0] === ACTION_ENSURE_MONITOR;
+  if (gate !== "await_job_write_authorization" || (!isSingleCreatePlan && !isMonitorBootstrapPlan)) return null;
+  const monitor = metadata.monitor_bootstrap || {};
   return {
     status: "confirmation_required",
-    actionLabel: "创建 1 个广告项目",
-    projectName: clean(metadata.planning_intent?.project_name || bundle.draft?.project_name),
+    planKind: isMonitorBootstrapPlan ? PLAN_KIND_MONITOR_BOOTSTRAP : "std_project_create",
+    actionLabel: isMonitorBootstrapPlan ? "确认创建 monitor" : "创建 1 个广告项目",
+    projectName: isMonitorBootstrapPlan ? "" : clean(metadata.planning_intent?.project_name || bundle.draft?.project_name),
     advertiser: maskIdentifier(bundle.job?.advertiser_id),
     actions: actionTypes,
     maximumPlatformCalls: Number(scope.maximum_platform_calls || scope.maximum_actions || 1),
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),
-    planHash: clean(plan.plan_hash)
+    planHash: clean(plan.plan_hash),
+    ...(isMonitorBootstrapPlan ? {
+      cycle: clean(monitor.cycle_id),
+      attemptNo: Number(monitor.attempt_no || 0),
+      confirmationPhrase: "确认创建 monitor"
+    } : { confirmationPhrase: "确认创建" })
   };
 }
 
@@ -60,14 +70,18 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
   }
   if (intent.intent === "request_confirmation") {
     if (!explicitConfirmation) {
-      return { ...base, effect: "confirmation_phrase_required", confirmationPreview, message: "如确认创建，请核对确认卡后点击“确认创建”或输入完整短语“确认创建”。" };
+      const phrase = confirmationPreview?.confirmationPhrase || "确认创建";
+      return { ...base, effect: "confirmation_phrase_required", confirmationPreview, message: `如确认，请核对确认卡后输入完整短语“${phrase}”。` };
     }
     if (currentGate !== "await_job_write_authorization" || !confirmationPreview) {
       return { ...base, effect: "confirmation_unavailable", message: "当前没有可确认的单次创建 Plan。" };
     }
-    return { ...base, effect: "execute_confirmed_plan", confirmationPreview, message: "已收到精确创建确认，正在执行既有单次确认链路。" };
+    return { ...base, effect: "execute_confirmed_plan", confirmationPreview, message: confirmationPreview.planKind === PLAN_KIND_MONITOR_BOOTSTRAP ? "已收到 monitor 的精确单次确认，正在执行既有 Plan-bound 链路。" : "已收到精确创建确认，正在执行既有单次确认链路。" };
   }
   if (intent.intent === "continue_workflow") {
+    if (currentGate === "run_monitor_readonly") {
+      return { ...base, effect: "run_monitor_readonly", message: "将执行 fresh readonly monitor 回查，不会创建 monitor。" };
+    }
     if (currentGate === "run_fresh_readiness") {
       return { ...base, effect: "run_dry_run", message: "将继续执行只读就绪检查。" };
     }
@@ -76,7 +90,8 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     if (currentGate === "await_job_write_authorization") {
       if (confirmationPreview) {
-        return { ...base, effect: "confirmation_required", confirmationPreview, message: "只读检查已完成。请核对以下单次创建确认卡；“继续执行”不会直接写入平台。" };
+        const label = confirmationPreview.planKind === PLAN_KIND_MONITOR_BOOTSTRAP ? "monitor" : "广告项目";
+        return { ...base, effect: "confirmation_required", confirmationPreview, message: `只读检查已完成。请核对以下单次 ${label} 确认卡；“继续执行”不会直接写入平台。` };
       }
       return { ...base, effect: "manual_confirmation_required", message: "当前 Plan 需要受控授权，但该动作暂不支持在工作台对话中执行。" };
     }

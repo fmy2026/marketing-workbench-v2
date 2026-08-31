@@ -5,6 +5,9 @@ import {
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirmedLaunch.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
 import { getJobView, runJob } from "./launchWorkflow.mjs";
+import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
+import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
+import { PLAN_KIND_MONITOR_BOOTSTRAP } from "./executionPlan.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -74,6 +77,20 @@ export async function handleWorkbenchCommand({
     const nextView = await runJob(repo, jobId, { mode: "readback_only", projectStatePath });
     return response({ view: nextView, interaction: { ...interaction, message: "只读回查已完成。" } });
   }
+  if (interaction.effect === "run_monitor_readonly") {
+    await runMonitorProvisionReadonlyReconcile({
+      repo,
+      target: {
+        routeId: bundle.job.route_id,
+        gameCode: bundle.job.game_code,
+        advertiserId: bundle.job.advertiser_id
+      },
+      jobId,
+      fetchImpl: fetchImpl || globalThis.fetch
+    });
+    const nextView = await getJobView(repo, jobId, { projectStatePath });
+    return response({ view: nextView, interaction: { ...interaction, message: "fresh readonly monitor 回查已完成。" } });
+  }
   if (interaction.effect !== "execute_confirmed_plan") return response({ view, interaction });
 
   const contextBlockers = confirmationContextMatches(confirmationPreview, { expectedPlanId, expectedPlanHash });
@@ -89,25 +106,39 @@ export async function handleWorkbenchCommand({
       }
     });
   }
-  const executed = await executeConfirmedLaunch({
-    repo,
-    jobId,
-    grantSource: "workbench_conversation",
-    executionIntent: EXECUTION_GRANT_INTENT,
-    expectedPlanId,
-    expectedPlanHash,
-    projectStatePath,
-    fetchImpl
-  });
-  const executionBlocked = executed.executionGrant?.status === "blocked";
+  const isMonitorBootstrap = confirmationPreview.planKind === PLAN_KIND_MONITOR_BOOTSTRAP;
+  const executed = isMonitorBootstrap
+    ? await executeConfirmedMonitorBootstrap({
+      repo,
+      jobId,
+      grantSource: "workbench_conversation",
+      expectedPlanId,
+      expectedPlanHash,
+      projectStatePath,
+      fetchImpl
+    })
+    : await executeConfirmedLaunch({
+      repo,
+      jobId,
+      grantSource: "workbench_conversation",
+      executionIntent: EXECUTION_GRANT_INTENT,
+      expectedPlanId,
+      expectedPlanHash,
+      projectStatePath,
+      fetchImpl
+    });
+  const executionBlocked = isMonitorBootstrap
+    ? executed.status === "blocked"
+    : executed.executionGrant?.status === "blocked";
+  const nextView = isMonitorBootstrap ? await getJobView(repo, jobId, { projectStatePath }) : executed;
   return response({
-    view: executed,
+    view: nextView,
     interaction: {
       ...interaction,
       effect: executionBlocked ? "execution_blocked" : "execution_completed",
       message: executionBlocked
-        ? `未执行平台创建：${executed.executionGrant?.blockers?.[0] || "当前确认 Gate 未通过"}。`
-        : "单次创建已提交，并已进入只读回查。"
+        ? `未执行平台创建：${(isMonitorBootstrap ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "当前确认 Gate 未通过"}。`
+        : isMonitorBootstrap ? "monitor 已按单次 Plan 执行并完成只读回查。" : "单次创建已提交，并已进入只读回查。"
     }
   });
 }

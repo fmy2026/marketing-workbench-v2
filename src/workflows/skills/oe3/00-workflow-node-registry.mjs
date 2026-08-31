@@ -142,7 +142,7 @@ export const WORKFLOW_NODES = Object.freeze([
     children: Object.freeze([
       child("account-status", "账户状态", { kind: "latest_skill", skillKeys: ["context-resolve-account"] }),
       child("touchpoint-reference", "触点引用", { kind: "latest_skill", skillKeys: ["context-resolve-touchpoint"] }),
-      child("monitor", "monitor", { kind: "latest_skill", skillKeys: ["monitor-readback", "monitor-ensure", "monitor-plan", "monitor-query"] }),
+      child("monitor", "monitor", { kind: "latest_skill", skillKeys: ["monitor-readback", "monitor-execute-once", "monitor-plan-compile", "monitor-readonly-reconcile", "monitor-state-read"] }),
       child("platform-app", "平台 App", { kind: "latest_skill", skillKeys: ["context-resolve-platform-app"] })
     ]),
     bootstrapCapabilities: Object.freeze([

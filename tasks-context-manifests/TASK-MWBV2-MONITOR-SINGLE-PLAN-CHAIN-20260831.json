@@ -1,0 +1,84 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-MONITOR-SINGLE-PLAN-CHAIN-20260831",
+  "task_ref": "tasks/TASK-MWBV2-MONITOR-SINGLE-PLAN-CHAIN-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 CST",
+  "updated_at": "2026-08-31 20:29 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户已批准的 V2 Monitor 单轨机制修复与收敛方案",
+    "objective": "Unify monitor bootstrap under existing Plan, confirmation, grant, executor and Postgres truth mechanisms.",
+    "current_truth": "Canonical monitor readiness is in place, but monitor CLI and workflow still contain duplicate planning and execution surfaces.",
+    "stop_condition": "No real platform write is authorized by this task."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MONITOR-SINGLE-PLAN-CHAIN-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-MONITOR-SINGLE-PLAN-CHAIN-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/027_add_launch_execution_plans.sql",
+    "db/062_monitor_canonical_readiness.sql",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/plannedActionGrant.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs",
+    "src/workflows/skills/oe3/02-monitor/config-sync.mjs",
+    "scripts/02-monitor-cli.mjs"
+  ],
+  "allowed_writes": [
+    "Task/manifest and current mechanism documentation",
+    "idempotent schema migration and repository/workflow/UI code",
+    "Node 02 module/package moves, CLI and monitor test consolidation"
+  ],
+  "forbidden_actions": [
+    "monitor create or retry",
+    "resource or std_project platform write",
+    "token refresh",
+    "env-variable-only execution authority",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "test:monitor",
+    "test:execution-plan",
+    "test:execution-grant",
+    "test:workflow-case",
+    "test:workbench-conversation",
+    "smoke:workflow-skills",
+    "smoke:api",
+    "validate:schemas",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "A production monitor create call would be required to validate the implementation.",
+    "A current platform action, confirmation, or resource Plan would need destructive alteration."
+  ],
+  "result": {
+    "status": "completed_without_platform_write",
+    "migrations": [
+      "db/063_monitor_bootstrap_plan_kind.sql",
+      "db/064_monitor_bootstrap_plan_gate.sql"
+    ],
+    "monitor_public_cli": [
+      "monitor:status",
+      "monitor:reconcile",
+      "monitor:config-sync"
+    ],
+    "validation": [
+      "validate:schemas",
+      "test:monitor",
+      "test:execution-plan",
+      "test:execution-grant",
+      "test:workflow-case",
+      "test:workbench-conversation",
+      "smoke:workflow-skills",
+      "smoke:api",
+      "git diff --check"
+    ],
+    "runtime_monitor_platform_actions": 0,
+    "test_run_jobs_remaining": 0
+  }
+}

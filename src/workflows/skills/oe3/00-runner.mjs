@@ -18,7 +18,7 @@ import {
   runDmpTargetReadonlyVerifySkill
 } from "./04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "./03-launch-pack.mjs";
-import { runMonitorWorkflowSkill } from "./02-monitor-provision.mjs";
+import { runMonitorWorkflowSkill } from "./02-monitor/index.mjs";
 import {
   applyDraftToBundle,
   buildSkillDraft,
@@ -63,7 +63,7 @@ import { runConfirmedResourceOrchestratorSkill } from "./05-confirmed-resource-o
 export const OE3_WORKFLOW_MODES = new Set(["dry_run", "draft_readiness", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
 
 const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation", "blocked", "locked", "failed", "mock_passed", "skipped"]);
-const MONITOR_SKILLS = new Set(["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]);
+const MONITOR_SKILLS = new Set(["monitor-state-read", "monitor-readonly-reconcile", "monitor-plan-compile", "monitor-execute-once", "monitor-readback"]);
 const CONTEXT_SKILLS = new Set(["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]);
 const LAUNCH_PACK_SKILLS = new Set([
   "launch-pack-resolve-game",
@@ -120,8 +120,11 @@ function skillsForMode(mode) {
       "aweme-authorization-readonly"
     ];
   }
-  const monitorDryRun = ["monitor-query", "monitor-plan"];
-  const monitorPlannedActions = ["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"];
+  // Node 02's normal workflow is state-only. Fresh reconcile and the confirmed
+  // bootstrap executor are separately Gate/Plan-bound, so a generic runner mode
+  // can never create a monitor as a side effect.
+  const monitorDryRun = ["monitor-state-read"];
+  const monitorPlannedActions = ["monitor-state-read"];
   if (mode === "planned_actions") {
     return [
       "intake-normalize",
@@ -198,7 +201,7 @@ function skillsForMode(mode) {
 
 const SCHEDULE_EXTERNAL_DEPENDENCIES = Object.freeze({
   readback_only: new Set(["create-once"]),
-  aweme_auth_readonly: new Set(["monitor-query", "context-resolve-platform-app"])
+  aweme_auth_readonly: new Set(["monitor-state-read", "context-resolve-platform-app"])
 });
 
 const EXECUTION_PLAN_MODES = new Set(["dry_run", "execute_once", "planned_actions"]);
@@ -788,7 +791,7 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
   const create = skillOutput("create-once");
   const readback = skillOutput("readback-std-project");
-  const monitorOutputs = ["monitor-query", "monitor-plan", "monitor-ensure", "monitor-readback"]
+  const monitorOutputs = ["monitor-state-read", "monitor-readonly-reconcile", "monitor-plan-compile", "monitor-execute-once", "monitor-readback"]
     .map((key) => skillOutput(key))
     .filter((item) => item.outputSummary);
   const monitorBlockers = monitorOutputs.flatMap((item) => item.blockers || []);
@@ -815,9 +818,10 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
       diagnosticLevel: contextBlocked || monitorBlockers.length ? "error" : "info",
       outputSummary: {
         monitor: {
-          query: skillOutput("monitor-query").outputSummary || {},
-          plan: skillOutput("monitor-plan").outputSummary || {},
-          ensure: skillOutput("monitor-ensure").outputSummary || {},
+          stateRead: skillOutput("monitor-state-read").outputSummary || {},
+          readonlyReconcile: skillOutput("monitor-readonly-reconcile").outputSummary || {},
+          planCompile: skillOutput("monitor-plan-compile").outputSummary || {},
+          executeOnce: skillOutput("monitor-execute-once").outputSummary || {},
           readback: skillOutput("monitor-readback").outputSummary || {},
           blockers: monitorBlockers
         },

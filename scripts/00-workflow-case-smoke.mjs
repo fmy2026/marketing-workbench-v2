@@ -4,7 +4,10 @@ import { createJob, createWorkflowCase, getJobView } from "../src/workflows/laun
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
   gameCode: "JSZC",
-  advertiserId: "1871922175825993"
+  // This target has an existing canonical monitor readiness record. Keep Case
+  // root-blocker assertions focused on the blocker under test rather than the
+  // intentionally stricter legacy monitor-evidence migration path.
+  advertiserId: "1871922434025472"
 });
 
 function assert(condition, message) {

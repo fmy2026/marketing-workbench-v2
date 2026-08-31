@@ -254,15 +254,25 @@ try {
   const missingMonitorPlan = buildExecutionPlanFromBundle({
     ...bundle,
     account: { ...(bundle.account || {}), monitor_id: "" },
-    touchpoint: null
+    touchpoint: null,
+    monitorReadiness: {
+      readiness_status: "needs_plan",
+      monitor_ready: false,
+      actionable_blocker_code: "monitor_plan_required"
+    }
   });
   assert(!actionTypes(missingMonitorPlan).includes("ensure_monitor"), "unexecutable_ensure_monitor_must_not_be_planned");
   assert(!actionTypes(missingMonitorPlan).includes(ACTION_STD_PROJECT_CREATE), "missing_monitor_plan_must_not_contain_create");
-  assert(missingMonitorPlan.blockerCodes.includes("monitor_prepare_not_in_formal_executor_registry"), "missing_monitor_formal_blocker_missing");
+  assert(missingMonitorPlan.blockerCodes.includes("monitor_plan_required"), "missing_monitor_canonical_blocker_missing");
   const missingMonitorHashAgain = buildExecutionPlanFromBundle({
     ...bundle,
     account: { ...(bundle.account || {}), monitor_id: "" },
-    touchpoint: null
+    touchpoint: null,
+    monitorReadiness: {
+      readiness_status: "needs_plan",
+      monitor_ready: false,
+      actionable_blocker_code: "monitor_plan_required"
+    }
   }).planHash;
   assert(missingMonitorPlan.planHash === missingMonitorHashAgain, "missing_monitor_plan_hash_not_stable");
 

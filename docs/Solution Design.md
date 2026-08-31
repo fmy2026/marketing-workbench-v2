@@ -19,6 +19,16 @@
 
 本设计只修复本地真值、展示和计划资格；monitor、事件资产及投放创建仍须分别建立专项 Task、冻结 Plan 并取得明确写入授权。
 
+## 已批准设计：Monitor 单轨真值与 Plan-bound Bootstrap
+
+保持既有 3 阶段 7 Node、Case/Job、Postgres 真值、`workflow_case_summary` 唯一 Gate 与 Plan-bound executor 不变。monitor 仍属于 Node 02 `creation_context` 的独立 bootstrap，不能与资源或广告项目创建混合授权。
+
+`mwb.v_monitor_readiness` 是 route×game×advertiser 粒度的唯一 monitor readiness 投影。它以 scope、monitor ID、受控触点、fresh readonly 回查证据和最新 cycle 状态决定 `monitor_ready`、唯一 `actionable_blocker_code`、诊断集合和建议动作。已 resolved 的 cycle 只保留历史诊断，绝不能再把 `monitor_id_already_resolved_no_create_needed`、`cycle_not_active:resolved` 或历史 attempt 上限投影为当前 root blocker。
+
+monitor 写入使用现有 `launch_execution_plans`、`launch_confirmations`、`platform_actions` 与 action grant；新增的 `monitor_bootstrap` Plan 只能包含一次 `ensure_monitor`。执行前必须匹配全局 Guardrail、active Case、精确 Plan/hash、confirmation 和单动作 grant；创建前 fresh readonly、创建一次、创建后权威回查。失败不得自动重试；下一次尝试必须使用新 Plan/hash/confirmation，cycle 内最多两次。
+
+Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly reconcile 和只读配置同步；Plan、确认和真实执行不再由 CLI 环境变量直接授权。实施与测试不调用真实 monitor、资源或广告平台写接口。
+
 ## 何时使用
 
 以下情况必须读取：
