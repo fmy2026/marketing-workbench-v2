@@ -3,13 +3,21 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 11:19 CST |
-| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-01 12:10 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
+
+## 已批准设计：正式写入入口与历史脚本隔离
+
+工作台/API → 既有通用 Plan-bound executor 是唯一正式业务写入链。Resource、monitor 与 std_project 写入仍必须分别匹配当前 Case/Job、冻结 Plan/hash、人工 confirmation、action grant、调用上限与权威回查；不得通过专项 CLI、环境变量或历史 Task 脚本旁路授权。保留 CLI 仅承担 dry-run、readback、状态和明确标注的安全诊断。
+
+已被主链替代、绑定历史 Task/账户或属于一次性人工补录的脚本迁入 `scripts/archive/` 可恢复隔离区，不删除内容。`manifest.json` 记录原路径、隔离原因、替代入口和恢复方式；archive 禁止 package 入口、runtime import 和直接执行。恢复必须先建立新的 Task，重新验证当前合同与权限，再移回原路径。`src/platforms` executor、Node/Skill、Plan/action 类型、HTTP API 与数据库迁移不属于隔离范围。
+
+`db/*.sql` 是不可拆除的 Schema 演进历史，即使某一 migration 已执行也必须保留。脚本隔离不得改变表、View、业务运行事实或外部平台权限；测试只使用 `test_run` / mock 并在结束后清零。
 
 ## 已批准设计：Monitor READY 路径的新账户两次确认闭环
 

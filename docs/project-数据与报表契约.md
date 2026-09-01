@@ -3,13 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-01 11:19 CST |
-| 校验基线 | Git 当前 HEAD + 工作台唯一入口与多账户 Case 隔离 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 12:10 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
+
+本次复核确认 `db/*.sql` 共 68 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -118,5 +120,6 @@ route_id + game_code
 | 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 App + instance 绑定、configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
 | 授权 | `project.state.json` 只给全局 Guardrail；真实写入还须匹配当前 Plan、confirmation、action grant 与调用上限 |
+| 隔离脚本 | `scripts/archive/` 仅保存可恢复历史文件；禁止 package/runtime import/直接执行，不属于表或 View 的写入来源 |
 
 投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 5 个 View 是运营流程就绪状态投影，不是投放效果报表，也不是自动策略的唯一输入。

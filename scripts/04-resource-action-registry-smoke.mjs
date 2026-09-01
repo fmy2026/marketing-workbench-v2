@@ -5,6 +5,7 @@ import {
   buildExecutionPlanFromBundle
 } from "../src/workflows/executionPlan.mjs";
 import {
+  EVENT_CONFIG_BASELINE_EVENTS,
   EVENT_CONFIGS_PROVISION_ACTION,
   EVENT_ASSET_CREATE_ENDPOINT,
   EVENT_ASSET_CREATE_FIELD_NAMES,
@@ -324,8 +325,12 @@ const eventSinglePlan = buildSingleResourceExecutionPlanFromBundle(eventEligible
   resourceType: "event_asset"
 });
 assert(eventSinglePlan.planStatus === "ready", "event_single_resource_plan_should_be_ready");
-assert(JSON.stringify(actionTypes(eventSinglePlan)) === JSON.stringify(["ensure_resource:event_asset"]), "event_single_resource_plan_must_only_contain_event_action");
-assert(eventSinglePlan.metadata.execution_scope.maximum_platform_calls === 1, "event_single_resource_plan_call_limit_wrong");
+assert(JSON.stringify(actionTypes(eventSinglePlan)) === JSON.stringify([
+  "ensure_resource:event_asset",
+  EVENT_CONFIGS_PROVISION_ACTION
+]), "event_single_resource_plan_must_include_event_asset_then_baseline_configs");
+assert(eventSinglePlan.plannedActions[1]?.depends_on?.includes("ensure_resource:event_asset"), "event_configs_action_must_depend_on_event_asset");
+assert(eventSinglePlan.metadata.execution_scope.maximum_platform_calls === 1 + EVENT_CONFIG_BASELINE_EVENTS.length, "event_single_resource_plan_call_limit_wrong");
 
 const dmpSinglePlan = buildSingleResourceExecutionPlanFromBundle(eventEligibleBundle, {
   planVersion: 2,
@@ -373,7 +378,8 @@ const microBlocked = normalizeResourceSkillResult({
     resourceType: "micro_app_instance"
   })
 });
-assert(microBlocked.blockers.includes("micro_app_instance_target_unverified"), "micro_app_instance_blocker_missing");
+assert(microBlocked.blockers.includes("micro_app_instance_candidate_missing"), "micro_app_instance_candidate_blocker_missing");
+assert(microBlocked.outputSummary.readinessStatus === "blocked", "missing_micro_app_instance_candidate_should_block");
 assert(microBlocked.outputSummary.module_ref === "src/workflows/skills/oe3/04-event-chain-readiness.mjs", "micro_app_instance_module_ref_wrong");
 
 const result = {

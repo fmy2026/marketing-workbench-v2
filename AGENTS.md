@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-08-31 23:22 CST |
-| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
+| 最后更新时间 | 2026-09-01 12:10 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -16,7 +16,7 @@
 3. 有 `active_task` 时，严格按其 `read_order` 读取 Task、Context Manifest 和指定真值。
 4. 没有 `active_task` 时，只报告项目生命周期；需要业务下一步时查询 `mwb.workflow_case_summary`。
 
-`docs/.开发方案/` 与 `.archive/` 只供历史参考，不得作为启动必读、任务依据、运行真值或 runtime 依赖。
+`docs/.开发方案/`、`.archive/` 与 `scripts/archive/` 只供历史参考或可恢复隔离，不得作为启动必读、任务依据、运行真值或 runtime 依赖；`scripts/archive/` 还禁止 package 入口和直接执行。
 
 以下情况按需读取：
 
@@ -89,7 +89,8 @@ frontend / API
 - 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
-- `package.json` 是长期命令入口；一次性脚本完成后移入 `.archive/` 并删除入口。
+- 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。
+- `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
 - `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
 - `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。
 

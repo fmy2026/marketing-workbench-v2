@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-01 11:19 CST |
-| 校验基线 | Git 当前 HEAD + 工作台唯一入口与多账户 Case 隔离 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 12:10 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -27,6 +27,10 @@ current_gate + root_blocker_codes + suggested_next_action
 frontend / API / CLI / 任务卡 / 工作台对话
 只读当前投影，不反向写状态，不自行计算下一步
 ```
+
+正式业务写入只有一条入口：`工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories`。CLI 不属于正式写入面，只保留 `00-oe3-workflow-cli.mjs`、`00-oe3-readonly-readiness-cli.mjs` 的安全 dry-run/readback，Node 02 状态与 readonly reconcile/配置只读同步，以及 Node 03/04、token 和合同诊断。任何 CLI 都不能绕过当前 Plan/hash、confirmation、action grant 或调用上限。
+
+`scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
 
 ```text
 Case
@@ -203,5 +207,6 @@ Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择�
 | Plan/确认/执行约束 | `executionPlan.mjs`、执行 scope、当前 Task/Manifest |
 | 当前 Gate、blocker、下一步 | `mwb.workflow_case_summary` |
 | 数据表、View 与报表字段 | `docs/project-数据与报表契约.md`、`db/*.sql` |
+| 正式入口与隔离脚本 | 工作台/API、`scripts/archive/manifest.json`；archive 仅供恢复审计 |
 
 项目文件与普通日志只允许保存脱敏摘要、hash、必要 ID、状态、字段路径和证据引用；禁止保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response。

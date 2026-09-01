@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, resolveReadonlyDependencyForRun, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { readonlyPermissionState } from "../src/workflows/skills/oe3/00-readonly-permission.mjs";
+import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
@@ -14,26 +15,21 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function assertNoSensitiveLeak(value) {
-  const text = JSON.stringify(value);
-  [
-    /touchpoint_url/i,
-    /raw_payload/i,
-    /raw_response/i,
-    /tf-api\.3k\.com/i,
-    /callback\/click/i,
-    /\bcookie\b/i,
-    /OCEANENGINE_ACCESS_TOKEN/i,
-    /OCEANENGINE_REFRESH_TOKEN/i,
-    /OCEANENGINE_APP_SECRET/i,
-    /Access-Token/i,
-    /Bearer\s+[A-Za-z0-9._-]{20,}/i
-  ].forEach((pattern) => {
-    if (pattern.test(text)) throw new Error(`sensitive leak matched ${pattern}`);
-  });
-}
-
 try {
+  assertNoSensitiveLeak({
+    touchpoint_url_present: true,
+    touchpoint_url_hash: "sha256:smoke",
+    touchpoint_url_status: "ready",
+    monitor_touchpoint_url_hash: "sha256:smoke"
+  });
+  let rawTouchpointKeyRejected = false;
+  try {
+    assertNoSensitiveLeak({ touchpoint_url: "https://example.invalid/not-persisted" });
+  } catch (error) {
+    rawTouchpointKeyRejected = error instanceof Error && error.message === "sensitive_summary_leak_detected";
+  }
+  assert(rawTouchpointKeyRejected, "raw_touchpoint_url_key_must_remain_forbidden");
+
   await writeFile(permissionStatePath, JSON.stringify({
     guardrails: { real_platform_dependency_allowed: true }
   }));

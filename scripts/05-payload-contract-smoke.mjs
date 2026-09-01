@@ -405,8 +405,13 @@ try {
   assert(dryManifest.miniProgramLaunchLinkAppIdMatch === true, "mini_program_info.url should be bound to the active app_id");
   assert(!dryManifest.blockers?.includes("mini_game_launch_url_not_ready"), "ready BYTE_GAME MICRO_GAME route should not emit mini_game_launch_url_not_ready");
   assert(dryManifest.externalUrlMaterialListPolicy === "send", "dry JSZC route should send external_url_material_list by contract");
-  assert(dryManifest.externalUrlMaterialListPresent === true, "dry payload should include external_url_material_list");
-  assert(dryManifest.externalUrlMaterialListCount === 1, "dry payload should include exactly one external_url_material_list item");
+  if (dryManifest.externalUrlMaterialListPresent) {
+    assert(dryManifest.externalUrlMaterialListCount === 1, "ready dynamic backup page should produce exactly one external_url_material_list item");
+    assert(dryManifest.backupLandingPageHttps && dryManifest.backupLandingPageTargetVisible && dryManifest.backupLandingPageReadbackVerified && dryManifest.backupLandingPageHashMatch, "sent dynamic backup page must satisfy the persisted readiness checks");
+  } else {
+    assert(dryManifest.externalUrlMaterialListCount === 0, "blocked dynamic backup page must produce no external_url_material_list item");
+    assert((dryManifest.blockers || []).some((code) => code.startsWith("backup_landing_page_")), "blocked dynamic backup page should expose its current readiness blocker");
+  }
   assert(dryManifest.externalUrlMaterialListOmittedByContract === false, "dry external_url_material_list send should be recorded");
   assert(dryManifest.filterEventPolicy === "omit", "dry JSZC route should use filter_event omit policy");
   assert(dryManifest.filterEventPresent === false, "dry payload must omit audience.filter_event");
@@ -456,7 +461,7 @@ try {
 
   assert(mock.bundle.job.source_usage === "test_run", "mock payload contract job source_usage is not test_run");
   assert(typeof mock.bundle.draft.payload_summary.advertiser_id === "string", "mock advertiser_id storage summary is not string");
-  assert(mock.contract.status === "passed", `mock payload contract did not pass:${mock.contract.gaps.map((gap) => gap.key).join(",")}`);
+  assert(mock.contract.status === "passed", `mock payload contract did not pass:${mock.contract.gaps.map((gap) => gap.key).join(",")}:${JSON.stringify(mockManifest.blockers || [])}`);
   assert(mockFieldEvidence.status === "passed", "complete test field evidence should pass");
   assert(mockInstanceEvidence.status === "passed", "complete test instance evidence should pass");
   assert(mockManifest.microAppInstanceIdTransportStrategy === INSTANCE_ID_WIRE_STRATEGY, "mock instance should use controlled wire number strategy");

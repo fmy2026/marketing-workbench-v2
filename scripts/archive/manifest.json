@@ -1,0 +1,108 @@
+{
+  "schema_version": "2026-09-01.script-archive-manifest-v1",
+  "created_at": "2026-09-01 11:56 CST",
+  "task_id": "TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901",
+  "status": "quarantined_recoverable",
+  "runtime_import_forbidden": true,
+  "package_entry_forbidden": true,
+  "execution_forbidden": true,
+  "restore_policy": "Restore only through a new approved Task after confirming that the current workbench/API mechanism cannot satisfy the requirement.",
+  "files": [
+    {
+      "original_path": "scripts/04-avatar-submit-once.mjs",
+      "archive_path": "scripts/archive/04-avatar-submit-once.mjs",
+      "archive_reason": "Standalone avatar preparation path is superseded by formal Node 04 readiness and the confirmed-resource orchestrator.",
+      "replacement": "workbench/API dry-run followed by executeConfirmedResourcePlan"
+    },
+    {
+      "original_path": "scripts/04-avatar-ensure-once.mjs",
+      "archive_path": "scripts/archive/04-avatar-ensure-once.mjs",
+      "archive_reason": "Direct per-resource executor CLI is no longer a supported public write entry.",
+      "replacement": "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs"
+    },
+    {
+      "original_path": "scripts/04-dmp-push-plan.mjs",
+      "archive_path": "scripts/archive/04-dmp-push-plan.mjs",
+      "archive_reason": "Standalone DMP plan report is superseded by Node 04 skill trace and the formal resource Plan.",
+      "replacement": "workbench/API Node 04 DMP readiness trace"
+    },
+    {
+      "original_path": "scripts/04-dmp-ensure-once.mjs",
+      "archive_path": "scripts/archive/04-dmp-ensure-once.mjs",
+      "archive_reason": "Direct per-resource executor CLI is no longer a supported public write entry.",
+      "replacement": "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs"
+    },
+    {
+      "original_path": "scripts/04-video-material-bind-plan.mjs",
+      "archive_path": "scripts/archive/04-video-material-bind-plan.mjs",
+      "archive_reason": "Standalone video plan compiler is superseded by formal Node 04 Plan compilation.",
+      "replacement": "workbench/API Node 04 readiness"
+    },
+    {
+      "original_path": "scripts/04-video-material-ensure-once.mjs",
+      "archive_path": "scripts/archive/04-video-material-ensure-once.mjs",
+      "archive_reason": "Direct per-resource executor CLI is no longer a supported public write entry.",
+      "replacement": "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs"
+    },
+    {
+      "original_path": "scripts/04-video-material-readback.mjs",
+      "archive_path": "scripts/archive/04-video-material-readback.mjs",
+      "archive_reason": "Task-specific delayed readback CLI is superseded by fresh Node 04 readonly readiness and Plan-bound readback.",
+      "replacement": "workbench/API fresh readonly readiness"
+    },
+    {
+      "original_path": "scripts/04-product-image-ensure-once.mjs",
+      "archive_path": "scripts/archive/04-product-image-ensure-once.mjs",
+      "archive_reason": "Hard-coded account, Case and local asset paths make this a completed Task helper rather than a reusable entry.",
+      "replacement": "formal Node 04 product-image action through the confirmed-resource orchestrator"
+    },
+    {
+      "original_path": "scripts/04-event-asset-account-contract-readonly.mjs",
+      "archive_path": "scripts/archive/04-event-asset-account-contract-readonly.mjs",
+      "archive_reason": "Standalone Plan compilation bypasses the unique workbench Gate even though its platform probes are readonly.",
+      "replacement": "workbench/API fresh Node 04 readiness"
+    },
+    {
+      "original_path": "scripts/04-event-asset-api-create-once.mjs",
+      "archive_path": "scripts/archive/04-event-asset-api-create-once.mjs",
+      "archive_reason": "Hard-coded historical Job/Task/Case write wrapper is superseded by the ordered event asset plus configs resource Plan.",
+      "replacement": "executeConfirmedResourcePlan"
+    },
+    {
+      "original_path": "scripts/04-event-configs-api-create-once.mjs",
+      "archive_path": "scripts/archive/04-event-configs-api-create-once.mjs",
+      "archive_reason": "Hard-coded historical Job/Task/asset write wrapper is superseded by the ordered event asset plus configs resource Plan.",
+      "replacement": "executeConfirmedResourcePlan"
+    },
+    {
+      "original_path": "scripts/05-confirmed-resource-plan-execute-once.mjs",
+      "archive_path": "scripts/archive/05-confirmed-resource-plan-execute-once.mjs",
+      "archive_reason": "CLI duplicates the supported workbench confirmation path and directly edits the project write scope.",
+      "replacement": "workbench exact phrase 确认准备资源"
+    },
+    {
+      "original_path": "scripts/06-launch-execute-once.mjs",
+      "archive_path": "scripts/archive/06-launch-execute-once.mjs",
+      "archive_reason": "CLI duplicates the supported workbench std_project_create confirmation path.",
+      "replacement": "workbench exact phrase 确认创建"
+    },
+    {
+      "original_path": "scripts/06-create-verification-series-prepare.mjs",
+      "archive_path": "scripts/archive/06-create-verification-series-prepare.mjs",
+      "archive_reason": "Bound to the completed three-attempt JSZC verification series and two historical candidate field variants.",
+      "replacement": "fresh runtime Job and current executionPlan compiler under a new Task"
+    },
+    {
+      "original_path": "scripts/07-create-field-ledger-attest.mjs",
+      "archive_path": "scripts/archive/07-create-field-ledger-attest.mjs",
+      "archive_reason": "Historical manual attestation CLI is not part of the current Case Gate or supported completion path.",
+      "replacement": "current authoritative readback and redacted evidence path"
+    },
+    {
+      "original_path": "scripts/oneoff/06-std-project-id-lossless-reconcile.mjs",
+      "archive_path": "scripts/archive/06-std-project-id-lossless-reconcile.mjs",
+      "archive_reason": "Completed one-off reconciliation helper for one historical object-ID correction.",
+      "replacement": "current lossless std_project response mapping and readonly readback"
+    }
+  ]
+}

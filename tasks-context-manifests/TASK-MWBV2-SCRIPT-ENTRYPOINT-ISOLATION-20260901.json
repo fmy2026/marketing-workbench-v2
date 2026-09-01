@@ -1,0 +1,75 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901",
+  "task_ref": "tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 11:56 CST",
+  "updated_at": "2026-09-01 12:25 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户批准的 v2 文档复核与后端脚本隔离方案",
+    "objective": "Quarantine superseded and task-bound CLIs while preserving the current workbench/API execution chain and database contracts.",
+    "current_truth": "project.state.json, this Task/Manifest, current code and Schema, and Postgres mwb.",
+    "stop_condition": "Deletion, a runtime/data-contract change, or any real platform write would be required."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "package.json",
+    "scripts/",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Manifest, Solution Design, AGENTS and current mechanism documentation",
+    "scripts/archive manifest and the approved reversible script moves",
+    "package.json entrypoint cleanup",
+    "focused smoke corrections and runtime archive-import guard",
+    "project control-plane task status"
+  ],
+  "forbidden_actions": [
+    "real monitor, resource or std_project platform write",
+    "confirmation, action grant, retry, token refresh, budget or bid change",
+    "script deletion, database migration, table/View/Node/Plan/action change",
+    "runtime import from scripts/archive or sensitive raw persistence"
+  ],
+  "validation_plan": [
+    "node --check for live and archived mjs",
+    "four corrected smoke tests",
+    "smoke:workflow-skills, smoke:api, test:execution-plan, test:execution-grant, test:single-confirmation-orchestrator, validate:schemas",
+    "Postgres 33 table / 5 view / workflow_case_summary 24-column checks",
+    "test_run cleanup and zero platform-write audit",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "A real platform write, confirmation, retry or credential refresh would be required.",
+    "A moved script is still imported by the live runtime.",
+    "The cleanup would require changing database or workflow semantics."
+  ],
+  "scope": {
+    "implementation_mode": "local_reversible_script_quarantine_and_smoke_contract_repair",
+    "archive_path": "scripts/archive/",
+    "platform_write_allowed": false,
+    "human_gate": "approved_archive_list_only"
+  },
+  "completion": {
+    "completed_at": "2026-09-01 12:25 CST",
+    "archived_script_count": 16,
+    "removed_package_entry_count": 15,
+    "archive_runtime_imports": 0,
+    "postgres_contract": {
+      "base_tables": 33,
+      "views": 5,
+      "workflow_case_summary_columns": 24
+    },
+    "test_run_residual_count": 0,
+    "real_platform_write_called": false,
+    "validation_status": "passed"
+  }
+}

@@ -284,7 +284,21 @@ export function mockReadyBundle(bundle = {}) {
           }
         };
       }
-      if (item.resource_type !== "dmp_audience_package") return item;
+      if (item.resource_type !== "dmp_audience_package") {
+        return {
+          ...item,
+          visibility_status: "visible",
+          readback_status: "readback_verified",
+          metadata: {
+            ...(item.metadata || {}),
+            readonly_check: {
+              ...(item.metadata?.readonly_check || {}),
+              status: "passed",
+              mock: true
+            }
+          }
+        };
+      }
       return {
         ...item,
         visibility_status: "visible",

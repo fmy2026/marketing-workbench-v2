@@ -1,3 +1,6 @@
+import { readdir, readFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { buildLaunchJobView, createJob } from "../src/workflows/launchWorkflow.mjs";
 import {
@@ -19,6 +22,47 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+async function liveModulePaths(root) {
+  const found = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) {
+      if (resolve(path) === resolve(projectRoot, "scripts/archive")) continue;
+      found.push(...await liveModulePaths(path));
+    } else if (entry.isFile() && entry.name.endsWith(".mjs")) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
+async function validateArchiveIsolation() {
+  const packageJson = JSON.parse(await readFile(resolve(projectRoot, "package.json"), "utf8"));
+  const packageEntrypoints = Object.entries(packageJson.scripts || {})
+    .filter(([, command]) => String(command).includes("scripts/archive"));
+  const forbiddenImports = [];
+  const modulePaths = [
+    ...await liveModulePaths(resolve(projectRoot, "src")),
+    ...await liveModulePaths(resolve(projectRoot, "scripts"))
+  ];
+  for (const path of modulePaths) {
+    const source = await readFile(path, "utf8");
+    const importSpecifiers = [...source.matchAll(/(?:from\s+|import\s*\()\s*["']([^"']+)["']/g)]
+      .map((match) => match[1]);
+    if (importSpecifiers.some((specifier) => /(^|\/)archive(\/|$)/.test(specifier))) {
+      forbiddenImports.push(relative(projectRoot, path));
+    }
+  }
+  return {
+    status: packageEntrypoints.length === 0 && forbiddenImports.length === 0 ? "passed" : "blocked",
+    packageEntrypoints,
+    forbiddenImports,
+    liveModuleCount: modulePaths.length
+  };
+}
+
 async function makeTestJob(repo, sourceRecordRef, cleanupJobIds) {
   const view = await createJob(repo, {
     user_intent: `推广路线 ${TARGET.routeId}，游戏 ${TARGET.gameCode}，账户 ${TARGET.advertiserId}`,
@@ -36,6 +80,9 @@ const repo = new PostgresRepository();
 const cleanupJobIds = [];
 
 try {
+  const archiveIsolation = await validateArchiveIsolation();
+  assert(archiveIsolation.status === "passed", `archive_isolation_failed:${JSON.stringify(archiveIsolation)}`);
+
   const registryValidation = validateWorkflowNodeRegistry({
     skillDefinitions: OE3_SKILL_DEFINITIONS,
     requiredResourceTypes: OE3_REQUIRED_RESOURCE_TYPES
@@ -138,6 +185,7 @@ try {
     awemeAuthReadonly: awemeReadonly.summary,
     registryValidation,
     scheduleValidation,
+    archiveIsolation,
     cleanupPlanned: cleanupJobIds.length,
     noRealPlatformWrite: true,
     noTokenRefresh: true

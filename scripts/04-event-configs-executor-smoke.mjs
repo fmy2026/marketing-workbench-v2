@@ -150,7 +150,7 @@ function clientStub(state, {
   existingAll = false,
   missingAvailableTypes = [],
   readyAfterCreate = true,
-  assets = [asset()]
+  assets = [asset({ appId: APP_ID, instanceId: INSTANCE_ID })]
 } = {}) {
   const calls = [];
   return {
@@ -324,6 +324,26 @@ const noop = await ensureEventConfigsForTargetOnce({
 assert.equal(noop.status, "event_configs_ready_noop", JSON.stringify(noop.blockers || []));
 assert.equal(noopState.createFetchCount, 0);
 
+const bindingMismatchState = { createFetchCount: 0, createdEventTypes: new Set() };
+const bindingMismatchBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-BINDING-MISMATCH" });
+const bindingMismatchRepo = repoStub(bindingMismatchBundle);
+const bindingMismatch = await ensureEventConfigsForTargetOnce({
+  repo: bindingMismatchRepo,
+  jobId: bindingMismatchBundle.job.job_id,
+  confirmVariableValue: "",
+  fetchImpl: fetchSuccess(bindingMismatchState),
+  readonlyClient: clientStub(bindingMismatchState, {
+    existingAll: true,
+    assets: [asset({ appId: APP_ID, instanceId: "7434750138926546995" })]
+  }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(bindingMismatchBundle)
+});
+assert.equal(bindingMismatch.status, "event_configs_readback_not_verified");
+assert(bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"));
+assert.equal(bindingMismatchState.createFetchCount, 0);
+
 const createState = { createFetchCount: 0, createdEventTypes: new Set() };
 const createBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-CREATE" });
 const createRepo = repoStub(createBundle);
@@ -420,6 +440,7 @@ const output = {
   requestPlanPassed: requestPlan.status === "passed",
   noopStatus: noop.status,
   createStatus: created.status,
+  bindingMismatchBlocked: bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   duplicateBlocked: duplicate.blockers.includes("event_config_platform_action_already_recorded_for_job"),
   missingAvailableBlocked: missingAvailable.blockers.includes("event_config_available_events_baseline_missing"),
   postCreateReadbackBlocked: readbackFail.status === "event_configs_readback_not_verified",
