@@ -2,6 +2,12 @@ import {
   parseWorkbenchProgressTarget,
   workbenchCaseUrl
 } from "./workbench-address.mjs";
+import {
+  latestCaseJobId,
+  progressPresentation,
+  progressRefreshLabel,
+  PROGRESS_REFRESH_INTERVAL_MS
+} from "./workbench-progress.mjs";
 
 (function () {
   let job = null;
@@ -9,6 +15,9 @@ import {
   let busy = false;
   let viewOnly = false;
   let polling = false;
+  let progressRefreshing = false;
+  let progressRefreshFailed = false;
+  let jobRevision = 0;
   let draftCaseId = "";
   let draftCaseKey = "";
   let pendingConfirmation = null;
@@ -20,8 +29,6 @@ import {
     game_code: "",
     advertiser_id: ""
   };
-
-  const DONE_STATUSES = new Set(["passed"]);
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -59,10 +66,6 @@ import {
     return phases().flatMap((phase) => phase.nodes || []);
   }
 
-  function progressCount(nodes) {
-    return nodes.filter((node) => DONE_STATUSES.has(node.status)).length;
-  }
-
   function requiredFields() {
     return job?.intake?.requiredFields || workbench?.intake?.requiredFields || [];
   }
@@ -96,6 +99,12 @@ import {
     return pendingConfirmation || job.confirmationPreview || null;
   }
 
+  function setJobView(nextJob) {
+    job = nextJob || null;
+    pendingConfirmation = job?.confirmationPreview || null;
+    jobRevision += 1;
+  }
+
   function renderConfirmationCard(stream) {
     const preview = confirmationPreview();
     if (!preview) return;
@@ -104,10 +113,13 @@ import {
     card.append(el("strong", "", "受控 Plan 确认"));
     card.append(el("p", "", preview.actionLabel || "创建 1 个广告项目"));
     const facts = el("dl", "confirmation-facts");
+    const callLimitLabel = preview.planKind === "resource_prepare"
+      ? "六项资源动作累计调用上限"
+      : "调用上限";
     [
       ["项目", preview.projectName || "待生成"],
       ["账户", preview.advertiser || "已脱敏"],
-      ["调用上限", `${preview.maximumPlatformCalls || 1} 次`],
+      [callLimitLabel, `${preview.maximumPlatformCalls || 1} 次`],
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
       ["Plan", preview.planId || "未生成"],
       ["Hash", preview.planHash || "未生成"]
@@ -116,8 +128,18 @@ import {
       facts.append(el("dd", "", value));
     });
     card.append(facts);
+    if (preview.planKind === "resource_prepare" && preview.actionLimits?.length) {
+      const limits = el("details", "confirmation-action-limits");
+      limits.append(el("summary", "", "查看每项调用上限"));
+      const list = el("ul", "");
+      for (const item of preview.actionLimits) {
+        list.append(el("li", "", `${item.actionType}：${item.maximumPlatformCalls} 次`));
+      }
+      limits.append(list);
+      card.append(limits);
+    }
     const canExecute = job?.executionAvailability?.canExecuteOnce === true;
-    const button = el("button", "confirmation-button", canExecute ? (preview.confirmationPhrase || "确认创建") : "等待平台写授权");
+    const button = el("button", "confirmation-button", canExecute ? (preview.confirmationPhrase || "确认创建") : "当前 Plan 不可确认");
     button.type = "button";
     button.disabled = busy || !canExecute;
     button.addEventListener("click", async () => {
@@ -277,16 +299,21 @@ import {
 
       const flow = el("div", "node-flow");
       nodes.forEach((node, index) => {
+        const resourcePlanWaiting = confirmationPreview()?.planKind === "resource_prepare" &&
+          job?.caseGate?.currentGate === "await_job_write_authorization" &&
+          Number(node.number) >= 5;
+        const displayStatus = resourcePlanWaiting ? "waiting" : node.status;
         if (index) flow.append(el("span", "node-arrow", "→"));
         const focused = focusNode(phase);
         const nodeButton = el("button", "node-pill");
         nodeButton.type = "button";
-        nodeButton.title = statusTitle(node);
+        const waitingLabel = Number(node.number) === 5 ? "等待资源回查后复核" : "等待资源 Plan 完成";
+        nodeButton.title = resourcePlanWaiting ? waitingLabel : statusTitle(node);
         nodeButton.setAttribute("aria-pressed", String(focused?.id === node.id));
         if (focused?.id === node.id) nodeButton.classList.add("is-selected");
         nodeButton.append(el("span", "node-marker", String(node.number || "")));
         nodeButton.append(el("span", "node-pill-label", node.name || ""));
-        nodeButton.append(statusDot(node.status, statusTitle(node)));
+        nodeButton.append(statusDot(displayStatus, resourcePlanWaiting ? waitingLabel : statusTitle(node)));
         nodeButton.addEventListener("click", () => {
           focusedNodes.set(phase.id || phase.title || phase.phase || "", node.id);
           renderWorkflow();
@@ -297,13 +324,21 @@ import {
 
       const focused = focusNode(phase);
       if (focused?.children?.length) {
+        const resourcePlanWaiting = confirmationPreview()?.planKind === "resource_prepare" &&
+          job?.caseGate?.currentGate === "await_job_write_authorization" &&
+          Number(focused.number) >= 5;
+        const visibleChildren = resourcePlanWaiting
+          ? Number(focused.number) === 5
+            ? [{ id: "resource-readback-dependency", label: "等待资源回查后复核", status: "waiting", statusLabel: "等待" }]
+            : focused.children.map((child) => ({ ...child, status: "waiting", statusLabel: "等待" }))
+          : focused.children;
         const children = el("div", "subnode-panel");
         const subnodeTitle = el("div", "subnode-heading");
         subnodeTitle.append(el("span", "", focused.name));
-        subnodeTitle.append(el("span", "subnode-count", `${focused.children.length} 项`));
+        subnodeTitle.append(el("span", "subnode-count", `${visibleChildren.length} 项`));
         children.append(subnodeTitle);
         const childList = el("div", "subnode-list");
-        for (const child of focused.children) {
+        for (const child of visibleChildren) {
           const childItem = el("div", "subnode-item");
           childItem.title = statusTitle(child);
           childItem.append(statusDot(child.status, statusTitle(child)));
@@ -325,10 +360,25 @@ import {
 
   function renderCommand() {
     const nodes = allNodes();
-    document.getElementById("progressText").textContent = `进度 ${progressCount(nodes)} / ${nodes.length}`;
-    document.getElementById("runModeText").textContent = busy
-      ? "只读流程执行中"
-      : (viewOnly ? "历史 Job · 只读" : (job ? "状态已由后端同步" : (missingFields().length ? "等待规范化输入" : "等待启动流程")));
+    const preview = confirmationPreview();
+    document.getElementById("progressText").textContent = progressPresentation({
+      nodes,
+      caseGate: job?.caseGate,
+      confirmationPreview: preview,
+      executionAvailability: job?.executionAvailability,
+      headline: job?.headline,
+      busy,
+      viewOnly
+    });
+    const progressButton = document.getElementById("progressRefreshButton");
+    progressButton.textContent = progressRefreshLabel({
+      busy,
+      refreshing: progressRefreshing,
+      failed: progressRefreshFailed,
+      viewOnly,
+      hasJob: Boolean(job?.jobId)
+    });
+    progressButton.disabled = !job?.jobId || busy || progressRefreshing;
     const activeCaseConversation = job?.isLatestCaseJob === true && !viewOnly;
     const input = document.getElementById("chatInput");
     input.disabled = viewOnly || busy || Boolean(job && !activeCaseConversation);
@@ -356,15 +406,51 @@ import {
     message("agent", `唯一阻断：${error.message}`);
   }
 
-  async function refreshJob() {
+  async function refreshProgress() {
     if (!job?.jobId || polling) return;
     polling = true;
+    const revision = jobRevision;
     try {
-      job = await api(jobViewPath(job.jobId));
-      pendingConfirmation = job.confirmationPreview || null;
+      const activeCaseId = String(job.caseId || draftCaseId || "").trim();
+      let nextJobId = job.jobId;
+      if (!viewOnly && activeCaseId) {
+        const caseView = await api(`/api/workflow-cases/${encodeURIComponent(activeCaseId)}`);
+        nextJobId = latestCaseJobId(caseView) || nextJobId;
+      }
+      const nextJob = await api(jobViewPath(nextJobId));
+      if (revision !== jobRevision) return;
+      setJobView(nextJob);
+      progressRefreshFailed = false;
       renderAll();
     } finally {
       polling = false;
+    }
+  }
+
+  async function refreshProgressFromButton() {
+    if (!job?.jobId || busy || progressRefreshing) return;
+    progressRefreshing = true;
+    progressRefreshFailed = false;
+    renderAll();
+    try {
+      await refreshProgress();
+    } catch {
+      progressRefreshFailed = true;
+    } finally {
+      progressRefreshing = false;
+      renderAll();
+    }
+  }
+
+  async function withProgressPolling(work) {
+    const refreshTimer = window.setInterval(() => {
+      refreshProgress().catch(() => {});
+    }, PROGRESS_REFRESH_INTERVAL_MS);
+    try {
+      return await work();
+    } finally {
+      window.clearInterval(refreshTimer);
+      await refreshProgress().catch(() => {});
     }
   }
 
@@ -374,18 +460,12 @@ import {
   }
 
   async function runWorkflow(jobId) {
-    const refreshTimer = window.setInterval(() => {
-      refreshJob().catch(() => {});
-    }, 1200);
-    try {
+    return withProgressPolling(async () => {
       await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
         method: "POST",
         body: JSON.stringify({ mode: "dry_run" })
       });
-      await refreshJob();
-    } finally {
-      window.clearInterval(refreshTimer);
-    }
+    });
   }
 
   function createCaseKey() {
@@ -444,10 +524,9 @@ import {
           source_record_ref: "workbench:normalized-input"
         })
       });
-      job = created;
-      pendingConfirmation = job.confirmationPreview || null;
+      setJobView(created);
       setActiveCaseUrl(job.caseId);
-      await refreshJob();
+      await refreshProgress();
       message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
       await runWorkflow(job.jobId);
     } catch (error) {
@@ -471,21 +550,24 @@ import {
 
   async function submitJobCommand(text) {
     const preview = confirmationPreview();
-    const result = await api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/command`, {
+    const result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/command`, {
       method: "POST",
       body: JSON.stringify({
         message: text,
         expected_plan_id: preview?.planId || "",
         expected_plan_hash: preview?.planHash || ""
       })
-    });
-    job = result.view || job;
+    }));
+    setJobView(result.view || job);
     pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
     if (result.interaction?.message) message("agent", result.interaction.message);
     renderAll();
   }
 
   function bindInteractions() {
+    document.getElementById("progressRefreshButton").addEventListener("click", () => {
+      refreshProgressFromButton();
+    });
     document.getElementById("chatForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const input = document.getElementById("chatInput");
@@ -527,20 +609,19 @@ import {
       rootHome = target.status === "home";
       viewOnly = target.status === "job";
       if (target.status === "job") {
-        job = await api(jobViewPath(target.jobId));
+        setJobView(await api(jobViewPath(target.jobId)));
       } else if (target.status === "case") {
         const caseView = await api(`/api/workflow-cases/${encodeURIComponent(target.caseId)}`);
         const latestJobId = caseView.summary?.latest_job_id || "";
         if (latestJobId) {
           draftCaseId = target.caseId;
-          job = await api(jobViewPath(latestJobId));
+          setJobView(await api(jobViewPath(latestJobId)));
         } else {
           workbench = await api("/api/launch/workbench");
         }
       } else {
         workbench = await api("/api/launch/workbench");
       }
-      pendingConfirmation = job?.confirmationPreview || null;
       renderAll();
     } catch (error) {
       document.getElementById("agentStatus").textContent = "加载失败";
@@ -550,6 +631,6 @@ import {
 
   document.addEventListener("DOMContentLoaded", init);
   window.addEventListener("focus", () => {
-    if (job?.jobId) refreshJob().catch(() => {});
+    if (job?.jobId) refreshProgress().catch(() => {});
   });
 })();

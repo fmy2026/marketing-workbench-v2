@@ -1,7 +1,7 @@
 {
-  "schema_version": "2026-08-28.project-control-plane-v2",
+  "schema_version": "2026-09-01.project-control-plane-v3",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-09-01 13:00 CST",
+  "updated_at": "2026-09-01 16:52 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -12,6 +12,25 @@
   "active_task": null,
   "guardrails": {
     "platform_write_allowed": false,
+    "workbench_runtime_write_policy": {
+      "enabled": true,
+      "mode": "loopback_plan_bound_confirmation_only",
+      "origin": "http://127.0.0.1:3000",
+      "allowed_source_usage": [
+        "runtime_truth"
+      ],
+      "allowed_plan_kinds": [
+        "monitor_bootstrap",
+        "resource_prepare",
+        "std_project_create"
+      ],
+      "require_active_case": true,
+      "require_latest_case_job": true,
+      "require_exact_plan_binding": true,
+      "require_exact_confirmation_phrase": true,
+      "maximum_confirmations_per_plan": 1,
+      "retry_allowed": false
+    },
     "platform_write_scope": {
       "binding_mode": "single_confirmation_plan",
       "action_grants": {},

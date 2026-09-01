@@ -281,7 +281,8 @@ try {
       return { ...workbenchBundle, executionConfirmation: workbenchConfirmation };
     },
     async getLaunchConfirmationForPlan() { return workbenchConfirmation; },
-    async upsertLaunchConfirmation(input) {
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (workbenchConfirmation) return { claimed: false };
       workbenchConfirmationWrites += 1;
       workbenchConfirmation = {
         confirmation_id: input.confirmationId,
@@ -290,6 +291,7 @@ try {
         confirmation_status: input.confirmationStatus,
         metadata: input.metadata
       };
+      return { claimed: true, confirmationId: input.confirmationId };
     },
     async upsertLaunchSkillRun() {},
     async updateJob() {}
@@ -316,6 +318,61 @@ try {
   });
   assert(repeatedWorkbenchExecution.status === "blocked", "consumed_workbench_resource_plan_not_blocked");
   assert(workbenchConfirmationWrites === 1, "workbench_resource_confirmation_repeated");
+
+  await writeFile(statePath, `${JSON.stringify({ guardrails: { platform_write_allowed: true } }, null, 2)}\n`);
+  let concurrentConfirmation = null;
+  let concurrentConfirmationClaims = 0;
+  const concurrentActionClaims = new Set();
+  const concurrentRepo = {
+    ...repo,
+    async getLaunchJobBundle() {
+      return { ...workbenchBundle, executionConfirmation: concurrentConfirmation };
+    },
+    async getLaunchConfirmationForPlan() { return concurrentConfirmation; },
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (concurrentConfirmation) return { claimed: false };
+      concurrentConfirmationClaims += 1;
+      concurrentConfirmation = {
+        confirmation_id: input.confirmationId,
+        job_id: input.jobId,
+        plan_id: input.planId,
+        confirmation_status: input.confirmationStatus,
+        confirmed_by: input.confirmedBy,
+        metadata: input.metadata
+      };
+      return { claimed: true, confirmationId: input.confirmationId };
+    },
+    async claimPlannedExecutionAction({ actionType }) {
+      if (concurrentActionClaims.has(actionType)) return { claimed: false };
+      concurrentActionClaims.add(actionType);
+      return { claimed: true };
+    },
+    async upsertLaunchSkillRun() {},
+    async updateJob() {}
+  };
+  const concurrentResults = await Promise.all([
+    executeConfirmedResourcePlan({
+      repo: concurrentRepo,
+      jobId,
+      expectedPlanId: planId,
+      expectedPlanHash: planHash,
+      grantSource: "workbench_conversation",
+      projectStatePath: statePath,
+      executorOverrides
+    }),
+    executeConfirmedResourcePlan({
+      repo: concurrentRepo,
+      jobId,
+      expectedPlanId: planId,
+      expectedPlanHash: planHash,
+      grantSource: "workbench_conversation",
+      projectStatePath: statePath,
+      executorOverrides
+    })
+  ]);
+  assert(concurrentConfirmationClaims === 1, "concurrent_confirmation_claim_not_atomic");
+  assert(concurrentResults.filter((item) => item.status === "passed").length === 1, "concurrent_confirmation_must_have_one_winner");
+  assert(concurrentResults.filter((item) => item.status === "blocked").length === 1, "concurrent_confirmation_loser_not_blocked");
 
   const consumedActions = new Set();
   const atomicRepo = {
@@ -388,6 +445,7 @@ try {
     outsidePlanBlocked: true,
     duplicateResourceConsumptionBlocked: true,
     workbenchResourceConfirmationCount: workbenchConfirmationWrites,
+    concurrentConfirmationWinnerCount: concurrentResults.filter((item) => item.status === "passed").length,
     failFastBeforeCreate: true,
     finalDraftDerivationDriftBlocked: true,
     realPlatformWriteCalled: false

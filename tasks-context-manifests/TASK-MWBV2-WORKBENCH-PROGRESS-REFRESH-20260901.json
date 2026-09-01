@@ -1,0 +1,73 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-PROGRESS-REFRESH-20260901",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-PROGRESS-REFRESH-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 15:22 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add a minimal Case-aware workbench progress refresh control and make the local service load it.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-PROGRESS-REFRESH-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-PROGRESS-REFRESH-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "src/workflows/launchWorkflow.mjs",
+    "src/server/index.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, control-plane and design documentation",
+    "workbench frontend, presentation-only status mapping and tests"
+  ],
+  "forbidden_actions": [
+    "all external platform calls, writes and runtime workflow commands",
+    "all confirmation consumption, resource preparation and std_project/create",
+    "database schema or workflow_case_summary View changes",
+    "browser persistence or sensitive/raw platform data"
+  ],
+  "validation_plan": [
+    "node --check frontend/app.js",
+    "npm run test:workbench-address",
+    "npm run test:workbench-conversation",
+    "npm run smoke:api",
+    "progress display smoke",
+    "LaunchAgent health and browser visual check",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "a change requires a new API, database migration or background worker",
+    "a refresh path could write to the platform or create a runtime Job",
+    "the rendered view would expose token, secret, full URL or raw platform data"
+  ],
+  "completed_at": "2026-09-01 15:29 CST",
+  "result": {
+    "platform_writes": 0,
+    "platform_calls": 0,
+    "runtime_jobs_created": 0,
+    "database_schema_changes": 0,
+    "launchagent_restarted": true,
+    "current_case_progress": "进度 1/7 · 已暂停：平台只读凭据不可用",
+    "validation": {
+      "frontend_syntax": "passed",
+      "workbench_progress_smoke": "passed",
+      "workbench_address_smoke": "passed",
+      "workbench_conversation_smoke": "passed",
+      "api_smoke": "passed",
+      "browser_render_and_manual_refresh": "passed",
+      "browser_console_errors": "none",
+      "diff_check": "passed"
+    }
+  }
+}

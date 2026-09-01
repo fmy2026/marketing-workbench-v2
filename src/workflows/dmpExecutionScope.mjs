@@ -149,6 +149,7 @@ export async function validateDmpWriteScope({ repo, bundle, projectStatePath = d
 
 export async function revokeDmpWriteScope(projectStatePath = defaultProjectStatePath) {
   const state = await readState(projectStatePath);
+  if (state.guardrails?.platform_write_allowed !== true) return;
   state.guardrails ||= {};
   state.guardrails.platform_write_allowed = false;
   if (state.guardrails.platform_write_scope) {

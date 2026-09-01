@@ -8,6 +8,7 @@ import {
 import { readonlyPermissionState } from "./skills/oe3/00-readonly-permission.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
 import { buildConfirmationPreview } from "./gateActionPolicy.mjs";
+import { PLAN_KIND_STD_PROJECT_CREATE } from "./executionPlan.mjs";
 import {
   workbenchCaseUrl,
   workbenchHomeUrl,
@@ -68,6 +69,24 @@ function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", output
     started: status !== "waiting",
     finished: TERMINAL_STATUSES.has(status)
   };
+}
+
+function initialNodeRuns() {
+  return [
+    nodeStatus({
+      nodeKey: "launch_intake",
+      status: "passed",
+      summary: "route_id、game_code、advertiser_id 已归一。"
+    }),
+    ...WORKFLOW_NODES.slice(1).map((node) => ({
+      ...node,
+      status: "waiting",
+      summary: "等待执行。",
+      diagnosticLevel: "pending",
+      started: false,
+      finished: false
+    }))
+  ];
 }
 
 function has(value) {
@@ -167,6 +186,7 @@ function statusLabel(status) {
     created_pending_readback: "已创建待回查",
     blocked_brand_industry: "brand_industry 阻断",
     blocked_after_single_create_failure: "单次创建失败后锁定",
+    blocked_confirmed_resource_plan: "资源准备已停止",
     corrective_attempt_requires_new_payload_version: "需修正参数后建立下一次尝试",
     corrective_attempt_limit_or_sequence_blocked: "创建尝试次数或顺序阻断",
     ready_for_user_create_confirmation: "可等待创建确认",
@@ -549,6 +569,8 @@ function childStatus({ descriptor, node, bundle, executionAvailability, currentC
     return run ? publicWorkflowStatus(run.status, nodeFallback) : nodeFallback;
   }
   if (source.kind === "execution_grant") {
+    const currentPlanKind = bundle.executionPlan?.plan_kind || bundle.executionPlan?.planKind || bundle.executionPlan?.metadata?.plan_kind || "";
+    if (currentPlanKind !== PLAN_KIND_STD_PROJECT_CREATE) return "waiting";
     if (executionAvailability.canExecuteOnce) return "passed";
     if (executionAvailability.alreadyAttempted) return "locked";
     return nodeFallback === "waiting" ? "waiting" : "locked";
@@ -676,6 +698,11 @@ function rootBlockerPresentation(code = "") {
       title: "触点完整性校验未通过",
       reason: "已读取到触点，但受控触点与平台 hash 未通过一致性校验。",
       nextActionLabel: "执行一次 fresh readonly monitor 回查；不得创建或重试。"
+    },
+    credential_required: {
+      title: "平台只读凭据不可用",
+      reason: "当前只读校验无法继续；若已有已确认资源 Plan，旧 Plan 不可重试。",
+      nextActionLabel: "凭据恢复后输入“重新只读准备”，以 fresh Job 重新核验；不会确认或创建平台对象。"
     },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
@@ -850,7 +877,9 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     executionAvailability: {
       status: executionAvailability.status || "unavailable",
       canExecuteOnce: executionAvailability.canExecuteOnce === true,
-      alreadyAttempted: executionAvailability.alreadyAttempted === true
+      alreadyAttempted: executionAvailability.alreadyAttempted === true,
+      authorizationMode: executionAvailability.authorizationMode || "none",
+      reasonCode: executionAvailability.reasonCode || ""
     },
     primaryAction,
     confirmationPreview,
@@ -1078,23 +1107,30 @@ export async function createJob(repo, body = {}) {
     sourceRecordRef,
     sourceUsage
   });
-  await repo.upsertNodeRuns(jobId, [
-    nodeStatus({
-      nodeKey: "launch_intake",
-      status: "passed",
-      summary: "route_id、game_code、advertiser_id 已归一。"
-    }),
-    ...WORKFLOW_NODES.slice(1).map((node) => ({
-      ...node,
-      status: "waiting",
-      summary: "等待执行。",
-      diagnosticLevel: "pending",
-      started: false,
-      finished: false
-    }))
-  ]);
+  await repo.upsertNodeRuns(jobId, initialNodeRuns());
   const bundle = await repo.getLaunchJobBundle(jobId);
   return buildPublicJobView(repo, bundle);
+}
+
+export async function createReadonlyRecoveryJob(repo, predecessorJob = {}) {
+  if (!repo || typeof repo.createReadonlyRecoveryLaunchJobOnce !== "function") {
+    throw new Error("readonly_recovery_repository_unavailable");
+  }
+  const predecessorJobId = String(predecessorJob.job_id || "").trim();
+  const caseId = String(predecessorJob.case_id || "").trim();
+  if (!predecessorJobId || !caseId) throw new Error("readonly_recovery_predecessor_required");
+  const recoveryJobId = `JOB-MWBV2-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${hashText(`${caseId}:${predecessorJobId}:${Date.now()}:${randomBytes(4).toString("hex")}`).slice(0, 6).toUpperCase()}`;
+  const sourceRecordRef = `workbench:readonly-recovery:${predecessorJobId}`;
+  const claimed = await repo.createReadonlyRecoveryLaunchJobOnce({
+    recoveryJobId,
+    predecessorJobId,
+    caseId,
+    sourceRecordRef
+  });
+  const job = claimed?.job || null;
+  if (!job?.job_id) return { created: false, jobId: "" };
+  if (claimed.created === true) await repo.upsertNodeRuns(job.job_id, initialNodeRuns());
+  return { created: claimed.created === true, jobId: job.job_id };
 }
 
 export function resolveReadonlyDependencyForRun(options = {}) {

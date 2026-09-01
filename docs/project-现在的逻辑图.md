@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-01 12:10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -95,6 +95,8 @@ v_monitor_readiness（唯一状态读取）
   └─ 只读失败、多候选、来源或合同缺失、executor 缺失、回查失败 → BLOCKED
 ```
 
+`micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
+
 事件资产是账户级受控合同，不是通用模板开关：先校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板；候选缺失、歧义或来源不受控分别 fail-closed。该阶段可直接生成带 `target_advertiser_id`、`template_ref` 与动态 `template_hash` 的脱敏合同，并在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
@@ -143,6 +145,8 @@ ensure_resource:event_asset
 
 每份 Execution Plan 固定绑定 `case_id`、`job_id`、`advertiser_id`、`plan_id`、`plan_hash`、版本、计划动作、调用上限、资源状态、blocker 与目标 Draft/payload hash。写入必须同时通过：
 
+ready 的 `resource_prepare` Plan 已接管当前 Gate 时，其当前根 blocker 为空；资源尚未执行所导致的 Node 5 payload/readback 缺口仍可作为下游诊断保留，但不得写入该 ready Plan 的 `metadata.root_blocker_codes` 并覆盖确认 Gate。
+
 ```text
 project.state.json.guardrails 的全局范围
               +
@@ -174,7 +178,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 2 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
 | 3 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
 | 4 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
-| 5 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；仅终态 `monitor_create_busy_retry_exhausted` 可由精确只读指令回查 |
+| 5 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
 | 6 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
 | 7 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
 | 8 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
@@ -192,9 +196,14 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 状态说明 / safe readonly / 脱敏确认卡
 → 仅 active Case 的最新 Job、唯一 `monitor_create_busy_retry_exhausted` blocker 且 `monitor_resolved=false` 时，精确“重新只读回查 monitor”可调用 Node 02 fresh readonly reconcile
 → 回查后若 Case Gate 为 `run_monitor_readonly`，普通“继续执行”只调用一次 fresh readonly reconcile；成功文案只以刷新后的 `monitor_resolved=true` 为准
+→ active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再 `dry_run`；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示第二张 Create Plan 确认卡
 ```
+
+本机正式运行的授权来源是固定 `workbench_runtime_write_policy` 加当前 Plan-bound confirmation；它只允许 loopback command、active Case 最新 runtime Job、ready Plan、精确 ID/hash/短语和一次消费。仓库 Task scope 只服务开发、迁移或专项人工写入，不再是普通用户从工作台完成首次创建的运行时前置条件。
+
+`?case_id=` 底栏的“刷新进度”只读调用当前 Case summary，再读取其最新 Job view；若 Job 已切换，页面只在内存中切到该 Job。前端命令或 dry-run 请求期间可按 1.2 秒短暂重复这一只读同步，结束后立即停止；这不是后台队列、不会推动节点、更不构成执行授权。`?job_id=` 仅刷新自身历史 Job，根页不轮询。
 
 Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择平台动作、不扩大 Guardrail。对话、前端、API、CLI 和任务卡均不得持久化 raw transcript 或自行推导下一步。工作台只把 blocker code 映射为展示文案；Gate 与 suggested action 仍只来自 View。
 

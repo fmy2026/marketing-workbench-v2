@@ -784,7 +784,7 @@ p {
   font-weight: 700;
 }
 
-.run-mode {
+.progress-refresh {
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -795,6 +795,16 @@ p {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.progress-refresh:not(:disabled):hover,
+.progress-refresh:not(:disabled):focus-visible {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.progress-refresh:disabled {
+  cursor: not-allowed;
 }
 
 .sr-only {

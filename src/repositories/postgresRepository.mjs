@@ -2361,6 +2361,69 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async createReadonlyRecoveryLaunchJobOnce({ recoveryJobId, predecessorJobId, caseId, sourceRecordRef }) {
+    assertId("recovery_job_id", recoveryJobId);
+    assertId("predecessor_job_id", predecessorJobId);
+    assertId("case_id", caseId);
+    assertId("source_record_ref", sourceRecordRef);
+    return queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(caseId)}, 0)) AS locked
+      ),
+      existing AS (
+        SELECT j.*
+        FROM mwb.launch_jobs j
+        CROSS JOIN scope_lock
+        WHERE j.case_id = ${sqlLiteral(caseId)}
+          AND j.source_record_ref = ${sqlLiteral(sourceRecordRef)}
+        ORDER BY j.updated_at DESC, j.created_at DESC, j.job_id DESC
+        LIMIT 1
+      ),
+      predecessor AS (
+        SELECT j.*
+        FROM mwb.launch_jobs j
+        JOIN mwb.workflow_cases wc ON wc.case_id = j.case_id
+        CROSS JOIN scope_lock
+        WHERE j.job_id = ${sqlLiteral(predecessorJobId)}
+          AND j.case_id = ${sqlLiteral(caseId)}
+          AND j.source_usage = 'runtime_truth'
+          AND wc.lifecycle_status = 'active'
+          AND wc.source_usage = 'runtime_truth'
+          AND j.job_status = 'blocked_confirmed_resource_plan'
+        LIMIT 1
+      ),
+      latest AS (
+        SELECT j.job_id
+        FROM mwb.launch_jobs j
+        CROSS JOIN scope_lock
+        WHERE j.case_id = ${sqlLiteral(caseId)}
+        ORDER BY j.updated_at DESC, j.created_at DESC, j.job_id DESC
+        LIMIT 1
+      ),
+      inserted AS (
+        INSERT INTO mwb.launch_jobs (
+          job_id, case_id, route_id, game_code, advertiser_id, object_type,
+          job_status, current_node, source_record_ref, source_usage, created_at, updated_at
+        )
+        SELECT
+          ${sqlLiteral(recoveryJobId)}, p.case_id, p.route_id, p.game_code, p.advertiser_id, p.object_type,
+          'created', '1', ${sqlLiteral(sourceRecordRef)}, p.source_usage, now(), now()
+        FROM predecessor p
+        CROSS JOIN scope_lock
+        WHERE p.job_id = (SELECT job_id FROM latest)
+          AND NOT EXISTS (SELECT 1 FROM existing)
+        RETURNING *
+      )
+      SELECT jsonb_build_object(
+        'created', EXISTS (SELECT 1 FROM inserted),
+        'job', coalesce(
+          (SELECT to_jsonb(i) FROM inserted i),
+          (SELECT to_jsonb(e) FROM existing e)
+        )
+      )::text;
+    `, this.database);
+  }
+
   async updateJob(jobId, { status, currentNode }) {
     assertId("job_id", jobId);
     await runPsql(`
@@ -3219,6 +3282,53 @@ export class PostgresRepository {
         END,
         confirmed_at = mwb.launch_confirmations.confirmed_at;
     `, this.database);
+  }
+
+  async claimLaunchExecutionPlanConfirmation(confirmation) {
+    assertId("confirmation_id", confirmation.confirmationId);
+    assertId("job_id", confirmation.jobId);
+    assertId("plan_id", confirmation.planId);
+    if (confirmation.confirmationStatus !== "confirmed_for_execution_plan") {
+      throw new Error("plan_confirmation_status_invalid");
+    }
+    const result = await queryJson(`
+      WITH claimed AS (
+        INSERT INTO mwb.launch_confirmations (
+          confirmation_id,
+          job_id,
+          draft_id,
+          object_type,
+          object_name,
+          payload_hash,
+          confirmation_status,
+          confirm_variable,
+          confirmed_by,
+          plan_id,
+          metadata,
+          confirmed_at
+        ) VALUES (
+          ${sqlLiteral(confirmation.confirmationId)},
+          ${sqlLiteral(confirmation.jobId)},
+          ${confirmation.draftId ? sqlLiteral(confirmation.draftId) : "NULL"},
+          ${sqlLiteral(confirmation.objectType)},
+          ${sqlLiteral(confirmation.objectName)},
+          ${sqlLiteral(confirmation.payloadHash)},
+          ${sqlLiteral(confirmation.confirmationStatus)},
+          ${sqlLiteral(confirmation.confirmVariable)},
+          ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+          ${sqlLiteral(confirmation.planId)},
+          ${sqlJson(confirmation.metadata || {})},
+          now()
+        )
+        ON CONFLICT DO NOTHING
+        RETURNING confirmation_id
+      )
+      SELECT jsonb_build_object(
+        'claimed', EXISTS (SELECT 1 FROM claimed),
+        'confirmationId', COALESCE((SELECT confirmation_id FROM claimed LIMIT 1), '')
+      )::text;
+    `, this.database);
+    return result || { claimed: false, confirmationId: "" };
   }
 
   async getLaunchConfirmationForPlan(planId) {

@@ -660,7 +660,14 @@ function compilePlannedActions(bundle = {}, {
   return {
     plannedActions: actions.map((action) => sanitizeForPublic(action)),
     blockerCodes: [...new Set(blockers)].filter(Boolean),
-    rootBlockerCodes: blockers.length ? [blockers[0]] : rootBlockerCodes(bundle),
+    // A ready resource plan owns the current gate. Downstream Node 5
+    // readiness gaps are expected until these planned actions complete and
+    // must not be projected as current Case blockers.
+    rootBlockerCodes: blockers.length
+      ? [blockers[0]]
+      : plannedResourceActionsPresent
+        ? []
+        : rootBlockerCodes(bundle),
     resourceStates
   };
 }

@@ -3,13 +3,21 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 12:10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-01 16:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
+
+## 已批准设计：工作台原生 Plan-bound 首次创建闭环
+
+正式运行时不得依赖 Codex 为每份 Plan 修改仓库 scope。`project.state.json.guardrails.workbench_runtime_write_policy` 是本机部署级固定策略：只允许 `127.0.0.1:3000` 的同源 JSON command、active Case 的最新 `runtime_truth` Job、ready 且零 blocker 的 `monitor_bootstrap`、`resource_prepare` 或 `std_project_create` Plan，以及当前 Plan ID/hash 对应的精确确认短语。它不选择动作、不生成 Plan、不允许重试；动作、调用上限和目标仍只来自冻结 Plan。
+
+用户确认通过既有 `launch_confirmations` 原子占有当前 Plan 的一次执行权；只有首次成功记录 confirmation 的请求可进入原有 Plan-bound executor。资源执行完成后同一 Case 自动生成 fresh Job，下一份 Plan 只能包含一次 `std_project_create`。动态运行授权只保存在 Postgres confirmation/action/readback，不为每次运行生成仓库 Task/Manifest。开发、迁移、专项人工写入与非工作台入口继续使用原有 Task scope，且 `platform_write_allowed=false` 不影响已明确启用的窄化工作台策略。
+
+`POST /api/launch/jobs/:job_id/command` 是唯一正式 runtime 写入口；`/run` 对真实 Job 只接受 dry-run/readonly/readback，旧 execute 路由对 `runtime_truth` fail-closed。写请求必须满足 loopback Host、同源 Origin 与 JSON Content-Type。历史 Job 永远只读。该设计不新增数据库表、View、Gate 或 Plan 类型。
 
 ## 已批准设计：正式写入入口与历史脚本隔离
 
@@ -68,6 +76,28 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 `workflow_case_summary` 的 Gate、根阻断和排序不变。仅当 active Case 的最新 Job 处于 `resolve_case_blocker`、唯一 root blocker 为 `monitor_create_busy_retry_exhausted` 且 `monitor_resolved=false` 时，工作台允许精确指令“重新只读回查 monitor”。该指令复用 Node 02 的 fresh readonly reconcile，不生成 Plan、confirmation、action grant 或平台写入。
 
 普通“继续执行”保持只展示 blocker，避免误触发外部查询；历史 Job、非 active Case、其他 blocker 均不得触发该动作。回查发现唯一 monitor 并完成触点回查时，只落脱敏证据并刷新既有 Case 投影；未发现、查询失败或结果不唯一时保留原终态 blocker，不重试、不创建、不改写旧 cycle/attempt/Plan。工作台文案只提示精确指令及安全错误码，不展示完整 URL 或 raw 响应。
+
+## 已批准设计：已确认资源 Plan 停止后的最小只读恢复
+
+工作台新增精确指令“重新只读准备”，但不新增 Gate、Plan 类型、API 路由、数据库 Schema 或平台写权限。Gate Action Policy 仍只读取 `workflow_case_summary`：仅 active Case 的最新 Job 位于 `resolve_case_blocker` 且不是终态 monitor 专用回查时可用。
+
+当最新 Job 为 `blocked_confirmed_resource_plan` 时，先本地读取脱敏凭据状态；未 ready 则不创建 Job、不调用平台。凭据 ready 后，以 Case advisory lock 和确定性 `source_record_ref` 原子创建或返回一个同一 Case 的 fresh runtime Job，并只运行既有 `dry_run`。fresh Job 绝不复制旧 Job 的 Plan、confirmation、action、grant 或 idempotency key；并发重复指令只允许一个 fresh Job 运行只读准备。其他普通只读 blocker 只在当前 Job 运行 `dry_run`。终态 monitor 仍只接受“重新只读回查 monitor”。
+
+该入口不刷新 token、不确认资源 Plan、不创建资源或项目、不更改 `project.state.json` 写权限。真实资源或项目写入仍必须在 fresh Plan/hash、独立 Task、全局 scope 和精确确认齐备后进入既有 executor。
+
+## 已批准设计：工作台进度同步
+
+`?case_id=` 的工作台底栏必须明确展示当前节点计数与当前 Case 的稳定状态：仅在前端请求尚未返回时显示“正在处理”；存在 `root_blocker_codes[0]` 时显示“已暂停”及已有脱敏 blocker 标题；存在确认卡时显示“待确认”；`first_std_project_create_completed` 时显示“已完成”。Gate、blocker、建议动作及最新 Job 仍只消费既有 `workflow_case_summary` 与 Job view，展示层不得自行计算 Gate。
+
+底栏提供一个只读“刷新进度”按钮。该按钮先读取当前 `case_id` 的 summary，再以其 `latest_job_id` 读取 Job view；若最新 Job 已变化，前端只在内存中切换到该 Job，Case URL 保持不变。前端命令或 dry-run 请求进行期间以 1.2 秒间隔复用该只读刷新；请求结束立即停止并做一次最终同步。历史 `?job_id=` 只刷新自身历史 Job，根页不轮询。不新增 API、Schema、View、后台任务或浏览器持久化，刷新不执行 workflow、不创建 Job、不确认 Plan、不产生平台写入。
+
+## 已批准设计：小程序实例被动就绪状态保留
+
+`micro_app_instance` 的 `waiting_on_event_asset` 与 `waiting_on_event_configs` 是事件链中的被动就绪状态，不是独立资源准备能力。资源结果归一必须保留这两个状态，同时继续声明 `prepare_supported=false`；runner 将其聚合为 `WAITING`，Execution Plan 不生成实例动作或 `resource_prepare_unsupported:micro_app_instance` blocker。实例只有在既有事件资产详情确认 App + instance 绑定后才能进入 verified，禁止猜测实例 ID、人工映射其他实例或新增实例 executor。
+
+事件资产候选与准备合同 ready 时，Resource Plan 继续只包含既有受控动作：事件资产、baseline 事件配置、头像、DMP、视频和产品图；小程序实例只通过事件资产链权威回查收口。本修正不新增 API、Schema、View、Gate、Plan 类型或平台写权限。
+
+只要上述受控资源动作已形成 ready Resource Plan，Plan 元数据的当前 `root_blocker_codes` 必须为空；Node 5 在资源执行前必然存在的 payload/readback 缺口只保留为下游诊断，不能覆盖 ready Plan 的 `await_job_write_authorization` Gate。该规则不改变 Gate 排序或 Plan 类型。
 
 ## 已批准设计：Monitor 触点只读回查收口
 

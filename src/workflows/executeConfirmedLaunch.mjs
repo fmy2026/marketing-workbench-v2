@@ -80,7 +80,9 @@ export async function executeConfirmedLaunch({
   expectedPlanHash = "",
   envConfirm = process.env[EXECUTION_GRANT_CONFIRM_ENV] || "",
   fetchImpl = globalThis.fetch,
-  projectStatePath
+  projectStatePath,
+  getJobViewFn = getJobView,
+  runJobFn = runJob
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!jobId) throw new Error("job_id_required");
@@ -90,7 +92,7 @@ export async function executeConfirmedLaunch({
   if (!bundle) throw new Error("job_not_found");
 
   if (blockers.length) {
-    const view = await getJobView(repo, jobId);
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -106,7 +108,7 @@ export async function executeConfirmedLaunch({
 
   const initialPlanBindingBlockers = planBindingBlockers({ bundle, grantSource, expectedPlanId, expectedPlanHash });
   if (initialPlanBindingBlockers.length) {
-    const view = await getJobView(repo, jobId, { projectStatePath });
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -122,7 +124,7 @@ export async function executeConfirmedLaunch({
 
   const planBound = await usePlanBoundConfirmation(bundle, projectStatePath);
   if (!planBound && (bundle.job?.source_usage || "runtime_truth") !== "test_run") {
-    const view = await getJobView(repo, jobId);
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -136,10 +138,10 @@ export async function executeConfirmedLaunch({
     return result;
   }
   const scopeCheck = planBound
-    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
+    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   if (scopeCheck.blockers.length) {
-    const view = await getJobView(repo, jobId);
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -162,7 +164,7 @@ export async function executeConfirmedLaunch({
     expectedPlanHash
   });
   if (latestPlanBindingBlockers.length) {
-    const view = await getJobView(repo, jobId, { projectStatePath });
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -176,10 +178,15 @@ export async function executeConfirmedLaunch({
     return result;
   }
   const secondScopeCheck = planBound
-    ? await validatePlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath })
+    ? await validatePlanConfirmationScope({
+      repo,
+      bundle: latestBundleBeforeCreate,
+      projectStatePath,
+      authorizationSource: grantSource
+    })
     : await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
   if (secondScopeCheck.blockers.length) {
-    const view = await getJobView(repo, jobId);
+    const view = await getJobViewFn(repo, jobId, { projectStatePath });
     const result = {
       ...view,
       executionGrant: {
@@ -203,7 +210,7 @@ export async function executeConfirmedLaunch({
   try {
     if (planBound) {
       const planningIntent = planMetadata.planning_intent || {};
-      await repo.upsertLaunchConfirmation({
+      const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
         confirmationId: `CONFIRM-${jobId}-EXECUTION-PLAN`,
         jobId,
         draftId: "",
@@ -226,9 +233,23 @@ export async function executeConfirmedLaunch({
           raw_response_stored: false
         }
       });
+      if (confirmationClaim?.claimed !== true) {
+        const view = await getJobViewFn(repo, jobId, { projectStatePath });
+        const result = {
+          ...view,
+          executionGrant: {
+            status: "blocked",
+            grantSource,
+            blockers: ["execution_plan_confirmation_already_recorded"],
+            createCalled: false
+          }
+        };
+        assertNoSensitiveLeak(result.executionGrant);
+        return result;
+      }
       latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
     }
-    const view = await runJob(repo, jobId, {
+    const view = await runJobFn(repo, jobId, {
       mode: "execute_once",
       mockReady: grantSource === "test_fake_transport",
       allowReadonlyDependency: true,
@@ -269,6 +290,8 @@ export async function executeConfirmedLaunch({
     assertNoSensitiveLeak(result.executionGrant);
     return result;
   } finally {
-    await revokeWriteScope(projectStatePath);
+    if (secondScopeCheck.scopeSummary?.authorizationMode !== "workbench_plan_bound") {
+      await revokeWriteScope(projectStatePath);
+    }
   }
 }

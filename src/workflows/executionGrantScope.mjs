@@ -2,14 +2,20 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ACTION_ENSURE_MONITOR,
   ACTION_STD_PROJECT_CREATE,
+  PLAN_KIND_MONITOR_BOOTSTRAP,
   PLAN_KIND_RESOURCE_PREPARE,
   validateExecutionPlanActionScope
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
+import {
+  DEFAULT_PROJECT_STATE_PATH,
+  evaluatePlanBoundWriteAuthorization
+} from "./workbenchRuntimeWritePolicy.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
-const defaultProjectStatePath = join(rootDir, "project.state.json");
+const defaultProjectStatePath = DEFAULT_PROJECT_STATE_PATH;
 export const CREATE_ACTION = "oceanengine_std_project_create";
 
 async function readProjectState(projectStatePath = defaultProjectStatePath) {
@@ -123,9 +129,21 @@ export async function validateWriteScope({ repo, bundle, projectStatePath = defa
   };
 }
 
-export async function validatePlanConfirmationScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
+export async function validatePlanConfirmationScope({
+  repo,
+  bundle,
+  projectStatePath = defaultProjectStatePath,
+  authorizationSource = "workbench_view"
+}) {
   const state = await readProjectState(projectStatePath);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const authorization = await evaluatePlanBoundWriteAuthorization({
+    repo,
+    bundle,
+    plan,
+    projectStatePath,
+    authorizationSource
+  });
   const scope = plan?.metadata?.execution_scope || {};
   const actions = plan?.planned_actions || plan?.plannedActions || [];
   const blockerCodes = plan?.blocker_codes || plan?.blockerCodes || [];
@@ -139,7 +157,7 @@ export async function validatePlanConfirmationScope({ repo, bundle, projectState
     allowedActions: scope.allowed_actions || []
   });
   const blockers = [
-    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
     ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
     ...(blockerCodes.length === 0 ? [] : ["execution_plan_has_blockers"]),
@@ -166,6 +184,7 @@ export async function validatePlanConfirmationScope({ repo, bundle, projectState
     scope,
     attemptState,
     scopeSummary: {
+      authorizationMode: authorization.authorizationMode,
       bindingMode: scope.binding_mode || "",
       planReady: plan?.plan_status === "ready",
       blockerCount: blockerCodes.length,
@@ -177,9 +196,21 @@ export async function validatePlanConfirmationScope({ repo, bundle, projectState
   };
 }
 
-export async function validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
+export async function validateResourcePlanConfirmationScope({
+  repo,
+  bundle,
+  projectStatePath = defaultProjectStatePath,
+  authorizationSource = "workbench_view"
+}) {
   const state = await readProjectState(projectStatePath);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const authorization = await evaluatePlanBoundWriteAuthorization({
+    repo,
+    bundle,
+    plan,
+    projectStatePath,
+    authorizationSource
+  });
   const scope = plan?.metadata?.execution_scope || {};
   const actions = plan?.planned_actions || plan?.plannedActions || [];
   const actionTypes = actions.map((action) => action.action_type);
@@ -192,7 +223,7 @@ export async function validateResourcePlanConfirmationScope({ repo, bundle, proj
     allowedActions: scope.allowed_actions || []
   });
   const blockers = [
-    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
     ...((plan?.plan_kind || plan?.planKind || plan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE ? [] : ["execution_plan_kind_not_resource_prepare"]),
     ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
@@ -216,6 +247,54 @@ export async function validateResourcePlanConfirmationScope({ repo, bundle, proj
     plan,
     scope,
     scopeSummary: {
+      authorizationMode: authorization.authorizationMode,
+      bindingMode: scope.binding_mode || "",
+      planReady: plan?.plan_status === "ready",
+      blockerCount: blockerCodes.length,
+      actionCount: actions.length,
+      existingConfirmation: Boolean(existingConfirmation),
+      retryAllowed: scope.retry_allowed === true
+    }
+  };
+}
+
+export async function validateMonitorPlanConfirmationScope({
+  repo,
+  bundle,
+  projectStatePath = defaultProjectStatePath,
+  authorizationSource = "workbench_view"
+}) {
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const scope = plan?.metadata?.execution_scope || {};
+  const actions = plan?.planned_actions || plan?.plannedActions || [];
+  const blockerCodes = plan?.blocker_codes || plan?.blockerCodes || [];
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
+    : null;
+  const authorization = await evaluatePlanBoundWriteAuthorization({
+    repo,
+    bundle,
+    plan,
+    projectStatePath,
+    authorizationSource
+  });
+  const blockers = [
+    ...authorization.blockers,
+    ...((plan?.plan_kind || plan?.planKind || plan?.metadata?.plan_kind) === PLAN_KIND_MONITOR_BOOTSTRAP ? [] : ["execution_plan_kind_not_monitor_bootstrap"]),
+    ...(actions.length === 1 && actions[0]?.action_type === ACTION_ENSURE_MONITOR ? [] : ["monitor_plan_action_set_invalid"]),
+    ...(Number(scope.maximum_actions) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(Number(scope.maximum_platform_calls) === 1 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
+    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(blockerCodes.length === 0 ? [] : ["execution_plan_has_blockers"]),
+    ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : [])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers: [...new Set(blockers)],
+    plan,
+    scope,
+    scopeSummary: {
+      authorizationMode: authorization.authorizationMode,
       bindingMode: scope.binding_mode || "",
       planReady: plan?.plan_status === "ready",
       blockerCount: blockerCodes.length,
@@ -241,10 +320,13 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
     };
   }
   const resourcePlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE;
+  const monitorPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_MONITOR_BOOTSTRAP;
   const scope = planBound
-    ? resourcePlan
-      ? await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath })
-      : await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
+    ? monitorPlan
+      ? await validateMonitorPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
+      : resourcePlan
+      ? await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
+      : await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   const alreadyAttempted = planBound
     ? scope.blockers.includes("execution_plan_confirmation_already_recorded") || Number(scope.attemptState?.createActionCount || 0) > 0
@@ -252,12 +334,15 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
   return {
     status: scope.status === "passed" ? "available" : (alreadyAttempted ? "consumed" : "unavailable"),
     canExecuteOnce: scope.status === "passed",
-    alreadyAttempted
+    alreadyAttempted,
+    authorizationMode: scope.scopeSummary?.authorizationMode || (scope.status === "passed" ? "task_scope" : "none"),
+    reasonCode: scope.blockers?.[0] || ""
   };
 }
 
 export async function revokeWriteScope(projectStatePath = defaultProjectStatePath) {
   const state = await readProjectState(projectStatePath);
+  if (state.guardrails?.platform_write_allowed !== true) return;
   if (!state.guardrails) state.guardrails = {};
   state.guardrails.platform_write_allowed = false;
   // Runtime authorization belongs to the consumed job plan/action. The following

@@ -41,6 +41,19 @@ function sendError(res, error) {
   });
 }
 
+function requestError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function requireLocalJsonMutation(req) {
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  if (!contentType.startsWith("application/json")) throw requestError("json_content_type_required", 415);
+  const origin = String(req.headers.origin || "").replace(/\/$/, "");
+  if (origin !== WORKBENCH_ORIGIN) throw requestError("same_origin_workbench_request_required", 403);
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -70,6 +83,7 @@ async function serveStatic(req, res, pathname) {
 
 async function handleApi(req, res, url) {
   const pathname = url.pathname;
+  if (req.method === "POST") requireLocalJsonMutation(req);
   if (req.method === "GET" && pathname === "/api/launch/workbench") {
     const activeCases = await repo.listWorkflowCaseSummaries({
       sourceUsage: "runtime_truth",
@@ -129,7 +143,14 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "POST" && action === "run") {
     const body = await readBody(req);
-    return sendJson(res, 200, await runJob(repo, jobId, { mode: body.mode || "dry_run" }));
+    const bundle = await repo.getLaunchJobBundle(jobId);
+    if (!bundle?.job) return sendJson(res, 404, { error: "job_not_found" });
+    const mode = body.mode || "dry_run";
+    const runtimeReadonlyModes = new Set(["dry_run", "draft_readiness", "readback_only", "aweme_auth_readonly"]);
+    if (bundle.job.source_usage === "runtime_truth" && !runtimeReadonlyModes.has(mode)) {
+      return sendJson(res, 403, { error: "runtime_truth_run_mode_readonly_only" });
+    }
+    return sendJson(res, 200, await runJob(repo, jobId, { mode }));
   }
   if (req.method === "POST" && action === "command") {
     const body = await readBody(req);
@@ -142,6 +163,11 @@ async function handleApi(req, res, url) {
     }));
   }
   if (req.method === "POST" && action === "execute-once") {
+    const bundle = await repo.getLaunchJobBundle(jobId);
+    if (!bundle?.job) return sendJson(res, 404, { error: "job_not_found" });
+    if (bundle.job.source_usage === "runtime_truth") {
+      return sendJson(res, 410, { error: "runtime_truth_legacy_execution_route_disabled" });
+    }
     const body = await readBody(req);
     return sendJson(res, 200, await executeConfirmedLaunch({
       repo,
@@ -153,6 +179,11 @@ async function handleApi(req, res, url) {
     }));
   }
   if (req.method === "POST" && action === "confirm-create") {
+    const bundle = await repo.getLaunchJobBundle(jobId);
+    if (!bundle?.job) return sendJson(res, 404, { error: "job_not_found" });
+    if (bundle.job.source_usage === "runtime_truth") {
+      return sendJson(res, 410, { error: "runtime_truth_legacy_execution_route_disabled" });
+    }
     const body = await readBody(req);
     return sendJson(res, 200, await executeConfirmedLaunch({
       repo,

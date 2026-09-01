@@ -1,0 +1,74 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-READONLY-RECOVERY-FRESH-JOB-20260901",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-READONLY-RECOVERY-FRESH-JOB-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 13:00 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add a minimal, exact workbench readonly-recovery path that creates a fresh Case-bound runtime Job after a stopped confirmed resource plan.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-READONLY-RECOVERY-FRESH-JOB-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-READONLY-RECOVERY-FRESH-JOB-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest and project control-plane updates",
+    "workbench recovery runtime, documentation and test code",
+    "test_run and mock validation records only"
+  ],
+  "forbidden_actions": [
+    "all external platform writes and confirmation consumption",
+    "resource preparation execution, std_project/create, monitor creation or retry",
+    "OAuth refresh, budget or bid mutation",
+    "database schema or workflow_case_summary View changes",
+    "persisting sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "node --check changed runtime files",
+    "npm run test:workbench-conversation",
+    "npm run smoke:api",
+    "npm run test:workflow-case",
+    "npm run test:execution-grant",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "a change requires a real platform write or plan confirmation",
+    "a recovery path duplicates Gate truth or permits arbitrary Job creation",
+    "a database migration or schema change becomes necessary",
+    "a public or persisted value could contain sensitive raw data"
+  ],
+  "completed_at": "2026-09-01 15:01 CST",
+  "result": {
+    "platform_writes": 0,
+    "database_schema_changes": 0,
+    "recovery_command": "重新只读准备",
+    "recovery_is_case_bound": true,
+    "fresh_job_is_atomic": true,
+    "old_plan_reused": false,
+    "validation": {
+      "node_syntax": "passed",
+      "workbench_conversation": "passed",
+      "atomic_sql_noop": "passed",
+      "api_smoke": "passed",
+      "workflow_case_smoke": "passed",
+      "diff_check": "passed",
+      "execution_grant_smoke": "interrupted_after_local_fixture_hang;_42_test_run_jobs_cleaned"
+    }
+  }
+}

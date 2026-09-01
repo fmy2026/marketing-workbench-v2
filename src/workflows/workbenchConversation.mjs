@@ -1,14 +1,12 @@
-import {
-  isExplicitCreateConfirmation,
-  resolveConversationIntent
-} from "../agents/conversationIntentResolver.mjs";
+import { resolveConversationIntent } from "../agents/conversationIntentResolver.mjs";
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirmedLaunch.mjs";
 import { executeConfirmedResourcePlan } from "./skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
-import { createJob, getJobView, runJob } from "./launchWorkflow.mjs";
+import { createJob, createReadonlyRecoveryJob, getJobView, runJob } from "./launchWorkflow.mjs";
 import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
 import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
 import { PLAN_KIND_MONITOR_BOOTSTRAP, PLAN_KIND_RESOURCE_PREPARE } from "./executionPlan.mjs";
+import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -48,10 +46,12 @@ export async function handleWorkbenchCommand({
   fetchImpl,
   getJobViewFn = getJobView,
   createFreshJobFn = createJob,
+  createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
   executeConfirmedResourcePlanFn = executeConfirmedResourcePlan,
   executeConfirmedLaunchFn = executeConfirmedLaunch,
-  monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile
+  monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile,
+  credentialStateFn = () => createOceanEngineReadonlyClient().credentialState()
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!clean(jobId)) throw new Error("job_id_required");
@@ -73,12 +73,63 @@ export async function handleWorkbenchCommand({
     caseSummary,
     isLatestCaseJob: caseSummary?.latest_job_id === jobId,
     confirmationPreview,
-    explicitConfirmation: isExplicitCreateConfirmation(message)
+    explicitConfirmation: clean(message) === clean(confirmationPreview?.confirmationPhrase)
   });
 
   if (interaction.effect === "run_dry_run") {
     const nextView = await runJobFn(repo, jobId, { mode: "dry_run", projectStatePath });
-    return response({ view: nextView, interaction: { ...interaction, message: "只读就绪检查已完成。" } });
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        message: intent.intent === "request_readonly_recovery" ? "已重新完成当前 Job 的只读准备。" : "只读就绪检查已完成。"
+      }
+    });
+  }
+  if (interaction.effect === "create_fresh_readonly_recovery_job") {
+    const credential = credentialStateFn() || {};
+    if (clean(credential.status) !== "ready") {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "readonly_recovery_credential_unavailable",
+          blocker: "credential_required",
+          message: "当前平台只读凭据仍不可用，未创建 fresh Job、未执行平台操作。"
+        }
+      });
+    }
+    const recovery = await createReadonlyRecoveryJobFn(repo, bundle.job);
+    if (!clean(recovery?.jobId)) {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "readonly_recovery_stale",
+          message: "当前 Case 已变化，请刷新后从最新 Job 继续；未执行平台操作。"
+        }
+      });
+    }
+    if (recovery.created !== true) {
+      const nextView = await getJobViewFn(repo, recovery.jobId, { projectStatePath });
+      return response({
+        view: nextView,
+        interaction: {
+          ...interaction,
+          effect: "readonly_recovery_already_started",
+          message: "该失败 Job 的 fresh readonly 恢复已启动，已切换到同一 Case 的恢复 Job。"
+        }
+      });
+    }
+    const nextView = await runJobFn(repo, recovery.jobId, { mode: "dry_run", projectStatePath });
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        effect: "readonly_recovery_started",
+        message: "已创建同一 Case 的 fresh Job 并完成只读准备；旧 Plan、确认和平台动作未被复用。"
+      }
+    });
   }
   if (interaction.effect === "run_readback_only") {
     const nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath });

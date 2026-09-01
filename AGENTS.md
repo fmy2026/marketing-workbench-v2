@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-01 12:10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901`；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
+| 最后更新时间 | 2026-09-01 16:17 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -44,6 +44,8 @@
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
+
+本机工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于 loopback、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
 
 ## 真值
 
@@ -97,7 +99,7 @@ frontend / API
 ## 权限与安全
 
 - Node 结果写 `launch_node_runs`；Skill 结果写 `launch_skill_runs`。
-- `project.state.json.guardrails` 只提供全局边界；真实写入还必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限。
+- `project.state.json.guardrails` 只提供全局边界；真实写入必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限，并且只能由 active Task scope 或启用的 loopback Plan-bound 工作台策略二选一授权。
 - 只有 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其他缺失资源只形成 blocker。
 - 每份确认 Plan 只能按冻结动作执行一次；修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
 - 创建响应不等于 READY；只有权威只读回查通过才能写入 verified。

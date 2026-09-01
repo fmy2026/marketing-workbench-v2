@@ -6,6 +6,7 @@ import {
 } from "../src/agents/conversationIntentResolver.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
 import { handleWorkbenchCommand } from "../src/workflows/workbenchConversation.mjs";
+import { createReadonlyRecoveryJob } from "../src/workflows/launchWorkflow.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -61,6 +62,13 @@ const terminalMonitorIntent = await resolveConversationIntent({
   resolver: createConversationIntentResolver()
 });
 assert(terminalMonitorIntent.intent === "request_monitor_readonly_reconcile", "terminal monitor readonly intent not normalized");
+
+const readonlyRecoveryIntent = await resolveConversationIntent({
+  message: "重新只读准备",
+  jobView,
+  resolver: createConversationIntentResolver()
+});
+assert(readonlyRecoveryIntent.intent === "request_readonly_recovery", "readonly recovery intent not normalized");
 
 const fakeResolver = createConversationIntentResolver({
   provider: "fake",
@@ -316,6 +324,35 @@ const blockerDecision = evaluateGateAction({
 });
 assert(blockerDecision.effect === "blocker", "blocker gate must not execute");
 
+const confirmedResourceBlockerCase = {
+  lifecycle_status: "active",
+  current_gate: "resolve_case_blocker",
+  suggested_next_action: "resolve_root_blocker:credential_required",
+  root_blocker_codes: ["credential_required"],
+  latest_job_id: "JOB-RECOVERY-1",
+  latest_job_status: "blocked_confirmed_resource_plan",
+  monitor_resolved: true
+};
+const recoveryDecision = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: confirmedResourceBlockerCase,
+  isLatestCaseJob: true
+});
+assert(recoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed resource blocker must create a fresh readonly job");
+
+const ordinaryReadonlyBlockerCase = {
+  ...confirmedResourceBlockerCase,
+  latest_job_status: "blocked",
+  root_blocker_codes: ["backup_landing_page_target_not_visible"],
+  suggested_next_action: "resolve_root_blocker:backup_landing_page_target_not_visible"
+};
+const ordinaryRecoveryDecision = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: ordinaryReadonlyBlockerCase,
+  isLatestCaseJob: true
+});
+assert(ordinaryRecoveryDecision.effect === "run_dry_run", "ordinary readonly blocker must rerun current job");
+
 const terminalMonitorCase = {
   lifecycle_status: "active",
   current_gate: "resolve_case_blocker",
@@ -349,6 +386,12 @@ const unrelatedBlocker = evaluateGateAction({
   isLatestCaseJob: true
 });
 assert(unrelatedBlocker.effect === "monitor_readonly_unavailable", "other blocker must not trigger monitor reconcile");
+const terminalMonitorRecovery = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: terminalMonitorCase,
+  isLatestCaseJob: true
+});
+assert(terminalMonitorRecovery.effect === "readonly_recovery_unavailable", "terminal monitor must keep its dedicated readonly command");
 
 const terminalBundle = {
   job: {
@@ -436,6 +479,143 @@ const verifiedTouchpointResponse = await handleWorkbenchCommand({
 });
 assert(verifiedTouchpointResponse.interaction.message.includes("已确认 monitor 与受控触点"), "success message must use refreshed canonical monitor readiness");
 
+const recoveryBundle = {
+  job: {
+    job_id: "JOB-RECOVERY-1",
+    case_id: "CASE-RECOVERY-1",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922414575753",
+    source_usage: "runtime_truth",
+    job_status: "blocked_confirmed_resource_plan"
+  },
+  executionPlan: null
+};
+const recoveryView = {
+  ...jobView,
+  jobId: "JOB-RECOVERY-1",
+  caseId: "CASE-RECOVERY-1",
+  headline: { status: "blocked_confirmed_resource_plan" },
+  caseGate: {
+    currentGate: "resolve_case_blocker",
+    suggestedNextAction: confirmedResourceBlockerCase.suggested_next_action,
+    rootBlockerCodes: confirmedResourceBlockerCase.root_blocker_codes,
+    lifecycleStatus: "active"
+  }
+};
+const recoveredView = {
+  ...recoveryView,
+  jobId: "JOB-RECOVERY-FRESH-1",
+  headline: { status: "blocked" }
+};
+let recoveryCreateCalls = 0;
+let recoveryDryRunCalls = 0;
+const recoveryResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return recoveryBundle; },
+    async getWorkflowCaseSummary() { return confirmedResourceBlockerCase; }
+  },
+  jobId: "JOB-RECOVERY-1",
+  message: "重新只读准备",
+  getJobViewFn: async () => recoveryView,
+  credentialStateFn: () => ({ status: "ready", blockers: [] }),
+  createReadonlyRecoveryJobFn: async (_repo, predecessor) => {
+    recoveryCreateCalls += 1;
+    assert(predecessor.job_id === "JOB-RECOVERY-1", "recovery predecessor changed");
+    assert(predecessor.case_id === "CASE-RECOVERY-1", "recovery case changed");
+    return { created: true, jobId: "JOB-RECOVERY-FRESH-1" };
+  },
+  runJobFn: async (_repo, jobId, options) => {
+    recoveryDryRunCalls += 1;
+    assert(jobId === "JOB-RECOVERY-FRESH-1", "recovery did not run fresh job");
+    assert(options.mode === "dry_run", "recovery must remain readonly");
+    return recoveredView;
+  }
+});
+assert(recoveryCreateCalls === 1, "fresh readonly recovery job was not created once");
+assert(recoveryDryRunCalls === 1, "fresh readonly recovery did not run once");
+assert(recoveryResponse.interaction.kind === "readonly_recovery_started", "fresh readonly recovery response changed");
+
+let credentialBlockedCreateCalls = 0;
+const credentialBlockedResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return recoveryBundle; },
+    async getWorkflowCaseSummary() { return confirmedResourceBlockerCase; }
+  },
+  jobId: "JOB-RECOVERY-1",
+  message: "重新只读准备",
+  getJobViewFn: async () => recoveryView,
+  credentialStateFn: () => ({ status: "credential_required", blockers: ["access_token_expired_refresh_required"] }),
+  createReadonlyRecoveryJobFn: async () => { credentialBlockedCreateCalls += 1; }
+});
+assert(credentialBlockedCreateCalls === 0, "credential-blocked recovery must not create a job");
+assert(credentialBlockedResponse.interaction.kind === "readonly_recovery_credential_unavailable", "credential-blocked recovery response changed");
+
+let ordinaryDryRunCalls = 0;
+const ordinaryRecoveryResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return recoveryBundle; },
+    async getWorkflowCaseSummary() { return ordinaryReadonlyBlockerCase; }
+  },
+  jobId: "JOB-RECOVERY-1",
+  message: "重新只读准备",
+  getJobViewFn: async () => recoveryView,
+  runJobFn: async (_repo, jobId, options) => {
+    ordinaryDryRunCalls += 1;
+    assert(jobId === "JOB-RECOVERY-1", "ordinary blocker must retain current job");
+    assert(options.mode === "dry_run", "ordinary blocker must remain readonly");
+    return recoveredView;
+  }
+});
+assert(ordinaryDryRunCalls === 1, "ordinary readonly blocker did not rerun current job");
+assert(ordinaryRecoveryResponse.interaction.message.includes("当前 Job"), "ordinary recovery outcome missing");
+
+let concurrentRecoveryClaims = 0;
+let concurrentRecoveryDryRuns = 0;
+const createConcurrentRecovery = async () => {
+  concurrentRecoveryClaims += 1;
+  return { created: concurrentRecoveryClaims === 1, jobId: "JOB-RECOVERY-FRESH-CONCURRENT" };
+};
+await Promise.all([
+  handleWorkbenchCommand({
+    repo: { async getLaunchJobBundle() { return recoveryBundle; }, async getWorkflowCaseSummary() { return confirmedResourceBlockerCase; } },
+    jobId: "JOB-RECOVERY-1", message: "重新只读准备", getJobViewFn: async () => recoveredView,
+    credentialStateFn: () => ({ status: "ready", blockers: [] }), createReadonlyRecoveryJobFn: createConcurrentRecovery,
+    runJobFn: async () => { concurrentRecoveryDryRuns += 1; return recoveredView; }
+  }),
+  handleWorkbenchCommand({
+    repo: { async getLaunchJobBundle() { return recoveryBundle; }, async getWorkflowCaseSummary() { return confirmedResourceBlockerCase; } },
+    jobId: "JOB-RECOVERY-1", message: "重新只读准备", getJobViewFn: async () => recoveredView,
+    credentialStateFn: () => ({ status: "ready", blockers: [] }), createReadonlyRecoveryJobFn: createConcurrentRecovery,
+    runJobFn: async () => { concurrentRecoveryDryRuns += 1; return recoveredView; }
+  })
+]);
+assert(concurrentRecoveryClaims === 2, "concurrent recovery must consult the atomic claim twice");
+assert(concurrentRecoveryDryRuns === 1, "concurrent recovery must run only one fresh readonly job");
+
+let recoveryClaimInput = null;
+let recoveryNodeInitCount = 0;
+const directRecovery = await createReadonlyRecoveryJob({
+  async createReadonlyRecoveryLaunchJobOnce(input) {
+    recoveryClaimInput = input;
+    return {
+      created: true,
+      job: { job_id: "JOB-RECOVERY-DIRECT-1" }
+    };
+  },
+  async upsertNodeRuns(jobId, nodes) {
+    recoveryNodeInitCount += 1;
+    assert(jobId === "JOB-RECOVERY-DIRECT-1", "direct recovery initialized wrong job");
+    assert(nodes.length === 7, "direct recovery did not initialize every workflow node");
+    assert(nodes[0].nodeKey === "launch_intake" && nodes[0].status === "passed", "direct recovery intake initialization changed");
+  }
+}, recoveryBundle.job);
+assert(directRecovery.created === true && directRecovery.jobId === "JOB-RECOVERY-DIRECT-1", "direct recovery result changed");
+assert(recoveryNodeInitCount === 1, "direct recovery must initialize new job once");
+assert(recoveryClaimInput.caseId === "CASE-RECOVERY-1", "direct recovery claim case changed");
+assert(recoveryClaimInput.predecessorJobId === "JOB-RECOVERY-1", "direct recovery claim predecessor changed");
+assert(recoveryClaimInput.sourceRecordRef === "workbench:readonly-recovery:JOB-RECOVERY-1", "direct recovery source reference changed");
+
 console.log(JSON.stringify({
   deterministicIntent: deterministic.intent,
   fakeAdapterIntent: fakeResolved.intent,
@@ -447,5 +627,6 @@ console.log(JSON.stringify({
   stdProjectCreateCount,
   authoritativeReadbackCount,
   historyEffect: historicalDecision.effect,
-  terminalMonitorEffect: terminalMonitorDecision.effect
+  terminalMonitorEffect: terminalMonitorDecision.effect,
+  readonlyRecoveryEffect: recoveryResponse.interaction.kind
 }, null, 2));

@@ -1,0 +1,67 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 16:17 CST",
+  "completed_at": "2026-09-01 16:52 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Enable a loopback-only native Plan-bound workbench confirmation flow without per-run Codex scope mutation.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/plannedActionGrant.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/server/index.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, control-plane and design documentation",
+    "runtime authorization policy and Plan-bound validators",
+    "workbench server and frontend presentation",
+    "test_run/mock fixtures and smoke coverage"
+  ],
+  "forbidden_actions": [
+    "all real external platform writes and runtime_truth confirmation consumption",
+    "std_project/create, resource execution, monitor creation or retry",
+    "OAuth refresh, budget or bid mutation",
+    "database schema or View changes",
+    "persisting sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "static syntax and diff checks",
+    "workbench conversation, progress, API and interaction smoke",
+    "execution grant and Plan-bound concurrency smoke",
+    "resource and Create mock full-chain smoke",
+    "restart LaunchAgent and read-only inspect the current runtime Case"
+  ],
+  "stop_conditions": [
+    "a runtime_truth confirmation or platform action would be consumed during implementation",
+    "the policy permits non-loopback, historical Job, Plan drift, unconfirmed action or automatic retry",
+    "the implementation requires a new database table, View, Gate or Plan type"
+  ],
+  "outcome": {
+    "workbench_runtime_policy_enabled": true,
+    "platform_write_allowed": false,
+    "real_platform_actions_during_task": 0,
+    "current_runtime_plan_consumed": false,
+    "mock_confirmations": 2,
+    "mock_std_project_create_count": 1,
+    "mock_authoritative_readback_count": 1,
+    "concurrent_confirmation_winner_count": 1
+  }
+}

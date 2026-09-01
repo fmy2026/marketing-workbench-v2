@@ -1,17 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { dirname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
 import { ACTION_ENSURE_MONITOR, PLAN_KIND_MONITOR_BOOTSTRAP } from "../../../executionPlan.mjs";
 import { validatePlannedActionGrant } from "../../../plannedActionGrant.mjs";
 import { revokeWriteScope } from "../../../executionGrantScope.mjs";
+import { evaluatePlanBoundWriteAuthorization } from "../../../workbenchRuntimeWritePolicy.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "../00-contracts.mjs";
 import {
   executeMonitorBootstrapWithAuthorization,
   runMonitorProvisionReadonlyReconcile
 } from "./index.mjs";
-
-const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../../../../.."));
-const defaultProjectStatePath = join(rootDir, "project.state.json");
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -64,14 +59,20 @@ function bootstrapPlanBlockers({ bundle, plan, expectedPlanId = "", expectedPlan
   ];
 }
 
-async function confirmationAvailability({ repo, bundle, plan, projectStatePath }) {
-  const state = JSON.parse(await readFile(projectStatePath || defaultProjectStatePath, "utf8"));
+async function confirmationAvailability({ repo, bundle, plan, projectStatePath, authorizationSource }) {
+  const authorization = await evaluatePlanBoundWriteAuthorization({
+    repo,
+    bundle,
+    plan,
+    projectStatePath,
+    authorizationSource
+  });
   const scope = plan?.metadata?.execution_scope || {};
   const existing = typeof repo.getLaunchConfirmationForPlan === "function"
     ? await repo.getLaunchConfirmationForPlan(planId(plan))
     : null;
   const blockers = [
-    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
     ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
@@ -83,7 +84,11 @@ async function confirmationAvailability({ repo, bundle, plan, projectStatePath }
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...(existing ? ["execution_plan_confirmation_already_recorded"] : [])
   ];
-  return { status: blockers.length ? "blocked" : "passed", blockers };
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers,
+    authorizationMode: authorization.authorizationMode
+  };
 }
 
 function result(status, blockers, extra = {}) {
@@ -98,6 +103,10 @@ function result(status, blockers, extra = {}) {
   });
   assertNoSensitiveLeak(safe);
   return safe;
+}
+
+async function revokeTaskScope(projectStatePath, authorizationMode) {
+  if (authorizationMode !== "workbench_plan_bound") await revokeWriteScope(projectStatePath);
 }
 
 export async function executeConfirmedMonitorBootstrap({
@@ -116,11 +125,17 @@ export async function executeConfirmedMonitorBootstrap({
   const planBlockers = bootstrapPlanBlockers({ bundle, plan, expectedPlanId, expectedPlanHash });
   if (planBlockers.length) return result("blocked", planBlockers);
 
-  const availability = await confirmationAvailability({ repo, bundle, plan, projectStatePath });
+  const availability = await confirmationAvailability({
+    repo,
+    bundle,
+    plan,
+    projectStatePath,
+    authorizationSource: grantSource
+  });
   if (availability.status !== "passed") return result("blocked", availability.blockers);
 
   const confirmationId = `CONFIRM-${jobId}-MONITOR-BOOTSTRAP`;
-  await repo.upsertLaunchConfirmation({
+  const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId,
     jobId,
     draftId: "",
@@ -143,23 +158,23 @@ export async function executeConfirmedMonitorBootstrap({
       raw_response_stored: false
     }
   });
-
-  // A confirmation temporarily opens the persisted write scope. Every unexpected
-  // exit after this point must close it; normal return paths also revoke it
-  // explicitly so the resulting audit trail remains straightforward.
-  try {
-  bundle = await repo.getLaunchJobBundle(jobId);
-  const grant = await validatePlannedActionGrant({
-    repo,
-    bundle,
-    actionType: ACTION_ENSURE_MONITOR,
-    projectStatePath,
-    expectedMaximumPlatformCalls: 1
-  });
-  if (grant.status !== "passed") {
-    await revokeWriteScope(projectStatePath);
-    return result("blocked", grant.blockers, { confirmationId });
+  if (confirmationClaim?.claimed !== true) {
+    return result("blocked", ["execution_plan_confirmation_already_recorded"]);
   }
+
+  try {
+    bundle = await repo.getLaunchJobBundle(jobId);
+    const grant = await validatePlannedActionGrant({
+      repo,
+      bundle,
+      actionType: ACTION_ENSURE_MONITOR,
+      projectStatePath,
+      expectedMaximumPlatformCalls: 1
+    });
+    if (grant.status !== "passed") {
+      await revokeTaskScope(projectStatePath, availability.authorizationMode);
+      return result("blocked", grant.blockers, { confirmationId });
+    }
 
   const monitor = grant.plan.metadata?.monitor_bootstrap || {};
   const target = {
@@ -183,7 +198,7 @@ export async function executeConfirmedMonitorBootstrap({
     freshContract.cycleId === monitor.cycle_id &&
     Number(freshContract.attemptNo) === Number(monitor.attempt_no);
   if (!freshAlreadyReady && !freshContractMatches) {
-    await revokeWriteScope(projectStatePath);
+    await revokeTaskScope(projectStatePath, availability.authorizationMode);
     return result("blocked", ["monitor_fresh_readonly_contract_drift"], {
       confirmationId,
       freshReadonlyCompleted: true
@@ -202,7 +217,7 @@ export async function executeConfirmedMonitorBootstrap({
     idempotencyKey
   });
   if (!claim?.claimed) {
-    await revokeWriteScope(projectStatePath);
+    await revokeTaskScope(projectStatePath, availability.authorizationMode);
     return result("blocked", ["planned_action_already_consumed:ensure_monitor"], { confirmationId, freshReadonlyCompleted: true });
   }
 
@@ -218,7 +233,7 @@ export async function executeConfirmedMonitorBootstrap({
       metadata: { executor_status: "already_ready_after_fresh_readonly", platform_write_called: false }
     });
     await repo.consumeConfirmedResourceExecutionPlan({ jobId, planId: planId(grant.plan) });
-    await revokeWriteScope(projectStatePath);
+    await revokeTaskScope(projectStatePath, availability.authorizationMode);
     return result("passed", [], { confirmationId, freshReadonlyCompleted: true, monitorReady: true });
   }
 
@@ -258,7 +273,7 @@ export async function executeConfirmedMonitorBootstrap({
     }
   });
   if (!succeeded) {
-    await revokeWriteScope(projectStatePath);
+    await revokeTaskScope(projectStatePath, availability.authorizationMode);
     return result("blocked", ensure.blockers || ["monitor_bootstrap_readback_not_ready"], {
       confirmationId,
       freshReadonlyCompleted: true,
@@ -266,10 +281,10 @@ export async function executeConfirmedMonitorBootstrap({
     });
   }
   await repo.consumeConfirmedResourceExecutionPlan({ jobId, planId: planId(grant.plan) });
-  await revokeWriteScope(projectStatePath);
+  await revokeTaskScope(projectStatePath, availability.authorizationMode);
   return result("passed", [], { confirmationId, freshReadonlyCompleted: true, monitorReady: true, platformWriteCalled: true });
   } catch (error) {
-    await revokeWriteScope(projectStatePath).catch(() => undefined);
+    await revokeTaskScope(projectStatePath, availability.authorizationMode).catch(() => undefined);
     throw error;
   }
 }

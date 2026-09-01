@@ -283,14 +283,19 @@ export async function executeConfirmedResourcePlan({
   ];
   if (contextBlockers.length) return sanitizeForPublic({ status: "blocked", blockers: contextBlockers, createCalled: false });
 
-  const availability = await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath });
+  const availability = await validateResourcePlanConfirmationScope({
+    repo,
+    bundle,
+    projectStatePath,
+    authorizationSource: grantSource
+  });
   if (availability.status !== "passed") {
     return sanitizeForPublic({ status: "blocked", blockers: availability.blockers, createCalled: false });
   }
 
   const actionTypes = actions(plan).map((action) => action.action_type);
   const confirmationId = `CONFIRM-${jobId}-RESOURCE-PLAN`;
-  await repo.upsertLaunchConfirmation({
+  const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId,
     jobId,
     draftId: "",
@@ -319,6 +324,14 @@ export async function executeConfirmedResourcePlan({
       raw_response_stored: false
     }
   });
+  if (confirmationClaim?.claimed !== true) {
+    return sanitizeForPublic({
+      status: "blocked",
+      blockers: ["execution_plan_confirmation_already_recorded"],
+      createCalled: false,
+      retryAllowed: false
+    });
+  }
 
   try {
     bundle = await repo.getLaunchJobBundle(jobId);
@@ -363,6 +376,8 @@ export async function executeConfirmedResourcePlan({
       retryAllowed: false
     });
   } finally {
-    await revokeWriteScope(projectStatePath);
+    if (availability.scopeSummary?.authorizationMode !== "workbench_plan_bound") {
+      await revokeWriteScope(projectStatePath);
+    }
   }
 }

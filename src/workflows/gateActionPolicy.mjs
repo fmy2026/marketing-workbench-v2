@@ -35,6 +35,19 @@ function terminalMonitorReadonlyHint({ caseSummary = null, isLatestCaseJob = fal
     : "";
 }
 
+function canRecoverReadonlyBlocker({ caseSummary = null, isLatestCaseJob = false } = {}) {
+  return isLatestCaseJob === true &&
+    clean(caseSummary?.lifecycle_status) === "active" &&
+    clean(caseSummary?.current_gate) === "resolve_case_blocker" &&
+    !canReconcileTerminalMonitor({ caseSummary, isLatestCaseJob });
+}
+
+function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = {}) {
+  return canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })
+    ? "可输入“重新只读准备”重新核验；不会确认或创建平台对象。"
+    : "";
+}
+
 export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   const plan = bundle.executionPlan || {};
   const gate = clean(caseSummary?.current_gate);
@@ -65,6 +78,16 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     : isResourcePreparePlan
       ? "确认准备资源"
       : "确认创建";
+  const actionGrants = scope.action_grants || scope.actionGrants || {};
+  const actionLimits = actionTypes.map((type) => ({
+    actionType: type,
+    maximumPlatformCalls: Number(
+      actionGrants[type]?.maximum_platform_calls ??
+      actionGrants[type]?.maximumPlatformCalls ??
+      actions.find((action) => actionType(action) === type)?.maximum_platform_calls ??
+      0
+    )
+  }));
   return {
     status: "confirmation_required",
     planKind,
@@ -76,6 +99,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     projectName: isMonitorBootstrapPlan || isResourcePreparePlan ? "" : clean(metadata.planning_intent?.project_name || bundle.draft?.project_name),
     advertiser: maskIdentifier(bundle.job?.advertiser_id),
     actions: actionTypes,
+    actionLimits,
     maximumPlatformCalls: Number(scope.maximum_platform_calls || actions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0) || scope.maximum_actions || 1),
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),
@@ -100,13 +124,13 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "cancelled", message: "已取消本次对话操作，流程状态未改变。" };
   }
   if (intent.intent === "unknown") {
-    return { ...base, effect: "clarify", message: "我只理解：继续执行、查看状态、确认创建或取消。" };
+    return { ...base, effect: "clarify", message: "我只理解：继续执行、重新只读准备、查看状态、确认创建或取消。" };
   }
   if (intent.intent === "intake_update") {
     return { ...base, effect: "intake_not_applicable", message: "当前流程已有 Job；请使用“继续执行”或查看当前状态。" };
   }
   if (intent.intent === "request_status") {
-    const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob });
+    const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
     return { ...base, effect: "status", message: blocker ? `当前卡点：${blocker}；下一步：${nextAction || "等待后端更新"}。${hint}` : `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
   }
   if (intent.intent === "request_confirmation") {
@@ -134,6 +158,15 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     return { ...base, effect: "run_monitor_readonly", message: "将执行一次 fresh readonly monitor 回查，不会创建 monitor。" };
   }
+  if (intent.intent === "request_readonly_recovery") {
+    if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) {
+      return { ...base, effect: "readonly_recovery_unavailable", message: "当前 Case 不满足重新只读准备条件，未执行平台操作。" };
+    }
+    if (clean(caseSummary?.latest_job_status) === "blocked_confirmed_resource_plan") {
+      return { ...base, effect: "create_fresh_readonly_recovery_job", message: "将创建同一 Case 的 fresh Job 并执行只读准备；不会复用旧 Plan、确认或平台动作。" };
+    }
+    return { ...base, effect: "run_dry_run", message: "将重新执行当前 Job 的只读准备；不会确认或创建平台对象。" };
+  }
   if (intent.intent === "continue_workflow") {
     if (currentGate === "run_monitor_readonly") {
       return { ...base, effect: "run_monitor_readonly", message: "将执行 fresh readonly monitor 回查，不会创建 monitor。" };
@@ -156,12 +189,12 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
       return { ...base, effect: "manual_confirmation_required", message: "当前 Plan 需要受控授权，但该动作暂不支持在工作台对话中执行。" };
     }
     if (currentGate === "resolve_case_blocker") {
-      return { ...base, effect: "blocker", message: `当前卡点：${blocker || "未归类"}；下一步：${nextAction || "等待人工处理"}。${terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob })}` };
+      return { ...base, effect: "blocker", message: `当前卡点：${blocker || "未归类"}；下一步：${nextAction || "等待人工处理"}。${terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob })}` };
     }
     if (currentGate === "first_std_project_create_completed") {
       return { ...base, effect: "completed", message: "该 Case 已完成首次项目创建并通过回查。" };
     }
     return { ...base, effect: "status", message: `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
   }
-  return { ...base, effect: "clarify", message: "请使用“继续执行”、查看状态、确认创建或取消。" };
+  return { ...base, effect: "clarify", message: "请使用“继续执行”、“重新只读准备”、查看状态、确认创建或取消。" };
 }

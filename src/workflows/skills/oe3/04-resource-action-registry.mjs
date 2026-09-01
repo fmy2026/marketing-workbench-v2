@@ -8,6 +8,11 @@ export const RESOURCE_CAPABILITY_STATES = new Set([
   "blocked"
 ]);
 
+const PASSIVE_RESOURCE_READINESS_STATES = new Set([
+  "waiting_on_event_asset",
+  "waiting_on_event_configs"
+]);
+
 const DEFAULT_VERIFY_MODULE = "src/workflows/skills/oe3/04-resource-verifiers.mjs";
 
 const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
@@ -180,14 +185,24 @@ export function normalizeResourceSkillResult({ resourceType, result = {} } = {})
     (blockers.includes(`${resourceType}_missing`) ? "missing" : "exists");
   const readonlyStatus = outputSummary.readonly_status || outputSummary.readonlyStatus || "";
   const readinessStatus = outputSummary.readiness_status || outputSummary.readinessStatus || (ready ? "ready" : "not_ready");
+  const passiveReadinessStatus = resourceType === "micro_app_instance" && PASSIVE_RESOURCE_READINESS_STATES.has(readinessStatus)
+    ? readinessStatus
+    : "";
+  const effectivePrepareCapability = passiveReadinessStatus
+    ? { ...prepareCapability, status: passiveReadinessStatus }
+    : prepareCapability;
   const nextAction = outputSummary.nextAction || (
-    prepareCapability.status === "ready"
+    effectivePrepareCapability.status === "ready"
       ? "无需动作"
-      : prepareCapability.status === "prepare_supported"
-        ? `计划动作：${prepareCapability.prepare_action_type}`
-        : prepareCapability.status === "blocked"
+      : effectivePrepareCapability.status === "prepare_supported"
+        ? `计划动作：${effectivePrepareCapability.prepare_action_type}`
+        : effectivePrepareCapability.status === "blocked"
           ? blockers[0] || `${resourceType}_blocked`
-          : `resource_prepare_unsupported:${resourceType}`
+          : passiveReadinessStatus
+            ? passiveReadinessStatus === "waiting_on_event_asset"
+              ? "等待事件资产详情确认 App 与实例绑定。"
+              : "等待 baseline 事件配置完成后进行优化目标与 DBT 回查。"
+            : `resource_prepare_unsupported:${resourceType}`
   );
 
   return {
@@ -204,9 +219,9 @@ export function normalizeResourceSkillResult({ resourceType, result = {} } = {})
       readonly_status: readonlyStatus,
       readinessStatus,
       readiness_status: readinessStatus,
-      status: prepareCapability.status,
-      prepareCapability,
-      prepare_capability: prepareCapability,
+      status: effectivePrepareCapability.status,
+      prepareCapability: effectivePrepareCapability,
+      prepare_capability: effectivePrepareCapability,
       blocker_codes: blockers,
       module_ref: capability.verify_module_ref,
       evidence_refs: evidenceRefs,

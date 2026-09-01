@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateExecutionPlanActionScope } from "./executionPlan.mjs";
+import { evaluatePlanBoundWriteAuthorization } from "./workbenchRuntimeWritePolicy.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const defaultProjectStatePath = join(rootDir, "project.state.json");
@@ -66,8 +67,21 @@ export async function validatePlannedActionGrant({
     ? validateExecutionPlanActionScope({ plan, allowedActions })
     : { status: allowedActions.length === 1 && allowedActions[0] === actionType ? "passed" : "blocked", blockers: [] };
   const confirmationMetadata = confirmation?.metadata || {};
+  const authorization = isPlanBound
+    ? await evaluatePlanBoundWriteAuthorization({
+      repo,
+      bundle,
+      plan,
+      projectStatePath,
+      authorizationSource: confirmation?.confirmed_by || "",
+      requireAwaitingConfirmationGate: false
+    })
+    : {
+      blockers: state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"],
+      authorizationMode: state.guardrails?.platform_write_allowed === true ? "task_scope" : "none"
+    };
   const blockers = [
-    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" || (!bundle.case && projectStatePath !== defaultProjectStatePath) ? [] : ["workflow_case_not_active"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
     ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
@@ -102,6 +116,7 @@ export async function validatePlannedActionGrant({
     actionGrant: grant,
     confirmation,
     scopeSummary: {
+      authorizationMode: authorization.authorizationMode,
       bindingMode,
       targetJobMatches: scope.target_job_id === bundle.job.job_id,
       targetAdvertiserMatches: scope.target_advertiser_id === bundle.job.advertiser_id,

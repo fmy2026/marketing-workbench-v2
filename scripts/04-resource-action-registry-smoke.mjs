@@ -320,6 +320,48 @@ const eventEligibleNormalized = normalizeResourceSkillResult({
 });
 assert(eventEligibleNormalized.outputSummary.prepare_capability.status === "prepare_supported", "event_asset_contract_ready_should_be_prepare_supported");
 assert(eventEligibleNormalized.outputSummary.eventAssetProvisionPlanEligible === true, "event_asset_provision_eligible_not_exposed");
+const passiveInstanceNormalized = normalizeResourceSkillResult({
+  resourceType: "micro_app_instance",
+  result: eventChainResourceReadiness({
+    bundle: eventEligibleBundle,
+    resourceType: "micro_app_instance"
+  })
+});
+assert(passiveInstanceNormalized.outputSummary.readinessStatus === "waiting_on_event_asset", "micro_app_instance_passive_readiness_missing");
+assert(passiveInstanceNormalized.outputSummary.prepare_capability.status === "waiting_on_event_asset", "micro_app_instance_passive_readiness_overwritten");
+assert(passiveInstanceNormalized.outputSummary.prepare_capability.prepare_supported === false, "micro_app_instance_prepare_capability_must_remain_disabled");
+const passiveInstancePlanBundle = {
+  ...eventEligibleBundle,
+  nodes: [
+    ...eventEligibleBundle.nodes.map((node) => node.node_key === "std_project_draft_builder"
+      ? {
+          ...node,
+          output_summary: {
+            ...node.output_summary,
+            createReadiness: {
+              ...node.output_summary.createReadiness,
+              blockers: ["resource_avatar_not_ready"]
+            }
+          }
+        }
+      : node),
+    {
+      node_key: "account_resource_prepare",
+      output_summary: {
+        checks: [
+          eventEligibleNormalized.outputSummary,
+          passiveInstanceNormalized.outputSummary
+        ]
+      }
+    }
+  ]
+};
+const passiveInstancePlan = buildExecutionPlanFromBundle(passiveInstancePlanBundle);
+assert(passiveInstancePlan.planStatus === "ready", "passive_micro_app_instance_must_not_block_resource_plan");
+assert(!passiveInstancePlan.blockerCodes.includes("resource_prepare_unsupported:micro_app_instance"), "passive_micro_app_instance_unsupported_blocker_present");
+assert(!actionTypes(passiveInstancePlan).some((actionType) => actionType.includes("micro_app_instance")), "passive_micro_app_instance_action_must_not_be_planned");
+assert(passiveInstancePlan.metadata.resource_states.find((item) => item.resource_type === "micro_app_instance")?.state === "WAITING", "passive_micro_app_instance_plan_state_must_wait");
+assert(passiveInstancePlan.metadata.root_blocker_codes.length === 0, "ready_resource_plan_must_not_project_downstream_create_blocker");
 const eventSinglePlan = buildSingleResourceExecutionPlanFromBundle(eventEligibleBundle, {
   planVersion: 2,
   resourceType: "event_asset"
@@ -395,6 +437,7 @@ const result = {
   backupLandingPageUnsupportedBlocker: "resource_prepare_unsupported:backup_landing_page",
   eventAssetPrepareAction: eventCapability.prepare_action_type,
   eventAssetProvisionGuardBlocker: "event_asset_provision_not_plan_eligible",
+  passiveMicroAppInstanceState: passiveInstanceNormalized.outputSummary.prepare_capability.status,
   eventSingleResourcePlan: eventSinglePlan.planId,
   dmpSingleResourcePlan: dmpSinglePlan.planId,
   eventConfigsPlan: eventConfigsPlan.planId,

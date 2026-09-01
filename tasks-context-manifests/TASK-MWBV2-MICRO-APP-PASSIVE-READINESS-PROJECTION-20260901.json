@@ -1,0 +1,72 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-MICRO-APP-PASSIVE-READINESS-PROJECTION-20260901",
+  "task_ref": "tasks/TASK-MWBV2-MICRO-APP-PASSIVE-READINESS-PROJECTION-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 15:44 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Preserve passive micro-app instance readiness through normalization and regenerate the current resource plan by readonly dry-run.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MICRO-APP-PASSIVE-READINESS-PROJECTION-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-MICRO-APP-PASSIVE-READINESS-PROJECTION-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "mwb.workflow_case_summary",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/executionPlan.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, control-plane and design documentation",
+    "resource normalization and test code",
+    "current runtime Job readonly node, skill, evidence, draft and execution plan facts"
+  ],
+  "forbidden_actions": [
+    "all external platform writes and confirmation consumption",
+    "resource preparation execution, std_project/create, monitor creation or retry",
+    "OAuth refresh, budget or bid mutation",
+    "API, database schema, View, Gate, Plan type or UI changes",
+    "persisting sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "node --check changed runtime and smoke files",
+    "npm run test:resource-action-registry",
+    "npm run test:micro-app-instance-authority-readonly",
+    "in-memory current Job plan simulation",
+    "restart LaunchAgent and submit exact readonly recovery command once",
+    "verify workflow_case_summary and current plan",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "the fix requires an independent micro-app instance action or guessed ID",
+    "the regenerated plan contains an unsupported or unregistered action",
+    "any real platform write, confirmation consumption or sensitive/raw output would occur"
+  ],
+  "completed_at": "2026-09-01 15:58 CST",
+  "result": {
+    "status": "completed",
+    "current_gate": "await_job_write_authorization",
+    "plan_kind": "resource_prepare",
+    "plan_status": "ready",
+    "plan_action_count": 6,
+    "plan_blocker_count": 0,
+    "micro_app_instance_state": "WAITING",
+    "micro_app_instance_action_count": 0,
+    "readonly_recovery_command_count": 1,
+    "confirmation_count": 0,
+    "platform_action_count": 0,
+    "created_object_count": 0,
+    "platform_write_allowed": false
+  }
+}
