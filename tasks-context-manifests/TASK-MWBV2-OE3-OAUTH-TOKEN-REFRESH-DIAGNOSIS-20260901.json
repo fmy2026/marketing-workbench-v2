@@ -1,0 +1,67 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-DIAGNOSIS-20260901",
+  "task_ref": "tasks/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-DIAGNOSIS-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 12:56 CST",
+  "updated_at": "2026-09-01 13:00 CST",
+  "owner_agent": "codex",
+  "authorization": {
+    "source": "user_explicit_authorization",
+    "allowed_action": "oceanengine_oauth_refresh_token",
+    "automation_id": "oceanengine-v2-token-refresh",
+    "maximum_refresh_calls": 1,
+    "retry_allowed": false
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-DIAGNOSIS-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-DIAGNOSIS-20260901.json",
+    "docs/Solution Design.md",
+    "scripts/00-oceanengine-token-refresh.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "/Users/hys/.codex/automations/oceanengine-v2-token-refresh/automation.toml",
+    "/Users/hys/.codex/automations/oceanengine-v2-token-refresh/memory.md"
+  ],
+  "allowed_writes": [
+    ".local/oceanengine.env atomic credential refresh",
+    ".local/oceanengine-token-refresh-audit.jsonl redacted failure audit",
+    "Task, Context Manifest and project.state.json control-plane closure"
+  ],
+  "forbidden_actions": [
+    "all OceanEngine business APIs and resource actions",
+    "resource Plan retry",
+    "budget, bid, monitor, material, DMP, event asset or event config mutation",
+    "sensitive or raw request/response persistence"
+  ],
+  "stop_conditions": [
+    "scope or confirmation variable mismatch",
+    "refresh token expired, invalid or revoked",
+    "first refresh attempt fails",
+    "any business API or unrelated write would be required"
+  ],
+  "outcome": {
+    "status": "completed_token_valid_automation_network_blocked",
+    "completed_at": "2026-09-01 13:00 CST",
+    "token_refresh_ok": true,
+    "http_status": 200,
+    "api_code": "0",
+    "token_status": "valid",
+    "token_expires_at": "2026-09-02T04:59:30.335Z",
+    "token_refresh_after": "2026-09-02T04:29:30.335Z",
+    "refresh_token_expires_at": "2026-10-01T04:59:30.335Z",
+    "env_updated_at": "2026-09-01 12:59:30 CST",
+    "env_mode": "0600",
+    "automation_status": "ACTIVE",
+    "automation_schedule": "daily 12:00 Asia/Shanghai",
+    "automation_last_scheduled_run_observed": "2026-09-01 12:00:42 CST",
+    "automation_end_to_end_effective": false,
+    "automation_failure_type": "transport_error",
+    "root_cause": "The local scheduled execution environment cannot reach the official OAuth endpoint without an explicitly permitted outbound-network execution path.",
+    "business_api_calls": 0,
+    "resource_plan_retried": false,
+    "raw_sensitive_data_saved": false,
+    "next_action": "Separately approve an automation execution-path change that permits only the scoped OAuth refresh command to reach the official endpoint."
+  }
+}

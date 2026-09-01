@@ -1,0 +1,71 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901",
+  "task_ref": "tasks/TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901.md",
+  "status": "completed_blocked",
+  "created_at": "2026-09-01 12:45 CST",
+  "updated_at": "2026-09-01 12:52 CST",
+  "owner_agent": "codex",
+  "authorization": {
+    "source": "user_explicit_authorization",
+    "authorized_at": "2026-09-01 12:45 CST",
+    "case_id": "CASE-MWBV2-5B75EB40E6F9AF2469",
+    "job_id": "JOB-MWBV2-20260831092159-D13FDB",
+    "advertiser_id": "1871922414575753",
+    "plan_id": "PLAN-JOB-MWBV2-20260831092159-D13FDB-V3",
+    "plan_hash": "sha256:61be67cf3a057f56a28b14dcdd52a3a6743c8f0ae8824927ca3fb74d98144cbe"
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "current execution plan"
+  ],
+  "allowed_actions": [
+    "ensure_resource:event_asset",
+    "ensure_event_configs:baseline",
+    "authoritative readonly readback",
+    "fresh runtime Job after complete resource-plan success"
+  ],
+  "forbidden_actions": [
+    "std_project_create or monitor create",
+    "any other resource action",
+    "automatic retry or plan substitution",
+    "token refresh, budget or bid change",
+    "raw sensitive persistence"
+  ],
+  "limits": {
+    "maximum_actions": 2,
+    "maximum_platform_calls": 7,
+    "maximum_create_calls": 0,
+    "retry_allowed": false
+  },
+  "stop_conditions": [
+    "Case, Job, advertiser, Plan ID or Plan hash drift",
+    "an existing confirmation or action appears before execution",
+    "any executor or authoritative readback failure",
+    "any unplanned platform action is requested"
+  ],
+  "outcome": {
+    "status": "completed_blocked_before_platform_write",
+    "completed_at": "2026-09-01 12:52 CST",
+    "confirmation_id": "CONFIRM-JOB-MWBV2-20260831092159-D13FDB-RESOURCE-PLAN",
+    "internal_action_id": "ACTION-JOB-MWBV2-20260831092159-D13FDB-ENSURE_RESOURCE_EVENT_ASSET-PLAN_JOB_MWBV2_20260831092159_D13FDB_V3",
+    "internal_action_status": "failed_once",
+    "executor_status": "blocked_before_event_asset_write",
+    "root_blocker": "credential_required",
+    "platform_write_called": false,
+    "platform_http_calls": 0,
+    "event_asset_created": false,
+    "event_configs_called": 0,
+    "fresh_runtime_job_created": false,
+    "token_refresh_called": false,
+    "retry_allowed": false,
+    "next_action": "Resolve credentials under separate authority, then re-read workflow_case_summary and require a new Task, fresh Plan/hash and fresh confirmation before any resource retry."
+  }
+}
