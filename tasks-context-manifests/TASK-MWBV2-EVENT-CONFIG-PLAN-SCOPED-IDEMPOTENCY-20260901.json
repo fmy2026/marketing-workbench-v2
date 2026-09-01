@@ -1,0 +1,62 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 18:31 CST",
+  "completed_at": "2026-09-01 18:38 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Bind event-config child action idempotency to the current planned action and Plan so fresh Jobs cannot collide with historical request hashes.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/workflows/plannedActionGrant.mjs",
+    "src/workflows/eventConfigExecutionScope.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "scripts/04-event-configs-executor-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest and current mechanism/data/lessons documents",
+    "existing event-config Plan-bound action propagation and idempotency construction",
+    "existing mock/test_run smoke coverage",
+    "current Case fresh readonly recovery through the existing workbench command"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, automatic confirmations, retries and OAuth refresh",
+    "reuse or mutation of consumed Plan, confirmation, action or idempotency records",
+    "new API, Schema, View, Gate, Plan/action type or worker",
+    "persisting secrets or raw platform payloads/responses"
+  ],
+  "validation_plan": [
+    "cross-Job same-request idempotency and missing-binding regression smoke",
+    "event-config partial baseline and duplicate execution smoke",
+    "single-confirmation orchestrator, schema, security and runtime consistency checks",
+    "restart workbench and run only fresh readonly recovery for the current Case"
+  ],
+  "stop_conditions": [
+    "a database constraint change, history deletion or permission broadening would be required",
+    "a real platform write, automatic confirmation, retry or credential refresh would be required",
+    "the implementation requires a new public API, Gate, Plan or action type"
+  ],
+  "outcome": {
+    "status": "passed",
+    "fresh_job_id": "JOB-MWBV2-20260901103627-D875E0",
+    "fresh_plan_id": "PLAN-JOB-MWBV2-20260901103627-D875E0-V1",
+    "current_gate": "await_job_write_authorization",
+    "confirmation_count": 0,
+    "platform_action_count": 0,
+    "platform_write_performed": false
+  }
+}

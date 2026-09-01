@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-01 18:17 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 18:38 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -170,7 +170,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
 
-事件配置写请求固定 15 秒超时。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
+事件配置写请求固定 15 秒超时。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
 
 ## 5. 当前 Case Gate 与工作台
 

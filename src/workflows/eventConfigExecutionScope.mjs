@@ -93,6 +93,7 @@ export async function validateEventConfigsWriteScope({
     status: blockers.length ? "blocked" : "passed",
     blockers: [...new Set(blockers)],
     plan: common.plan,
+    action: common.action,
     confirmation: common.confirmation,
     provision,
     scopeSummary: {

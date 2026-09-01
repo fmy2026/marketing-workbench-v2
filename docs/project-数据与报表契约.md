@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-01 18:17 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 18:38 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -118,7 +118,7 @@ route_id + game_code
 | 工作台恢复 | 唯一入口根页只读列出 active runtime Case；`?case_id=` 恢复活动 Case 的最新 Job，`?job_id=` 仅历史只读；两参数并存或非法时 fail-closed，不加载其他账户。`resolve_case_blocker` 的精确“重新只读准备”只消费当前 summary：已确认资源 Plan 停止时 Case lock 下创建 fresh Job 后 `dry_run`，其他 blocker 重跑当前 Job 的 `dry_run`；不复制旧 Plan/confirmation/action/grant，不产生平台写入。 |
 | Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |
 | 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 `micro_app_id` / `micro_app_instance_id` 归一后必须精确匹配 App + instance，allowlist 长数字 ID 在解析前无损保留为字符串；configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
-| 事件配置中断 | 写请求固定 15 秒超时；超时、异常或响应不明记为 `failed_once`，随后只读回查并收口 action、Skill、Job 与已确认 Plan。partial baseline 的唯一分类器是共享 `eventConfigBaselineReadiness`，仅在 configs 与 available 都完成标准化后输出 `status`、blocker 和 candidates；已配置事件即使不再 available 也视为满足，只为尚未配置且当前 available 的事件生成候选；读取函数不得单独要求 available 为 6/6，不得自动重试。 |
+| 事件配置中断 | 写请求固定 15 秒超时；子 action 幂等键绑定已验证 planned action key、当前 Plan ID 与 event type，缺失任一绑定时在 action 占位和平台调用前 fail-closed。超时、异常或响应不明记为 `failed_once`，随后只读回查并收口 action、Skill、Job 与已确认 Plan。partial baseline 的唯一分类器是共享 `eventConfigBaselineReadiness`，仅在 configs 与 available 都完成标准化后输出 `status`、blocker 和 candidates；已配置事件即使不再 available 也视为满足，只为尚未配置且当前 available 的事件生成候选；读取函数不得单独要求 available 为 6/6，不得自动重试。 |
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
 | 授权 | `project.state.json` 只给全局 Guardrail；正式 runtime 工作台可消费启用的 loopback Plan-bound 策略，仍须匹配 active Case 最新 Job、ready Plan、精确 confirmation、action grant 与调用上限。动态授权事实只写 Postgres，不为普通运行创建仓库 Task。 |
 | 隔离脚本 | `scripts/archive/` 仅保存可恢复历史文件；禁止 package/runtime import/直接执行，不属于表或 View 的写入来源 |

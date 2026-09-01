@@ -388,6 +388,59 @@ const partialFiveExecute = await ensureEventConfigsForTargetOnce({
 assert.equal(partialFiveExecute.status, "event_configs_ready", JSON.stringify(partialFiveExecute.blockers || []));
 assert.equal(partialFiveState.createFetchCount, 1);
 
+const sameRequestJobAState = { createFetchCount: 0, createdEventTypes: new Set() };
+const sameRequestJobA = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-SAME-REQUEST-A" });
+const sameRequestJobARepo = repoStub(sameRequestJobA);
+const sameRequestJobAResult = await ensureEventConfigsForTargetOnce({
+  repo: sameRequestJobARepo,
+  jobId: sameRequestJobA.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(sameRequestJobAState),
+  readonlyClient: clientStub(sameRequestJobAState, { existingConfiguredCount: 5 }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(sameRequestJobA)
+});
+const sameRequestJobBState = { createFetchCount: 0, createdEventTypes: new Set() };
+const sameRequestJobB = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-SAME-REQUEST-B" });
+const sameRequestJobBRepo = repoStub(sameRequestJobB);
+const sameRequestJobBResult = await ensureEventConfigsForTargetOnce({
+  repo: sameRequestJobBRepo,
+  jobId: sameRequestJobB.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(sameRequestJobBState),
+  readonlyClient: clientStub(sameRequestJobBState, { existingConfiguredCount: 5 }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(sameRequestJobB)
+});
+assert.equal(sameRequestJobAResult.status, "event_configs_ready", JSON.stringify(sameRequestJobAResult.blockers || []));
+assert.equal(sameRequestJobBResult.status, "event_configs_ready", JSON.stringify(sameRequestJobBResult.blockers || []));
+const sameRequestJobAKey = sameRequestJobARepo.state.actions.find((item) => item.actionType === EVENT_CONFIG_CREATE_ACTION_TYPE)?.idempotencyKey;
+const sameRequestJobBKey = sameRequestJobBRepo.state.actions.find((item) => item.actionType === EVENT_CONFIG_CREATE_ACTION_TYPE)?.idempotencyKey;
+assert(sameRequestJobAKey.includes(sameRequestJobA.job.job_id));
+assert(sameRequestJobBKey.includes(sameRequestJobB.job.job_id));
+assert.notEqual(sameRequestJobAKey, sameRequestJobBKey);
+
+const missingIdempotencyState = { createFetchCount: 0, createdEventTypes: new Set() };
+const missingIdempotencyBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-MISSING-IDEMPOTENCY" });
+missingIdempotencyBundle.executionPlan.plannedActions[0].idempotency_key = "";
+const missingIdempotencyRepo = repoStub(missingIdempotencyBundle);
+const missingIdempotency = await ensureEventConfigsForTargetOnce({
+  repo: missingIdempotencyRepo,
+  jobId: missingIdempotencyBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(missingIdempotencyState),
+  readonlyClient: clientStub(missingIdempotencyState, { existingConfiguredCount: 5 }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(missingIdempotencyBundle)
+});
+assert.equal(missingIdempotency.status, "blocked_before_event_config_write");
+assert(missingIdempotency.blockers.includes("event_config_planned_action_idempotency_key_missing"));
+assert.equal(missingIdempotencyState.createFetchCount, 0);
+assert.equal(missingIdempotencyRepo.state.actions.length, 0);
+
 const noopState = { createFetchCount: 0, createdEventTypes: new Set() };
 const noopBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-NOOP" });
 const noopRepo = repoStub(noopBundle);
@@ -575,6 +628,8 @@ const output = {
   partialSixCandidateCount: partialSix.create_candidate_count,
   partialFourExecutorCreateCount: partialFourState.createFetchCount,
   partialFiveExecutorCreateCount: partialFiveState.createFetchCount,
+  crossJobIdempotencyDistinct: sameRequestJobAKey !== sameRequestJobBKey,
+  missingIdempotencyBlockedBeforeWrite: missingIdempotencyState.createFetchCount === 0 && missingIdempotencyRepo.state.actions.length === 0,
   noopStatus: noop.status,
   createStatus: created.status,
   bindingMismatchBlocked: bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),

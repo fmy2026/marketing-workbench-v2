@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 18:17 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-01 18:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -70,6 +70,12 @@ Node 04 的资产绑定标准不变：当前账户内唯一 `MINI_PROGRAME` 资�
 `eventConfigBaselineReadiness` 是 event-config partial baseline 的唯一分类器。`available_events/get` 与 `event_configs/get` 的各自读取函数只负责 HTTP、解析和标准化；两份结果齐备后才允许调用分类器决定 `status`、blocker 与 create candidates。不得以 available 列表单独覆盖 6/6 为由提前阻断。
 
 因此，已配置项不要求仍出现在 available；只有“尚未配置且当前不可用”的项才产生 `event_config_available_events_baseline_missing`。4/6 configured + 2/6 available 必须是 `needs_create` 且只生成 2 个候选；6/6 configured + empty available 必须 no-op 通过。Node 04 事件链使用同一规则决定是否追加 `available_events_baseline_missing`，保留原始 available/configured 计数作诊断，但不保存 event ID 列表或 raw response。
+
+## 已批准设计：事件配置子 action 的 Plan-scoped 幂等绑定
+
+事件配置 create 子 action 的幂等键必须来自当前已验证的 `ensure_event_configs:baseline` planned action，并同时绑定当前 Plan ID 与 event type。request hash 只用于证明请求内容稳定，不能单独作为跨 Job 的全局幂等身份；否则 fresh Job 的相同合法请求会与历史 action 发生唯一键冲突。
+
+`validateEventConfigsWriteScope` 必须把 `validatePlannedActionGrant` 返回的 planned action 透传给 executor。planned action key、Plan ID 或 event type 任一缺失时，executor 必须在 action 审计占位和平台请求之前 fail-closed。数据库唯一约束、已消费 Plan 与历史 action 均保持不变，不删除、不复用、不重试；恢复只能使用 fresh Job/Plan/hash/confirmation。该修复不新增 API、Schema、View、Gate 或 action 类型，也不改变 partial baseline 与权威回查规则。
 
 ## 已批准设计：工作台唯一入口与多账户 Case 隔离
 

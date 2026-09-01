@@ -151,6 +151,27 @@ function plannedActionFromScope(scope = {}) {
   return scope?.action || {};
 }
 
+function childActionIdempotencyBinding({ plannedAction = {}, plan = {}, eventTypes = [] } = {}) {
+  const plannedActionKey = clean(plannedAction.idempotency_key || plannedAction.idempotencyKey);
+  const planId = clean(plan.plan_id || plan.planId);
+  const normalizedEventTypes = eventTypes.map(clean).filter(Boolean);
+  const blockers = [
+    ...(!plannedActionKey ? ["event_config_planned_action_idempotency_key_missing"] : []),
+    ...(!planId ? ["event_config_plan_id_missing_for_idempotency"] : []),
+    ...(normalizedEventTypes.length === eventTypes.length ? [] : ["event_config_event_type_missing_for_idempotency"])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers: [...new Set(blockers)],
+    keys: blockers.length
+      ? new Map()
+      : new Map(normalizedEventTypes.map((eventType) => [
+          eventType,
+          `${plannedActionKey}:${planId}:${eventType}`
+        ]))
+  };
+}
+
 function decimalJsonNumberArray(values = []) {
   const tokens = values.map(clean).filter((value) => /^\d+$/.test(value));
   return `[${tokens.join(",")}]`;
@@ -726,13 +747,20 @@ export async function ensureEventConfigsForTargetOnce({
     assetId: preflight.asset_id || "",
     candidates: preflight.create_candidates || []
   });
+  const plannedAction = plannedActionFromScope(scope);
+  const idempotencyBinding = childActionIdempotencyBinding({
+    plannedAction,
+    plan: scope.plan,
+    eventTypes: requestPlan.requests.map((request) => request.event_type)
+  });
   const blockers = [
     ...(confirmVariableValue === EVENT_CONFIGS_CONFIRM_VALUE ? [] : ["confirm_variable_missing_or_invalid"]),
     ...(preflightPassedOrNeedsCreate ? [] : preflight.blockers || ["event_config_preflight_blocked"]),
     ...(preflight.status === "needs_create" && missingCount > 0 ? [] : ["event_config_no_missing_baseline_events_to_create"]),
     ...(scope.status === "passed" ? [] : scope.blockers),
     ...(credentialReady(credential) ? [] : credential.blockers.map((item) => `credential:${item}`)),
-    ...(requestPlan.status === "passed" ? [] : requestPlan.blockers || ["event_config_create_request_plan_blocked"])
+    ...(requestPlan.status === "passed" ? [] : requestPlan.blockers || ["event_config_create_request_plan_blocked"]),
+    ...(idempotencyBinding.status === "passed" ? [] : idempotencyBinding.blockers)
   ];
 
   if (blockers.length) {
@@ -744,6 +772,7 @@ export async function ensureEventConfigsForTargetOnce({
       preflight_blockers: preflight.blockers || [],
       scope_status: scope.status,
       request_plan_status: requestPlan.status,
+      idempotency_binding_status: idempotencyBinding.status,
       credential: compactCredential(credential),
       platform_write_called: false,
       token_refresh_called: false,
@@ -755,7 +784,6 @@ export async function ensureEventConfigsForTargetOnce({
   }
 
   const env = oceanEngineEnv || readOceanEngineEnv().env;
-  const plannedAction = plannedActionFromScope(scope);
   const createResults = [];
   for (const [index, request] of requestPlan.requests.entries()) {
     const create = await callEventConfigCreate({
@@ -784,7 +812,7 @@ export async function ensureEventConfigsForTargetOnce({
         payload_persisted: false,
         response_persisted: false
       },
-      idempotencyKey: `${plannedAction.idempotency_key || request.requestHash}-${request.event_type}`,
+      idempotencyKey: idempotencyBinding.keys.get(request.event_type),
       fetchImpl,
       timeoutMs: writeTimeoutMs
     });
