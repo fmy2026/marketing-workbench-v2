@@ -563,6 +563,16 @@ function compilePlannedActions(bundle = {}, {
       dependencyForCreate.push(EVENT_CONFIGS_PROVISION_ACTION);
       continue;
     }
+    if (resourceType === "micro_app_instance" &&
+      ["waiting_on_event_asset", "waiting_on_event_configs"].includes(verifierState)) {
+      resourceStates.push({
+        resource_type: resourceType,
+        state: "WAITING",
+        action_type: "",
+        blocker: ""
+      });
+      continue;
+    }
     if (verifierState === "blocked" || verifierState === "prepare_unsupported") {
       const blocker = verifier.blocker || (verifierState === "blocked"
         ? `${resourceType}_readonly_or_preflight_blocked`
@@ -814,19 +824,24 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
       advertiser_id: job.advertiser_id,
       resource_type: resourceType
     });
-  const plannedActions = uniqueBlockers.length ? [] : [{
-    action_type: actionType,
-    target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
-    idempotency_key: actionKey(job.job_id, actionType, idempotencyScope.replace(/^sha256:/, "").slice(0, 32).toUpperCase()),
-    status: "ready",
-    module_ref: capability.prepare_module_ref,
-    depends_on: [capability.verify_skill_key],
-    writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
-    reason: resourceType === "event_asset"
-      ? "single_resource_event_asset_api_create_or_noop"
-      : "single_resource_prepare_or_noop",
-    maximum_platform_calls: grant.maximum_platform_calls
-  }];
+  const plannedActions = uniqueBlockers.length ? [] : [
+    {
+      action_type: actionType,
+      target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
+      idempotency_key: actionKey(job.job_id, actionType, idempotencyScope.replace(/^sha256:/, "").slice(0, 32).toUpperCase()),
+      status: "ready",
+      module_ref: capability.prepare_module_ref,
+      depends_on: [capability.verify_skill_key],
+      writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
+      reason: resourceType === "event_asset"
+        ? "single_resource_event_asset_api_create_or_noop"
+        : "single_resource_prepare_or_noop",
+      maximum_platform_calls: grant.maximum_platform_calls
+    },
+    ...(resourceType === "event_asset"
+      ? [eventConfigsPlannedAction({ job, dependsOnEventAsset: true, actionCallLimits })]
+      : [])
+  ];
   const resourceStates = [{
     resource_type: resourceType,
     state: uniqueBlockers.length ? "BLOCKED" : "PLANNED",
@@ -869,13 +884,14 @@ export function buildSingleResourceExecutionPlanFromBundle(bundle = {}, {
       object_type: job.object_type,
       compiler: "src/workflows/executionPlan.mjs#buildSingleResourceExecutionPlanFromBundle",
       plan_kind: PLAN_KIND_RESOURCE_PREPARE,
-      confirmation_model: "one_plan_one_confirmation_single_bounded_resource_action",
+      confirmation_model: "one_plan_one_confirmation_ordered_bounded_resource_actions",
       planning_intent: effectivePlanningIntent,
       remediation_scope: {
         target_resource_type: resourceType,
         target_account_readonly_precheck: true,
         create_if_missing_only: true,
         post_write_readback_required: true,
+        ...(resourceType === "event_asset" ? { event_configs_baseline_included: true } : {}),
         recompile_fresh_job_after_success: true
       },
       resource_states: resourceStates,

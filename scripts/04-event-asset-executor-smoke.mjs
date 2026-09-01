@@ -422,7 +422,7 @@ const mismatch = await ensureEventAssetForTargetOnce({
   projectStatePath: await statePathFor(mismatchBundle)
 });
 assert.equal(mismatch.status, "blocked_before_event_asset_write");
-assert(mismatch.blockers.includes("event_asset_app_binding_unverified"));
+assert(mismatch.blockers.includes("micro_app_instance_binding_readback_failed"));
 assert.equal(mismatchState.createFetchCount, 0);
 
 const readbackFailState = { createFetchCount: 0 };
@@ -465,7 +465,7 @@ const output = {
   createStatus: created.status,
   deferredStatus: deferred.status,
   duplicateBlocked: duplicate.blockers.includes("event_asset_platform_action_already_recorded_for_job"),
-  appMismatchBlocked: mismatch.blockers.includes("event_asset_app_binding_unverified"),
+  appMismatchBlocked: mismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   postCreateReadbackBlocked: readbackFail.status === "event_asset_readback_not_verified",
   apiFailureBlocked: failed.status === "event_asset_create_failed_once",
   maxCreateCallsObserved: Math.max(

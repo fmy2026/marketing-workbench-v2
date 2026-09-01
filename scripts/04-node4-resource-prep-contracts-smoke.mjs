@@ -84,7 +84,7 @@ const blockedEventChainClient = {
     const payload = label === "event_chain_asset_list"
       ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS" }], page_info: { total_page: 1 } } }
       : label === "event_chain_asset_detail"
-        ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", app_id: "tte-smoke", share_type: "MY_CREATIONS" }] } }
+        ? { code: "0", data: { asset_list: [{ asset_id: "800000000001", asset_type: "MINI_PROGRAME", app_id: "tte-smoke", instance_id: "7434750138926546994", share_type: "MY_CREATIONS" }] } }
         : label === "event_chain_available_events"
           ? { code: "0", data: { list: baselineEvents } }
           : label === "event_chain_event_configs"
@@ -212,8 +212,8 @@ const bundle = {
 const schedule = workflowSkillScheduleForMode("dry_run");
 assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("product-image-source-prepare"), "product_skill_after_readonly_wrong");
 assert(schedule.indexOf("product-image-source-prepare") < schedule.indexOf("resource-verify-product-image"), "product_verifier_dependency_order_wrong");
-assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("micro-app-instance-authority-readonly"), "micro_app_authority_before_readonly_wrong");
-assert(schedule.indexOf("micro-app-instance-authority-readonly") < schedule.indexOf("event-chain-readonly"), "event_chain_before_micro_app_authority_wrong");
+assert(!schedule.includes("micro-app-instance-authority-readonly"), "micro_app_authority_must_be_diagnostic_only_not_normal_schedule");
+assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("event-chain-readonly"), "event_chain_before_readonly_wrong");
 assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-event-asset"), "event_verifier_dependency_order_wrong");
 assert(schedule.indexOf("event-chain-readonly") < schedule.indexOf("resource-verify-micro-app-instance"), "micro_verifier_dependency_order_wrong");
 assert(schedule.indexOf("resource-live-readonly-reconcile") < schedule.indexOf("backup-landing-page-material-inventory"), "backup_inventory_after_readonly_wrong");
@@ -265,7 +265,7 @@ const eventChain = await runEventChainReadonlySkill({
 });
 assert(eventChain.status === "blocked", "event_chain_should_not_pass_without_target_objective");
 assert(eventChain.blockers.includes("optimized_goal_not_available"), "event_chain_target_objective_blocker_missing");
-assert(eventChain.outputSummary.targetInstanceReadbackVerified === false, "reference_candidate_must_not_be_marked_target_visible");
+assert(eventChain.outputSummary.targetInstanceReadbackVerified === true, "asset_detail_binding_must_mark_target_instance_verified");
 
 const backup = await runBackupLandingPageSourcePrepareSkill({ repo, bundle });
 assert(backup.status === "needs_confirmation", "backup_source_ready_should_need_contract_confirmation");
@@ -298,7 +298,6 @@ const result = {
   status: "passed",
   newSkills: [
     "product-image-source-prepare",
-    "micro-app-instance-authority-readonly",
     "event-chain-readonly",
     "backup-landing-page-material-inventory",
     "backup-landing-page-source-prepare"
@@ -311,7 +310,7 @@ const result = {
   eventChain: {
     status: eventChain.status,
     targetObjectiveBlocked: eventChain.blockers.includes("optimized_goal_not_available"),
-    targetVisible: eventChain.outputSummary.targetInstanceReadbackVerified
+    targetVisibleAfterAssetBinding: eventChain.outputSummary.targetInstanceReadbackVerified
   },
   backup: {
     status: backup.status,

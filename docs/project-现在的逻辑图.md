@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-08-31 23:22 CST |
-| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
+| 最后更新时间 | 2026-09-01 11:19 CST |
+| 校验基线 | Git 当前 HEAD + 工作台唯一入口与多账户 Case 隔离 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -91,7 +91,7 @@ v_monitor_readiness（唯一状态读取）
   └─ 只读失败、多候选、来源或合同缺失、executor 缺失、回查失败 → BLOCKED
 ```
 
-事件资产是账户级受控合同，不是通用模板开关：若目标账户尚无事件资产，先以当前账户、当前小游戏 App 和唯一受控实例候选调用 `optimized_goal/get` 做独立权威只读回查（不携带 `asset_id`），仅当业务码、request ID、作用域以及 `PAY + PURCHASE_ROI_7D` 均通过时，写入脱敏 `target_instance_readback_verified` 证据；随后再核验事件资产与完整事件链。readonly 才可生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许在同一未确认的 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`；事件资产身份回查通过后把真实 asset ID 仅传给本次 configs 执行，configs 完成后再做完整事件链回查。引用型实例候选、独立回查失败或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
+事件资产是账户级受控合同，不是通用模板开关：先校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板；候选缺失、歧义或来源不受控分别 fail-closed。该阶段可直接生成带 `target_advertiser_id`、`template_ref` 与动态 `template_hash` 的脱敏合同，并在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
 
@@ -103,7 +103,7 @@ v_monitor_readiness（唯一状态读取）
 | video_asset | 是 | `ensure_resource:video_asset` | 视频、封面和目标账户可见性回查 |
 | product_image | 是 | `ensure_resource:product_image` | 108×108 PNG、hash 与目标素材回查 |
 | brand_info | 否 | — | 品牌与行业只读；缺失即 blocker |
-| micro_app_instance | 否 | — | 先做目标账户独立 `optimized_goal/get` 回查，再进入事件链；不猜测、不创建 |
+| micro_app_instance | 否 | — | 创建前只允许唯一受控候选；event asset detail 确认 App + instance 绑定后才标记目标账户已核验；不猜测、不创建 |
 | backup_landing_page | 否 | — | 仅人工共享后读取目标 `SHARE` 清单；不使用普通库存或非正式共享接口替代 |
 
 已确认资源动作严格按以下顺序消费；每项均需 Plan 内授权、原子 claim、一次写入与权威回查：
@@ -177,9 +177,12 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 9 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
 
 ```text
-工作台默认 idle
+唯一入口：http://127.0.0.1:3000/
+  ├─ 根页默认 idle，只读列出 active runtime Case；不加载最近账户
   ├─ ?case_id=：恢复该 Case 的最新 Job，可继续受 Gate 约束的工作流
   └─ ?job_id=：仅历史只读查看，Node 02 保留该 Job 的历史 Skill 状态
+
+同一 route×game×advertiser 最多一个 active runtime Case；重复启动请求恢复该 Case，不创建新 Case 或 fresh Job。case_id 与 job_id 同时出现、格式非法或目标不存在时 fail-closed，不能回退到其他账户。
 
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡

@@ -6,7 +6,7 @@ import {
 } from "../src/workflows/skills/oe3/04-event-asset-account-contract.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 
-function bundle({ instanceReadbackVerified = true } = {}) {
+function bundle({ platformInstanceId = "7990000000002201", untrustedInstanceId = "" } = {}) {
   return {
     job: {
       job_id: "JOB-SMOKE-EVENT-ASSET-ACCOUNT-CONTRACT",
@@ -29,7 +29,7 @@ function bundle({ instanceReadbackVerified = true } = {}) {
       app_type: "byte_mini_game",
       status: "active",
       metadata: {
-        micro_app_instance_id: "7990000000002201",
+        micro_app_instance_id: platformInstanceId,
         micro_app_instance_id_source: "readonly_target_evidence"
       }
     },
@@ -41,9 +41,7 @@ function bundle({ instanceReadbackVerified = true } = {}) {
         visibility_status: "needs_confirmation",
         readback_status: "not_checked",
         metadata: {
-          event_chain_readonly_contract: {
-            target_instance_readback_verified: instanceReadbackVerified
-          }
+          ...(untrustedInstanceId ? { micro_app_instance_id: untrustedInstanceId } : {})
         }
       }
     ]
@@ -68,8 +66,9 @@ const plan = buildSingleResourceExecutionPlanFromBundle(planBundle, {
   resourceType: "event_asset"
 });
 assert.equal(plan.planStatus, "ready");
-assert.deepEqual(plan.plannedActions.map((action) => action.action_type), ["ensure_resource:event_asset"]);
-assert.equal(plan.metadata.execution_scope.maximum_platform_calls, 1);
+assert.deepEqual(plan.plannedActions.map((action) => action.action_type), ["ensure_resource:event_asset", "ensure_event_configs:baseline"]);
+assert.deepEqual(plan.plannedActions[1].depends_on, ["ensure_resource:event_asset", "event-chain-readonly", "event-configs-baseline"]);
+assert.equal(plan.metadata.execution_scope.maximum_platform_calls, 7);
 assert.equal(plan.metadata.execution_scope.retry_allowed, false);
 
 const writes = [];
@@ -85,24 +84,24 @@ assert.equal(writes.length, 1);
 assert.equal(writes[0].resourceType, "event_asset");
 assert.equal(writes[0].resourceMetadata.event_asset_provision.target_advertiser_id, verifiedBundle.job.advertiser_id);
 
-const referenceOnly = buildEventAssetAccountProvisionContract({
-  bundle: bundle({ instanceReadbackVerified: false })
+const untrusted = buildEventAssetAccountProvisionContract({
+  bundle: bundle({ platformInstanceId: "", untrustedInstanceId: "7990000000002299" })
 });
-assert.equal(referenceOnly.status, "blocked");
-assert(referenceOnly.blockers.includes("event_asset_provision_instance_readback_unverified"));
+assert.equal(untrusted.status, "blocked");
+assert(untrusted.blockers.includes("micro_app_instance_candidate_untrusted"));
 const noWrite = await syncEventAssetAccountProvisionContract({
   repo: {
-    async mergeAccountResourceMetadata() { throw new Error("reference_only_contract_must_not_persist"); }
+    async mergeAccountResourceMetadata() { throw new Error("untrusted_candidate_contract_must_not_persist"); }
   },
-  bundle: bundle({ instanceReadbackVerified: false })
+  bundle: bundle({ platformInstanceId: "", untrustedInstanceId: "7990000000002299" })
 });
 assert.equal(noWrite.outputSummary.accountContractStored, false);
 
 const output = {
   status: "passed",
   accountScopedContractReady: ready.status === "ready_for_plan",
-  planIsSingleAction: plan.plannedActions.length === 1,
-  referenceOnlyBlocked: referenceOnly.blockers.includes("event_asset_provision_instance_readback_unverified"),
+  planIncludesAssetThenConfigs: plan.plannedActions.length === 2,
+  untrustedCandidateBlocked: untrusted.blockers.includes("micro_app_instance_candidate_untrusted"),
   platformWriteCalled: false,
   rawRequestStored: false,
   rawResponseStored: false

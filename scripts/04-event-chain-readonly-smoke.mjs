@@ -64,8 +64,8 @@ function repoStub() {
   };
 }
 
-function asset(id, appId = APP_ID) {
-  return { asset_id: id, asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS", app_id: appId };
+function asset(id, appId = APP_ID, instanceId = "700000000001") {
+  return { asset_id: id, asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS", app_id: appId, instance_id: instanceId };
 }
 
 function baselineEvents({ missingTypes = [] } = {}) {
@@ -90,8 +90,8 @@ function clientStub({ assets = [asset("800000000001")], detailAssets = assets, g
   return {
     calls,
     credentialState() { return { status: "ready", blockers: [] }; },
-    async get({ label, endpoint, summarize }) {
-      calls.push({ label, endpoint });
+    async get({ label, endpoint, query, summarize }) {
+      calls.push({ label, endpoint, query });
       const payload = label === "event_chain_asset_list"
         ? { code: "0", request_id: "smoke", data: { asset_list: assets, page_info: { total_page: 1 } } }
         : label === "event_chain_asset_detail"
@@ -143,6 +143,8 @@ assert(passClient.calls.filter((item) => item.label === "event_chain_available_e
 assert(passClient.calls.filter((item) => item.label === "event_chain_event_configs").length === 1, "event_configs_must_run_once");
 assert(passClient.calls.filter((item) => item.label === "event_chain_optimized_goal").length === 1, "optimized_goal_must_run_once");
 assert(passClient.calls.filter((item) => item.label === "event_chain_dbt").length === 1, "dbt_must_run_once");
+const optimizedGoalCall = passClient.calls.find((item) => item.label === "event_chain_optimized_goal");
+assert(optimizedGoalCall?.query?.asset_id === "800000000001", "optimized_goal_must_use_verified_asset_id");
 const passedProjection = persistedBundle(passBundle, passRepo.state.updates);
 assert(eventChainResourceReadiness({ bundle: passedProjection, resourceType: "event_asset" }).status === "passed", "event_projection_should_pass");
 assert(eventChainResourceReadiness({ bundle: passedProjection, resourceType: "micro_app_instance" }).status === "passed", "instance_projection_should_pass");
@@ -151,7 +153,8 @@ const noAsset = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bun
 assert(noAsset.blockers.includes("event_asset_target_not_found"), "missing_asset_blocker_required");
 
 const appMismatch = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ detailAssets: [asset("800000000001", "tte-other")] }), allowReadonlyDependency: true });
-assert(appMismatch.blockers.includes("event_asset_app_binding_unverified"), "app_binding_blocker_required");
+assert(appMismatch.blockers.includes("micro_app_instance_binding_readback_failed"), "app_instance_binding_blocker_required");
+assert(appMismatch.outputSummary.eventConfigsStatus === "not_called", "binding_failure_must_stop_before_configs");
 
 const ambiguous = await runEventChainReadonlySkill({
   repo: repoStub(),
@@ -205,7 +208,7 @@ const output = {
   status: "passed",
   fullChainPassed: pass.status === "passed",
   noAssetBlocked: noAsset.blockers.includes("event_asset_target_not_found"),
-  appMismatchBlocked: appMismatch.blockers.includes("event_asset_app_binding_unverified"),
+  appMismatchBlocked: appMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   ambiguousBlocked: ambiguous.blockers.includes("event_asset_target_ambiguous"),
   referenceCandidateNotPromoted: noInstance.outputSummary.targetInstanceReadbackVerified === false,
   availableGapIgnoredAfterConfigured: noAvailable.status === "passed",
@@ -214,6 +217,7 @@ const output = {
   noGoalBlocked: noGoal.blockers.includes("optimized_goal_not_available"),
   noDeepGoalBlocked: noDeepGoal.blockers.includes("deep_objective_not_available"),
   noDeepBidBlocked: noDeepBid.blockers.includes("deep_bid_type_not_available"),
+  optimizedGoalUsesAssetId: optimizedGoalCall?.query?.asset_id === "800000000001",
   noPlatformWrite: true,
   noRawRequestOrResponse: true
 };

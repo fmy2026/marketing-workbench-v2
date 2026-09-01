@@ -131,7 +131,7 @@ const node4ResourceChildren = Object.freeze(OE3_REQUIRED_RESOURCE_TYPES.map((res
     : resourceType === "video_asset"
       ? { kind: "latest_skill", skillKeys: ["resource-live-readonly-reconcile", "video-material-bind-plan", "resource-verify-video-asset"] }
     : ["event_asset", "micro_app_instance"].includes(resourceType)
-      ? { kind: "latest_skill", skillKeys: ["micro-app-instance-authority-readonly", "event-chain-readonly", `resource-verify-${resourceType.replace(/_/g, "-")}`] }
+      ? { kind: "latest_skill", skillKeys: ["event-chain-readonly", `resource-verify-${resourceType.replace(/_/g, "-")}`] }
     : resourceType === "backup_landing_page"
       ? { kind: "latest_skill", skillKeys: ["backup-landing-page-material-inventory", "backup-landing-page-source-prepare", "resource-verify-backup-landing-page"] }
     : { kind: "latest_skill", skillKeys: [`resource-verify-${resourceType.replace(/_/g, "-")}`] }

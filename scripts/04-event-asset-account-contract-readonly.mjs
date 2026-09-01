@@ -55,8 +55,11 @@ if (!initialBundle?.job) throw new Error("job_not_found");
 if (initialBundle.job.source_usage !== "runtime_truth") throw new Error("job_not_runtime_truth");
 const summary = await repo.getWorkflowCaseSummary(initialBundle.job.case_id);
 if (summary?.lifecycle_status !== "active" || summary?.latest_job_id !== jobId) throw new Error("event_asset_contract_requires_active_latest_case_job");
-if (summary?.root_blocker_codes?.[0] !== "event_asset_provision_not_plan_eligible") {
-  throw new Error("event_asset_contract_root_blocker_required");
+const initialAuditCounts = await repo.getLaunchJobAuditCounts(jobId);
+if (Number(initialAuditCounts.launchConfirmations || 0) !== 0 ||
+  Number(initialAuditCounts.platformActions || 0) !== 0 ||
+  Number(initialAuditCounts.createdObjects || 0) !== 0) {
+  throw new Error("event_asset_contract_requires_zero_write_audit");
 }
 
 const readonly = await runEventChainReadonlySkill({
@@ -79,7 +82,7 @@ if (contract.status === "ready_for_plan") {
       mode: "account_contract_readonly_remediation",
       target_resource_type: "event_asset",
       no_std_project_create: true,
-      no_other_resource_actions: true,
+      event_configs_baseline_included: true,
       no_confirmation_or_execution: true
     }
   });

@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-08-31 23:22 CST |
-| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
+| 最后更新时间 | 2026-09-01 11:19 CST |
+| 校验基线 | Git 当前 HEAD + 工作台唯一入口与多账户 Case 隔离 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -43,9 +43,9 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
 |  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
 | L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、受控触点 | 账户维护、只读 reconcile、已授权 monitor 流程 | Node 02、Node 05、专项 View |
-|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；事件资产合同仅可保存账户绑定、模板引用/hash、存在性与脱敏回查状态；小游戏实例独立回查仅保存当前账户作用域、目标实例已核验标记、优化目标命中与脱敏 evidence 引用 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
+|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；事件资产合同仅可保存账户绑定、模板引用/hash、存在性与脱敏回查状态；小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
-| L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id` | Case / Job 入口 | Case summary、UI、API、CLI |
+| L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口 | Case summary、UI、API、CLI |
 | L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
@@ -113,9 +113,9 @@ route_id + game_code
 | --- | --- |
 | 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表；Resource Plan 成功后可在同一 Case 建立 fresh runtime Job，但不得复制旧 Job 的 Plan/confirmation |
 | 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
-| 历史查看 | `?case_id=` 恢复活动 Case 的最新 Job；`?job_id=` 仅历史只读 |
+| 工作台恢复 | 唯一入口根页只读列出 active runtime Case；`?case_id=` 恢复活动 Case 的最新 Job，`?job_id=` 仅历史只读；两参数并存或非法时 fail-closed，不加载其他账户 |
 | Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |
-| 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 只在同账户 App、目标实例权威回查和事件链均通过后保存；保存账户 ID、版本化模板引用、hash、状态与脱敏证据引用，不保存完整 URL、raw request/response 或凭证。合同未满足时不得生成 Plan。 |
+| 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 App + instance 绑定、configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
 | 授权 | `project.state.json` 只给全局 Guardrail；真实写入还须匹配当前 Plan、confirmation、action grant 与调用上限 |
 

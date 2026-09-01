@@ -257,6 +257,82 @@ p {
   padding: 12px 0;
 }
 
+.active-cases {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  margin: 0 0 12px;
+  overflow-y: auto;
+}
+
+.active-cases[hidden] {
+  display: none;
+}
+
+.active-cases-heading,
+.active-case-row {
+  display: flex;
+  align-items: center;
+}
+
+.active-cases-heading {
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.active-cases-heading strong {
+  color: var(--text);
+}
+
+.active-cases-list {
+  display: grid;
+  gap: 6px;
+}
+
+.active-case-row {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.active-case-details {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.active-case-details strong,
+.active-case-details span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-case-details strong {
+  font-size: 12px;
+}
+
+.active-case-details span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.active-case-resume {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--blue);
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .intake-action {
   display: flex;
   align-items: center;

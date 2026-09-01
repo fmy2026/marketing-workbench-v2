@@ -150,7 +150,6 @@ function skillsForMode(mode) {
       "dmp-push-plan",
       "video-material-bind-plan",
       "product-image-source-prepare",
-      "micro-app-instance-authority-readonly",
       "event-chain-readonly",
       "backup-landing-page-source-prepare",
       ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
@@ -179,7 +178,6 @@ function skillsForMode(mode) {
     "dmp-push-plan",
     "video-material-bind-plan",
     "product-image-source-prepare",
-    "micro-app-instance-authority-readonly",
     "event-chain-readonly",
     "backup-landing-page-source-prepare",
     ...OE3_REQUIRED_RESOURCE_TYPES.map(resourceSkillKey)
@@ -805,6 +803,8 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
       ? "READY"
       : capabilityState === "prepare_supported"
         ? "PLANNED"
+        : ["waiting_on_event_asset", "waiting_on_event_configs"].includes(capabilityState)
+          ? "WAITING"
         : "BLOCKED";
     return {
       resourceType,

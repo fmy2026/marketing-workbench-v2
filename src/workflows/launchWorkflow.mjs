@@ -8,6 +8,11 @@ import {
 import { readonlyPermissionState } from "./skills/oe3/00-readonly-permission.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
 import { buildConfirmationPreview } from "./gateActionPolicy.mjs";
+import {
+  workbenchCaseUrl,
+  workbenchHomeUrl,
+  workbenchJobUrl
+} from "../../frontend/workbench-address.mjs";
 export {
   WORKFLOW_NODES,
   getWorkflowNode,
@@ -609,7 +614,24 @@ function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {
   }));
 }
 
-export function buildWorkbenchView() {
+function activeCaseView(summary = {}) {
+  const rootBlockerCodes = Array.isArray(summary.root_blocker_codes) ? summary.root_blocker_codes : [];
+  return {
+    caseId: summary.case_id || "",
+    advertiserId: summary.advertiser_id || "",
+    routeId: summary.route_id || "",
+    gameCode: summary.game_code || "",
+    currentGate: summary.current_gate || "",
+    rootBlockerCode: rootBlockerCodes[0] || "",
+    suggestedNextAction: summary.suggested_next_action || "",
+    updatedAt: summary.latest_job_updated_at || summary.updated_at || "",
+    latestJobId: summary.latest_job_id || "",
+    caseUrl: workbenchCaseUrl(summary.case_id),
+    jobUrl: summary.latest_job_id ? workbenchJobUrl(summary.latest_job_id) : ""
+  };
+}
+
+export function buildWorkbenchView({ activeCases = [] } = {}) {
   const nodes = WORKFLOW_NODES.map((node) => ({
     ...node,
     status: "waiting",
@@ -618,7 +640,8 @@ export function buildWorkbenchView() {
   }));
   return publicView({
     state: "idle",
-    workbenchUrl: "http://127.0.0.1:3000/",
+    workbenchUrl: workbenchHomeUrl(),
+    activeCases: (activeCases || []).map(activeCaseView),
     intake: {
       prompt: "请提供推广路线、游戏标识和账户 ID；可分多条消息输入。",
       requiredFields: WORKBENCH_INTAKE_FIELDS
@@ -938,21 +961,36 @@ export async function createWorkflowCase(repo, body = {}) {
   }
   const existing = await repo.getWorkflowCaseByKey(caseKey);
   if (existing) {
+    if (existing.route_id === routeId && existing.game_code === gameCode && existing.advertiser_id === advertiserId &&
+      existing.source_usage === "runtime_truth" && existing.lifecycle_status === "active") {
+      return { ...existing, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(existing.case_id) };
+    }
     const error = new Error("workflow_case_key_already_exists");
     error.statusCode = 409;
     error.details = { caseId: existing.case_id };
     throw error;
   }
-  return repo.createWorkflowCase({
-    caseId: workflowCaseId(caseKey),
-    caseKey,
-    routeId,
-    gameCode,
-    advertiserId,
-    businessGoal,
-    sourceUsage,
-    metadata: { created_via: "workflow_case_api_or_cli" }
-  });
+  if (sourceUsage === "runtime_truth") {
+    const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
+    if (active) return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+  }
+  try {
+    return await repo.createWorkflowCase({
+      caseId: workflowCaseId(caseKey),
+      caseKey,
+      routeId,
+      gameCode,
+      advertiserId,
+      businessGoal,
+      sourceUsage,
+      metadata: { created_via: "workflow_case_api_or_cli" }
+    });
+  } catch (error) {
+    if (sourceUsage !== "runtime_truth") throw error;
+    const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
+    if (active) return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+    throw error;
+  }
 }
 
 async function resolveCaseForNewJob(repo, { body, routeId, gameCode, advertiserId, sourceUsage, sourceRecordRef }) {

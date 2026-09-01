@@ -923,6 +923,23 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    return queryJson(`
+      SELECT to_jsonb(wc)::text
+      FROM mwb.workflow_cases wc
+      WHERE wc.route_id = ${sqlLiteral(routeId)}
+        AND wc.game_code = ${sqlLiteral(gameCode)}
+        AND wc.advertiser_id = ${sqlLiteral(advertiserId)}
+        AND wc.source_usage = 'runtime_truth'
+        AND wc.lifecycle_status = 'active'
+      ORDER BY wc.updated_at DESC, wc.created_at DESC, wc.case_id DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
   async getLatestLaunchJobByCase(caseId) {
     assertId("case_id", caseId);
     return queryJson(`
@@ -967,9 +984,14 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async listWorkflowCaseSummaries({ sourceUsage = "" } = {}) {
+  async listWorkflowCaseSummaries({ sourceUsage = "", lifecycleStatus = "" } = {}) {
     if (sourceUsage) assertId("source_usage", sourceUsage);
-    const sourceFilter = sourceUsage ? `WHERE summary.source_usage = ${sqlLiteral(sourceUsage)}` : "";
+    if (lifecycleStatus) assertId("lifecycle_status", lifecycleStatus);
+    const filters = [
+      sourceUsage ? `summary.source_usage = ${sqlLiteral(sourceUsage)}` : "",
+      lifecycleStatus ? `summary.lifecycle_status = ${sqlLiteral(lifecycleStatus)}` : ""
+    ].filter(Boolean);
+    const sourceFilter = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
     return queryJson(`
       SELECT coalesce(jsonb_agg(to_jsonb(summary) ORDER BY summary.latest_job_updated_at DESC NULLS LAST, summary.updated_at DESC), '[]'::jsonb)::text
       FROM mwb.workflow_case_summary summary

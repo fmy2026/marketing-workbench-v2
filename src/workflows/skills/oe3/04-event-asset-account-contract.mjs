@@ -10,13 +10,16 @@ import {
   EVENT_ASSET_TEMPLATE_MANIFEST_VERSION,
   EVENT_ASSET_TYPE,
   buildEventAssetCreateTemplateManifest,
-  eventAssetInstanceReadbackVerified,
   eventAssetOfficialCreateContractHash,
   eventAssetTemplateHash,
   eventAssetTemplateRef,
   evaluateEventAssetProvisionContract
 } from "./04-event-asset-provision-contract.mjs";
 import { clean, resource } from "./04-resource-verifiers.mjs";
+import {
+  microAppInstanceCandidate,
+  microAppInstanceCandidateBlockers
+} from "./04-micro-app-instance-candidate.mjs";
 
 function eventResourceWithProvision(bundle = {}, provision = {}) {
   return {
@@ -31,6 +34,7 @@ export function buildEventAssetAccountProvisionContract({ bundle = {} } = {}) {
   const job = bundle.job || {};
   const app = bundle.platformApp || {};
   const template = buildEventAssetCreateTemplateManifest({ bundle });
+  const instance = microAppInstanceCandidate(bundle);
   const blockers = [
     ...(clean(job.route_id) === "oceanengine_3_byte_mini_game" && clean(job.game_code) === "JSZC"
       ? []
@@ -39,8 +43,7 @@ export function buildEventAssetAccountProvisionContract({ bundle = {} } = {}) {
     ...(clean(app.app_id) && clean(app.app_type) === "byte_mini_game" && clean(app.status) === "active"
       ? []
       : ["event_asset_provision_platform_app_unverified"]),
-    ...(clean(template.mini_program_asset?.instance_id) ? [] : ["event_asset_provision_instance_missing"]),
-    ...(eventAssetInstanceReadbackVerified(bundle) ? [] : ["event_asset_provision_instance_readback_unverified"])
+    ...microAppInstanceCandidateBlockers(instance)
   ];
   if (blockers.length) {
     return sanitizeForPublic({
@@ -49,7 +52,7 @@ export function buildEventAssetAccountProvisionContract({ bundle = {} } = {}) {
       provision: null,
       outputSummary: {
         accountContractStored: false,
-        targetInstanceReadbackVerified: eventAssetInstanceReadbackVerified(bundle),
+        targetInstanceCandidateTrusted: instance.instanceCandidateTrusted === true,
         platformWriteCalled: false,
         rawRequestStored: false,
         rawResponseStored: false
@@ -86,7 +89,7 @@ export function buildEventAssetAccountProvisionContract({ bundle = {} } = {}) {
     provision: evaluation.status === "ready_for_plan" ? provision : null,
     outputSummary: {
       accountContractStored: false,
-      targetInstanceReadbackVerified: eventAssetInstanceReadbackVerified(bundle),
+      targetInstanceCandidateTrusted: instance.instanceCandidateTrusted === true,
       templateHashMatchesExpected: evaluation.outputSummary?.templateHashMatchesExpected === true,
       contractPlanEligible: evaluation.outputSummary?.planEligible === true,
       platformWriteCalled: false,

@@ -1,3 +1,8 @@
+import {
+  parseWorkbenchProgressTarget,
+  workbenchCaseUrl
+} from "./workbench-address.mjs";
+
 (function () {
   let job = null;
   let workbench = null;
@@ -7,6 +12,7 @@
   let draftCaseId = "";
   let draftCaseKey = "";
   let pendingConfirmation = null;
+  let rootHome = false;
   const chatMessages = [];
   const focusedNodes = new Map();
   const draftIntake = {
@@ -186,6 +192,34 @@
       : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。");
   }
 
+  function renderActiveCases() {
+    const container = document.getElementById("activeCases");
+    const cases = rootHome ? (workbench?.activeCases || []) : [];
+    container.innerHTML = "";
+    container.hidden = cases.length === 0;
+    if (!cases.length) return;
+    const heading = el("div", "active-cases-heading");
+    heading.append(el("strong", "", "活动账户"));
+    heading.append(el("span", "", `${cases.length} 个`));
+    container.append(heading);
+    const list = el("div", "active-cases-list");
+    for (const item of cases) {
+      const row = el("div", "active-case-row");
+      const details = el("div", "active-case-details");
+      details.append(el("strong", "", `账户 ${item.advertiserId || "-"}`));
+      details.append(el("span", "", `Gate：${item.currentGate || "-"}`));
+      if (item.rootBlockerCode) details.append(el("span", "", `阻断：${item.rootBlockerCode}`));
+      const resume = el("button", "active-case-resume", "继续");
+      resume.type = "button";
+      resume.addEventListener("click", () => {
+        window.location.assign(item.caseUrl || workbenchCaseUrl(item.caseId));
+      });
+      row.append(details, resume);
+      list.append(row);
+    }
+    container.append(list);
+  }
+
   function statusTitle(item) {
     return item?.statusLabel || item?.status || "等待";
   }
@@ -305,6 +339,7 @@
 
   function renderAll() {
     renderIntake();
+    renderActiveCases();
     renderChat();
     renderCaseGate();
     renderWorkflow();
@@ -365,7 +400,7 @@
   }
 
   async function ensureWorkflowCase() {
-    if (draftCaseId) return draftCaseId;
+    if (draftCaseId) return { caseId: draftCaseId, reusedActiveCase: false };
     try {
       const workflowCase = await api("/api/workflow-cases", {
         method: "POST",
@@ -379,11 +414,11 @@
         })
       });
       draftCaseId = workflowCase.case_id;
-      return draftCaseId;
+      return { caseId: draftCaseId, reusedActiveCase: workflowCase.reusedActiveCase === true };
     } catch (error) {
       if (error.message === "workflow_case_key_already_exists" && error.details?.caseId) {
         draftCaseId = error.details.caseId;
-        return draftCaseId;
+        return { caseId: draftCaseId, reusedActiveCase: true };
       }
       throw error;
     }
@@ -393,14 +428,18 @@
     if (busy || viewOnly || job || missingFields().length) return;
     setBusy(true);
     try {
-      const caseId = await ensureWorkflowCase();
+      const selectedCase = await ensureWorkflowCase();
+      if (selectedCase.reusedActiveCase) {
+        window.location.assign(workbenchCaseUrl(selectedCase.caseId));
+        return;
+      }
       const created = await api("/api/launch/jobs", {
         method: "POST",
         body: JSON.stringify({
           route_id: draftIntake.route_id,
           game_code: draftIntake.game_code,
           advertiser_id: draftIntake.advertiser_id,
-          case_id: caseId,
+          case_id: selectedCase.caseId,
           source_usage: "runtime_truth",
           source_record_ref: "workbench:normalized-input"
         })
@@ -427,10 +466,7 @@
 
   function setActiveCaseUrl(caseId) {
     if (!caseId) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("job_id");
-    url.searchParams.set("case_id", caseId);
-    window.history.replaceState({}, "", url);
+    window.history.replaceState({}, "", workbenchCaseUrl(caseId));
   }
 
   async function submitJobCommand(text) {
@@ -486,17 +522,17 @@
   async function init() {
     bindInteractions();
     try {
-      const params = new URLSearchParams(window.location.search);
-      const jobId = params.get("job_id");
-      const caseId = params.get("case_id");
-      viewOnly = Boolean(jobId);
-      if (jobId) {
-        job = await api(jobViewPath(jobId));
-      } else if (caseId) {
-        const caseView = await api(`/api/workflow-cases/${encodeURIComponent(caseId)}`);
+      const target = parseWorkbenchProgressTarget(window.location.search);
+      if (target.status === "invalid") throw new Error(target.error);
+      rootHome = target.status === "home";
+      viewOnly = target.status === "job";
+      if (target.status === "job") {
+        job = await api(jobViewPath(target.jobId));
+      } else if (target.status === "case") {
+        const caseView = await api(`/api/workflow-cases/${encodeURIComponent(target.caseId)}`);
         const latestJobId = caseView.summary?.latest_job_id || "";
         if (latestJobId) {
-          draftCaseId = caseId;
+          draftCaseId = target.caseId;
           job = await api(jobViewPath(latestJobId));
         } else {
           workbench = await api("/api/launch/workbench");

@@ -26,6 +26,7 @@
     "workflow:execute-once-mock": "node scripts/00-oe3-workflow-cli.mjs --mode execute_once --mock-execute",
     "smoke:workflow-skills": "node scripts/00-oe3-workflow-skills-smoke.mjs",
     "smoke:api": "node scripts/00-smoke-api.mjs",
+    "test:workbench-address": "node scripts/00-workbench-address-smoke.mjs",
     "test:workbench-conversation": "node scripts/00-workbench-conversation-smoke.mjs",
     "test:workflow-case": "node scripts/00-workflow-case-smoke.mjs",
     "smoke:readonly": "node scripts/00-readonly-oceanengine-smoke.mjs",

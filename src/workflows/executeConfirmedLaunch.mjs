@@ -22,6 +22,23 @@ function createCalledFromView(view = {}) {
     createNode?.outputSummary?.mockCreateCalled !== true;
 }
 
+async function closeVerifiedRuntimeCase({ repo, bundle, jobId, view, projectStatePath }) {
+  if (bundle.job?.source_usage !== "runtime_truth") return view;
+  if (view?.caseGate?.currentGate !== "first_std_project_create_completed") return view;
+  if (typeof repo.updateWorkflowCaseLifecycle !== "function") return view;
+  await repo.updateWorkflowCaseLifecycle({
+    caseId: bundle.job.case_id,
+    lifecycleStatus: "completed",
+    metadataPatch: {
+      completion_reason: "first_std_project_create_completed",
+      completed_job_id: jobId,
+      raw_payload_stored: false,
+      raw_response_stored: false
+    }
+  });
+  return getJobView(repo, jobId, { projectStatePath });
+}
+
 function validateGrant({ grantSource, executionIntent, envConfirm }) {
   if (grantSource === "workbench_click" || grantSource === "workbench_conversation") {
     return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
@@ -231,13 +248,20 @@ export async function executeConfirmedLaunch({
       projectStatePath,
       fetchImpl
     });
+    const completedView = await closeVerifiedRuntimeCase({
+      repo,
+      bundle: latestBundleBeforeCreate,
+      jobId,
+      view,
+      projectStatePath
+    });
     const result = {
-      ...view,
+      ...completedView,
       executionGrant: {
         status: "consumed",
         grantSource,
         executionGrantId,
-        createCalled: createCalledFromView(view),
+        createCalled: createCalledFromView(completedView),
         maximumActions: 1,
         retryAllowed: false
       }

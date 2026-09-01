@@ -7,15 +7,20 @@ import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import { buildWorkbenchView, createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
+import {
+  WORKBENCH_HOST,
+  WORKBENCH_ORIGIN,
+  WORKBENCH_PORT
+} from "../../frontend/workbench-address.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
-const port = Number(process.env.MWBV2_SERVER_PORT || 3000);
 const repo = new PostgresRepository();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8"
 };
@@ -66,7 +71,11 @@ async function serveStatic(req, res, pathname) {
 async function handleApi(req, res, url) {
   const pathname = url.pathname;
   if (req.method === "GET" && pathname === "/api/launch/workbench") {
-    return sendJson(res, 200, buildWorkbenchView());
+    const activeCases = await repo.listWorkflowCaseSummaries({
+      sourceUsage: "runtime_truth",
+      lifecycleStatus: "active"
+    });
+    return sendJson(res, 200, buildWorkbenchView({ activeCases }));
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {
@@ -80,12 +89,18 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && pathname === "/api/workflow-cases") {
-    return sendJson(res, 200, { cases: await repo.listWorkflowCaseSummaries() });
+    const activeOnly = url.searchParams.get("active") === "1";
+    return sendJson(res, 200, {
+      cases: await repo.listWorkflowCaseSummaries(activeOnly
+        ? { sourceUsage: "runtime_truth", lifecycleStatus: "active" }
+        : {})
+    });
   }
 
   if (req.method === "POST" && pathname === "/api/workflow-cases") {
     const body = await readBody(req);
-    return sendJson(res, 201, await createWorkflowCase(repo, body));
+    const workflowCase = await createWorkflowCase(repo, body);
+    return sendJson(res, workflowCase.reusedActiveCase === true ? 200 : 201, workflowCase);
   }
 
   const workflowCaseMatch = pathname.match(/^\/api\/workflow-cases\/([^/]+)$/);
@@ -153,7 +168,14 @@ async function handleApi(req, res, url) {
 
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    const requestUrl = req.url || "/";
+    const host = String(req.headers.host || "").toLowerCase();
+    if (host && host !== `${WORKBENCH_HOST}:${WORKBENCH_PORT}`) {
+      res.writeHead(308, { location: new URL(requestUrl, WORKBENCH_ORIGIN).toString() });
+      res.end();
+      return;
+    }
+    const url = new URL(requestUrl, WORKBENCH_ORIGIN);
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res, url);
       return;
@@ -164,6 +186,6 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
-  console.log(`marketing-workbench-v2 listening on http://127.0.0.1:${port}`);
+server.listen(WORKBENCH_PORT, WORKBENCH_HOST, () => {
+  console.log(`marketing-workbench-v2 listening on ${WORKBENCH_ORIGIN}/`);
 });

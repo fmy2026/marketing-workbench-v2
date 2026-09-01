@@ -1,5 +1,9 @@
 import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
-import { clean, resource, resourceReady } from "./04-resource-verifiers.mjs";
+import { clean, resource } from "./04-resource-verifiers.mjs";
+import {
+  microAppInstanceCandidate,
+  microAppInstanceCandidateBlockers
+} from "./04-micro-app-instance-candidate.mjs";
 
 export const EVENT_ASSET_PROVISION_ACTION = "ensure_resource:event_asset";
 export const EVENT_ASSET_TYPE = "MINI_PROGRAME";
@@ -62,40 +66,23 @@ function sameStringSet(left = [], right = []) {
   return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
 }
 
-function microAppInstanceId(bundle = {}) {
-  const item = resource(bundle, "micro_app_instance");
-  const app = bundle.platformApp || {};
-  const candidates = [
-    [clean(item.platform_resource_id), resourceReady(item) ? "target_resource_record" : ""],
-    [clean(item.metadata?.micro_app_instance_id), "account_resource_metadata"],
-    [clean(item.metadata?.instance_id), "account_resource_metadata"],
-    [clean(app.metadata?.micro_app_instance_id), clean(app.metadata?.micro_app_instance_id_source) || "platform_app_reference"]
-  ].filter(([id]) => id);
-  const distinct = [...new Map(candidates.map(([id, source]) => [id, source])).entries()];
-  return {
-    id: distinct.length === 1 ? distinct[0][0] : "",
-    source: distinct.length === 1 ? distinct[0][1] : "",
-    candidateCount: distinct.length,
-    ambiguous: distinct.length > 1
-  };
-}
-
 export function eventAssetInstanceReadbackVerified(bundle = {}) {
   const item = resource(bundle, "micro_app_instance");
-  return resourceReady(item) || item.metadata?.event_chain_readonly_contract?.target_instance_readback_verified === true ||
-    item.metadata?.micro_app_instance_authority_readonly_contract?.target_instance_readback_verified === true;
+  const contract = item.metadata?.event_chain_readonly_contract || {};
+  return contract.target_instance_binding_readback_verified === true ||
+    contract.target_instance_readback_verified === true;
 }
 
 export function buildEventAssetCreateTemplateManifest({ bundle = {} } = {}) {
   const app = bundle.platformApp || {};
-  const instance = microAppInstanceId(bundle);
+  const instance = microAppInstanceCandidate(bundle);
   return sanitizeForPublic({
     advertiser_id: clean(bundle.job?.advertiser_id),
     asset_type: EVENT_ASSET_TYPE,
     mini_program_asset: {
       mini_program_id: clean(app.app_id),
       mini_program_name: clean(app.app_name || app.name || "巨兽战场"),
-      instance_id: instance.id,
+      instance_id: instance.instanceId,
       mini_program_type: "BYTE_GAME"
     },
     objectives: {
@@ -145,7 +132,7 @@ export function evaluateEventAssetProvisionContract({ bundle = {} } = {}) {
   const official = definition.official_create_contract || {};
   const defaults = bundle.defaults || {};
   const app = bundle.platformApp || {};
-  const instance = microAppInstanceId(bundle);
+  const instance = microAppInstanceCandidate(bundle);
   const expectedTemplate = buildEventAssetCreateTemplateManifest({ bundle });
   const expectedTemplateHash = hashValue(expectedTemplate);
   const expectedContractHash = eventAssetOfficialCreateContractHash();
@@ -178,9 +165,7 @@ export function evaluateEventAssetProvisionContract({ bundle = {} } = {}) {
     ...(clean(app.app_id) && clean(app.app_type) === "byte_mini_game" && clean(app.status) === "active"
       ? []
       : ["event_asset_provision_platform_app_unverified"]),
-    ...(instance.ambiguous ? ["event_asset_provision_instance_ambiguous"] : []),
-    ...(instance.id ? [] : ["event_asset_provision_instance_missing"]),
-    ...(eventAssetInstanceReadbackVerified(bundle) ? [] : ["event_asset_provision_instance_readback_unverified"]),
+    ...microAppInstanceCandidateBlockers(instance),
     ...(clean(expectedTemplate.mini_program_asset.mini_program_id) ? [] : ["event_asset_provision_mini_program_id_missing"]),
     ...(clean(expectedTemplate.mini_program_asset.mini_program_name) ? [] : ["event_asset_provision_mini_program_name_missing"])
   ];
@@ -212,10 +197,11 @@ export function evaluateEventAssetProvisionContract({ bundle = {} } = {}) {
       officialCreateContractFieldManifestPresent: fieldManifest.length > 0,
       officialCreateContractFieldManifestMatches: sameStringSet(fieldManifest, EVENT_ASSET_CREATE_FIELD_NAMES),
       platformAppReady: clean(app.app_id) !== "" && clean(app.app_type) === "byte_mini_game" && clean(app.status) === "active",
-      microAppInstanceIdPresent: Boolean(instance.id),
-      microAppInstanceCandidateCount: instance.candidateCount,
-      microAppInstanceSource: instance.source,
-      microAppInstanceReadbackVerified: eventAssetInstanceReadbackVerified(bundle),
+      microAppInstanceIdPresent: Boolean(instance.instanceId),
+      microAppInstanceCandidateCount: instance.instanceCandidateCount,
+      microAppInstanceSource: instance.instanceSource,
+      microAppInstanceCandidateTrusted: instance.instanceCandidateTrusted === true,
+      microAppInstanceBindingReadbackVerified: eventAssetInstanceReadbackVerified(bundle),
       planEligible,
       proposedAction: planEligible ? EVENT_ASSET_PROVISION_ACTION : "",
       idempotencyScope: planEligible

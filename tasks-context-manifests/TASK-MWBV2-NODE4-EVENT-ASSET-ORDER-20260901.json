@@ -1,0 +1,85 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NODE4-EVENT-ASSET-ORDER-20260901",
+  "task_ref": "tasks/TASK-MWBV2-NODE4-EVENT-ASSET-ORDER-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 10:42 CST",
+  "updated_at": "2026-09-01 11:25 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户批准的 Node 04 事件资产顺序最小修正方案",
+    "objective": "Move final optimized-goal and DBT validation behind event asset identity and baseline event-config readback without weakening candidate controls or write gates.",
+    "current_truth": "project.state.json, this Task/Manifest, current code and Schema, and Postgres workflow_case_summary.",
+    "stop_condition": "A platform write, confirmation/action grant, new public mechanism, or workflow_case_summary truth change would be required."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-NODE4-EVENT-ASSET-ORDER-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-NODE4-EVENT-ASSET-ORDER-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-event-asset-provision-contract.mjs",
+    "src/workflows/skills/oe3/04-event-asset-account-contract.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Manifest, Solution Design and Node 04 mechanism documentation",
+    "existing Node 04 contracts, readonly skills, runner registrations, Plan compiler consumption and focused tests",
+    "test_run data and redacted readonly/Plan contract evidence for the selected active Case"
+  ],
+  "forbidden_actions": [
+    "real event asset, event config, monitor, std_project or any other platform write",
+    "confirmation, action grant, retry, token refresh, budget or bid change",
+    "new business table, View, Node, Plan type, action type, public API or duplicate Gate computation",
+    "sensitive raw persistence"
+  ],
+  "validation_plan": [
+    "test:event-asset-provision-contract",
+    "test:micro-app-instance-authority-readonly",
+    "test:event-chain-readonly",
+    "test:event-asset-executor",
+    "test:execution-plan",
+    "smoke:workflow-skills",
+    "validate:schemas",
+    "git diff --check",
+    "selected active Case readonly Plan-eligibility and zero-write audit"
+  ],
+  "stop_conditions": [
+    "A real platform write, confirmation, retry or credential refresh would be required.",
+    "A source-controlled unique candidate cannot be represented without a new data model.",
+    "The approved order would require changing workflow_case_summary or Case/Job semantics."
+  ],
+  "scope": {
+    "implementation_mode": "node4_contract_order_code_and_authorized_readonly_plan_only",
+    "platform_write_allowed": false,
+    "target_case": "user-selected existing active Case",
+    "human_gate": "real_platform_write_not_authorized"
+  },
+  "completion": {
+    "status": "completed",
+    "validation": [
+      "test:event-asset-provision-contract",
+      "test:event-asset-account-contract",
+      "test:micro-app-instance-authority-readonly",
+      "test:event-chain-readonly",
+      "test:event-asset-executor",
+      "test:node4-resource-prep-contracts",
+      "test:execution-plan",
+      "test:single-confirmation-orchestrator",
+      "smoke:api",
+      "smoke:workflow-skills",
+      "test:workflow-case",
+      "validate:schemas",
+      "test:workbench-conversation",
+      "git diff --check"
+    ],
+    "platform_write_called": false,
+    "test_run_cleanup_verified": true
+  }
+}

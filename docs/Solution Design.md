@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-08-31 23:22 CST |
+| 最后更新时间 | 2026-09-01 11:19 CST |
 | 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
@@ -19,21 +19,31 @@
 
 工作台可为 ready 的普通 Resource Plan 展示脱敏确认卡；精确确认后只调用既有 confirmed-resource orchestrator。全部资源权威回查通过并消费 Plan 后，在同一 Case 下创建 fresh runtime Job，重新运行只读准备并生成只含 `std_project_create` 的 Create Plan。第二次精确确认后才允许一次创建，并以权威回查为完成条件。
 
-“两次确认”只指 monitor 已 READY、人工 SHARE 和 verify-only 前提已完成且执行无失败的成功路径。monitor 缺失仍使用独立 `monitor_bootstrap` 确认；backup landing page SHARE 与 micro-app authority readonly 是前置条件，不属于这两份写入 Plan。实施与测试不得对真实账户执行平台写入。
+“两次确认”只指 monitor 已 READY、人工 SHARE 和 verify-only 前提已完成且执行无失败的成功路径。monitor 缺失仍使用独立 `monitor_bootstrap` 确认；backup landing page SHARE 是前置条件，`micro-app-instance-authority-readonly` 仅可选诊断，不属于 Gate、Plan 或两份写入 Plan。实施与测试不得对真实账户执行平台写入。
 
 ## 已批准设计：Case Gate 真值与账户级事件资产合同
 
 当同一 Case 同时缺少 monitor、触点和账户资源时，唯一 root blocker 必须按依赖顺序选择：已创建对象回查、创建尝试上限、人工修正、monitor/上下文、游戏包、Node 4 资源、Plan 兜底。View、Execution Plan 和工作台只消费这一排序结果，不各自选择不同 blocker。
 
-事件资产保持 fail-closed：正式 action 只能使用与当前 route、game、advertiser 相同的账户级合同，合同必须带目标账户、版本化模板引用、动态模板 hash、官方接口合同与目标 App/实例只读前提。不得以移除校验的方式开放到所有账户。
+事件资产保持 fail-closed：正式 action 只能使用与当前 route、game、advertiser 相同的账户级合同，合同必须带目标账户、版本化模板引用、动态模板 hash、官方接口合同、目标 App 与唯一受控实例候选。实例的目标账户绑定只能在 event asset detail 后确认；不得以移除校验的方式开放到所有账户。
 
 本设计只修复本地真值、展示和计划资格；monitor、事件资产及投放创建仍须分别建立专项 Task、冻结 Plan 并取得明确写入授权。
 
-## 已批准设计：零事件资产账户的小游戏实例独立只读回查
+## 已批准设计：Node 04 事件资产顺序
 
-当目标账户尚无 `MINI_PROGRAME` 事件资产时，Node 04 不得把“事件资产详情中观察到实例”作为小游戏实例唯一的权威来源。对唯一、受控的候选 `micro_app_instance_id`，可单独调用官方 `optimized_goal/get`，以当前账户、`BYTE_GAME`、小游戏 App 和实例候选执行只读 eligibility 回查；该调用不带事件资产前提，也不创建任何资源。
+Node 04 保持 Case/Job、3 阶段 7 Node、`workflow_case_summary`、Plan、确认与 executor 不变。唯一有效顺序为：唯一受控实例候选校验 → event asset 创建或发现 → 资产详情确认 App 与 instance 绑定 → event configs baseline 完成 → 携带真实 `asset_id` 的 `optimized_goal/get` → `dbt/get` → READY。
 
-只有业务码成功、request ID 存在、候选不歧义，并且当前路线的主/深度优化目标均命中时，才可把 `micro_app_instance` 落为 `visible + readback_verified`，并保存脱敏 probe 摘要和 evidence 引用。失败、歧义或缺少候选一律保持 `micro_app_instance_target_unverified`。事件资产创建仍要求账户级合同、独立 Plan/hash、人工确认、单次调用与权威回查；该只读 Skill 不产生 Plan 或写授权。
+event asset 创建前只校验账户范围、小游戏 App、唯一且来源受控的实例候选与版本化创建模板。实例候选缺失、歧义或来源不受控分别以 `micro_app_instance_candidate_missing`、`micro_app_instance_candidate_ambiguous`、`micro_app_instance_candidate_untrusted` fail-closed；不要求 `micro_app_instance_authority_readonly` 成功，也不提前把实例标为 `readback_verified`。该旧只读调用只保留为可选诊断和审计，不能作为 Plan、Gate 或 READY 真值。
+
+event asset 已存在时直接详情回查，不得重复创建。只有详情确认目标 App 与 instance 绑定后，才可把实例标为目标账户已核验并进入 `ensure_event_configs:baseline`；绑定失败为 `micro_app_instance_binding_readback_failed`，不得创建 configs。configs 未完成时不得调用最终优化目标或 DBT；此后优化目标失败为 `optimized_goal_readonly_failed`，深度出价不可用为 `deep_bid_type_not_available`。任何失败停止且不得自动重试；真实写入仍只能使用 fresh Plan/hash、人工确认与单次 action grant。
+
+## 已批准设计：工作台唯一入口与多账户 Case 隔离
+
+本机工作台的唯一公开入口固定为 `http://127.0.0.1:3000/`，服务仅绑定该 loopback host 与端口。地址配置、服务监听、工作台链接、API 返回链接和本机 LaunchAgent 必须消费同一模块；不得保留旧项目地址或可变端口作为 v2 入口。
+
+入口根页保持 idle，并只读展示 `runtime_truth + active` 的 `workflow_case_summary` 行。用户必须通过 `?case_id=` 恢复一个活动 Case 的最新 Job；`?job_id=` 仅查看该 Job 历史，禁止确认或执行；两个参数同时出现、参数格式非法或目标不存在时 fail-closed，不回退到其他账户或最近访问状态。浏览器不得持久化“当前账户”。
+
+运行进度的唯一隔离键是 `workflow_cases.case_id`，不是账户 ID 或浏览器状态。同一 route、game、advertiser 仅允许一个 active `runtime_truth` Case；创建请求命中已有活动 Case 时返回该 Case 及其恢复链接，不生成重复 Case。所有 Job、Plan、confirmation 与平台动作继续由现有 `case_id`、advertiser、最新 Job 与精确 Plan/hash 约束；本设计不放宽任何 Gate 或写入权限。
 
 ## 已批准设计：Monitor 单轨真值与 Plan-bound Bootstrap
 
@@ -65,7 +75,7 @@ Node 02 fresh readonly reconcile 必须以平台返回的受控触点 URL 与其
 
 `?job_id=` 是历史只读视图，继续展示该 Job 的 `launch_skill_runs`，不得被后续 readonly reconcile 覆盖。最新 Case 视图可在每个子项的 trace 中保留这些历史 Skill 结果供审计，但不得用它们覆盖当前 canonical 状态。此展示修复不改写 `launch_node_runs`、`launch_skill_runs`、Case Gate、root blocker 或任何平台动作。
 
-事件资产仍按账户级合同 fail-closed：仅在 fresh readonly 已验证目标 App、目标小游戏实例的权威回查证据和事件资产链路，且当前账户的 `target_advertiser_id`、`template_ref`、动态 `template_hash` 与官方创建合同匹配时，才可编译只含 `ensure_resource:event_asset` 的 fresh `resource_prepare` Plan。引用型实例候选、缺失实例回查或跨账户模板都只能形成 blocker，不能持久化可执行合同。该专项不确认、不执行写入；未来执行必须使用新的 Task、Plan/hash 与单次确认。
+事件资产仍按账户级合同 fail-closed：fresh readonly 先验证目标 App、唯一受控实例候选，以及当前账户的 `target_advertiser_id`、`template_ref`、动态 `template_hash` 与官方创建合同；满足后即可编译 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline` 的 fresh `resource_prepare` Plan。目标实例的账户绑定、优化目标与 DBT 必须在资产详情和 configs 后分别回查；候选缺失、歧义、不受控或跨账户模板都只能形成 blocker。该专项不确认、不执行写入；未来执行必须使用新的 Task、Plan/hash 与单次确认。
 
 ## 何时使用
 
