@@ -1,0 +1,79 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 17:31 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Close interrupted confirmed event-config execution deterministically and recover through the existing fresh-readonly Job path.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "src/workflows/skills/oe3/04-event-config-provision-contract.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task and Context Manifest",
+    "existing event-config timeout and partial-readback logic",
+    "existing confirmed-resource terminalization and presentation logic",
+    "current Case redacted database terminalization after authoritative readonly readback",
+    "mock/test_run tests"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, retries, confirmations and action grants",
+    "OAuth refresh, project/resource create, budget or bid mutation",
+    "new API, Schema, View, Gate, Plan/action type or worker",
+    "persisting sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "event-config timeout and 4/6, 5/6, 6/6 partial-readback smoke",
+    "confirmed-resource failure, duplicate confirmation and fresh recovery smoke",
+    "workflow, API, interaction, security and runtime consistency checks",
+    "restart workbench and readonly-check the current Case"
+  ],
+  "stop_conditions": [
+    "any real platform write or automatic retry would be required",
+    "the current platform baseline cannot be established by authoritative readonly readback",
+    "the change requires a new database, Gate, Plan or public API contract"
+  ],
+  "completed_at": "2026-09-01 17:48 CST",
+  "result": {
+    "platform_writes": 0,
+    "platform_write_retries": 0,
+    "fresh_runtime_jobs_created": 0,
+    "database_schema_changes": 0,
+    "public_api_changes": 0,
+    "launchagent_restarted": true,
+    "authoritative_baseline": "4/6",
+    "current_case_gate": "resolve_case_blocker",
+    "current_case_root_blocker": "confirmed_resource_execution_interrupted",
+    "latest_job_status": "blocked_confirmed_resource_plan",
+    "latest_plan_status": "consumed",
+    "confirmation_preview": null,
+    "validation": {
+      "event_config_timeout_and_partial_baseline": "passed",
+      "confirmed_resource_terminalization": "passed",
+      "workbench_progress_and_conversation": "passed",
+      "runtime_policy": "passed",
+      "workflow_and_api_smoke": "passed",
+      "schema_and_database_contract": "passed",
+      "runtime_consistency": "passed",
+      "diff_check": "passed"
+    }
+  }
+}

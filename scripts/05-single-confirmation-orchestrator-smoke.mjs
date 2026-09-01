@@ -432,6 +432,59 @@ try {
   assert(!failedOrder.includes("ensure_resource:video_asset"), "orchestrator_did_not_fail_fast");
   assert(failed.outputSummary.createCalled === false, "resource_failure_must_not_call_create");
 
+  await writeFile(statePath, `${JSON.stringify({ guardrails: { platform_write_allowed: true } }, null, 2)}\n`);
+  let interruptedConfirmation = null;
+  const interruptedFinalizations = [];
+  const interruptedSkillRuns = [];
+  const interruptedJobUpdates = [];
+  const interruptedFinishedActions = [];
+  const interruptedRepo = {
+    ...repo,
+    async getLaunchJobBundle() {
+      return { ...workbenchBundle, executionConfirmation: interruptedConfirmation };
+    },
+    async getLaunchConfirmationForPlan() { return interruptedConfirmation; },
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (interruptedConfirmation) return { claimed: false };
+      interruptedConfirmation = {
+        confirmation_id: input.confirmationId,
+        job_id: input.jobId,
+        plan_id: input.planId,
+        confirmation_status: input.confirmationStatus,
+        metadata: input.metadata
+      };
+      return { claimed: true, confirmationId: input.confirmationId };
+    },
+    async finishPlannedExecutionAction(input) { interruptedFinishedActions.push(input); },
+    async finalizeConfirmedResourceExecutionPlan(input) {
+      interruptedFinalizations.push(input);
+      return { finalized: true };
+    },
+    async upsertLaunchSkillRun(input) { interruptedSkillRuns.push(input); },
+    async updateJob(_targetJobId, input) { interruptedJobUpdates.push(input); }
+  };
+  const interrupted = await executeConfirmedResourcePlan({
+    repo: interruptedRepo,
+    jobId,
+    expectedPlanId: planId,
+    expectedPlanHash: planHash,
+    grantSource: "workbench_conversation",
+    projectStatePath: statePath,
+    executorOverrides: {
+      ...executorOverrides,
+      "ensure_resource:event_asset": async () => {
+        throw new Error("simulated_executor_interruption");
+      }
+    }
+  });
+  assert(interrupted.status === "blocked", "interrupted_executor_not_blocked");
+  assert(interrupted.blockers[0] === "confirmed_resource_execution_interrupted", `interrupted_root_blocker_wrong:${JSON.stringify(interrupted.blockers)}`);
+  assert(interruptedFinishedActions[0]?.actionStatus === "failed_once", "interrupted_parent_action_not_closed");
+  assert(interruptedFinalizations.length === 1, "interrupted_plan_not_finalized");
+  assert(interruptedFinalizations[0].planId === planId, "interrupted_plan_binding_drift");
+  assert(interruptedSkillRuns[0]?.status === "blocked", "interrupted_skill_not_blocked");
+  assert(interruptedJobUpdates[0]?.status === "blocked_confirmed_resource_plan", "interrupted_job_not_blocked");
+
   console.log(JSON.stringify({
     status: "passed",
     onePlan: planId,
@@ -447,6 +500,7 @@ try {
     workbenchResourceConfirmationCount: workbenchConfirmationWrites,
     concurrentConfirmationWinnerCount: concurrentResults.filter((item) => item.status === "passed").length,
     failFastBeforeCreate: true,
+    interruptedPlanFinalized: interruptedFinalizations.length === 1,
     finalDraftDerivationDriftBlocked: true,
     realPlatformWriteCalled: false
   }, null, 2));

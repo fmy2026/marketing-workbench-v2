@@ -1,0 +1,64 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-ASSET-READBACK-LOSSLESS-20260901",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-LOSSLESS-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 17:00 CST",
+  "completed_at": "2026-09-01 17:09 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Preserve real OceanEngine event-asset detail IDs losslessly and normalize its documented app field without weakening binding verification.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-LOSSLESS-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-LOSSLESS-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/platforms/oceanengineStdProjectResponse.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "scripts/04-event-chain-readonly-smoke.mjs",
+    "scripts/04-event-asset-executor-smoke.mjs",
+    "scripts/04-event-configs-executor-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest and Solution Design",
+    "existing internal OceanEngine response parsing and Node 04 field normalization",
+    "focused mock/test_run smoke coverage and non-sensitive test evidence"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, runtime_truth confirmation consumption, retries and action grants",
+    "OAuth refresh, budget or bid mutation",
+    "new database schema, View, Gate, Plan/action type or public API",
+    "persisting sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "five approved event-asset smoke scripts",
+    "workflow, API, interaction and security smoke",
+    "schema validation and git diff check",
+    "restart workbench and perform only a current-Case readonly status check"
+  ],
+  "stop_conditions": [
+    "a real platform write, confirmation, retry or credential refresh would be required",
+    "the binding check would have to accept a non-matching, missing or ambiguous detail response",
+    "the implementation requires a database, Gate, Plan or public API change"
+  ],
+  "outcome": {
+    "result": "completed",
+    "platform_writes": 0,
+    "runtime_truth_mutations": 0,
+    "service": "restarted_and_readonly_checked",
+    "current_case": "still points to its previously consumed historical resource plan; no fresh job was created by this task",
+    "next_user_action": "enter the exact phrase 重新只读准备 in the workbench to create a fresh readonly job under the repaired parser"
+  }
+}

@@ -2708,6 +2708,38 @@ export class PostgresRepository {
     return result || { consumed: false };
   }
 
+  async finalizeConfirmedResourceExecutionPlan({ jobId, planId, blockerCode = "confirmed_resource_execution_interrupted" }) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    assertId("blocker_code", blockerCode);
+    const result = await queryJson(`
+      WITH finalized AS (
+        UPDATE mwb.launch_execution_plans p
+        SET plan_status = 'consumed',
+            metadata = p.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', 'blocked',
+              'confirmed_execution_blocker', ${sqlLiteral(blockerCode)},
+              'retry_allowed', false
+            ),
+            updated_at = now()
+        WHERE p.job_id = ${sqlLiteral(jobId)}
+          AND p.plan_id = ${sqlLiteral(planId)}
+          AND p.plan_status = 'ready'
+          AND coalesce(p.plan_kind, p.metadata->>'plan_kind', '') = 'resource_prepare'
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations c
+            WHERE c.job_id = p.job_id
+              AND c.plan_id = p.plan_id
+              AND c.confirmation_status = 'confirmed_for_execution_plan'
+          )
+        RETURNING p.plan_id
+      )
+      SELECT jsonb_build_object('finalized', EXISTS (SELECT 1 FROM finalized))::text;
+    `, this.database);
+    return result || { finalized: false };
+  }
+
   async getLaunchExecutionPlan(planId) {
     assertId("plan_id", planId);
     return queryJson(`

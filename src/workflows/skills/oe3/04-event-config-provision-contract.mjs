@@ -144,19 +144,18 @@ export function eventConfigBaselineReadiness({
   for (const baseline of EVENT_CONFIG_BASELINE_EVENTS) {
     const available = availableByType.get(baseline.event_type);
     const configured = configuredByType.get(baseline.event_type);
+    if (configured) continue;
+    missingConfiguredEventTypes.push(baseline.event_type);
     if (!available) {
       missingAvailableEventTypes.push(baseline.event_type);
       continue;
     }
-    if (!configured) {
-      missingConfiguredEventTypes.push(baseline.event_type);
-      createCandidates.push({
-        event_type: baseline.event_type,
-        event_cn_name: baseline.event_cn_name,
-        event_id: available.event_id,
-        track_types: [EVENT_CONFIG_TRACK_TYPE]
-      });
-    }
+    createCandidates.push({
+      event_type: baseline.event_type,
+      event_cn_name: baseline.event_cn_name,
+      event_id: available.event_id,
+      track_types: [EVENT_CONFIG_TRACK_TYPE]
+    });
   }
   const blockers = missingAvailableEventTypes.length ? ["event_config_available_events_baseline_missing"] : [];
   return sanitizeForPublic({

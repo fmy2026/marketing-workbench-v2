@@ -73,8 +73,8 @@ function normalizeAsset(asset = {}) {
   return {
     id: clean(asset.asset_id || asset.id),
     type: clean(asset.asset_type || asset.type),
-    appId: firstByKey(asset, ["app_id", "mini_program_id", "mini_program_app_id"]),
-    instanceId: firstByKey(asset, ["instance_id", "micro_app_instance_id", "mini_program_instance_id"]),
+    appId: firstByKey(asset, ["micro_app_id", "app_id", "mini_program_id", "mini_program_app_id"]),
+    instanceId: firstByKey(asset, ["micro_app_instance_id", "instance_id", "mini_program_instance_id"]),
     shareType: clean(asset.share_type || asset.share_status || asset.sharing_status)
   };
 }

@@ -4,7 +4,11 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
-import { parseOceanEngineStdProjectResponse } from "./oceanengineStdProjectResponse.mjs";
+import {
+  EVENT_ASSET_LOSSLESS_ID_KEYS,
+  parseOceanEngineResponse,
+  parseOceanEngineStdProjectResponse
+} from "./oceanengineStdProjectResponse.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 
@@ -27,6 +31,11 @@ const ALLOWED_ENDPOINTS = new Set([
   "/open_api/v3.0/dpa/brand/adv_auth/fuzzy/get/",
   "/open_api/v3.0/dpa/brand/adv_auth/industry/get/",
   "https://ad.oceanengine.com/open_api/2/advertiser/avatar/get/"
+]);
+
+const EVENT_ASSET_RESPONSE_ENDPOINTS = new Set([
+  "tools/event/all_assets/list",
+  "tools/event/all_assets/detail"
 ]);
 
 function sha256(value) {
@@ -143,19 +152,22 @@ export class OceanEngineReadonlyClient {
       });
       const text = await response.text();
       let payload = {};
+      let responseParseFailed = false;
       try {
         payload = key === "std_project/list"
           ? parseOceanEngineStdProjectResponse(text)
-          : JSON.parse(text);
+          : EVENT_ASSET_RESPONSE_ENDPOINTS.has(key)
+            ? parseOceanEngineResponse(text, { losslessIntegerKeys: EVENT_ASSET_LOSSLESS_ID_KEYS })
+            : JSON.parse(text);
       } catch {
-        payload = {};
+        responseParseFailed = true;
       }
       const code = apiCode(payload);
       const summary = typeof summarize === "function" ? summarize(payload) : {};
       return {
         label,
         endpoint: key,
-        status: response.ok && (code === "0" || code === "") ? "passed" : "blocked",
+        status: !responseParseFailed && response.ok && (code === "0" || code === "") ? "passed" : "blocked",
         credential: {
           status: credential.status,
           envFilePresent: credential.envFilePresent,
@@ -178,7 +190,11 @@ export class OceanEngineReadonlyClient {
         responseHash: `sha256:${sha256(text)}`,
         requestFieldManifest,
         summary,
-        gap: response.ok && (code === "0" || code === "") ? "" : "平台只读 API 返回非通过状态。"
+        gap: responseParseFailed
+          ? "平台只读 API 响应解析失败。"
+          : response.ok && (code === "0" || code === "")
+            ? ""
+            : "平台只读 API 返回非通过状态。"
       };
     } catch (error) {
       return {

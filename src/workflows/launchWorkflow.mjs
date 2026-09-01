@@ -704,6 +704,11 @@ function rootBlockerPresentation(code = "") {
       reason: "当前只读校验无法继续；若已有已确认资源 Plan，旧 Plan 不可重试。",
       nextActionLabel: "凭据恢复后输入“重新只读准备”，以 fresh Job 重新核验；不会确认或创建平台对象。"
     },
+    confirmed_resource_execution_interrupted: {
+      title: "资源执行中断，等待只读恢复",
+      reason: "已确认资源 Plan 在平台响应未明确时停止；旧 Plan 已消费且禁止重试。",
+      nextActionLabel: "输入“重新只读准备”创建 fresh Job，只读核验后再决定新的 Plan。"
+    },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",

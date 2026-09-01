@@ -158,8 +158,8 @@ function asset(id, { appId = "tte95a9fe77665844607", instanceId = "7434750138926
     asset_id: id,
     asset_type: "MINI_PROGRAME",
     share_type: "MY_CREATIONS",
-    app_id: appId,
-    instance_id: instanceId
+    micro_app_id: appId,
+    micro_app_instance_id: instanceId
   };
 }
 

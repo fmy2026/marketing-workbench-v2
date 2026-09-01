@@ -190,15 +190,26 @@ export async function runConfirmedResourceOrchestratorSkill({
         }
       });
     }
-    const result = await executors[actionType]({
-      repo,
-      jobId: bundle.job.job_id,
-      fetchImpl,
-      projectStatePath,
-      plan,
-      plannedAction,
-      runtimeContext
-    });
+    let result;
+    try {
+      result = await executors[actionType]({
+        repo,
+        jobId: bundle.job.job_id,
+        fetchImpl,
+        projectStatePath,
+        plan,
+        plannedAction,
+        runtimeContext
+      });
+    } catch {
+      result = {
+        status: "resource_executor_interrupted",
+        blockers: ["confirmed_resource_execution_interrupted"],
+        platform_write_called: true,
+        response_unknown: true,
+        retry_allowed: false
+      };
+    }
     const safe = sanitizeForPublic(result || {});
     if (actionType === "ensure_resource:event_asset" && clean(safe.runtime_event_asset_id)) {
       runtimeContext.eventAssetId = clean(safe.runtime_event_asset_id);
@@ -219,7 +230,9 @@ export async function runConfirmedResourceOrchestratorSkill({
       actionStatus: READY_STATUSES.has(safe.status) ? "succeeded" : "failed_once",
       metadata: {
         executor_status: safe.status || "unknown",
-        platform_write_called: safe.platform_write_called === true || safe.platformWriteCalled === true
+        platform_write_called: safe.platform_write_called === true || safe.platformWriteCalled === true,
+        response_unknown: safe.response_unknown === true,
+        retry_allowed: false
       }
     });
     if (!READY_STATUSES.has(safe.status)) {
@@ -335,13 +348,35 @@ export async function executeConfirmedResourcePlan({
 
   try {
     bundle = await repo.getLaunchJobBundle(jobId);
-    const orchestrator = await runConfirmedResourceOrchestratorSkill({
-      repo,
-      bundle,
-      fetchImpl,
-      projectStatePath,
-      executorOverrides
-    });
+    let orchestrator;
+    try {
+      orchestrator = await runConfirmedResourceOrchestratorSkill({
+        repo,
+        bundle,
+        fetchImpl,
+        projectStatePath,
+        executorOverrides
+      });
+    } catch {
+      orchestrator = sanitizeForPublic({
+        status: "blocked",
+        blockers: ["confirmed_resource_execution_interrupted"],
+        outputSummary: {
+          orchestratorStatus: "interrupted_after_confirmation",
+          executedActionCount: 0,
+          createCalled: false,
+          responseUnknown: true,
+          retryAllowed: false
+        }
+      });
+    }
+    if (orchestrator.status !== "passed" && typeof repo.finalizeConfirmedResourceExecutionPlan === "function") {
+      await repo.finalizeConfirmedResourceExecutionPlan({
+        jobId,
+        planId: currentPlanId,
+        blockerCode: clean(orchestrator.blockers?.[0]) || "confirmed_resource_execution_interrupted"
+      });
+    }
     if (typeof repo.upsertLaunchSkillRun === "function") {
       await repo.upsertLaunchSkillRun({
         skillRunId: `${jobId}-confirmed-resource-orchestrator-workbench-1`,

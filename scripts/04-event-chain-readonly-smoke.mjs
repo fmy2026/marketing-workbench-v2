@@ -7,6 +7,7 @@ import {
   eventChainResourceReadiness,
   runEventChainReadonlySkill
 } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
+import { createOceanEngineReadonlyClient } from "../src/platforms/oceanengineReadonlyClient.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -65,7 +66,13 @@ function repoStub() {
 }
 
 function asset(id, appId = APP_ID, instanceId = "700000000001") {
-  return { asset_id: id, asset_type: "MINI_PROGRAME", share_type: "MY_CREATIONS", app_id: appId, instance_id: instanceId };
+  return {
+    asset_id: id,
+    asset_type: "MINI_PROGRAME",
+    share_type: "MY_CREATIONS",
+    micro_app_id: appId,
+    micro_app_instance_id: instanceId
+  };
 }
 
 function baselineEvents({ missingTypes = [] } = {}) {
@@ -117,6 +124,23 @@ function clientStub({ assets = [asset("800000000001")], detailAssets = assets, g
   };
 }
 
+function rawJsonResponse(text, { status = 200 } = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async text() { return text; }
+  };
+}
+
+function readonlyHttpFixture(text) {
+  const client = createOceanEngineReadonlyClient({
+    fetchImpl: async () => rawJsonResponse(text)
+  });
+  client.credentialState = () => ({ status: "ready", blockers: [] });
+  client.loadEnv = () => ({ OCEANENGINE_ACCESS_TOKEN: "token-smoke" });
+  return client;
+}
+
 function persistedBundle(original, updates) {
   return {
     ...original,
@@ -149,12 +173,62 @@ const passedProjection = persistedBundle(passBundle, passRepo.state.updates);
 assert(eventChainResourceReadiness({ bundle: passedProjection, resourceType: "event_asset" }).status === "passed", "event_projection_should_pass");
 assert(eventChainResourceReadiness({ bundle: passedProjection, resourceType: "micro_app_instance" }).status === "passed", "instance_projection_should_pass");
 
+const losslessInstanceId = "7434750138926546994";
+const losslessDetail = await readonlyHttpFixture(`{"code":"0","data":{"asset_list":[{"asset_id":1874962943118532,"asset_type":"MINI_PROGRAME","micro_app_id":"${APP_ID}","micro_app_instance_id":${losslessInstanceId},"unrelated_numeric":9007199254740993}]}}`).get({
+  label: "lossless_event_asset_detail",
+  endpoint: "tools/event/all_assets/detail",
+  summarize: (payload) => {
+    const item = payload.data?.asset_list?.[0] || {};
+    return {
+      assetId: item.asset_id,
+      appId: item.micro_app_id,
+      instanceId: item.micro_app_instance_id,
+      assetIdType: typeof item.asset_id,
+      instanceIdType: typeof item.micro_app_instance_id,
+      unrelatedNumericType: typeof item.unrelated_numeric
+    };
+  }
+});
+assert(losslessDetail.status === "passed", "lossless_detail_http_fixture_must_pass");
+assert(losslessDetail.summary.assetId === "1874962943118532", "asset_id_must_remain_lossless_string");
+assert(losslessDetail.summary.appId === APP_ID, "micro_app_id_must_be_available");
+assert(losslessDetail.summary.instanceId === losslessInstanceId, "micro_app_instance_id_must_remain_lossless_string");
+assert(losslessDetail.summary.assetIdType === "string", "asset_id_type_must_be_string");
+assert(losslessDetail.summary.instanceIdType === "string", "instance_id_type_must_be_string");
+assert(losslessDetail.summary.unrelatedNumericType === "number", "non_allowlisted_numbers_must_keep_existing_parse_semantics");
+
+const actualFieldWins = await runEventChainReadonlySkill({
+  repo: repoStub(),
+  bundle: bundle({ instanceId: losslessInstanceId }),
+  client: clientStub({
+    assets: [asset("800000000001", APP_ID, losslessInstanceId)],
+    detailAssets: [{
+      ...asset("800000000001", APP_ID, losslessInstanceId),
+      instance_id: "legacy-value-must-not-override-micro-field"
+    }]
+  }),
+  allowReadonlyDependency: true
+});
+assert(actualFieldWins.status === "passed", "micro_app_instance_id_must_take_priority_over_legacy_instance_alias");
+
+const malformedDetail = await readonlyHttpFixture("not-json").get({
+  label: "malformed_event_asset_detail",
+  endpoint: "tools/event/all_assets/detail"
+});
+assert(malformedDetail.status === "blocked", "malformed_detail_must_fail_closed");
+
 const noAsset = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ assets: [] }), allowReadonlyDependency: true });
 assert(noAsset.blockers.includes("event_asset_target_not_found"), "missing_asset_blocker_required");
 
 const appMismatch = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ detailAssets: [asset("800000000001", "tte-other")] }), allowReadonlyDependency: true });
 assert(appMismatch.blockers.includes("micro_app_instance_binding_readback_failed"), "app_instance_binding_blocker_required");
 assert(appMismatch.outputSummary.eventConfigsStatus === "not_called", "binding_failure_must_stop_before_configs");
+
+const missingApp = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ detailAssets: [asset("800000000001", "")] }), allowReadonlyDependency: true });
+assert(missingApp.blockers.includes("micro_app_instance_binding_readback_failed"), "missing_detail_app_must_block");
+
+const missingDetailInstance = await runEventChainReadonlySkill({ repo: repoStub(), bundle: bundle(), client: clientStub({ detailAssets: [asset("800000000001", APP_ID, "")] }), allowReadonlyDependency: true });
+assert(missingDetailInstance.blockers.includes("micro_app_instance_binding_readback_failed"), "missing_detail_instance_must_block");
 
 const ambiguous = await runEventChainReadonlySkill({
   repo: repoStub(),
@@ -207,8 +281,13 @@ assert(noDeepBid.blockers.includes("deep_bid_type_not_available"), "missing_deep
 const output = {
   status: "passed",
   fullChainPassed: pass.status === "passed",
+  losslessHttpDetailPassed: losslessDetail.status === "passed" && losslessDetail.summary.instanceId === losslessInstanceId,
+  actualFieldPriorityPassed: actualFieldWins.status === "passed",
+  malformedHttpDetailBlocked: malformedDetail.status === "blocked",
   noAssetBlocked: noAsset.blockers.includes("event_asset_target_not_found"),
   appMismatchBlocked: appMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
+  missingDetailAppBlocked: missingApp.blockers.includes("micro_app_instance_binding_readback_failed"),
+  missingDetailInstanceBlocked: missingDetailInstance.blockers.includes("micro_app_instance_binding_readback_failed"),
   ambiguousBlocked: ambiguous.blockers.includes("event_asset_target_ambiguous"),
   referenceCandidateNotPromoted: noInstance.outputSummary.targetInstanceReadbackVerified === false,
   availableGapIgnoredAfterConfigured: noAvailable.status === "passed",

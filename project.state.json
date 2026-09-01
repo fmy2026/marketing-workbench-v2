@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-01.project-control-plane-v3",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-09-01 16:52 CST",
+  "updated_at": "2026-09-01 17:48 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",

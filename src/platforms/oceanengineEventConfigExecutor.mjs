@@ -33,6 +33,7 @@ import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs
 
 export const EVENT_CONFIGS_CONFIRM_ENV = EVENT_CONFIGS_ENSURE_CONFIRM_ENV;
 export const EVENT_CONFIGS_CONFIRM_VALUE = EVENT_CONFIGS_ENSURE_CONFIRM_VALUE;
+export const EVENT_CONFIG_CREATE_TIMEOUT_MS = 15_000;
 
 const API_ORIGIN = "https://ad.oceanengine.com";
 const EVENT_CONFIG_CREATE_FULL_ENDPOINT = `${API_ORIGIN}${EVENT_CONFIG_CREATE_ENDPOINT}`;
@@ -110,8 +111,8 @@ function normalizeAsset(asset = {}) {
   return {
     id: clean(asset.asset_id || asset.id),
     type: clean(asset.asset_type || asset.type),
-    appId: firstByKey(asset, ["app_id", "mini_program_id", "mini_program_app_id"]),
-    instanceId: firstByKey(asset, ["instance_id", "micro_app_instance_id", "mini_program_instance_id"]),
+    appId: firstByKey(asset, ["micro_app_id", "app_id", "mini_program_id", "mini_program_app_id"]),
+    instanceId: firstByKey(asset, ["micro_app_instance_id", "instance_id", "mini_program_instance_id"]),
     shareType: clean(asset.share_type || asset.share_status || asset.sharing_status)
   };
 }
@@ -488,6 +489,34 @@ async function updateAction(repo, action) {
   await repo.upsertPlatformAction(action);
 }
 
+async function fetchEventConfigCreate(fetchImpl, url, options = {}, timeoutMs = EVENT_CONFIG_CREATE_TIMEOUT_MS) {
+  const boundedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+    ? Number(timeoutMs)
+    : EVENT_CONFIG_CREATE_TIMEOUT_MS;
+  const controller = new AbortController();
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, controller.signal])
+    : controller.signal;
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error("event_config_create_timeout");
+      error.name = "TimeoutError";
+      error.code = "ETIMEDOUT";
+      controller.abort(error);
+      reject(error);
+    }, boundedTimeoutMs);
+  });
+  try {
+    return await Promise.race([
+      Promise.resolve(fetchImpl(url, { ...options, signal })),
+      timeout
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callEventConfigCreate({
   repo,
   bundle,
@@ -495,7 +524,8 @@ async function callEventConfigCreate({
   headers,
   metadata,
   idempotencyKey,
-  fetchImpl
+  fetchImpl,
+  timeoutMs
 }) {
   const jobId = bundle.job.job_id;
   const actionId = eventConfigCreateActionId(jobId, request.event_type);
@@ -513,11 +543,11 @@ async function callEventConfigCreate({
     metadata
   });
   try {
-    const response = await fetchImpl(EVENT_CONFIG_CREATE_FULL_ENDPOINT, {
+    const response = await fetchEventConfigCreate(fetchImpl, EVENT_CONFIG_CREATE_FULL_ENDPOINT, {
       method: EVENT_CONFIG_CREATE_METHOD,
       headers,
       body: request.body
-    });
+    }, timeoutMs);
     const text = await response.text();
     let payload = {};
     try { payload = JSON.parse(text); } catch { payload = {}; }
@@ -548,7 +578,7 @@ async function callEventConfigCreate({
     });
     return { actionId, passed, response, payload, responseHash, eventType: request.event_type };
   } catch (error) {
-    const errorCategory = clean(error?.code || error?.name || "transport_error");
+    const persistedErrorCategory = "unclassified";
     await updateAction(repo, {
       actionId,
       jobId,
@@ -563,15 +593,29 @@ async function callEventConfigCreate({
       apiCode: "",
       requestIdPresent: false,
       objectIdPresent: false,
-      errorSummary: "event_config_platform_transport_failed",
-      errorCategory,
+      errorSummary: "event_config_platform_response_unknown_readback_required",
+      errorCategory: persistedErrorCategory,
       idempotencyKey,
       requestFieldManifest: request.requestFieldManifest,
-      responseSummary: { transport_error: true, response_persisted: false },
+      responseSummary: {
+        outcome_category: "platform_response_unknown",
+        response_unknown: true,
+        readback_required: true,
+        response_persisted: false
+      },
       metadata,
       finishedAt: new Date().toISOString()
     });
-    return { actionId, passed: false, response: null, payload: {}, responseHash: "", eventType: request.event_type, errorCategory };
+    return {
+      actionId,
+      passed: false,
+      response: null,
+      payload: {},
+      responseHash: "",
+      eventType: request.event_type,
+      errorCategory: "platform_response_unknown",
+      responseUnknown: true
+    };
   }
 }
 
@@ -627,13 +671,16 @@ export async function ensureEventConfigsForTargetOnce({
   oceanEngineEnv = null,
   projectStatePath,
   assetIdHint = "",
-  allowReadonlyDependency = true
+  allowReadonlyDependency = true,
+  writeTimeoutMs = EVENT_CONFIG_CREATE_TIMEOUT_MS
 } = {}) {
   if (!repo || !jobId) throw new Error("event_configs_executor_repo_and_job_required");
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle?.job) throw new Error("job_not_found");
   const effectiveAssetIdHint = assetIdHintFromBundle(bundle, assetIdHint);
-  const client = readonlyClient || createOceanEngineReadonlyClient({ fetchImpl });
+  const client = readonlyClient || createOceanEngineReadonlyClient({
+    fetchImpl: (url, options = {}) => fetchEventConfigCreate(fetchImpl, url, options, writeTimeoutMs)
+  });
   const preflight = await readEventConfigPreflight({
     bundle,
     client,
@@ -746,21 +793,41 @@ export async function ensureEventConfigsForTargetOnce({
         response_persisted: false
       },
       idempotencyKey: `${plannedAction.idempotency_key || request.requestHash}-${request.event_type}`,
-      fetchImpl
+      fetchImpl,
+      timeoutMs: writeTimeoutMs
     });
     createResults.push(create);
     if (!create.passed) {
+      let responseUnknownReadback = null;
+      if (create.responseUnknown === true) {
+        try {
+          bundle = await repo.getLaunchJobBundle(jobId);
+          responseUnknownReadback = await readEventConfigPreflight({
+            bundle,
+            client,
+            assetIdHint: effectiveAssetIdHint
+          });
+        } catch {
+          responseUnknownReadback = {
+            status: "blocked",
+            blockers: ["event_config_response_unknown_readback_failed"]
+          };
+        }
+      }
       const evidenceRef = await saveEventConfigsEvidence({
         repo,
         bundle,
         status: "failed_once",
         preflight,
         createResults,
-        postReadback: { status: "not_called", blockers: [] }
+        postReadback: responseUnknownReadback || { status: "not_called", blockers: [] }
       });
       const result = sanitizeForPublic({
         status: "event_config_create_failed_once",
         jobId,
+        blockers: create.responseUnknown === true
+          ? ["confirmed_resource_execution_interrupted"]
+          : ["event_config_create_failed_once"],
         create_action_id: create.actionId,
         failed_event_type: create.eventType,
         evidence_ref: evidenceRef,
@@ -768,8 +835,11 @@ export async function ensureEventConfigsForTargetOnce({
         api_code: apiCode(create.payload) || "unknown",
         response_hash_present: Boolean(create.responseHash),
         attempted_create_count: createResults.length,
+        response_unknown: create.responseUnknown === true,
         platform_write_called: true,
-        readback_called: false,
+        readback_called: responseUnknownReadback !== null,
+        readback_status: responseUnknownReadback?.status || "not_called",
+        baseline_configured_after_unknown: Number(responseUnknownReadback?.baseline_configured_count || 0),
         token_refresh_called: false,
         payload_persisted: false,
         response_persisted: false

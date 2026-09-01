@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 16:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-01 17:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -52,6 +52,18 @@ Node 04 保持 Case/Job、3 阶段 7 Node、`workflow_case_summary`、Plan、确
 event asset 创建前只校验账户范围、小游戏 App、唯一且来源受控的实例候选与版本化创建模板。实例候选缺失、歧义或来源不受控分别以 `micro_app_instance_candidate_missing`、`micro_app_instance_candidate_ambiguous`、`micro_app_instance_candidate_untrusted` fail-closed；不要求 `micro_app_instance_authority_readonly` 成功，也不提前把实例标为 `readback_verified`。该旧只读调用只保留为可选诊断和审计，不能作为 Plan、Gate 或 READY 真值。
 
 event asset 已存在时直接详情回查，不得重复创建。只有详情确认目标 App 与 instance 绑定后，才可把实例标为目标账户已核验并进入 `ensure_event_configs:baseline`；绑定失败为 `micro_app_instance_binding_readback_failed`，不得创建 configs。configs 未完成时不得调用最终优化目标或 DBT；此后优化目标失败为 `optimized_goal_readonly_failed`，深度出价不可用为 `deep_bid_type_not_available`。任何失败停止且不得自动重试；真实写入仍只能使用 fresh Plan/hash、人工确认与单次 action grant。
+
+## 已批准设计：事件资产详情真实响应的无损归一
+
+Node 04 的资产绑定标准不变：当前账户内唯一 `MINI_PROGRAME` 资产必须由 detail 同时精确匹配受控 App 与实例候选，才可进入 baseline configs。平台详情的真实字段 `micro_app_id` 与 `micro_app_instance_id` 分别归一为标准 `appId`、`instanceId`；兼容已有 `app_id`、`mini_program_id`、`mini_program_app_id`、`instance_id` 与 `mini_program_instance_id`。不得恢复“唯一候选即通过”的旧回退。
+
+所有平台资产/实例 ID 在 HTTP 响应文本进入 `JSON.parse` 前，只能按内部字段 allowlist 无损保留十进制 token 为字符串。事件资产 list/detail 至少覆盖 `asset_id`、`micro_app_instance_id`、`instance_id` 与 `mini_program_instance_id`；既有标准项目 ID 解析兼容接口保持不变。未列入 allowlist 的数值维持原有解析语义；响应无效、字段缺失、候选不唯一或任一绑定不匹配继续 fail-closed。该适配层只修复“平台响应 → 标准资源事实”，不改 Case/Job、Gate、Plan、确认、action、Schema、View、公开 API 或执行顺序，也不得保存 raw response。
+
+## 已批准设计：事件配置中断收口与 fresh readonly 续跑
+
+保持 Case、Job、Gate、Plan、confirmation、executor、`workflow_case_summary` 与权威回查不变。事件配置写请求使用固定 15 秒超时；超时或异常只能记为 `failed_once`，复用现有 `unclassified` 错误类别并在脱敏 response summary 标记 `outcome_category=platform_response_unknown`，随后停止剩余动作并执行只读回查，禁止自动重试。confirmed-resource orchestrator 必须在正常失败或异常时完成父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 和已确认 Plan 的终态收口，确保已确认 Plan 不再以 ready 状态投影为可确认。
+
+事件 baseline 的 partial readback 以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再出现在 available 列表中也已满足；只有尚未配置且当前 available 的事件可生成 create candidate；尚未配置且不可用继续 fail-closed。工作台仍只消费 `workflow_case_summary`，统一展示 `confirmed_resource_execution_interrupted`，不在前端复制 Gate 计算。本设计不新增 API、Schema、View、Gate、Plan/action 类型，不自动确认、不刷新 token，也不保存 raw request 或 response。
 
 ## 已批准设计：工作台唯一入口与多账户 Case 隔离
 

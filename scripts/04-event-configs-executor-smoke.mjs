@@ -17,7 +17,8 @@ import {
   EVENT_CONFIG_CREATE_ENDPOINT,
   EVENT_CONFIG_CREATE_METHOD,
   EVENT_CONFIG_TRACK_TYPE,
-  assertNoSensitiveLeak
+  assertNoSensitiveLeak,
+  eventConfigBaselineReadiness
 } from "../src/workflows/skills/oe3/00-index.mjs";
 
 const EVENT_ASSET_ID = "1874962943118532";
@@ -40,6 +41,10 @@ function baselineAvailableEvents({ missingTypes = [] } = {}) {
       event_cn_name: item.event_cn_name,
       track_types: [EVENT_CONFIG_TRACK_TYPE]
     }));
+}
+
+function baselineConfiguredEvents(count) {
+  return baselineAvailableEvents().slice(0, count);
 }
 
 function baseBundle({ jobId = "JOB-SMOKE-EVENT-CONFIGS", plan = null } = {}) {
@@ -141,8 +146,8 @@ function asset({ id = EVENT_ASSET_ID, appId = "", instanceId = "" } = {}) {
     asset_id: id,
     asset_type: "MINI_PROGRAME",
     share_type: "MY_CREATIONS",
-    ...(appId ? { app_id: appId } : {}),
-    ...(instanceId ? { instance_id: instanceId } : {})
+    ...(appId ? { micro_app_id: appId } : {}),
+    ...(instanceId ? { micro_app_instance_id: instanceId } : {})
   };
 }
 
@@ -308,6 +313,32 @@ assert.equal(requestPlan.requests[0].endpoint, EVENT_CONFIG_CREATE_ENDPOINT);
 assert(requestPlan.requests[0].body.includes(`"asset_id":${EVENT_ASSET_ID}`));
 assert(!requestPlan.requests[0].body.includes(`"asset_id":"${EVENT_ASSET_ID}"`));
 
+const partialFour = eventConfigBaselineReadiness({
+  availableEvents: baselineAvailableEvents().slice(4),
+  existingConfigs: baselineConfiguredEvents(4)
+});
+assert.equal(partialFour.status, "needs_create");
+assert.equal(partialFour.baseline_configured_count, 4);
+assert.equal(partialFour.create_candidate_count, 2);
+assert.deepEqual(partialFour.missing_configured_event_types, ["purchase_roi_7d", "purchase_roi_30d"]);
+
+const partialFive = eventConfigBaselineReadiness({
+  availableEvents: baselineAvailableEvents().slice(5),
+  existingConfigs: baselineConfiguredEvents(5)
+});
+assert.equal(partialFive.status, "needs_create");
+assert.equal(partialFive.baseline_configured_count, 5);
+assert.equal(partialFive.create_candidate_count, 1);
+assert.deepEqual(partialFive.missing_configured_event_types, ["purchase_roi_30d"]);
+
+const partialSix = eventConfigBaselineReadiness({
+  availableEvents: [],
+  existingConfigs: baselineConfiguredEvents(6)
+});
+assert.equal(partialSix.status, "passed");
+assert.equal(partialSix.baseline_configured_count, 6);
+assert.equal(partialSix.create_candidate_count, 0);
+
 const noopState = { createFetchCount: 0, createdEventTypes: new Set() };
 const noopBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-NOOP" });
 const noopRepo = repoStub(noopBundle);
@@ -435,9 +466,39 @@ const apiFail = await ensureEventConfigsForTargetOnce({
 assert.equal(apiFail.status, "event_config_create_failed_once");
 assert.equal(apiFailState.createFetchCount, 2);
 
+const timeoutState = { createFetchCount: 0, createdEventTypes: new Set() };
+const timeoutBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-TIMEOUT" });
+const timeoutRepo = repoStub(timeoutBundle);
+const timeoutResult = await ensureEventConfigsForTargetOnce({
+  repo: timeoutRepo,
+  jobId: timeoutBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: async () => {
+    timeoutState.createFetchCount += 1;
+    return new Promise(() => {});
+  },
+  readonlyClient: clientStub(timeoutState),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(timeoutBundle),
+  writeTimeoutMs: 20
+});
+assert.equal(timeoutResult.status, "event_config_create_failed_once");
+assert(timeoutResult.blockers.includes("confirmed_resource_execution_interrupted"));
+assert.equal(timeoutResult.response_unknown, true);
+assert.equal(timeoutResult.readback_called, true);
+assert.equal(timeoutState.createFetchCount, 1);
+const timeoutAction = timeoutRepo.state.actions.find((item) => item.actionType === EVENT_CONFIG_CREATE_ACTION_TYPE);
+assert.equal(timeoutAction.actionStatus, "failed_once");
+assert.equal(timeoutAction.errorCategory, "unclassified");
+assert.equal(timeoutAction.responseSummary?.outcome_category, "platform_response_unknown");
+
 const output = {
   status: "passed",
   requestPlanPassed: requestPlan.status === "passed",
+  partialFourCandidateCount: partialFour.create_candidate_count,
+  partialFiveCandidateCount: partialFive.create_candidate_count,
+  partialSixCandidateCount: partialSix.create_candidate_count,
   noopStatus: noop.status,
   createStatus: created.status,
   bindingMismatchBlocked: bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
@@ -445,13 +506,15 @@ const output = {
   missingAvailableBlocked: missingAvailable.blockers.includes("event_config_available_events_baseline_missing"),
   postCreateReadbackBlocked: readbackFail.status === "event_configs_readback_not_verified",
   apiFailureBlocked: apiFail.status === "event_config_create_failed_once",
+  timeoutClosedWithReadonly: timeoutResult.response_unknown === true && timeoutResult.readback_called === true,
   maxCreateCallsObserved: Math.max(
     noopState.createFetchCount,
     createState.createFetchCount,
     duplicateState.createFetchCount,
     missingAvailableState.createFetchCount,
     readbackFailState.createFetchCount,
-    apiFailState.createFetchCount
+    apiFailState.createFetchCount,
+    timeoutState.createFetchCount
   ),
   noTokenRefresh: true,
   payloadPersisted: false,

@@ -34,6 +34,18 @@ assert(
   progressPresentation({ nodes, busy: true }) === "进度 1 / 7 · 正在处理",
   "busy_progress_copy_mismatch"
 );
+const interruptedNodes = nodes.map((node, index) => index < 4 ? { ...node, status: "passed" } : node);
+assert(
+  progressPresentation({
+    nodes: interruptedNodes,
+    caseGate: {
+      currentGate: "resolve_case_blocker",
+      rootBlockerCodes: ["confirmed_resource_execution_interrupted"],
+      rootBlocker: { title: "资源执行中断，等待只读恢复" }
+    }
+  }) === "进度 4 / 7 · 已暂停：资源执行中断，等待只读恢复",
+  "interrupted_resource_progress_copy_mismatch"
+);
 assert(
   progressPresentation({
     nodes,

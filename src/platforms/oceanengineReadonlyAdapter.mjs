@@ -100,8 +100,8 @@ function normalizeEventAsset(asset = {}) {
     asset_id: compact(asset.asset_id || asset.id),
     asset_name: compact(asset.asset_name || asset.name),
     asset_type: compact(asset.asset_type || asset.type),
-    app_id: firstValueByKey(asset, ["app_id", "mini_program_id", "mini_program_app_id"]),
-    micro_app_instance_id: firstValueByKey(asset, ["instance_id", "micro_app_instance_id"])
+    app_id: firstValueByKey(asset, ["micro_app_id", "app_id", "mini_program_id", "mini_program_app_id"]),
+    micro_app_instance_id: firstValueByKey(asset, ["micro_app_instance_id", "instance_id", "mini_program_instance_id"])
   };
 }
 

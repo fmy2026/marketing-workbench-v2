@@ -1,5 +1,12 @@
 const STD_PROJECT_ID_KEYS = new Set(["project_id", "std_project_id", "id"]);
 
+export const EVENT_ASSET_LOSSLESS_ID_KEYS = Object.freeze([
+  "asset_id",
+  "micro_app_instance_id",
+  "instance_id",
+  "mini_program_instance_id"
+]);
+
 function stringTokenEnd(source, start) {
   let index = start + 1;
   while (index < source.length) {
@@ -30,10 +37,10 @@ function isJsonValueBoundary(source, index) {
   return next >= source.length || [",", "}", "]"].includes(source[next]);
 }
 
-// OceanEngine can return project IDs as JSON number tokens beyond JavaScript's
-// safe-integer range. Convert only the known std-project ID fields before
+// OceanEngine can return platform IDs as JSON number tokens beyond JavaScript's
+// safe-integer range. Convert only explicitly allowlisted fields before
 // JSON.parse so the exact decimal token reaches the runtime as a string.
-function quoteStdProjectIdTokens(text = "") {
+function quoteAllowlistedDecimalTokens(text = "", losslessIntegerKeys = new Set()) {
   const source = String(text ?? "");
   let output = "";
   let index = 0;
@@ -56,7 +63,7 @@ function quoteStdProjectIdTokens(text = "") {
     } catch {
       continue;
     }
-    if (!STD_PROJECT_ID_KEYS.has(key)) continue;
+    if (!losslessIntegerKeys.has(key)) continue;
 
     const colonIndex = skipWhitespace(source, index);
     if (source[colonIndex] !== ":") continue;
@@ -72,6 +79,10 @@ function quoteStdProjectIdTokens(text = "") {
   return output;
 }
 
+export function parseOceanEngineResponse(text = "", { losslessIntegerKeys = [] } = {}) {
+  return JSON.parse(quoteAllowlistedDecimalTokens(text, new Set(losslessIntegerKeys)));
+}
+
 export function parseOceanEngineStdProjectResponse(text = "") {
-  return JSON.parse(quoteStdProjectIdTokens(text));
+  return parseOceanEngineResponse(text, { losslessIntegerKeys: STD_PROJECT_ID_KEYS });
 }
