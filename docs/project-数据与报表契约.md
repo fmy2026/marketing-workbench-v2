@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-01 16:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 18:17 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -52,7 +52,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked | Plan 编译与显式确认 | 执行 scope、Case summary |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；已确认 Resource Plan 成功或阻断后均须离开 `ready`，失败终态以 `consumed` + 脱敏 outcome metadata 保存，不代表执行成功 | Plan 编译、显式确认与 confirmed-resource 终态收口 | 执行 scope、Case summary |
 |  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -95,7 +95,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；当 monitor 为 `needs_readonly` 或 `needs_touchpoint_readback` 时，必须优先使用 `v_monitor_readiness.actionable_blocker_code`，再选择 confirmed-resource 停止、其他 monitor/上下文、Node 4 资源和 Plan fallback。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
+`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；当 monitor 为 `needs_readonly` 或 `needs_touchpoint_readback` 时，必须优先使用 `v_monitor_readiness.actionable_blocker_code`，再选择 confirmed-resource 停止、其他 monitor/上下文、Node 4 资源和 Plan fallback。已确认资源执行超时、异常或响应不明时统一投影 `confirmed_resource_execution_interrupted`；旧 Plan 已收口为 `consumed`，不得再次展示为可确认。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
 
 | Gate 优先级 | 当前条件 | `current_gate` | `suggested_next_action` |
 | ---: | --- | --- | --- |
@@ -117,7 +117,8 @@ route_id + game_code
 | 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
 | 工作台恢复 | 唯一入口根页只读列出 active runtime Case；`?case_id=` 恢复活动 Case 的最新 Job，`?job_id=` 仅历史只读；两参数并存或非法时 fail-closed，不加载其他账户。`resolve_case_blocker` 的精确“重新只读准备”只消费当前 summary：已确认资源 Plan 停止时 Case lock 下创建 fresh Job 后 `dry_run`，其他 blocker 重跑当前 Job 的 `dry_run`；不复制旧 Plan/confirmation/action/grant，不产生平台写入。 |
 | Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |
-| 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 App + instance 绑定、configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
+| 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 `micro_app_id` / `micro_app_instance_id` 归一后必须精确匹配 App + instance，allowlist 长数字 ID 在解析前无损保留为字符串；configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
+| 事件配置中断 | 写请求固定 15 秒超时；超时、异常或响应不明记为 `failed_once`，随后只读回查并收口 action、Skill、Job 与已确认 Plan。partial baseline 的唯一分类器是共享 `eventConfigBaselineReadiness`，仅在 configs 与 available 都完成标准化后输出 `status`、blocker 和 candidates；已配置事件即使不再 available 也视为满足，只为尚未配置且当前 available 的事件生成候选；读取函数不得单独要求 available 为 6/6，不得自动重试。 |
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
 | 授权 | `project.state.json` 只给全局 Guardrail；正式 runtime 工作台可消费启用的 loopback Plan-bound 策略，仍须匹配 active Case 最新 Job、ready Plan、精确 confirmation、action grant 与调用上限。动态授权事实只写 Postgres，不为普通运行创建仓库 Task。 |
 | 隔离脚本 | `scripts/archive/` 仅保存可恢复历史文件；禁止 package/runtime import/直接执行，不属于表或 View 的写入来源 |

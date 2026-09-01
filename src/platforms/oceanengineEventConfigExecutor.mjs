@@ -288,25 +288,14 @@ async function readAvailableEvents({ bundle, client, assetId }) {
     },
     summarize: (payload) => {
       const events = eventConfigsFromPayload(payload).map(normalizeEventConfig);
-      const readiness = eventConfigBaselineReadiness({ availableEvents: events, existingConfigs: [] });
       return sanitizeForPublic({
         events,
-        eventCount: events.length,
-        baselineAvailableCount: readiness.baseline_available_count,
-        missingAvailableEventTypes: readiness.missing_available_event_types
+        eventCount: events.length
       });
     }
   });
   if (probe.status !== "passed") {
     return { status: "blocked", blockers: ["available_events_readonly_failed"], probe, events: [] };
-  }
-  if ((probe.summary?.missingAvailableEventTypes || []).length) {
-    return {
-      status: "blocked",
-      blockers: ["event_config_available_events_baseline_missing"],
-      probe,
-      events: probe.summary?.events || []
-    };
   }
   return { status: "passed", blockers: [], probe, events: probe.summary?.events || [] };
 }
@@ -375,6 +364,9 @@ export async function readEventConfigPreflight({
     existingConfigs: existing.configs
   });
   const alreadyConfigured = readiness.baseline_configured_count === readiness.required_event_count;
+  // The shared evaluator is the only baseline classifier. Available events
+  // only need to cover entries that are not yet configured; a standalone
+  // available-list 6/6 check would reject valid partial recovery.
   const effectiveStatus = alreadyConfigured
     ? "passed"
     : available.status !== "passed"

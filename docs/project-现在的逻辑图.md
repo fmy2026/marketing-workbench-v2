@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-01 12:10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-01 18:17 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -99,6 +99,8 @@ v_monitor_readiness（唯一状态读取）
 
 事件资产是账户级受控合同，不是通用模板开关：先校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板；候选缺失、歧义或来源不受控分别 fail-closed。该阶段可直接生成带 `target_advertiser_id`、`template_ref` 与动态 `template_hash` 的脱敏合同，并在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
+平台 detail 的 `micro_app_id` / `micro_app_instance_id` 分别归一为标准 App / instance；兼容字段仍按 allowlist 处理。`asset_id`、`micro_app_instance_id`、`instance_id`、`mini_program_instance_id` 等长数字 token 必须在 `JSON.parse` 前无损保留为字符串；未列入 allowlist 的数值保持原解析语义。字段缺失、绑定失配、候选歧义、响应无效或解析失败均保持 fail-closed，且不得保存 raw response。
+
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
 
 | 必需资源 | 可自动准备 | Plan action | READY 的权威依据 / 固定边界 |
@@ -160,13 +162,15 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 场景 | 行为 |
 | --- | --- |
 | 确认前 | fresh readonly 可生成新 Plan；旧版失效 |
-| 已确认资源动作失败 | 标记失败、停止后续动作、撤销 scope；不自动重试 |
+| 已确认资源动作失败、超时或响应不明 | 当前 action 记为 `failed_once`，停止后续动作并执行可用的权威只读回查；父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 与旧 Plan 必须终态收口，旧 Plan 进入 `consumed`；不自动重试 |
 | 每份 Create Plan | 仅调用一次 `std_project/create` |
 | 创建失败的修正 | 必须新 Draft、payload hash、Plan、confirmation 和 attempt；最多 3 次，不自动重试 |
 | 已出现创建对象但未回查 verified | 只允许 `readback_only`，不得再次创建 |
 | 首次创建 + 对象存在 + 回查 verified | `first_std_project_create_completed`；Case 收口并撤销写范围 |
 
 平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
+
+事件配置写请求固定 15 秒超时。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
 
 ## 5. 当前 Case Gate 与工作台
 

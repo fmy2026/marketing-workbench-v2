@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-01 16:17 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
+| 最后更新时间 | 2026-09-01 18:17 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -44,6 +44,8 @@
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
+
+已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 
 本机工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于 loopback、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
 
@@ -89,6 +91,8 @@ frontend / API
 - 3 阶段 7 Node 的唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。
 - Node 02 monitor 的唯一公开入口是 `src/workflows/skills/oe3/02-monitor/index.mjs`；CLI 只允许状态、readonly reconcile 和配置只读同步。monitor 写入必须消费 `monitor_bootstrap` Plan，不能由 CLI 或环境变量直接授权。
 - 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
+- 事件资产 detail 必须同时匹配当前账户的受控 App 与唯一实例候选；`micro_app_id` / `micro_app_instance_id` 等 allowlist 长数字字段须在 `JSON.parse` 前无损保留为字符串，缺失、失配、歧义或解析失败均 fail-closed。
+- 事件配置写请求固定 15 秒超时；超时、异常或响应不明统一记为 `failed_once`，随后只做权威只读回查并收口已确认 Plan，不自动重试。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类；读取函数不得各自要求 available 覆盖 6/6。它只为“尚未配置且当前 available”的事件生成候选。
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。

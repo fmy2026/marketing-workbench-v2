@@ -251,6 +251,21 @@ const noEventConfig = await runEventChainReadonlySkill({ repo: repoStub(), bundl
 assert(noEventConfig.blockers.includes("event_configs_baseline_missing"), "missing_event_config_blocker_required");
 assert(noEventConfig.outputSummary.optimizedGoalStatus === "not_called", "optimized_goal_must_wait_for_event_configs");
 
+const partialBaseline = await runEventChainReadonlySkill({
+  repo: repoStub(),
+  bundle: bundle(),
+  client: clientStub({
+    missingAvailableTypes: EVENT_CONFIG_BASELINE_EVENTS.slice(0, 4).map((item) => item.event_type),
+    missingConfigTypes: EVENT_CONFIG_BASELINE_EVENTS.slice(4).map((item) => item.event_type)
+  }),
+  allowReadonlyDependency: true
+});
+assert(partialBaseline.blockers.includes("event_configs_baseline_missing"), "partial_config_blocker_required");
+assert(!partialBaseline.blockers.includes("available_events_baseline_missing"), "configured_entries_must_not_require_available_events");
+assert(partialBaseline.outputSummary.baselineAvailableEventCount === 2, "partial_available_count_wrong");
+assert(partialBaseline.outputSummary.baselineConfiguredEventCount === 4, "partial_configured_count_wrong");
+assert(partialBaseline.outputSummary.optimizedGoalStatus === "not_called", "partial_baseline_must_wait_for_configs");
+
 const noAvailableAndNoEventConfig = await runEventChainReadonlySkill({
   repo: repoStub(),
   bundle: bundle(),
@@ -293,6 +308,7 @@ const output = {
   availableGapIgnoredAfterConfigured: noAvailable.status === "passed",
   noAvailableBlockedWhenConfigMissing: noAvailableAndNoEventConfig.blockers.includes("available_events_baseline_missing"),
   noEventConfigBlocked: noEventConfig.blockers.includes("event_configs_baseline_missing"),
+  partialBaselineOnlyBlocksConfigs: partialBaseline.blockers.includes("event_configs_baseline_missing") && !partialBaseline.blockers.includes("available_events_baseline_missing"),
   noGoalBlocked: noGoal.blockers.includes("optimized_goal_not_available"),
   noDeepGoalBlocked: noDeepGoal.blockers.includes("deep_objective_not_available"),
   noDeepBidBlocked: noDeepBid.blockers.includes("deep_bid_type_not_available"),

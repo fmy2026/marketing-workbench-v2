@@ -1,0 +1,66 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901.md",
+  "status": "completed",
+  "created_at": "2026-09-01 18:10 CST",
+  "completed_at": "2026-09-01 18:17 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make the shared partial-baseline evaluator the sole decision source for event-config preflight and Node 04 event-chain classification.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "mwb.workflow_case_summary",
+    "src/workflows/skills/oe3/04-event-config-provision-contract.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "scripts/04-event-configs-executor-smoke.mjs",
+    "scripts/04-event-chain-readonly-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest, AGENTS and current mechanism/data/lessons documentation",
+    "existing event-config preflight and Node 04 readonly classification",
+    "existing mock/test_run smoke coverage",
+    "current Case fresh readonly recovery through the existing workbench command"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmation consumption, retries and action grants",
+    "OAuth refresh, std_project/resource create, budget or bid mutation",
+    "new API, Schema, View, Gate, Plan/action type or worker",
+    "persisting sensitive data, raw platform payloads/responses or event ID lists"
+  ],
+  "validation_plan": [
+    "event-config and event-chain partial-baseline regression smoke",
+    "all live event, resource registry and confirmed-resource orchestrator smoke",
+    "workflow, API, workbench, schema, data-contract, security and runtime-consistency checks",
+    "restart workbench and run only fresh readonly recovery for the current Case"
+  ],
+  "stop_conditions": [
+    "a real platform write, automatic confirmation, retry or credential refresh would be required",
+    "the shared evaluator cannot distinguish configured baseline entries from available candidates",
+    "the implementation requires a database, Gate, Plan or public API change"
+  ],
+  "outcome": {
+    "shared_evaluator_is_sole_partial_baseline_classifier": true,
+    "partial_baseline_regressions_passed": true,
+    "full_regression_scope_passed": true,
+    "workbench_restarted": true,
+    "fresh_readonly_recovery_completed": true,
+    "fresh_resource_plan_ready": true,
+    "real_platform_actions": 0,
+    "confirmation_consumed": false,
+    "next_user_action": "在工作台对当前 fresh resource_prepare Plan 输入精确“确认准备资源”后，既有主链才可执行冻结的资源动作。"
+  }
+}

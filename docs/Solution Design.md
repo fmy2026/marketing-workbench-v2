@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 17:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-INTERRUPTION-RECOVERY-20260901`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-01 18:17 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PARTIAL-BASELINE-CLOSURE-20260901`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -64,6 +64,12 @@ Node 04 的资产绑定标准不变：当前账户内唯一 `MINI_PROGRAME` 资�
 保持 Case、Job、Gate、Plan、confirmation、executor、`workflow_case_summary` 与权威回查不变。事件配置写请求使用固定 15 秒超时；超时或异常只能记为 `failed_once`，复用现有 `unclassified` 错误类别并在脱敏 response summary 标记 `outcome_category=platform_response_unknown`，随后停止剩余动作并执行只读回查，禁止自动重试。confirmed-resource orchestrator 必须在正常失败或异常时完成父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 和已确认 Plan 的终态收口，确保已确认 Plan 不再以 ready 状态投影为可确认。
 
 事件 baseline 的 partial readback 以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再出现在 available 列表中也已满足；只有尚未配置且当前 available 的事件可生成 create candidate；尚未配置且不可用继续 fail-closed。工作台仍只消费 `workflow_case_summary`，统一展示 `confirmed_resource_execution_interrupted`，不在前端复制 Gate 计算。本设计不新增 API、Schema、View、Gate、Plan/action 类型，不自动确认、不刷新 token，也不保存 raw request 或 response。
+
+## 已批准设计：partial baseline 的单一分类器
+
+`eventConfigBaselineReadiness` 是 event-config partial baseline 的唯一分类器。`available_events/get` 与 `event_configs/get` 的各自读取函数只负责 HTTP、解析和标准化；两份结果齐备后才允许调用分类器决定 `status`、blocker 与 create candidates。不得以 available 列表单独覆盖 6/6 为由提前阻断。
+
+因此，已配置项不要求仍出现在 available；只有“尚未配置且当前不可用”的项才产生 `event_config_available_events_baseline_missing`。4/6 configured + 2/6 available 必须是 `needs_create` 且只生成 2 个候选；6/6 configured + empty available 必须 no-op 通过。Node 04 事件链使用同一规则决定是否追加 `available_events_baseline_missing`，保留原始 available/configured 计数作诊断，但不保存 event ID 列表或 raw response。
 
 ## 已批准设计：工作台唯一入口与多账户 Case 隔离
 

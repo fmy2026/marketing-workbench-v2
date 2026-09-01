@@ -88,6 +88,7 @@ function summarizeAvailableEvents(payload = {}) {
   const events = eventConfigsFromPayload(payload).map(normalizeEventConfig);
   const readiness = eventConfigBaselineReadiness({ availableEvents: events, existingConfigs: [] });
   return sanitizeForPublic({
+    events,
     eventCount: events.length,
     baselineAvailableCount: readiness.baseline_available_count,
     missingBaselineEventTypes: readiness.missing_available_event_types,
@@ -107,6 +108,7 @@ function summarizeEventConfigs(payload = {}) {
     .map((item) => item.event_type)
     .filter((eventType) => !configured.some((item) => item.event_type === eventType));
   return sanitizeForPublic({
+    configs,
     eventConfigCount: configs.length,
     baselineConfiguredCount: EVENT_CONFIG_BASELINE_EVENTS.length - missing.length,
     missingBaselineEventTypes: missing,
@@ -784,9 +786,6 @@ export async function runEventChainReadonlySkill({
     });
     availableSummary = availableProbe.summary || {};
     if (availableProbe.status !== "passed") availableBlockers.push("available_events_readonly_failed");
-    if (availableProbe.status === "passed" && availableSummary.readbackVerified !== true) {
-      availableBlockers.push("available_events_baseline_missing");
-    }
   }
   if (!blockers.length && event.candidate) {
     configProbe = await client.get({
@@ -807,6 +806,15 @@ export async function runEventChainReadonlySkill({
     if (configProbe.status !== "passed") blockers.push("event_configs_readonly_failed");
     if (configProbe.status === "passed" && configSummary.readbackVerified !== true) {
       blockers.push("event_configs_baseline_missing");
+      if (availableProbe?.status === "passed") {
+        const readiness = eventConfigBaselineReadiness({
+          availableEvents: availableSummary.events || [],
+          existingConfigs: configSummary.configs || []
+        });
+        if (readiness.status === "blocked") {
+          availableBlockers.push("available_events_baseline_missing");
+        }
+      }
       blockers.push(...availableBlockers);
     }
     if (configProbe.status !== "passed") {

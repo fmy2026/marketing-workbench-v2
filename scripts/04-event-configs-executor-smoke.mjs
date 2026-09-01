@@ -8,7 +8,8 @@ import {
 import {
   EVENT_CONFIGS_CONFIRM_VALUE,
   buildEventConfigCreateRequestPlans,
-  ensureEventConfigsForTargetOnce
+  ensureEventConfigsForTargetOnce,
+  readEventConfigPreflight
 } from "../src/platforms/oceanengineEventConfigExecutor.mjs";
 import {
   EVENT_CONFIGS_PROVISION_ACTION,
@@ -153,6 +154,7 @@ function asset({ id = EVENT_ASSET_ID, appId = "", instanceId = "" } = {}) {
 
 function clientStub(state, {
   existingAll = false,
+  existingConfiguredCount = 0,
   missingAvailableTypes = [],
   readyAfterCreate = true,
   assets = [asset({ appId: APP_ID, instanceId: INSTANCE_ID })]
@@ -165,7 +167,10 @@ function clientStub(state, {
       calls.push({ label, endpoint });
       const availableEvents = baselineAvailableEvents({ missingTypes: missingAvailableTypes });
       const createdTypes = readyAfterCreate ? [...state.createdEventTypes] : [];
-      const existingTypes = existingAll ? EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type) : createdTypes;
+      const initialExistingTypes = existingAll
+        ? EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type)
+        : EVENT_CONFIG_BASELINE_EVENTS.slice(0, existingConfiguredCount).map((item) => item.event_type);
+      const existingTypes = [...new Set([...initialExistingTypes, ...createdTypes])];
       const existingConfigs = EVENT_CONFIG_BASELINE_EVENTS
         .filter((item) => existingTypes.includes(item.event_type))
         .map((item) => {
@@ -339,6 +344,50 @@ assert.equal(partialSix.status, "passed");
 assert.equal(partialSix.baseline_configured_count, 6);
 assert.equal(partialSix.create_candidate_count, 0);
 
+const partialFourState = { createFetchCount: 0, createdEventTypes: new Set() };
+const partialFourBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-PARTIAL-FOUR" });
+const partialFourRepo = repoStub(partialFourBundle);
+const partialFourUnavailableTypes = EVENT_CONFIG_BASELINE_EVENTS.slice(0, 4).map((item) => item.event_type);
+const partialFourClient = clientStub(partialFourState, {
+  existingConfiguredCount: 4,
+  missingAvailableTypes: partialFourUnavailableTypes
+});
+const partialFourPreflight = await readEventConfigPreflight({ bundle: partialFourBundle, client: partialFourClient });
+assert.equal(partialFourPreflight.status, "needs_create", JSON.stringify(partialFourPreflight.blockers || []));
+assert.equal(partialFourPreflight.create_candidate_count, 2);
+const partialFourExecute = await ensureEventConfigsForTargetOnce({
+  repo: partialFourRepo,
+  jobId: partialFourBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(partialFourState),
+  readonlyClient: partialFourClient,
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(partialFourBundle)
+});
+assert.equal(partialFourExecute.status, "event_configs_ready", JSON.stringify(partialFourExecute.blockers || []));
+assert.equal(partialFourState.createFetchCount, 2);
+
+const partialFiveState = { createFetchCount: 0, createdEventTypes: new Set() };
+const partialFiveBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-PARTIAL-FIVE" });
+const partialFiveRepo = repoStub(partialFiveBundle);
+const partialFiveUnavailableTypes = EVENT_CONFIG_BASELINE_EVENTS.slice(0, 5).map((item) => item.event_type);
+const partialFiveExecute = await ensureEventConfigsForTargetOnce({
+  repo: partialFiveRepo,
+  jobId: partialFiveBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(partialFiveState),
+  readonlyClient: clientStub(partialFiveState, {
+    existingConfiguredCount: 5,
+    missingAvailableTypes: partialFiveUnavailableTypes
+  }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(partialFiveBundle)
+});
+assert.equal(partialFiveExecute.status, "event_configs_ready", JSON.stringify(partialFiveExecute.blockers || []));
+assert.equal(partialFiveState.createFetchCount, 1);
+
 const noopState = { createFetchCount: 0, createdEventTypes: new Set() };
 const noopBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-NOOP" });
 const noopRepo = repoStub(noopBundle);
@@ -347,7 +396,10 @@ const noop = await ensureEventConfigsForTargetOnce({
   jobId: noopBundle.job.job_id,
   confirmVariableValue: "",
   fetchImpl: fetchSuccess(noopState),
-  readonlyClient: clientStub(noopState, { existingAll: true }),
+  readonlyClient: clientStub(noopState, {
+    existingAll: true,
+    missingAvailableTypes: EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type)
+  }),
   credentialSummary: validCredential(),
   oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
   projectStatePath: await statePathFor(noopBundle)
@@ -433,6 +485,28 @@ assert.equal(missingAvailable.status, "blocked_before_event_config_write");
 assert(missingAvailable.blockers.includes("event_config_available_events_baseline_missing"));
 assert.equal(missingAvailableState.createFetchCount, 0);
 
+const partialUnavailableState = { createFetchCount: 0, createdEventTypes: new Set() };
+const partialUnavailableBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-PARTIAL-UNAVAILABLE" });
+const partialUnavailable = await ensureEventConfigsForTargetOnce({
+  repo: repoStub(partialUnavailableBundle),
+  jobId: partialUnavailableBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(partialUnavailableState),
+  readonlyClient: clientStub(partialUnavailableState, {
+    existingConfiguredCount: 4,
+    missingAvailableTypes: [
+      ...EVENT_CONFIG_BASELINE_EVENTS.slice(0, 4).map((item) => item.event_type),
+      "purchase_roi_30d"
+    ]
+  }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(partialUnavailableBundle)
+});
+assert.equal(partialUnavailable.status, "blocked_before_event_config_write");
+assert(partialUnavailable.blockers.includes("event_config_available_events_baseline_missing"));
+assert.equal(partialUnavailableState.createFetchCount, 0);
+
 const readbackFailState = { createFetchCount: 0, createdEventTypes: new Set() };
 const readbackFailBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-READBACK-FAIL" });
 const readbackFailRepo = repoStub(readbackFailBundle);
@@ -499,11 +573,14 @@ const output = {
   partialFourCandidateCount: partialFour.create_candidate_count,
   partialFiveCandidateCount: partialFive.create_candidate_count,
   partialSixCandidateCount: partialSix.create_candidate_count,
+  partialFourExecutorCreateCount: partialFourState.createFetchCount,
+  partialFiveExecutorCreateCount: partialFiveState.createFetchCount,
   noopStatus: noop.status,
   createStatus: created.status,
   bindingMismatchBlocked: bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   duplicateBlocked: duplicate.blockers.includes("event_config_platform_action_already_recorded_for_job"),
   missingAvailableBlocked: missingAvailable.blockers.includes("event_config_available_events_baseline_missing"),
+  partialUnavailableBlocked: partialUnavailable.blockers.includes("event_config_available_events_baseline_missing"),
   postCreateReadbackBlocked: readbackFail.status === "event_configs_readback_not_verified",
   apiFailureBlocked: apiFail.status === "event_config_create_failed_once",
   timeoutClosedWithReadonly: timeoutResult.response_unknown === true && timeoutResult.readback_called === true,
