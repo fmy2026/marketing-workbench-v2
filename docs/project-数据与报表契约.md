@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-08-31 19:20 CST |
-| 校验基线 | Git `9d52b89` + 当前 Monitor 单轨 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `064_monitor_bootstrap_plan_gate.sql` |
+| 最后更新时间 | 2026-08-31 23:22 CST |
+| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -111,7 +111,7 @@ route_id + game_code
 
 | 主题 | 合同 |
 | --- | --- |
-| 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表 |
+| 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表；Resource Plan 成功后可在同一 Case 建立 fresh runtime Job，但不得复制旧 Job 的 Plan/confirmation |
 | 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
 | 历史查看 | `?case_id=` 恢复活动 Case 的最新 Job；`?job_id=` 仅历史只读 |
 | Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |

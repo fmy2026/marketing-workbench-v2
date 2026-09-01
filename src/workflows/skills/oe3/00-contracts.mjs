@@ -277,7 +277,7 @@ export const OE3_SKILL_DEFINITIONS = [
     nodeKey: "account_resource_prepare",
     dependsOn: ["micro-app-instance-authority-readonly"],
     inputContract: ["route_id", "game_code", "advertiser_id", "platform_app", "event_asset", "micro_app_instance", "payload_defaults", "optimization"],
-    outputContract: ["event_asset_target_readback_verified", "target_app_binding_verified", "target_instance_readback_verified", "available_events_readback_verified", "event_configs_readback_verified", "objective_found", "deep_objective_found", "deep_bid_type_found", "blocker_codes", "evidence_ref"],
+    outputContract: ["event_asset_identity_readback_verified", "event_asset_target_readback_verified", "target_app_binding_verified", "target_instance_readback_verified", "available_events_readback_verified", "event_configs_readback_verified", "objective_found", "deep_objective_found", "deep_bid_type_found", "blocker_codes", "evidence_ref"],
     stopConditions: ["event_asset_target_not_found", "event_asset_app_binding_unverified", "event_asset_target_ambiguous", "micro_app_instance_candidate_missing", "available_events_baseline_missing", "event_configs_baseline_missing", "optimized_goal_not_available", "deep_objective_not_available", "deep_bid_type_not_available"],
     writeScope: "launch_skill_runs_account_resources_evidence_artifacts",
     moduleRef: "src/workflows/skills/oe3/04-event-chain-readiness.mjs"
@@ -324,7 +324,7 @@ export const OE3_SKILL_DEFINITIONS = [
         : resourceType === "avatar"
           ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status", "avatar_status", "avatar_readiness_reason", "image_present"]
       : resourceType === "event_asset"
-        ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status", "event_asset_provision_status", "event_asset_provision_plan_eligible", "event_asset_create_contract_status", "event_configs_readback_verified", "baseline_configured_event_count"]
+        ? ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status", "event_asset_identity_readback_verified", "event_asset_provision_status", "event_asset_provision_plan_eligible", "event_asset_create_contract_status", "event_configs_readback_verified", "baseline_configured_event_count"]
         : ["resource_type", "status", "existence_status", "prepare_capability", "blocker_codes", "module_ref", "evidence_refs", "next_action", "visibility_status", "readback_status", "readonly_status", "readiness_status"],
     stopConditions: [`${resourceType}_not_ready`, `resource_prepare_unsupported:${resourceType}`],
     writeScope: resourceType === "dmp_audience_package"

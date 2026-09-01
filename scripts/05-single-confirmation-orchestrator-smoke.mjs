@@ -2,8 +2,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { validatePlannedActionGrant } from "../src/workflows/plannedActionGrant.mjs";
-import { validatePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
-import { runConfirmedResourceOrchestratorSkill } from "../src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs";
+import { validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
+import {
+  executeConfirmedResourcePlan,
+  runConfirmedResourceOrchestratorSkill
+} from "../src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildExecutionPlanFromBundle, evaluateConfirmedPlanDraftDerivation } from "../src/workflows/executionPlan.mjs";
 
 function assert(condition, message) {
@@ -15,27 +18,31 @@ const advertiserId = "1871922434025472";
 const planId = `PLAN-${jobId}-V1`;
 const planHash = `sha256:${"a".repeat(64)}`;
 const resourceActions = [
+  "ensure_resource:event_asset",
+  "ensure_event_configs:baseline",
   "ensure_resource:avatar",
   "ensure_resource:dmp_audience_package",
   "ensure_resource:video_asset",
   "ensure_resource:product_image"
 ];
-const actions = [...resourceActions, "std_project_create"].map((actionType) => ({
+const actions = resourceActions.map((actionType) => ({
   action_type: actionType,
-  status: actionType === "std_project_create" ? "waiting_on_plan_actions" : "planned",
+  status: "planned",
   idempotency_key: `IDEMP-${actionType}`
 }));
 const actionGrants = {
+  "ensure_resource:event_asset": { maximum_platform_calls: 1, retry_allowed: false },
+  "ensure_event_configs:baseline": { maximum_platform_calls: 6, retry_allowed: false },
   "ensure_resource:avatar": { maximum_platform_calls: 2, retry_allowed: false },
   "ensure_resource:dmp_audience_package": { maximum_platform_calls: 10, retry_allowed: false },
   "ensure_resource:video_asset": { maximum_platform_calls: 1, retry_allowed: false },
-  "ensure_resource:product_image": { maximum_platform_calls: 1, retry_allowed: false },
-  std_project_create: { maximum_platform_calls: 1, retry_allowed: false }
+  "ensure_resource:product_image": { maximum_platform_calls: 1, retry_allowed: false }
 };
 const plan = {
   plan_id: planId,
   plan_hash: planHash,
   plan_status: "ready",
+  plan_kind: "resource_prepare",
   blocker_codes: [],
   planned_actions: actions,
   metadata: {
@@ -51,7 +58,7 @@ const plan = {
       target_plan_hash: planHash,
       allowed_actions: actions.map((action) => action.action_type),
       maximum_actions: actions.length,
-      maximum_create_calls: 1,
+      maximum_create_calls: 0,
       action_grants: actionGrants,
       retry_allowed: false
     }
@@ -124,6 +131,50 @@ try {
   assert(compiledMultiAction.metadata.resource_states.filter((item) => item.state === "PLANNED").length === 4, "node4_planned_state_count_wrong");
   assert(compiledMultiAction.metadata.resource_states.filter((item) => item.state === "READY").length === 4, "node4_ready_state_count_wrong");
 
+  const eventPlanBundle = {
+    ...planBundle,
+    resources: [
+      resourceReady("avatar"),
+      resourceReady("dmp_audience_package"),
+      {
+        resource_type: "event_asset",
+        visibility_status: "needs_confirmation",
+        readback_status: "not_checked"
+      },
+      resourceReady("video_asset"),
+      resourceReady("product_image"),
+      resourceReady("brand_info"),
+      resourceReady("micro_app_instance"),
+      resourceReady("backup_landing_page")
+    ],
+    nodes: [{
+      node_key: "account_resource_prepare",
+      output_summary: {
+        checks: [{
+          resourceType: "event_asset",
+          prepareCapability: { status: "prepare_supported" },
+          eventAssetProvisionPlanEligible: true,
+          eventConfigsReadbackVerified: false
+        }]
+      }
+    }]
+  };
+  const compiledEventPlan = buildExecutionPlanFromBundle(eventPlanBundle, {
+    planningIntent: plan.metadata.planning_intent
+  });
+  const compiledEventActionTypes = compiledEventPlan.plannedActions.map((action) => action.action_type);
+  assert(compiledEventPlan.planKind === "resource_prepare", "event_chain_plan_kind_wrong");
+  assert(compiledEventPlan.planStatus === "ready", `event_chain_plan_not_ready:${compiledEventPlan.blockerCodes.join(",")}`);
+  assert(
+    compiledEventActionTypes.join(",") === "ensure_resource:event_asset,ensure_event_configs:baseline",
+    `event_chain_action_order_wrong:${compiledEventActionTypes.join(",")}`
+  );
+  assert(compiledEventPlan.metadata.execution_scope.maximum_create_calls === 0, "event_chain_resource_plan_create_calls_must_be_zero");
+  assert(
+    compiledEventPlan.plannedActions[1].depends_on.includes("ensure_resource:event_asset"),
+    "event_configs_dependency_on_event_asset_missing"
+  );
+
   const blockedBundle = {
     ...planBundle,
     resources: planBundle.resources.filter((item) => item.resource_type !== "micro_app_instance")
@@ -189,7 +240,7 @@ try {
   });
   assert(outsidePlan.status === "blocked", "outside_plan_action_not_blocked");
 
-  const confirmable = await validatePlanConfirmationScope({
+  const confirmable = await validateResourcePlanConfirmationScope({
     repo: { ...repo, getLaunchConfirmationForPlan: async () => null },
     bundle,
     projectStatePath: statePath
@@ -197,15 +248,21 @@ try {
   assert(confirmable.status === "passed", `ready_plan_not_confirmable:${confirmable.blockers.join(",")}`);
 
   const order = [];
-  const executorOverrides = Object.fromEntries(resourceActions.map((actionType) => [actionType, async () => {
+  const executorOverrides = Object.fromEntries(resourceActions.map((actionType) => [actionType, async ({ runtimeContext }) => {
     order.push(actionType);
+    if (actionType === "ensure_event_configs:baseline") {
+      assert(runtimeContext.eventAssetId === "800000000001", "runtime_event_asset_id_not_forwarded");
+    }
     return {
       status: {
+        "ensure_resource:event_asset": "event_asset_identity_ready",
+        "ensure_event_configs:baseline": "event_configs_ready",
         "ensure_resource:avatar": "avatar_ready",
         "ensure_resource:dmp_audience_package": "dmp_ready",
         "ensure_resource:video_asset": "video_material_ready",
         "ensure_resource:product_image": "product_image_ready"
       }[actionType],
+      ...(actionType === "ensure_resource:event_asset" ? { runtime_event_asset_id: "800000000001" } : {}),
       platform_write_called: false
     };
   }]));
@@ -214,6 +271,51 @@ try {
   assert(order.join(",") === resourceActions.join(","), "resource_action_order_mismatch");
   assert(passed.outputSummary.createCalled === false, "orchestrator_must_not_call_create");
   assert(passed.outputSummary.planConsumed === true, "resource_plan_not_consumed_after_all_readbacks");
+
+  let workbenchConfirmation = null;
+  let workbenchConfirmationWrites = 0;
+  const workbenchBundle = { ...bundle, executionConfirmation: null };
+  const workbenchRepo = {
+    ...repo,
+    async getLaunchJobBundle() {
+      return { ...workbenchBundle, executionConfirmation: workbenchConfirmation };
+    },
+    async getLaunchConfirmationForPlan() { return workbenchConfirmation; },
+    async upsertLaunchConfirmation(input) {
+      workbenchConfirmationWrites += 1;
+      workbenchConfirmation = {
+        confirmation_id: input.confirmationId,
+        job_id: input.jobId,
+        plan_id: input.planId,
+        confirmation_status: input.confirmationStatus,
+        metadata: input.metadata
+      };
+    },
+    async upsertLaunchSkillRun() {},
+    async updateJob() {}
+  };
+  const workbenchExecution = await executeConfirmedResourcePlan({
+    repo: workbenchRepo,
+    jobId,
+    expectedPlanId: planId,
+    expectedPlanHash: planHash,
+    grantSource: "workbench_conversation",
+    projectStatePath: statePath,
+    executorOverrides
+  });
+  assert(workbenchExecution.status === "passed", `workbench_resource_execution_blocked:${workbenchExecution.blockers?.join(",")}`);
+  assert(workbenchConfirmationWrites === 1, "workbench_resource_confirmation_not_written_once");
+  const repeatedWorkbenchExecution = await executeConfirmedResourcePlan({
+    repo: workbenchRepo,
+    jobId,
+    expectedPlanId: planId,
+    expectedPlanHash: planHash,
+    grantSource: "workbench_conversation",
+    projectStatePath: statePath,
+    executorOverrides
+  });
+  assert(repeatedWorkbenchExecution.status === "blocked", "consumed_workbench_resource_plan_not_blocked");
+  assert(workbenchConfirmationWrites === 1, "workbench_resource_confirmation_repeated");
 
   const consumedActions = new Set();
   const atomicRepo = {
@@ -238,7 +340,7 @@ try {
   });
   assert(firstAtomic.status === "passed", "first_atomic_resource_consumption_failed");
   assert(secondAtomic.status === "blocked", "second_atomic_resource_consumption_not_blocked");
-  assert(secondAtomic.blockers[0] === "planned_action_already_consumed:ensure_resource:avatar", "duplicate_action_blocker_wrong");
+  assert(secondAtomic.blockers[0] === "planned_action_already_consumed:ensure_resource:event_asset", "duplicate_action_blocker_wrong");
 
   const failedOrder = [];
   const failed = await runConfirmedResourceOrchestratorSkill({
@@ -247,6 +349,14 @@ try {
     projectStatePath: statePath,
     executorOverrides: {
       ...executorOverrides,
+      "ensure_resource:event_asset": async () => {
+        failedOrder.push("ensure_resource:event_asset");
+        return { status: "event_asset_identity_ready", runtime_event_asset_id: "800000000001", platform_write_called: false };
+      },
+      "ensure_event_configs:baseline": async () => {
+        failedOrder.push("ensure_event_configs:baseline");
+        return { status: "event_configs_ready", platform_write_called: false };
+      },
       "ensure_resource:avatar": async () => {
         failedOrder.push("ensure_resource:avatar");
         return { status: "avatar_ready", platform_write_called: false };
@@ -272,10 +382,12 @@ try {
     plannedActionCount: actions.length,
     readyResourceCount: compiledMultiAction.metadata.resource_states.filter((item) => item.state === "READY").length,
     plannedResourceCount: compiledMultiAction.metadata.resource_states.filter((item) => item.state === "PLANNED").length,
+    eventChainPlanActions: compiledEventActionTypes,
     uniqueBlockedRoot: compiledBlocked.metadata.unique_root_blocker,
     executedResourceActionCount: passed.outputSummary.executedActionCount,
     outsidePlanBlocked: true,
     duplicateResourceConsumptionBlocked: true,
+    workbenchResourceConfirmationCount: workbenchConfirmationWrites,
     failFastBeforeCreate: true,
     finalDraftDerivationDriftBlocked: true,
     realPlatformWriteCalled: false

@@ -175,6 +175,7 @@ function baselineEvents() {
 function clientStub(state, {
   readyBeforeCreate = false,
   readyAfterCreate = true,
+  configsReadyAfterCreate = readyAfterCreate,
   assets = null,
   detailAssets = null
 } = {}) {
@@ -196,7 +197,7 @@ function clientStub(state, {
           : label === "event_chain_available_events"
             ? { code: "0", request_id: "smoke", data: { event_configs: baselineEvents() } }
           : label === "event_chain_event_configs"
-            ? { code: "0", request_id: "smoke", data: { event_configs: shouldBeReady ? baselineEvents() : [] } }
+            ? { code: "0", request_id: "smoke", data: { event_configs: shouldBeReady && configsReadyAfterCreate ? baselineEvents() : [] } }
           : label === "event_chain_optimized_goal"
             ? { code: "0", request_id: "smoke", data: { list: [{ external_action: "AD_CONVERT_TYPE_PAY", deep_external_action: "AD_CONVERT_TYPE_PURCHASE_ROI_7D" }] } }
             : { code: "0", request_id: "smoke", data: { list: [{ deep_bid_type: "PER_AND_SEVEN_PAY_ROI" }] } };
@@ -349,6 +350,26 @@ assert.equal(createRepo.state.actions.filter((item) => item.actionType === EVENT
 assert(createRepo.state.updates.some((item) => item.resourceType === "event_asset" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 assert(createRepo.state.updates.some((item) => item.resourceType === "micro_app_instance" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 
+const deferredState = { createFetchCount: 0 };
+const deferredBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-DEFER-CONFIGS" });
+const deferredRepo = repoStub(deferredBundle);
+const deferred = await ensureEventAssetForTargetOnce({
+  repo: deferredRepo,
+  jobId: deferredBundle.job.job_id,
+  confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(deferredState),
+  readonlyClient: clientStub(deferredState, { readyAfterCreate: true, configsReadyAfterCreate: false }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(deferredBundle),
+  deferFullEventChainUntilConfigs: true
+});
+assert.equal(deferred.status, "event_asset_identity_ready", JSON.stringify(deferred.blockers || []));
+assert.equal(deferred.runtime_event_asset_id, "1874999999999999");
+assert.equal(deferred.target_readback_verified, false);
+assert.equal(deferred.target_identity_readback_verified, true);
+assert.equal(deferredState.createFetchCount, 1);
+
 const repeated = await ensureEventAssetForTargetOnce({
   repo: createRepo,
   jobId: createBundle.job.job_id,
@@ -442,6 +463,7 @@ const output = {
   requestPlanPassed: requestPlan.status === "passed",
   noopStatus: noop.status,
   createStatus: created.status,
+  deferredStatus: deferred.status,
   duplicateBlocked: duplicate.blockers.includes("event_asset_platform_action_already_recorded_for_job"),
   appMismatchBlocked: mismatch.blockers.includes("event_asset_app_binding_unverified"),
   postCreateReadbackBlocked: readbackFail.status === "event_asset_readback_not_verified",

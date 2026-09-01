@@ -376,6 +376,7 @@ export async function runMicroAppInstanceAuthorityReadonlySkill({
 function eventContractFor({
   status,
   blockers,
+  identityVerified = false,
   candidate,
   inventory,
   availableProbe,
@@ -401,8 +402,9 @@ function eventContractFor({
     app_binding_observable: inventory.appBindingObservable === true,
     candidate_selection_source: inventory.candidateSelectionSource || "",
     event_asset_id_present: Boolean(candidate?.id),
+    event_asset_identity_readback_verified: identityVerified === true,
     event_asset_target_readback_verified: status === "passed",
-    target_app_binding_verified: status === "passed",
+    target_app_binding_verified: identityVerified === true,
     target_instance_candidate_present: Boolean(instance.instanceId),
     target_instance_candidate_count: instance.instanceCandidateCount,
     target_instance_reference_only: instance.instanceReferenceOnly,
@@ -569,7 +571,7 @@ async function persistEventChain({ repo, bundle, status, blockers, contract, can
     resourceType: "event_asset",
     visibilityStatus: status === "passed" ? "visible" : undefined,
     readbackStatus: status === "passed" ? "readback_verified" : undefined,
-    platformResourceId: status === "passed" ? candidate?.id || "" : undefined,
+    platformResourceId: contract.event_asset_identity_readback_verified === true ? candidate?.id || "" : undefined,
     inheritanceStatus: status === "passed" ? "target_readonly_verified" : "target_readonly_blocked",
     metadata: baseReadonly,
     resourceMetadata: { event_chain_readonly_contract: contract }
@@ -650,6 +652,8 @@ export function eventChainResourceReadiness({ bundle = {}, resourceType }) {
       platformResourceIdPresent: Boolean(item.platform_resource_id),
       eventChainStatus: clean(contract.status || (instanceAuthorityPassed ? "instance_authority_readonly_passed" : "not_run")),
       eventAssetTargetReadbackVerified: contract.event_asset_target_readback_verified === true,
+      eventAssetIdentityReadbackVerified: contract.event_asset_identity_readback_verified === true,
+      event_asset_identity_readback_verified: contract.event_asset_identity_readback_verified === true,
       targetAppBindingVerified: contract.target_app_binding_verified === true,
       targetInstanceCandidatePresent: contract.target_instance_candidate_present === true,
       instanceBindingObservable: contract.instance_binding_observable === true,
@@ -740,6 +744,7 @@ export async function runEventChainReadonlySkill({
   }
   if (instance.instanceCandidateAmbiguous) blockers.push("micro_app_instance_candidate_ambiguous");
   if (!instance.instanceId) blockers.push("micro_app_instance_candidate_missing");
+  const identityVerified = blockers.length === 0 && Boolean(event.candidate?.id);
 
   let goalProbe = null;
   let dbtProbe = null;
@@ -829,6 +834,7 @@ export async function runEventChainReadonlySkill({
   const contract = eventContractFor({
     status,
     blockers,
+    identityVerified,
     candidate: event.candidate,
     inventory: event.inventory,
     availableProbe,
@@ -848,6 +854,7 @@ export async function runEventChainReadonlySkill({
   const result = {
     status,
     blockers,
+    runtimeEventAssetId: identityVerified ? event.candidate?.id || "" : "",
     evidenceRefs: evidenceRef ? [evidenceRef] : [],
     outputSummary: {
       eventChainStatus: status,
@@ -855,6 +862,7 @@ export async function runEventChainReadonlySkill({
       eventAssetCandidateCount: contract.inventory_candidate_count,
       appBoundCandidateCount: contract.app_bound_candidate_count,
       eventAssetTargetReadbackVerified: contract.event_asset_target_readback_verified,
+      eventAssetIdentityReadbackVerified: contract.event_asset_identity_readback_verified,
       targetInstanceCandidatePresent: contract.target_instance_candidate_present,
       targetInstanceReferenceOnly: contract.target_instance_reference_only,
       targetInstanceReadbackVerified: contract.target_instance_readback_verified,

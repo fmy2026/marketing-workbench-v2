@@ -5,6 +5,7 @@ import {
   sanitizeForPublic
 } from "./skills/oe3/00-contracts.mjs";
 import {
+  FORMAL_CONFIRMED_ACTION_ORDER,
   FORMAL_RESOURCE_PREP_ACTION_ORDER,
   getResourceActionCapability
 } from "./skills/oe3/04-resource-action-registry.mjs";
@@ -176,7 +177,11 @@ function resourceVerifierStates(bundle = {}) {
         check.event_asset_provision_plan_eligible === true,
       eventAssetProvisionStatus: check.eventAssetProvisionStatus ||
         check.event_asset_provision_status ||
-        ""
+        "",
+      eventAssetIdentityReadbackVerified: check.eventAssetIdentityReadbackVerified === true ||
+        check.event_asset_identity_readback_verified === true,
+      eventConfigsReadbackVerified: check.eventConfigsReadbackVerified === true ||
+        check.event_configs_readback_verified === true
     }
   ]));
 }
@@ -471,6 +476,26 @@ function resourcesByType(bundle = {}) {
   return map;
 }
 
+function eventConfigsPlannedAction({ job, dependsOnEventAsset = false, actionCallLimits = {} } = {}) {
+  const actionType = EVENT_CONFIGS_PROVISION_ACTION;
+  const grant = actionGrantDefaults(actionType, actionCallLimits);
+  return {
+    action_type: actionType,
+    target_ref: `event_configs:${job.route_id}:${job.game_code}:${job.advertiser_id}:target_event_asset`,
+    idempotency_key: actionKey(job.job_id, actionType, dependsOnEventAsset ? "AFTER_EVENT_ASSET" : "TARGET_EVENT_ASSET"),
+    status: "planned",
+    module_ref: "src/platforms/oceanengineEventConfigExecutor.mjs",
+    depends_on: [
+      ...(dependsOnEventAsset ? [EVENT_ASSET_PROVISION_ACTION] : []),
+      "event-chain-readonly",
+      "event-configs-baseline"
+    ],
+    writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
+    reason: "baseline_event_configs_create_or_noop",
+    maximum_platform_calls: grant.maximum_platform_calls
+  };
+}
+
 function createReadiness(bundle = {}) {
   const draftNode = (bundle.nodes || []).find((node) => node.node_key === "std_project_draft_builder");
   return draftNode?.output_summary?.createReadiness || {};
@@ -523,6 +548,21 @@ function compilePlannedActions(bundle = {}, {
     const records = byType.get(resourceType) || [];
     const verifier = verifierStates.get(resourceType) || {};
     const verifierState = verifier.status || "";
+    if (
+      resourceType === "event_asset" &&
+      verifier.eventAssetIdentityReadbackVerified === true &&
+      verifier.eventConfigsReadbackVerified !== true
+    ) {
+      actions.push(eventConfigsPlannedAction({ job, actionCallLimits }));
+      resourceStates.push({
+        resource_type: resourceType,
+        state: "PLANNED",
+        action_type: EVENT_CONFIGS_PROVISION_ACTION,
+        blocker: ""
+      });
+      dependencyForCreate.push(EVENT_CONFIGS_PROVISION_ACTION);
+      continue;
+    }
     if (verifierState === "blocked" || verifierState === "prepare_unsupported") {
       const blocker = verifier.blocker || (verifierState === "blocked"
         ? `${resourceType}_readonly_or_preflight_blocked`
@@ -566,9 +606,21 @@ function compilePlannedActions(bundle = {}, {
       reason: records.length ? "resource_not_ready" : "resource_missing",
       maximum_platform_calls: grant.maximum_platform_calls
     });
+    if (resourceType === "event_asset") {
+      actions.push(eventConfigsPlannedAction({
+        job,
+        dependsOnEventAsset: true,
+        actionCallLimits
+      }));
+      dependencyForCreate.push(EVENT_CONFIGS_PROVISION_ACTION);
+    }
     resourceStates.push({ resource_type: resourceType, state: "PLANNED", action_type: actionType, blocker: "" });
     dependencyForCreate.push(actionType);
   }
+
+  actions.sort((left, right) =>
+    FORMAL_CONFIRMED_ACTION_ORDER.indexOf(left.action_type) - FORMAL_CONFIRMED_ACTION_ORDER.indexOf(right.action_type)
+  );
 
   const plannedResourceActionsPresent = resourceStates.some((item) => item.state === "PLANNED");
   if (draft?.draft_id && blockers.length === 0 && !plannedResourceActionsPresent) {
@@ -1001,7 +1053,9 @@ export async function compileAndSaveMonitorBootstrapExecutionPlan({
     planningIntent: planningIntent || {}
   });
   if (expectedPlanId && plan.planId !== expectedPlanId) throw new Error("confirmed_plan_id_drift");
-  if (expectedPlanHash && plan.planHash !== expectedPlanHash) throw new Error("confirmed_plan_hash_drift");
+  if (expectedPlanHash && plan.planHash !== expectedPlanHash) {
+    throw new Error("confirmed_plan_hash_drift");
+  }
   await repo.upsertLaunchExecutionPlan(plan);
   const stored = await repo.getLaunchExecutionPlan(plan.planId);
   assertNoSensitiveLeak(stored || plan);
@@ -1045,9 +1099,7 @@ export async function compileAndSaveSingleResourceExecutionPlan({
   if (expectedPlanId && plan.planId !== expectedPlanId) {
     throw new Error("confirmed_plan_id_drift");
   }
-  if (expectedPlanHash && plan.planHash !== expectedPlanHash) {
-    throw new Error("confirmed_plan_hash_drift");
-  }
+  if (expectedPlanHash && plan.planHash !== expectedPlanHash) throw new Error("confirmed_plan_hash_drift");
   await repo.upsertLaunchExecutionPlan(plan);
   const stored = await repo.getLaunchExecutionPlan(plan.planId);
   assertNoSensitiveLeak(stored || plan);

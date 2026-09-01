@@ -1,7 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ACTION_STD_PROJECT_CREATE, validateExecutionPlanActionScope } from "./executionPlan.mjs";
+import {
+  ACTION_STD_PROJECT_CREATE,
+  PLAN_KIND_RESOURCE_PREPARE,
+  validateExecutionPlanActionScope
+} from "./executionPlan.mjs";
+import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const defaultProjectStatePath = join(rootDir, "project.state.json");
@@ -172,6 +177,55 @@ export async function validatePlanConfirmationScope({ repo, bundle, projectState
   };
 }
 
+export async function validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
+  const state = await readProjectState(projectStatePath);
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const scope = plan?.metadata?.execution_scope || {};
+  const actions = plan?.planned_actions || plan?.plannedActions || [];
+  const actionTypes = actions.map((action) => action.action_type);
+  const blockerCodes = plan?.blocker_codes || plan?.blockerCodes || [];
+  const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
+    ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
+    : null;
+  const actionScope = validateExecutionPlanActionScope({
+    plan,
+    allowedActions: scope.allowed_actions || []
+  });
+  const blockers = [
+    ...(state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"]),
+    ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
+    ...((plan?.plan_kind || plan?.planKind || plan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE ? [] : ["execution_plan_kind_not_resource_prepare"]),
+    ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(blockerCodes.length === 0 ? [] : ["execution_plan_has_blockers"]),
+    ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
+    ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
+    ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
+    ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
+    ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
+    ...(actionScope.status === "passed" ? [] : actionScope.blockers),
+    ...(Number(scope.maximum_actions) === actions.length && actions.length > 0 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(actionTypes.every((actionType) => FORMAL_CONFIRMED_ACTION_ORDER.includes(actionType)) ? [] : ["confirmed_resource_action_not_in_registry"]),
+    ...(actionTypes.includes(ACTION_STD_PROJECT_CREATE) ? ["std_project_create_not_allowed_in_resource_execution"] : []),
+    ...(Number(scope.maximum_create_calls || 0) === 0 ? [] : ["execution_plan_create_call_limit_invalid"]),
+    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : [])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    blockers: [...new Set(blockers)],
+    plan,
+    scope,
+    scopeSummary: {
+      bindingMode: scope.binding_mode || "",
+      planReady: plan?.plan_status === "ready",
+      blockerCount: blockerCodes.length,
+      actionCount: actions.length,
+      existingConfirmation: Boolean(existingConfirmation),
+      retryAllowed: scope.retry_allowed === true
+    }
+  };
+}
+
 export async function getExecutionGrantAvailability({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
   const state = await readProjectState(projectStatePath);
   const legacyTestScope = bundle.job?.source_usage === "test_run" &&
@@ -186,11 +240,14 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
       blockers: ["runtime_truth_requires_plan_bound_confirmation"]
     };
   }
+  const resourcePlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE;
   const scope = planBound
-    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
+    ? resourcePlan
+      ? await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath })
+      : await validatePlanConfirmationScope({ repo, bundle, projectStatePath })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   const alreadyAttempted = planBound
-    ? scope.blockers.includes("execution_plan_confirmation_already_recorded") || Number(scope.attemptState.createActionCount || 0) > 0
+    ? scope.blockers.includes("execution_plan_confirmation_already_recorded") || Number(scope.attemptState?.createActionCount || 0) > 0
     : Number(scope.attemptState.nextCreateAttemptNo || 1) > Number(scope.attemptState.maximumCreateAttempts || 3);
   return {
     status: scope.status === "passed" ? "available" : (alreadyAttempted ? "consumed" : "unavailable"),

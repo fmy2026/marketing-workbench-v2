@@ -139,6 +139,164 @@ const confirmationDecision = evaluateGateAction({
 });
 assert(confirmationDecision.effect === "execute_confirmed_plan", "exact confirmation should enter bound execution path");
 
+const resourcePlan = {
+  plan_status: "ready",
+  plan_kind: "resource_prepare",
+  plan_id: "PLAN-RESOURCE-1",
+  plan_hash: `sha256:${"1".repeat(64)}`,
+  blocker_codes: [],
+  planned_actions: [
+    { action_type: "ensure_resource:event_asset", maximum_platform_calls: 1 },
+    { action_type: "ensure_event_configs:baseline", maximum_platform_calls: 6 },
+    { action_type: "ensure_resource:avatar", maximum_platform_calls: 2 }
+  ],
+  metadata: {
+    plan_kind: "resource_prepare",
+    execution_scope: {
+      binding_mode: "single_confirmation_plan",
+      maximum_actions: 3,
+      maximum_create_calls: 0,
+      retry_allowed: false
+    }
+  }
+};
+const resourceBundle = {
+  job: {
+    job_id: "JOB-RESOURCE-1",
+    case_id: "CASE-RESOURCE-1",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922414575753",
+    source_usage: "test_run"
+  },
+  executionPlan: resourcePlan
+};
+const resourceCaseSummary = {
+  lifecycle_status: "active",
+  current_gate: "await_job_write_authorization",
+  suggested_next_action: "obtain_single_plan_confirmation",
+  root_blocker_codes: [],
+  latest_job_id: "JOB-RESOURCE-1"
+};
+const resourcePreview = buildConfirmationPreview(resourceBundle, resourceCaseSummary);
+assert(resourcePreview?.planKind === "resource_prepare", "resource_confirmation_preview_missing");
+assert(resourcePreview?.confirmationPhrase === "确认准备资源", "resource_confirmation_phrase_wrong");
+assert(resourcePreview?.maximumPlatformCalls === 9, "resource_confirmation_call_limit_wrong");
+assert(isExplicitCreateConfirmation("确认准备资源"), "resource_confirmation_not_exact");
+
+let resourceExecutionCount = 0;
+let freshJobCreateCount = 0;
+let freshReadonlyCount = 0;
+const resourceView = {
+  ...jobView,
+  jobId: "JOB-RESOURCE-1",
+  caseId: "CASE-RESOURCE-1",
+  confirmationPreview: resourcePreview
+};
+const freshCreateView = {
+  ...jobView,
+  jobId: "JOB-FRESH-2",
+  caseId: "CASE-RESOURCE-1",
+  confirmationPreview: {
+    planKind: "std_project_create",
+    confirmationPhrase: "确认创建",
+    planId: "PLAN-CREATE-2",
+    planHash: `sha256:${"2".repeat(64)}`
+  }
+};
+const resourceResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return resourceBundle; },
+    async getWorkflowCaseSummary() { return resourceCaseSummary; }
+  },
+  jobId: "JOB-RESOURCE-1",
+  message: "确认准备资源",
+  expectedPlanId: resourcePlan.plan_id,
+  expectedPlanHash: resourcePlan.plan_hash,
+  getJobViewFn: async () => resourceView,
+  executeConfirmedResourcePlanFn: async ({ expectedPlanId, expectedPlanHash }) => {
+    resourceExecutionCount += 1;
+    assert(expectedPlanId === resourcePlan.plan_id, "resource_execution_plan_id_drift");
+    assert(expectedPlanHash === resourcePlan.plan_hash, "resource_execution_plan_hash_drift");
+    return { status: "passed", blockers: [], createCalled: false };
+  },
+  createFreshJobFn: async (_repo, input) => {
+    freshJobCreateCount += 1;
+    assert(input.case_id === "CASE-RESOURCE-1", "fresh_job_case_changed");
+    return { jobId: "JOB-FRESH-2" };
+  },
+  runJobFn: async (_repo, freshJobId, options) => {
+    freshReadonlyCount += 1;
+    assert(freshJobId === "JOB-FRESH-2", "fresh_job_id_changed");
+    assert(options.mode === "dry_run", "fresh_job_must_run_readonly");
+    return freshCreateView;
+  }
+});
+assert(resourceExecutionCount === 1, "resource_plan_not_executed_once");
+assert(freshJobCreateCount === 1, "fresh_job_not_created_once");
+assert(freshReadonlyCount === 1, "fresh_readonly_not_run_once");
+assert(resourceResponse.view.jobId === "JOB-FRESH-2", "workbench_did_not_switch_to_fresh_job");
+assert(resourceResponse.interaction.message.includes("第二张创建确认卡"), "second_confirmation_guidance_missing");
+
+const freshCreateBundle = {
+  job: {
+    ...resourceBundle.job,
+    job_id: "JOB-FRESH-2"
+  },
+  draft: { project_name: "JSZC_TWO_CONFIRM_SMOKE" },
+  executionPlan: {
+    plan_status: "ready",
+    plan_kind: "std_project_create",
+    plan_id: "PLAN-CREATE-2",
+    plan_hash: `sha256:${"2".repeat(64)}`,
+    planned_actions: [{ action_type: "std_project_create", maximum_platform_calls: 1 }],
+    metadata: {
+      plan_kind: "std_project_create",
+      planning_intent: { project_name: "JSZC_TWO_CONFIRM_SMOKE" },
+      execution_scope: { maximum_actions: 1, maximum_create_calls: 1, retry_allowed: false }
+    }
+  }
+};
+const freshCreateSummary = {
+  ...resourceCaseSummary,
+  latest_job_id: "JOB-FRESH-2"
+};
+let createConfirmationCount = 0;
+let stdProjectCreateCount = 0;
+let authoritativeReadbackCount = 0;
+const completedView = {
+  ...freshCreateView,
+  confirmationPreview: null,
+  caseGate: {
+    currentGate: "first_std_project_create_completed",
+    rootBlockerCodes: [],
+    suggestedNextAction: "first_std_project_create_completed"
+  }
+};
+const createResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return freshCreateBundle; },
+    async getWorkflowCaseSummary() { return freshCreateSummary; }
+  },
+  jobId: "JOB-FRESH-2",
+  message: "确认创建",
+  expectedPlanId: "PLAN-CREATE-2",
+  expectedPlanHash: `sha256:${"2".repeat(64)}`,
+  getJobViewFn: async () => freshCreateView,
+  executeConfirmedLaunchFn: async ({ expectedPlanId, expectedPlanHash }) => {
+    createConfirmationCount += 1;
+    assert(expectedPlanId === "PLAN-CREATE-2", "create_plan_id_drift");
+    assert(expectedPlanHash === `sha256:${"2".repeat(64)}`, "create_plan_hash_drift");
+    stdProjectCreateCount += 1;
+    authoritativeReadbackCount += 1;
+    return completedView;
+  }
+});
+assert(createResponse.interaction.kind === "execution_completed", "second_confirmation_did_not_complete");
+assert(resourceExecutionCount + createConfirmationCount === 2, "successful_path_confirmation_count_not_two");
+assert(stdProjectCreateCount === 1, "std_project_create_count_not_one");
+assert(authoritativeReadbackCount === 1, "authoritative_readback_not_completed_once");
+
 const historicalDecision = evaluateGateAction({
   intent: deterministic,
   caseSummary,
@@ -284,6 +442,10 @@ console.log(JSON.stringify({
   invalidAdapterIntent: invalid.intent,
   confirmationEffect: continueDecision.effect,
   exactConfirmationEffect: confirmationDecision.effect,
+  resourceConfirmationEffect: resourceResponse.interaction.kind,
+  successfulPathConfirmationCount: resourceExecutionCount + createConfirmationCount,
+  stdProjectCreateCount,
+  authoritativeReadbackCount,
   historyEffect: historicalDecision.effect,
   terminalMonitorEffect: terminalMonitorDecision.effect
 }, null, 2));

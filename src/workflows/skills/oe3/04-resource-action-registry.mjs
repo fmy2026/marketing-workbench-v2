@@ -112,8 +112,9 @@ export const FORMAL_RESOURCE_PREP_ACTION_ORDER = Object.freeze(
 );
 
 export const FORMAL_CONFIRMED_ACTION_ORDER = Object.freeze([
-  ...FORMAL_RESOURCE_PREP_ACTION_ORDER,
-  EVENT_CONFIGS_PROVISION_ACTION
+  "ensure_resource:event_asset",
+  EVENT_CONFIGS_PROVISION_ACTION,
+  ...FORMAL_RESOURCE_PREP_ACTION_ORDER.filter((actionType) => actionType !== "ensure_resource:event_asset")
 ]);
 
 export function formalResourcePrepActionSupported(actionType = "") {

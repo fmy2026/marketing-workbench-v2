@@ -107,7 +107,7 @@ export function deterministicIntent({ message = "" } = {}) {
   if (command === "重新只读回查monitor") {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_monitor_readonly_reconcile", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
-  if (["确认创建", "确认创建项目", "确认创建monitor"].includes(command)) {
+  if (["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_confirmation", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (/^(状态|当前状态|查看状态|进度|卡点|查看卡点)$/.test(command)) {
@@ -209,5 +209,5 @@ export async function resolveConversationIntent({ message = "", jobView = {}, re
 }
 
 export function isExplicitCreateConfirmation(message = "") {
-  return ["确认创建", "确认创建项目", "确认创建monitor"].includes(normalizedCommand(message));
+  return ["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源"].includes(normalizedCommand(message));
 }

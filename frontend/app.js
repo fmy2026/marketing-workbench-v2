@@ -94,8 +94,8 @@
     const preview = confirmationPreview();
     if (!preview) return;
     const card = el("section", "confirmation-card");
-    card.setAttribute("aria-label", "单次创建确认");
-    card.append(el("strong", "", "单次创建确认"));
+    card.setAttribute("aria-label", "受控 Plan 确认");
+    card.append(el("strong", "", "受控 Plan 确认"));
     card.append(el("p", "", preview.actionLabel || "创建 1 个广告项目"));
     const facts = el("dl", "confirmation-facts");
     [
@@ -111,14 +111,14 @@
     });
     card.append(facts);
     const canExecute = job?.executionAvailability?.canExecuteOnce === true;
-    const button = el("button", "confirmation-button", canExecute ? "确认创建" : "等待平台写授权");
+    const button = el("button", "confirmation-button", canExecute ? (preview.confirmationPhrase || "确认创建") : "等待平台写授权");
     button.type = "button";
     button.disabled = busy || !canExecute;
     button.addEventListener("click", async () => {
       if (busy) return;
       setBusy(true);
       try {
-        await submitJobCommand("确认创建");
+        await submitJobCommand(preview.confirmationPhrase || "确认创建");
       } catch (error) {
         showError(error);
       } finally {

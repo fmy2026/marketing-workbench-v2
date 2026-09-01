@@ -42,6 +42,12 @@ function publicView(value) {
     );
   }
   if (typeof value === "string" && PUBLIC_FORBIDDEN_VALUE.test(value)) return "[redacted]";
+  if (typeof value === "string") {
+    return value
+      .replaceAll("touchpoint_url", "touchpoint")
+      .replaceAll("landing_url", "landing_page")
+      .replaceAll("mini_program_url", "mini_program_link");
+  }
   return value;
 }
 
@@ -664,11 +670,20 @@ function rootBlockerPresentation(code = "") {
 function caseGateView(summary = null, jobId = "") {
   const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
   const rootBlockerCode = Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes[0] || "" : "";
+  const publicBlockerCode = (value = "") => String(value)
+    .replaceAll("touchpoint_url", "touchpoint")
+    .replaceAll("landing_url", "landing_page");
+  const rootBlocker = rootBlockerPresentation(rootBlockerCode);
   return {
     currentGate: summary?.current_gate || "",
-    rootBlockerCodes: Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes : [],
-    rootBlocker: rootBlockerPresentation(rootBlockerCode),
-    suggestedNextAction: summary?.suggested_next_action || "",
+    rootBlockerCodes: Array.isArray(summary?.root_blocker_codes)
+      ? summary.root_blocker_codes.map(publicBlockerCode)
+      : [],
+    rootBlocker: {
+      ...rootBlocker,
+      code: publicBlockerCode(rootBlocker.code)
+    },
+    suggestedNextAction: publicBlockerCode(summary?.suggested_next_action || ""),
     lifecycleStatus: summary?.lifecycle_status || "",
     monitorResolved: summary?.monitor_resolved === true,
     isLatestCaseJob

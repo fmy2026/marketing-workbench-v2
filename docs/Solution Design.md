@@ -3,13 +3,23 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-08-31 21:32 CST |
-| 校验基线 | Git `62d6893`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-08-31 23:22 CST |
+| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
+
+## 已批准设计：Monitor READY 路径的新账户两次确认闭环
+
+保持 OE3 既有 3 阶段 7 Node、`workflow_case_summary`、Plan 类型、Postgres 表和 Plan-bound 权限模型不变。成功路径使用两份相互独立且各只能消费一次的 Plan：第一份 `resource_prepare` 只授权可自动准备资源，第二份 fresh `std_project_create` 只授权一次标准项目创建。资源动作与项目创建不得混入同一 Plan。
+
+当 event asset 缺失且账户级合同已通过时，Resource Plan 必须同时冻结 `ensure_resource:event_asset` 与紧随其后的 `ensure_event_configs:baseline`。事件资产 executor 在创建后先完成目标资产身份回查，并把真实 asset ID 仅在本次内存执行链中传给 event-config executor；baseline configs 完成后再执行完整事件链权威回查。任一动作或回查失败立即停止，修正必须使用新 Plan/hash/confirmation，不自动重试。
+
+工作台可为 ready 的普通 Resource Plan 展示脱敏确认卡；精确确认后只调用既有 confirmed-resource orchestrator。全部资源权威回查通过并消费 Plan 后，在同一 Case 下创建 fresh runtime Job，重新运行只读准备并生成只含 `std_project_create` 的 Create Plan。第二次精确确认后才允许一次创建，并以权威回查为完成条件。
+
+“两次确认”只指 monitor 已 READY、人工 SHARE 和 verify-only 前提已完成且执行无失败的成功路径。monitor 缺失仍使用独立 `monitor_bootstrap` 确认；backup landing page SHARE 与 micro-app authority readonly 是前置条件，不属于这两份写入 Plan。实施与测试不得对真实账户执行平台写入。
 
 ## 已批准设计：Case Gate 真值与账户级事件资产合同
 

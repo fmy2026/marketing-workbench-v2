@@ -288,6 +288,30 @@ async function getTouchpointVerification(repo, bundle) {
 }
 
 async function executePayloadBuild({ repo, context }) {
+  const frozenPlan = context.bundle.executionPlan || {};
+  const frozenPlanKind = frozenPlan.plan_kind || frozenPlan.metadata?.plan_kind || "";
+  if (context.freezeConfirmedPlan && frozenPlanKind === "std_project_create") {
+    const draft = context.bundle.draft || {};
+    const derivation = evaluateConfirmedPlanDraftDerivation({ plan: frozenPlan, draft });
+    const draftBlockers = draft.payload_summary?.final_payload_blockers || [];
+    const blockers = [...draftBlockers, ...derivation.blockers];
+    context.draft = draft;
+    return {
+      status: blockers.length ? "blocked" : "passed",
+      blockers,
+      outputSummary: {
+        projectName: draft.project_name || "",
+        payloadHash: draft.payload_hash || "",
+        payloadHashSource: draft.payload_summary?.payload_hash_source || "legacy_summary",
+        requestFieldManifest: draft.payload_summary?.final_payload_manifest || {},
+        derivedFromPlanId: context.expectedPlanId,
+        derivedFromPlanHash: context.expectedPlanHash,
+        planDerivationStatus: derivation.status,
+        frozenConfirmedDraftReused: true,
+        rawPayloadStored: false
+      }
+    };
+  }
   const draft = await buildSkillDraft({
     repo,
     bundle: withDmpCustomAudienceIds(context.bundle, context.dmpCustomAudienceIds || []),
@@ -677,7 +701,9 @@ async function executeSkill({ repo, context, skillKey }) {
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "confirmed-resource-orchestrator") {
-    result = context.freezeConfirmedPlan
+    const confirmedResourcePlan = context.freezeConfirmedPlan &&
+      (context.bundle.executionPlan?.plan_kind || context.bundle.executionPlan?.metadata?.plan_kind) === "resource_prepare";
+    result = confirmedResourcePlan
       ? await runConfirmedResourceOrchestratorSkill({
           repo,
           bundle: context.bundle,
@@ -758,6 +784,7 @@ async function executeSkill({ repo, context, skillKey }) {
   assertNoSensitiveLeak(memoryResult);
   const resultForRecord = { ...memoryResult };
   delete resultForRecord.customAudienceIds;
+  delete resultForRecord.runtimeEventAssetId;
   const safeResult = sanitizeForPublic(resultForRecord);
   assertNoSensitiveLeak(safeResult);
   context.skillOutputs.set(skillKey, memoryResult);

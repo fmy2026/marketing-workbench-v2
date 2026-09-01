@@ -286,7 +286,8 @@ export async function ensureEventAssetForTargetOnce({
   credentialSummary = null,
   oceanEngineEnv = null,
   projectStatePath,
-  allowReadonlyDependency = true
+  allowReadonlyDependency = true,
+  deferFullEventChainUntilConfigs = false
 } = {}) {
   if (!repo || !jobId) throw new Error("event_asset_executor_repo_and_job_required");
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -409,22 +410,31 @@ export async function ensureEventAssetForTargetOnce({
     client,
     allowReadonlyDependency
   });
+  const identityReadyForConfigs = Boolean(deferFullEventChainUntilConfigs === true &&
+    postReadback.outputSummary?.eventAssetIdentityReadbackVerified === true &&
+    clean(postReadback.runtimeEventAssetId));
   const ready = postReadback.status === "passed";
   const evidenceRef = await saveEventAssetCreateEvidence({
     repo,
     bundle,
     create,
-    status: ready ? "passed" : "post_readback_blocked",
+    status: ready ? "passed" : identityReadyForConfigs ? "identity_readback_passed_pending_event_configs" : "post_readback_blocked",
     readback: postReadback
   });
   const result = sanitizeForPublic({
-    status: ready ? "event_asset_ready" : "event_asset_readback_not_verified",
+    status: ready
+      ? "event_asset_ready"
+      : identityReadyForConfigs
+        ? "event_asset_identity_ready"
+        : "event_asset_readback_not_verified",
     jobId,
     create_action_id: create.actionId,
     evidence_ref: evidenceRef,
     readback_evidence_refs: postReadback.evidenceRefs || [],
-    blockers: ready ? [] : postReadback.blockers || ["event_asset_post_create_readback_blocked"],
+    blockers: ready || identityReadyForConfigs ? [] : postReadback.blockers || ["event_asset_post_create_readback_blocked"],
+    runtime_event_asset_id: identityReadyForConfigs ? postReadback.runtimeEventAssetId : "",
     event_asset_id_present_in_response: Boolean(create.assetId),
+    target_identity_readback_verified: ready || identityReadyForConfigs,
     target_readback_verified: ready,
     optimized_goal_verified: postReadback.outputSummary?.objectiveFound === true &&
       postReadback.outputSummary?.deepObjectiveFound === true,

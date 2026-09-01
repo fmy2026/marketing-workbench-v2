@@ -1,0 +1,91 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831",
+  "task_ref": "tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md",
+  "status": "completed",
+  "created_at": "2026-08-31 23:12 CST",
+  "updated_at": "2026-09-01 00:20 CST",
+  "owner_agent": "codex",
+  "solution_link": {
+    "source": "用户批准的“新账户两次确认闭环解读与最小收口方案”",
+    "objective": "Close the existing resource-plan then create-plan path as exactly two confirmations on the successful monitor-ready path.",
+    "current_truth": "project.state.json, this Task/Manifest, current code and Schema, and Postgres workflow_case_summary.",
+    "stop_condition": "No real platform write, external SHARE, token refresh, or architecture replacement is authorized during implementation."
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md",
+    "tasks-context-manifests/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest and current mechanism documentation",
+    "existing Execution Plan compiler, confirmed resource orchestrator, event asset/config executor interfaces and workbench conversation flow",
+    "focused fake/test_run smoke tests and disposable test records",
+    "project control-plane task status"
+  ],
+  "forbidden_actions": [
+    "real monitor, resource or std_project platform write",
+    "backup landing page SHARE",
+    "token refresh",
+    "budget or bid change",
+    "new business table, Plan kind, workflow node or duplicate executor",
+    "resource and std_project_create actions in the same confirmation Plan",
+    "raw request, response, payload, token, Cookie, auth_code or complete URL persistence"
+  ],
+  "validation_plan": [
+    "test:execution-plan",
+    "test:single-confirmation-orchestrator",
+    "test:event-asset-executor",
+    "test:event-configs-executor",
+    "test:workbench-conversation",
+    "test:workflow-case",
+    "smoke:api",
+    "validate:schemas",
+    "git diff --check",
+    "Postgres target-account zero-write audit and test_run cleanup"
+  ],
+  "stop_conditions": [
+    "A real platform write, SHARE, retry or credential refresh would be required.",
+    "A second resource orchestration mechanism or new business table would be required.",
+    "The two-confirm success contract would require mixing std_project_create into the Resource Plan."
+  ],
+  "scope": {
+    "route_id": "oceanengine_3_byte_mini_game",
+    "game_code": "JSZC",
+    "validation_advertiser_id": "1871922414575753",
+    "implementation_mode": "code_and_fake_transport_only",
+    "confirmation_model": "one_resource_plan_confirmation_then_one_create_plan_confirmation",
+    "monitor_ready_precondition": true
+  },
+  "human_gate": {
+    "implementation_plan": "user_approved",
+    "real_platform_write": "not_authorized"
+  },
+  "result": {
+    "status": "completed",
+    "architecture_changed": false,
+    "successful_path_confirmation_count": 2,
+    "resource_plan_and_create_plan_separated": true,
+    "authoritative_readback_required": true,
+    "target_account_real_platform_write_called": false,
+    "target_account_confirmation_count": 0,
+    "target_account_platform_action_count": 0,
+    "target_account_created_object_count": 0,
+    "remaining_external_prerequisites": [
+      "backup landing page SHARE to target account",
+      "micro-app instance authority readonly verification",
+      "event asset account contract eligibility"
+    ]
+  }
+}

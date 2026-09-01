@@ -235,6 +235,28 @@ export function mockReadyBundle(bundle = {}) {
           }
         };
       }
+      if (item.resource_type === "product_image") {
+        return {
+          ...item,
+          platform_resource_id: item.platform_resource_id || "900000000001",
+          visibility_status: "visible",
+          readback_status: "readback_verified",
+          metadata: {
+            ...(item.metadata || {}),
+            product_image_target_upload_readback: {
+              status: "passed",
+              image_id_present: true,
+              material_id_present: true,
+              mock: true
+            },
+            readonly_check: {
+              ...(item.metadata?.readonly_check || {}),
+              status: "passed",
+              mock: true
+            }
+          }
+        };
+      }
       if (["event_asset", "micro_app_instance"].includes(item.resource_type)) {
         return {
           ...item,

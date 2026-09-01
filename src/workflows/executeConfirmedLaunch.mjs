@@ -227,7 +227,7 @@ export async function executeConfirmedLaunch({
       singleVariableExperiment,
       expectedPlanId: currentPlanId,
       expectedPlanHash: currentPlanHash,
-      confirmedPlanExecution: planBound,
+      confirmedPlanExecution: Boolean(currentPlanId && currentPlanHash),
       projectStatePath,
       fetchImpl
     });

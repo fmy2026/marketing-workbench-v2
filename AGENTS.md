@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-08-31 21:32 CST |
-| 校验基线 | Git `62d6893` + Monitor 触点只读收口 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
+| 最后更新时间 | 2026-08-31 23:22 CST |
+| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -48,6 +48,8 @@ API：http://127.0.0.1:3000/api/
 ```
 
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
+
+ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
 
 ## 真值
 

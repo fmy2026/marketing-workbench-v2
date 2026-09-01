@@ -3,11 +3,12 @@ import {
   resolveConversationIntent
 } from "../agents/conversationIntentResolver.mjs";
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirmedLaunch.mjs";
+import { executeConfirmedResourcePlan } from "./skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
-import { getJobView, runJob } from "./launchWorkflow.mjs";
+import { createJob, getJobView, runJob } from "./launchWorkflow.mjs";
 import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
 import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
-import { PLAN_KIND_MONITOR_BOOTSTRAP } from "./executionPlan.mjs";
+import { PLAN_KIND_MONITOR_BOOTSTRAP, PLAN_KIND_RESOURCE_PREPARE } from "./executionPlan.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -46,6 +47,10 @@ export async function handleWorkbenchCommand({
   projectStatePath,
   fetchImpl,
   getJobViewFn = getJobView,
+  createFreshJobFn = createJob,
+  runJobFn = runJob,
+  executeConfirmedResourcePlanFn = executeConfirmedResourcePlan,
+  executeConfirmedLaunchFn = executeConfirmedLaunch,
   monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile
 } = {}) {
   if (!repo) throw new Error("repo_required");
@@ -72,11 +77,11 @@ export async function handleWorkbenchCommand({
   });
 
   if (interaction.effect === "run_dry_run") {
-    const nextView = await runJob(repo, jobId, { mode: "dry_run", projectStatePath });
+    const nextView = await runJobFn(repo, jobId, { mode: "dry_run", projectStatePath });
     return response({ view: nextView, interaction: { ...interaction, message: "只读就绪检查已完成。" } });
   }
   if (interaction.effect === "run_readback_only") {
-    const nextView = await runJob(repo, jobId, { mode: "readback_only", projectStatePath });
+    const nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath });
     return response({ view: nextView, interaction: { ...interaction, message: "只读回查已完成。" } });
   }
   if (interaction.effect === "run_monitor_readonly") {
@@ -121,6 +126,7 @@ export async function handleWorkbenchCommand({
     });
   }
   const isMonitorBootstrap = confirmationPreview.planKind === PLAN_KIND_MONITOR_BOOTSTRAP;
+  const isResourcePrepare = confirmationPreview.planKind === PLAN_KIND_RESOURCE_PREPARE;
   const executed = isMonitorBootstrap
     ? await executeConfirmedMonitorBootstrap({
       repo,
@@ -131,7 +137,17 @@ export async function handleWorkbenchCommand({
       projectStatePath,
       fetchImpl
     })
-    : await executeConfirmedLaunch({
+    : isResourcePrepare
+      ? await executeConfirmedResourcePlanFn({
+        repo,
+        jobId,
+        grantSource: "workbench_conversation",
+        expectedPlanId,
+        expectedPlanHash,
+        projectStatePath,
+        fetchImpl
+      })
+      : await executeConfirmedLaunchFn({
       repo,
       jobId,
       grantSource: "workbench_conversation",
@@ -141,18 +157,35 @@ export async function handleWorkbenchCommand({
       projectStatePath,
       fetchImpl
     });
-  const executionBlocked = isMonitorBootstrap
+  const executionBlocked = isMonitorBootstrap || isResourcePrepare
     ? executed.status === "blocked"
     : executed.executionGrant?.status === "blocked";
-  const nextView = isMonitorBootstrap ? await getJobViewFn(repo, jobId, { projectStatePath }) : executed;
+  let nextView = isMonitorBootstrap || isResourcePrepare
+    ? await getJobViewFn(repo, jobId, { projectStatePath })
+    : executed;
+  if (isResourcePrepare && !executionBlocked) {
+    const fresh = await createFreshJobFn(repo, {
+      case_id: bundle.job.case_id,
+      route_id: bundle.job.route_id,
+      game_code: bundle.job.game_code,
+      advertiser_id: bundle.job.advertiser_id,
+      source_usage: bundle.job.source_usage || "runtime_truth",
+      source_record_ref: `workbench:resource-plan:${confirmationPreview.planId}`
+    });
+    nextView = await runJobFn(repo, fresh.jobId, { mode: "dry_run", projectStatePath });
+  }
   return response({
     view: nextView,
     interaction: {
       ...interaction,
       effect: executionBlocked ? "execution_blocked" : "execution_completed",
       message: executionBlocked
-        ? `未执行平台创建：${(isMonitorBootstrap ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "当前确认 Gate 未通过"}。`
-        : isMonitorBootstrap ? "monitor 已按单次 Plan 执行并完成只读回查。" : "单次创建已提交，并已进入只读回查。"
+        ? `未执行受控动作：${(isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "当前确认 Gate 未通过"}。`
+        : isMonitorBootstrap
+          ? "monitor 已按单次 Plan 执行并完成只读回查。"
+          : isResourcePrepare
+            ? "资源 Plan 已执行并完成回查；同一 Case 的 fresh Job 已完成只读准备，请核对第二张创建确认卡。"
+            : "单次创建已提交，并已进入只读回查。"
     }
   });
 }

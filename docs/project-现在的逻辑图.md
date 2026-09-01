@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-08-31 21:20 CST |
-| 校验基线 | Git `62d6893` + 当前 Monitor 触点只读收口 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
+| 最后更新时间 | 2026-08-31 23:22 CST |
+| 校验基线 | Git `f61f700` + 新账户两次确认闭环 Task；`project.state.json.schema_version=2026-08-28.project-control-plane-v2`；最新 migration `066_monitor_ready_stale_skill_projection.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -91,7 +91,7 @@ v_monitor_readiness（唯一状态读取）
   └─ 只读失败、多候选、来源或合同缺失、executor 缺失、回查失败 → BLOCKED
 ```
 
-事件资产是账户级受控合同，不是通用模板开关：若目标账户尚无事件资产，先以当前账户、当前小游戏 App 和唯一受控实例候选调用 `optimized_goal/get` 做独立权威只读回查（不携带 `asset_id`），仅当业务码、request ID、作用域以及 `PAY + PURCHASE_ROI_7D` 均通过时，写入脱敏 `target_instance_readback_verified` 证据；随后再核验事件资产与完整事件链。readonly 才可生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许编译一个未确认的 `resource_prepare` Plan，且动作仅可为 `ensure_resource:event_asset`、调用上限为一次、禁止重试；引用型实例候选、独立回查失败或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
+事件资产是账户级受控合同，不是通用模板开关：若目标账户尚无事件资产，先以当前账户、当前小游戏 App 和唯一受控实例候选调用 `optimized_goal/get` 做独立权威只读回查（不携带 `asset_id`），仅当业务码、request ID、作用域以及 `PAY + PURCHASE_ROI_7D` 均通过时，写入脱敏 `target_instance_readback_verified` 证据；随后再核验事件资产与完整事件链。readonly 才可生成带 `target_advertiser_id`、版本化 `template_ref` 和动态 `template_hash` 的脱敏元数据。只有全部前提为真，才允许在同一未确认的 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`；事件资产身份回查通过后把真实 asset ID 仅传给本次 configs 执行，configs 完成后再做完整事件链回查。引用型实例候选、独立回查失败或任一合同不匹配均 fail-closed，既不保存可执行合同也不生成 Plan。
 
 历史 verified 不会因一次只读降级被覆盖为 missing；但历史 verified 也不能跳过本轮 verify-only Gate。共享备用页的目标 `SHARE` 清单请求降级时，保留最后一次 verified 资源事实，同时以 `site_get_target_shared_blocked` 阻断本轮 Plan。
 
@@ -109,12 +109,12 @@ v_monitor_readiness（唯一状态读取）
 已确认资源动作严格按以下顺序消费；每项均需 Plan 内授权、原子 claim、一次写入与权威回查：
 
 ```text
-ensure_resource:avatar
+ensure_resource:event_asset
+→ ensure_event_configs:baseline
+→ ensure_resource:avatar
 → ensure_resource:dmp_audience_package
-→ ensure_resource:event_asset
 → ensure_resource:video_asset
 → ensure_resource:product_image
-→ ensure_event_configs:baseline
 ```
 
 ## 4. Plan、确认与执行
@@ -128,6 +128,7 @@ ensure_resource:avatar
   → plan_id + plan_hash + action / limit 人工确认
   → confirmed-resource-orchestrator
   → 每项 atomic claim → write once → authoritative readback
+  → 全部通过后消费 Plan，在同一 Case 创建 fresh runtime Job
 
 全部 READY
   → Node 05 Draft / payload contract / duplicate readonly
@@ -184,7 +185,8 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 状态说明 / safe readonly / 脱敏确认卡
 → 仅 active Case 的最新 Job、唯一 `monitor_create_busy_retry_exhausted` blocker 且 `monitor_resolved=false` 时，精确“重新只读回查 monitor”可调用 Node 02 fresh readonly reconcile
 → 回查后若 Case Gate 为 `run_monitor_readonly`，普通“继续执行”只调用一次 fresh readonly reconcile；成功文案只以刷新后的 `monitor_resolved=true` 为准
-→ 仅精确“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
+→ 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
+→ Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示第二张 Create Plan 确认卡
 ```
 
 Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择平台动作、不扩大 Guardrail。对话、前端、API、CLI 和任务卡均不得持久化 raw transcript 或自行推导下一步。工作台只把 blocker code 映射为展示文案；Gate 与 suggested action 仍只来自 View。
