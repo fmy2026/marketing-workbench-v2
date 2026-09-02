@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 16:31 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 17:00 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -40,8 +40,8 @@ frontend / API / CLI / 任务卡 / 工作台对话
 → 账户缺失时执行乾坤 accountIndex 精确只读预检
 → 唯一命中且身份合同完整：写 advertiser_accounts + 脱敏 evidence
 → 创建或复用 active Case → fresh runtime Job
-→ 首次 dry_run 自动推进至 monitor fresh readonly reconcile
-→ 已有 monitor：沿现有只读链继续资源检查
+→ 先读取唯一 Gate：`run_monitor_readonly` 时自动 fresh readonly reconcile
+→ 已有且 canonical READY 的 monitor：同一 Job 自动 dry_run 继续资源检查
 → 无 monitor且合同完整：保存唯一 ready monitor_bootstrap Plan并返回确认卡
 ```
 
@@ -97,7 +97,7 @@ v_monitor_readiness（唯一状态读取）
 → fresh readonly 查重 → atomic claim → 单次创建 → 权威回查
 → 脱敏证据与触点落账
 → monitor 创建及权威回查通过，刷新同一 Job 的 Case Gate
-→ 下一次“继续执行”按 Gate 在当前 Job 继续 readonly / 正常 01–07
+→ 工作台按 Gate 自动继续当前 Job 的 readonly / 正常 01–07，停在下一确认卡、真实 blocker 或完成态
 ```
 
 `monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
@@ -224,7 +224,8 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡
 → 仅 active Case 的最新 Job、唯一 `monitor_create_busy_retry_exhausted` blocker 且 `monitor_resolved=false` 时，精确“重新只读回查 monitor”可调用 Node 02 fresh readonly reconcile
-→ 回查后若 Case Gate 为 `run_monitor_readonly`，普通“继续执行”只调用一次 fresh readonly reconcile；成功文案只以刷新后的 `monitor_resolved=true` 为准
+→ 正常启动、monitor Plan 成功与 Resource Plan 成功后，唯一有界推进器自动消费 latest active Job 的 `run_monitor_readonly` / `run_fresh_readiness`；不消费写入确认、`run_readback_only`、blocker 或历史 Job
+→ 已有正常 Case 若仍停在 `run_monitor_readonly`，一次“继续执行”完成该回查后同样交给推进器继续 readonly；终态专用“重新只读回查 monitor”仍只做一次回查
 → active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再 `dry_run`；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示第二张 Create Plan 确认卡

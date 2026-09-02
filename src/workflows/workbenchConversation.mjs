@@ -82,6 +82,7 @@ export async function handleWorkbenchCommand({
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
   runWorkbenchInitialReadonlyFn = runWorkbenchInitialReadonly,
+  executeConfirmedMonitorBootstrapFn = executeConfirmedMonitorBootstrap,
   executeConfirmedResourcePlanFn = executeConfirmedResourcePlan,
   executeConfirmedLaunchFn = executeConfirmedLaunch,
   monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile,
@@ -115,6 +116,8 @@ export async function handleWorkbenchCommand({
     const nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {
       mode: "dry_run",
       projectStatePath,
+      getJobViewFn,
+      forceDryRun: intent.intent === "request_readonly_recovery",
       runJobFn
     });
     return response({
@@ -163,6 +166,7 @@ export async function handleWorkbenchCommand({
     const nextView = await runWorkbenchInitialReadonlyFn(repo, recovery.jobId, {
       mode: "dry_run",
       projectStatePath,
+      getJobViewFn,
       runJobFn
     });
     return response({
@@ -195,8 +199,16 @@ export async function handleWorkbenchCommand({
       getJobViewFn
     });
     const reconcile = bridged.reconcile || {};
-    const nextView = bridged.view || await getJobViewFn(repo, jobId, { projectStatePath });
+    let nextView = bridged.view || await getJobViewFn(repo, jobId, { projectStatePath });
     const resolved = nextView?.caseGate?.monitorResolved === true;
+    if (interaction.currentGate === "run_monitor_readonly" && resolved) {
+      nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {
+        mode: "dry_run",
+        projectStatePath,
+        getJobViewFn,
+        runJobFn
+      });
+    }
     const reconcileBlocker = clean((reconcile?.blockers || [])[0]);
     const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0] || reconcileBlocker);
     const monitorFound = Boolean(clean(reconcile?.resolvedMonitor?.monitorId)) ||
@@ -237,7 +249,7 @@ export async function handleWorkbenchCommand({
   const isMonitorBootstrap = confirmationPreview.planKind === PLAN_KIND_MONITOR_BOOTSTRAP;
   const isResourcePrepare = confirmationPreview.planKind === PLAN_KIND_RESOURCE_PREPARE;
   const executed = isMonitorBootstrap
-    ? await executeConfirmedMonitorBootstrap({
+    ? await executeConfirmedMonitorBootstrapFn({
       repo,
       jobId,
       grantSource: "workbench_conversation",
@@ -272,7 +284,14 @@ export async function handleWorkbenchCommand({
   let nextView = isMonitorBootstrap || isResourcePrepare
     ? await getJobViewFn(repo, jobId, { projectStatePath })
     : executed;
-  if (isResourcePrepare && !executionBlocked) {
+  if (isMonitorBootstrap && !executionBlocked) {
+    nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      getJobViewFn,
+      runJobFn
+    });
+  } else if (isResourcePrepare && !executionBlocked) {
     const fresh = await createFreshJobFn(repo, {
       case_id: bundle.job.case_id,
       route_id: bundle.job.route_id,
@@ -284,6 +303,7 @@ export async function handleWorkbenchCommand({
     nextView = await runWorkbenchInitialReadonlyFn(repo, fresh.jobId, {
       mode: "dry_run",
       projectStatePath,
+      getJobViewFn,
       runJobFn
     });
   }
@@ -292,10 +312,11 @@ export async function handleWorkbenchCommand({
     interaction: {
       ...interaction,
       effect: executionBlocked ? "execution_blocked" : "execution_completed",
+      confirmationPreview: executionBlocked ? confirmationPreview : nextView?.confirmationPreview || null,
       message: executionBlocked
         ? `未执行受控动作：${(isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "当前确认 Gate 未通过"}。`
         : isMonitorBootstrap
-          ? "monitor 已按单次 Plan 执行并完成只读回查。"
+          ? "monitor 已按单次 Plan 执行并完成只读回查；工作台已自动按 Gate 继续 readonly。"
           : isResourcePrepare
             ? "资源 Plan 已执行并完成回查；同一 Case 的 fresh Job 已完成只读准备，请核对第二张创建确认卡。"
             : "单次创建已提交，并已进入只读回查。"

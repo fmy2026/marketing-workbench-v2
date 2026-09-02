@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 16:31 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 17:00 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -41,7 +41,7 @@
 → 既有 Plan-bound executor
 ```
 
-全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台 `dry_run` 到达 monitor Gate 后自动执行 fresh monitor readonly reconcile；无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，返回“确认创建 monitor”卡片，确认前不得调用创建接口。
+全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台启动先读取 active Case 最新 Job 的唯一 Gate：`run_monitor_readonly` 时自动执行一次 fresh monitor readonly reconcile；只有 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，直接返回“确认创建 monitor”卡片；该 Plan 的确认与权威回查成功后仍由同一有界推进器继续 readonly。每轮最多一次 reconcile 和一次 dry-run，到达确认 Gate、真实 blocker、完成态或 Gate 无变化立即停止，确认前不得调用创建接口。
 
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 
@@ -94,6 +94,7 @@ frontend / API
 
 - 3 阶段 7 Node 的唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。
 - Node 02 monitor 的唯一公开入口是 `src/workflows/skills/oe3/02-monitor/index.mjs`；CLI 只允许状态、readonly reconcile 和配置只读同步。monitor 写入必须消费 `monitor_bootstrap` Plan，不能由 CLI 或环境变量直接授权。
+- 正常工作台启动、monitor Plan 确认成功与 Resource Plan 成功后，只允许 `runWorkbenchInitialReadonly` 消费当前 active Case 最新 Job 的 `run_monitor_readonly` / `run_fresh_readiness` Gate，自动执行有界 readonly 推进；不得自动消费写入确认、`run_readback_only`、blocker 或历史 Job。
 - 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
 - 事件资产 detail 必须同时匹配当前账户的受控 App 与唯一实例候选；`micro_app_id` / `micro_app_instance_id` 等 allowlist 长数字字段须在 `JSON.parse` 前无损保留为字符串，缺失、失配、歧义或解析失败均 fail-closed。
 - 所有生产平台 HTTP 调用必须经唯一 deadline 封装：普通 JSON 15 秒、文件上传 60 秒；组合已有 `AbortSignal`、超时中止与 timer 清理，不自动重试。读超时只落脱敏 `timeout` 诊断；写超时、异常或响应不明一律先记为结果不明，再只做权威只读回查。事件配置保留 15 秒期限并沿该封装执行；其子 action 幂等键必须绑定已验证 planned action key、当前 Plan ID 与 event type，任一绑定缺失时在 action 占位和平台调用前 fail-closed。partial baseline 仍只由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类。

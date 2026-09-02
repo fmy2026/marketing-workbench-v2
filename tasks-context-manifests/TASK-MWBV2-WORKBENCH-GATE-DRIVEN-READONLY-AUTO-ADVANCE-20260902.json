@@ -1,0 +1,65 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 17:00 CST",
+  "updated_at": "2026-09-02 17:10 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make normal new-account workbench readonly progression Gate-driven and automatic until the next write confirmation, real blocker, or completion.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "Task, Manifest, state, design, and mechanism documentation",
+      "focused test_run/mock facts only"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "scripts/00-new-account-monitor-bootstrap-bridge-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, project state, Solution Design, AGENTS, and current mechanism docs",
+    "workbench readonly orchestration and focused smoke tests"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmations, monitor creates, resource creates, project creates, retries, token refreshes, and budget or bid changes",
+    "new database schema, endpoint, Gate, Plan/action type, or write authorization path",
+    "raw credential, request, response, transcript, URL, or payload persistence"
+  ],
+  "validation_plan": [
+    "new-account Gate-first no-monitor and monitor-ready readonly progression tests",
+    "monitor/resource confirmation latest-card projection tests",
+    "workbench conversation, runtime policy, monitor, API, and diff checks"
+  ],
+  "stop_conditions": [
+    "any real platform write would be required",
+    "the change weakens active/latest Case checks, exact Plan confirmation, fresh readonly, or no-retry rules",
+    "the change requires a new Schema, endpoint, Plan/action type, or external coordination"
+  ],
+  "completion": {
+    "completed_at": "2026-09-02 17:10 CST",
+    "result": "Implemented Gate-first bounded readonly auto-advance for normal workbench startup and post-confirmation flow; no real platform writes were performed.",
+    "validation": [
+      "test:new-account-monitor-bridge",
+      "test:workbench-conversation",
+      "test:workbench-runtime-policy",
+      "test:monitor",
+      "smoke:api",
+      "test:workbench-address",
+      "test:workbench-progress",
+      "git diff --check"
+    ]
+  }
+}

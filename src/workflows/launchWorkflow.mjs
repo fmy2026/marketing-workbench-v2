@@ -1381,12 +1381,38 @@ export async function reconcileMonitorAndPersistPlan(repo, jobId, options = {}) 
 export async function runWorkbenchInitialReadonly(repo, jobId, options = {}) {
   const runJobFn = options.runJobFn || runJob;
   const monitorBridgeFn = options.monitorBridgeFn || reconcileMonitorAndPersistPlan;
-  let view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });
-  if (view?.caseGate?.currentGate !== "run_monitor_readonly") return view;
-  const bridged = await monitorBridgeFn(repo, jobId, options);
-  if (bridged.reconcile?.runStatus === "touchpoint_resolved") {
-    view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });
+  const getJobViewFn = options.getJobViewFn || getJobView;
+  const forceDryRun = options.forceDryRun === true;
+  let view = forceDryRun
+    ? await runJobFn(repo, jobId, { ...options, mode: "dry_run" })
+    : await getJobViewFn(repo, jobId, options);
+  let monitorReadonlyExecuted = false;
+  let dryRunExecuted = forceDryRun;
+
+  for (let step = 0; step < 3; step += 1) {
+    const gate = view?.caseGate || {};
+    const canAutoAdvance = view?.isLatestCaseJob === true &&
+      gate.isLatestCaseJob === true &&
+      gate.lifecycleStatus === "active";
+    if (!canAutoAdvance) return view;
+
+    if (gate.currentGate === "run_monitor_readonly" && !monitorReadonlyExecuted) {
+      monitorReadonlyExecuted = true;
+      const bridged = await monitorBridgeFn(repo, jobId, { ...options, getJobViewFn });
+      view = bridged.view || await getJobViewFn(repo, jobId, options);
+      if (bridged.reconcile?.runStatus !== "touchpoint_resolved" || view?.caseGate?.monitorResolved !== true) {
+        return view;
+      }
+      continue;
+    }
+
+    if (gate.currentGate === "run_fresh_readiness" && !dryRunExecuted) {
+      dryRunExecuted = true;
+      view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });
+      continue;
+    }
+
     return view;
   }
-  return bridged.view;
+  return view;
 }

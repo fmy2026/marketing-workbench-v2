@@ -195,21 +195,88 @@ const duplicate = await reconcileMonitorAndPersistPlan(planRepo, JOB_ID, {
 assert(duplicate.existingReadyPlan === true, "existing_ready_monitor_plan_not_reused");
 assert(readonlyReconcileCalls === 1, "existing_ready_plan_must_prevent_duplicate_reconcile");
 
+const activeMonitorGateView = {
+  jobId: JOB_ID,
+  isLatestCaseJob: true,
+  caseGate: {
+    currentGate: "run_monitor_readonly",
+    isLatestCaseJob: true,
+    lifecycleStatus: "active",
+    monitorResolved: false
+  },
+  confirmationPreview: null
+};
 let initialDryRuns = 0;
 let initialBridgeCalls = 0;
 const initialView = await runWorkbenchInitialReadonly({}, JOB_ID, {
+  getJobViewFn: async () => activeMonitorGateView,
   runJobFn: async () => {
     initialDryRuns += 1;
-    return { caseGate: { currentGate: "run_monitor_readonly" } };
+    throw new Error("payload_build_must_not_run_before_monitor_bridge");
   },
   monitorBridgeFn: async () => {
     initialBridgeCalls += 1;
     return { view: bridge.view, reconcile: { runStatus: "account_resolved" }, planSaved: true };
   }
 });
-assert(initialDryRuns === 1, "initial_workbench_dry_run_count_changed");
+assert(initialDryRuns === 0, "initial_workbench_must_not_run_node5_before_monitor_bridge");
 assert(initialBridgeCalls === 1, "initial_monitor_bridge_not_run_once");
 assert(initialView.confirmationPreview?.confirmationPhrase === "确认创建 monitor", "initial_flow_did_not_return_monitor_confirmation");
+
+const monitorReadyView = {
+  jobId: JOB_ID,
+  isLatestCaseJob: true,
+  caseGate: {
+    currentGate: "run_fresh_readiness",
+    isLatestCaseJob: true,
+    lifecycleStatus: "active",
+    monitorResolved: true
+  },
+  confirmationPreview: null
+};
+const nextConfirmationView = {
+  ...monitorReadyView,
+  caseGate: {
+    ...monitorReadyView.caseGate,
+    currentGate: "await_job_write_authorization"
+  },
+  confirmationPreview: {
+    planKind: "resource_prepare",
+    confirmationPhrase: "确认准备资源",
+    planId: "PLAN-RESOURCE-NEXT",
+    planHash: `sha256:${"3".repeat(64)}`
+  }
+};
+let existingMonitorBridgeCalls = 0;
+let existingMonitorDryRuns = 0;
+const existingMonitorView = await runWorkbenchInitialReadonly({}, JOB_ID, {
+  getJobViewFn: async () => activeMonitorGateView,
+  monitorBridgeFn: async () => {
+    existingMonitorBridgeCalls += 1;
+    return { view: monitorReadyView, reconcile: { runStatus: "touchpoint_resolved" }, planSaved: false };
+  },
+  runJobFn: async (_repo, receivedJobId, options) => {
+    existingMonitorDryRuns += 1;
+    assert(receivedJobId === JOB_ID, "monitor_ready_dry_run_job_changed");
+    assert(options.mode === "dry_run", "monitor_ready_must_continue_with_dry_run");
+    return nextConfirmationView;
+  }
+});
+assert(existingMonitorBridgeCalls === 1, "monitor_ready_bridge_must_run_once");
+assert(existingMonitorDryRuns === 1, "monitor_ready_must_run_one_dry_run");
+assert(existingMonitorView.confirmationPreview?.confirmationPhrase === "确认准备资源", "monitor_ready_must_return_next_confirmation");
+
+let historicalBridgeCalls = 0;
+const historicalView = await runWorkbenchInitialReadonly({}, JOB_ID, {
+  getJobViewFn: async () => ({
+    ...activeMonitorGateView,
+    isLatestCaseJob: false,
+    caseGate: { ...activeMonitorGateView.caseGate, isLatestCaseJob: false }
+  }),
+  monitorBridgeFn: async () => { historicalBridgeCalls += 1; }
+});
+assert(historicalBridgeCalls === 0, "historical_job_must_not_auto_advance");
+assert(historicalView.isLatestCaseJob === false, "historical_view_changed");
 
 console.log(JSON.stringify({
   status: "passed",
@@ -218,6 +285,8 @@ console.log(JSON.stringify({
   accountFailureFailClosed: true,
   scopeConflictFailClosed: true,
   monitorReadonlyReconcileCalls: readonlyReconcileCalls,
+  initialNoMonitorDryRuns: initialDryRuns,
+  existingMonitorDryRuns,
   monitorPlanActions: storedPlan.planned_actions.map((action) => action.action_type),
   confirmationPhrase: bridge.view.confirmationPreview.confirmationPhrase,
   realPlatformWriteCalled: false

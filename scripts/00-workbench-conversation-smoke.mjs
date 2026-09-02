@@ -233,7 +233,7 @@ const resourceResponse = await handleWorkbenchCommand({
     assert(input.case_id === "CASE-RESOURCE-1", "fresh_job_case_changed");
     return { jobId: "JOB-FRESH-2" };
   },
-  runJobFn: async (_repo, freshJobId, options) => {
+  runWorkbenchInitialReadonlyFn: async (_repo, freshJobId, options) => {
     freshReadonlyCount += 1;
     assert(freshJobId === "JOB-FRESH-2", "fresh_job_id_changed");
     assert(options.mode === "dry_run", "fresh_job_must_run_readonly");
@@ -245,6 +245,83 @@ assert(freshJobCreateCount === 1, "fresh_job_not_created_once");
 assert(freshReadonlyCount === 1, "fresh_readonly_not_run_once");
 assert(resourceResponse.view.jobId === "JOB-FRESH-2", "workbench_did_not_switch_to_fresh_job");
 assert(resourceResponse.interaction.message.includes("第二张创建确认卡"), "second_confirmation_guidance_missing");
+assert(resourceResponse.interaction.confirmationPreview?.planId === "PLAN-CREATE-2", "resource_response_reused_consumed_confirmation");
+
+const monitorPlan = {
+  plan_status: "ready",
+  plan_kind: "monitor_bootstrap",
+  plan_id: "PLAN-MONITOR-1",
+  plan_hash: `sha256:${"4".repeat(64)}`,
+  blocker_codes: [],
+  planned_actions: [{ action_type: "ensure_monitor", maximum_platform_calls: 1 }],
+  metadata: {
+    plan_kind: "monitor_bootstrap",
+    monitor_bootstrap: { cycle_id: "MON-CYCLE-1", attempt_no: 1 },
+    execution_scope: { binding_mode: "single_confirmation_plan", maximum_platform_calls: 1, retry_allowed: false }
+  }
+};
+const monitorBundle = {
+  job: {
+    job_id: "JOB-MONITOR-1",
+    case_id: "CASE-MONITOR-1",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922414575753",
+    source_usage: "test_run"
+  },
+  executionPlan: monitorPlan
+};
+const monitorCaseSummary = {
+  lifecycle_status: "active",
+  current_gate: "await_job_write_authorization",
+  suggested_next_action: "obtain_monitor_bootstrap_confirmation",
+  root_blocker_codes: [],
+  latest_job_id: "JOB-MONITOR-1"
+};
+const monitorPreview = buildConfirmationPreview(monitorBundle, monitorCaseSummary);
+const monitorConfirmationView = {
+  ...jobView,
+  jobId: "JOB-MONITOR-1",
+  caseId: "CASE-MONITOR-1",
+  confirmationPreview: monitorPreview
+};
+const monitorNextView = {
+  ...monitorConfirmationView,
+  confirmationPreview: {
+    planKind: "resource_prepare",
+    confirmationPhrase: "确认准备资源",
+    planId: "PLAN-RESOURCE-AFTER-MONITOR",
+    planHash: `sha256:${"5".repeat(64)}`
+  }
+};
+let monitorExecutionCount = 0;
+let monitorAutoAdvanceCount = 0;
+const monitorResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return monitorBundle; },
+    async getWorkflowCaseSummary() { return monitorCaseSummary; }
+  },
+  jobId: "JOB-MONITOR-1",
+  message: "确认创建 monitor",
+  expectedPlanId: monitorPlan.plan_id,
+  expectedPlanHash: monitorPlan.plan_hash,
+  getJobViewFn: async () => monitorConfirmationView,
+  executeConfirmedMonitorBootstrapFn: async ({ expectedPlanId, expectedPlanHash }) => {
+    monitorExecutionCount += 1;
+    assert(expectedPlanId === monitorPlan.plan_id, "monitor_execution_plan_id_drift");
+    assert(expectedPlanHash === monitorPlan.plan_hash, "monitor_execution_plan_hash_drift");
+    return { status: "passed", blockers: [] };
+  },
+  runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
+    monitorAutoAdvanceCount += 1;
+    assert(receivedJobId === "JOB-MONITOR-1", "monitor_auto_advance_job_changed");
+    assert(options.mode === "dry_run", "monitor_auto_advance_must_use_dry_run");
+    return monitorNextView;
+  }
+});
+assert(monitorExecutionCount === 1, "monitor_plan_not_executed_once");
+assert(monitorAutoAdvanceCount === 1, "monitor_confirmation_did_not_auto_advance");
+assert(monitorResponse.interaction.confirmationPreview?.planId === "PLAN-RESOURCE-AFTER-MONITOR", "monitor_response_reused_consumed_confirmation");
 
 const freshCreateBundle = {
   job: {
@@ -523,6 +600,77 @@ assert(readonlyReconcileCalls === 1, "exact terminal monitor command must call r
 assert(terminalResponse.interaction.kind === "run_monitor_readonly", "terminal monitor response effect changed");
 assert(terminalResponse.interaction.message.includes("未创建、未重试"), "terminal monitor no-write outcome missing");
 
+const normalMonitorCase = {
+  lifecycle_status: "active",
+  current_gate: "run_monitor_readonly",
+  suggested_next_action: "run_monitor_readonly_reconcile",
+  root_blocker_codes: ["monitor_readonly_reconcile_required"],
+  monitor_resolved: false,
+  latest_job_id: "JOB-NORMAL-MONITOR-1"
+};
+const normalMonitorView = {
+  ...terminalView,
+  jobId: "JOB-NORMAL-MONITOR-1",
+  caseGate: {
+    currentGate: "run_monitor_readonly",
+    suggestedNextAction: "run_monitor_readonly_reconcile",
+    rootBlockerCodes: ["monitor_readonly_reconcile_required"],
+    lifecycleStatus: "active",
+    isLatestCaseJob: true,
+    monitorResolved: false
+  }
+};
+const normalMonitorResolvedView = {
+  ...normalMonitorView,
+  caseGate: {
+    ...normalMonitorView.caseGate,
+    currentGate: "run_fresh_readiness",
+    monitorResolved: true
+  }
+};
+const normalMonitorNextView = {
+  ...normalMonitorResolvedView,
+  caseGate: {
+    ...normalMonitorResolvedView.caseGate,
+    currentGate: "await_job_write_authorization"
+  },
+  confirmationPreview: {
+    planKind: "resource_prepare",
+    confirmationPhrase: "确认准备资源",
+    planId: "PLAN-NORMAL-MONITOR-NEXT",
+    planHash: `sha256:${"6".repeat(64)}`
+  }
+};
+let normalMonitorBridgeCalls = 0;
+let normalMonitorAutoAdvanceCalls = 0;
+const normalMonitorResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() {
+      return {
+        ...terminalBundle,
+        job: { ...terminalBundle.job, job_id: "JOB-NORMAL-MONITOR-1" }
+      };
+    },
+    async getWorkflowCaseSummary() { return normalMonitorCase; }
+  },
+  jobId: "JOB-NORMAL-MONITOR-1",
+  message: "继续执行",
+  getJobViewFn: async () => normalMonitorView,
+  monitorReadonlyPlanBridge: async () => {
+    normalMonitorBridgeCalls += 1;
+    return { view: normalMonitorResolvedView, reconcile: { runStatus: "touchpoint_resolved" } };
+  },
+  runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
+    normalMonitorAutoAdvanceCalls += 1;
+    assert(receivedJobId === "JOB-NORMAL-MONITOR-1", "normal_monitor_continue_job_changed");
+    assert(options.mode === "dry_run", "normal_monitor_continue_must_resume_dry_run");
+    return normalMonitorNextView;
+  }
+});
+assert(normalMonitorBridgeCalls === 1, "normal_monitor_continue_must_reconcile_once");
+assert(normalMonitorAutoAdvanceCalls === 1, "normal_monitor_continue_must_auto_advance_once");
+assert(normalMonitorResponse.interaction.confirmationPreview?.planId === "PLAN-NORMAL-MONITOR-NEXT", "normal_monitor_continue_must_return_next_confirmation");
+
 const pendingTouchpointView = {
   ...terminalView,
   caseGate: {
@@ -597,7 +745,15 @@ const recoveryView = {
 const recoveredView = {
   ...recoveryView,
   jobId: "JOB-RECOVERY-FRESH-1",
-  headline: { status: "blocked" }
+  headline: { status: "blocked" },
+  isLatestCaseJob: true,
+  caseGate: {
+    currentGate: "run_fresh_readiness",
+    suggestedNextAction: "run_readonly_readiness",
+    rootBlockerCodes: [],
+    lifecycleStatus: "active",
+    isLatestCaseJob: true
+  }
 };
 let recoveryCreateCalls = 0;
 let recoveryDryRunCalls = 0;
@@ -608,7 +764,7 @@ const recoveryResponse = await handleWorkbenchCommand({
   },
   jobId: "JOB-RECOVERY-1",
   message: "重新只读准备",
-  getJobViewFn: async () => recoveryView,
+  getJobViewFn: async (_repo, requestedJobId) => requestedJobId === "JOB-RECOVERY-FRESH-1" ? recoveredView : recoveryView,
   credentialStateFn: () => ({ status: "ready", blockers: [] }),
   createReadonlyRecoveryJobFn: async (_repo, predecessor) => {
     recoveryCreateCalls += 1;
