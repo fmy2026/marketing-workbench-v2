@@ -709,6 +709,11 @@ function rootBlockerPresentation(code = "") {
       reason: "已确认资源 Plan 在平台响应未明确时停止；旧 Plan 已消费且禁止重试。",
       nextActionLabel: "输入“重新只读准备”创建 fresh Job，只读核验后再决定新的 Plan。"
     },
+    created_object_readback_pending: {
+      title: "项目已创建，等待平台 API 可见",
+      reason: "创建接口已返回对象 ID，但权威 list 回查尚未确认对象 ID 与草稿名称一致。",
+      nextActionLabel: "输入“继续执行”进行一次只读回查；不会再次创建项目。"
+    },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",
@@ -762,10 +767,66 @@ function primaryActionView(bundle = {}, createReadiness = {}, executionAvailabil
   };
 }
 
+function persistedCreateSucceeded(bundle = {}) {
+  return Boolean(bundle.createdObject?.object_id) &&
+    bundle.platformAction?.object_id_present === true &&
+    ["succeeded", "mock_succeeded"].includes(bundle.platformAction?.action_status);
+}
+
+function projectCreatedNodeStatus(nodeKey, row = {}, bundle = {}) {
+  if (nodeKey === "readback_closer" && bundle.readback?.readback_status === "readback_verified") {
+    return {
+      ...row,
+      status: "passed",
+      summary: "真实对象名与对象 ID 回查一致，已完成收口。",
+      diagnostic_level: "info",
+      output_summary: {
+        ...(row.output_summary || {}),
+        readbackStatus: "readback_verified",
+        realPlatformReadbackCalled: true,
+        objectNameMatchesDraft: true
+      }
+    };
+  }
+  if (!persistedCreateSucceeded(bundle)) return row;
+  if (nodeKey === "std_project_draft_builder") {
+    return {
+      ...row,
+      status: "passed",
+      summary: "创建草稿已确认并进入创建/回查闭环。",
+      diagnostic_level: "info",
+      output_summary: {
+        ...(row.output_summary || {}),
+        confirmed_create_projection: true,
+        retry_allowed: false
+      }
+    };
+  }
+  if (nodeKey === "std_project_create_executor") {
+    return {
+      ...row,
+      status: "passed",
+      summary: "真实 std_project/create 已单次执行，已返回对象 ID，等待或执行回查。",
+      diagnostic_level: "info",
+      output_summary: {
+        ...(row.output_summary || {}),
+        createNodeStatus: "created_pending_readback",
+        createCalled: bundle.platformAction?.action_status === "succeeded",
+        mockCreateCalled: bundle.platformAction?.action_status === "mock_succeeded",
+        realPlatformWriteCalled: bundle.platformAction?.action_status === "succeeded",
+        objectIdPresent: true,
+        retryAllowed: false,
+        nextConfirmationRequired: false
+      }
+    };
+  }
+  return row;
+}
+
 export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null, presentation = {}) {
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
-    const row = dbNodes.get(node.nodeKey) || {};
+    const row = projectCreatedNodeStatus(node.nodeKey, dbNodes.get(node.nodeKey) || {}, bundle);
     return {
       ...node,
       status: row.status || "waiting",
@@ -787,11 +848,14 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
   const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
+  const completedCase = caseGate.isLatestCaseJob && caseGate.currentGate === "first_std_project_create_completed";
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
     status: bundle.job.job_status,
-    statusLabel: statusLabel(bundle.job.job_status),
-    nextAction: caseGate.currentGate
+    statusLabel: completedCase ? "已完成" : statusLabel(bundle.job.job_status),
+    nextAction: completedCase
+      ? "已完成，无需继续执行"
+      : caseGate.currentGate
       ? (caseGate.isLatestCaseJob ? caseGate.suggestedNextAction : "历史运行，只读查看。")
       : fallbackNextAction
   };
@@ -822,7 +886,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     agent: {
       name: "投放创建 Agent",
       status: bundle.job.job_status,
-      statusText: statusLabel(bundle.job.job_status),
+      statusText: completedCase ? "已完成" : statusLabel(bundle.job.job_status),
       mode: modeForStatus(bundle.job.job_status),
       writePolicy: bundle.route.write_policy === "confirm_required" ? "确认占位" : bundle.route.write_policy
     },
@@ -1180,5 +1244,14 @@ export async function runJob(repo, jobId, options = {}) {
     confirmedPlanExecution: options.confirmedPlanExecution === true,
     projectStatePath: options.projectStatePath
   });
-  return buildPublicJobView(repo, result.bundle, options);
+  const view = await buildPublicJobView(repo, result.bundle, options);
+  if (options.includeExecutionSummary === true) {
+    return {
+      view,
+      runSummary: {
+        createCalled: result.summary?.noRealPlatformWrite !== true
+      }
+    };
+  }
+  return view;
 }

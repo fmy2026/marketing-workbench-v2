@@ -46,6 +46,18 @@ assert(
   }) === "进度 4 / 7 · 已暂停：资源执行中断，等待只读恢复",
   "interrupted_resource_progress_copy_mismatch"
 );
+const createdPendingReadbackNodes = nodes.map((node, index) => index < 6 ? { ...node, status: "passed" } : { ...node, status: "repairable" });
+assert(
+  progressPresentation({
+    nodes: createdPendingReadbackNodes,
+    caseGate: {
+      currentGate: "run_readback_only",
+      rootBlockerCodes: ["created_object_readback_pending"],
+      rootBlocker: { title: "项目已创建，等待平台 API 可见" }
+    }
+  }) === "进度 6 / 7 · 已暂停：项目已创建，等待平台 API 可见",
+  "created_pending_readback_must_render_six_of_seven_paused"
+);
 assert(
   progressPresentation({
     nodes,
@@ -81,6 +93,8 @@ const clientSource = await readFile(new URL("../frontend/app.js", import.meta.ur
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");
 assert(clientSource.includes("withProgressPolling"), "command_progress_polling_missing");
 assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_switch_missing");
+assert(clientSource.includes("已完成，无需继续执行"), "completed_gate_next_action_copy_missing");
+assert(clientSource.includes("已完成，可输入“查看状态”"), "completed_gate_input_copy_missing");
 
 console.log(JSON.stringify({
   status: "passed",

@@ -263,22 +263,38 @@ try {
   });
   cleanupJobIds.push(completionJob.jobId);
   const completionPlanId = `PLAN-${completionJob.jobId}-V1`;
+  const completionConfirmationId = `CONFIRM-${completionJob.jobId}-CREATE`;
   const completionActionId = `ACTION-${completionJob.jobId}-CREATE`;
   const completionObjectId = "900000001";
   await repo.upsertLaunchExecutionPlan({
     planId: completionPlanId,
     jobId: completionJob.jobId,
     planVersion: 1,
+    planKind: "std_project_create",
     planStatus: "ready",
     planHash: `sha256:${"6".repeat(64)}`,
     plannedActions: [{ action_type: "std_project_create", status: "ready" }],
     blockerCodes: [],
     sourceUsage: "test_run",
-    metadata: { resource_states: [], root_blocker_codes: [] }
+    metadata: { plan_kind: "std_project_create", resource_states: [], root_blocker_codes: [] }
+  });
+  await repo.upsertLaunchConfirmation({
+    confirmationId: completionConfirmationId,
+    jobId: completionJob.jobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: "workflow-case-completion-smoke",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "TEST=CONFIRMED",
+    confirmedBy: "workflow_case_smoke",
+    planId: completionPlanId,
+    metadata: { binding_mode: "single_confirmation_plan", retry_allowed: false }
   });
   await repo.upsertPlatformAction({
     actionId: completionActionId,
     jobId: completionJob.jobId,
+    confirmationId: completionConfirmationId,
     planId: completionPlanId,
     actionType: "oceanengine_std_project_create",
     endpoint: "test:std_project/create",
@@ -298,10 +314,40 @@ try {
     objectId: completionObjectId,
     objectName: "workflow-case-completion-smoke",
     objectStatus: "ENABLE",
-    readbackStatus: "readback_verified",
+    readbackStatus: "pending",
     evidenceRef: `EV-${completionJob.jobId}-READBACK`,
     readbackAt: new Date().toISOString()
   });
+  const waitingReadbackPlan = await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
+    jobId: completionJob.jobId,
+    planId: completionPlanId
+  });
+  assert(waitingReadbackPlan.transitioned === true, "confirmed_create_plan_must_enter_waiting_readback");
+  assert((await repo.getLatestLaunchExecutionPlan(completionJob.jobId))?.plan_status === "waiting_readback", "waiting_readback_plan_status_missing");
+  for (const nodeKey of ["creation_context", "game_launch_pack", "account_resource_prepare"]) {
+    await repo.updateNodeRun(completionJob.jobId, nodeKey, {
+      status: "passed",
+      summary: "stable completed prerequisite",
+      diagnosticLevel: "info"
+    });
+  }
+  await repo.updateNodeRun(completionJob.jobId, "std_project_draft_builder", {
+    status: "needs_confirmation",
+    summary: "stale confirmation snapshot",
+    diagnosticLevel: "warning"
+  });
+  await repo.updateNodeRun(completionJob.jobId, "std_project_create_executor", {
+    status: "waiting",
+    summary: "stale create snapshot",
+    diagnosticLevel: "pending"
+  });
+  const pendingReadbackView = await getJobView(repo, completionJob.jobId);
+  const pendingReadbackNodeStatuses = Object.fromEntries(
+    pendingReadbackView.phases.flatMap((phase) => phase.nodes).map((node) => [node.id, node.status])
+  );
+  assert(pendingReadbackView.caseGate.currentGate === "run_readback_only", "created_object_must_use_readback_only_gate");
+  assert(Object.values(pendingReadbackNodeStatuses).filter((status) => status === "passed").length === 6, "created_pending_readback_must_view_as_six_of_seven");
+  assert(pendingReadbackNodeStatuses.readback_closer === "waiting", "created_pending_readback_must_keep_node7_pending");
   await repo.upsertReadbackRecord({
     readbackId: `RB-${completionJob.jobId}-STD-PROJECT-REAL`,
     jobId: completionJob.jobId,
@@ -312,6 +358,41 @@ try {
     fieldDiffSummary: { project_id_matches_create: true },
     evidenceRef: `EV-${completionJob.jobId}-READBACK`
   });
+  await repo.upsertCreatedObject({
+    createdObjectId: `CO-${completionJob.jobId}-STD-PROJECT-${completionObjectId}`,
+    jobId: completionJob.jobId,
+    actionId: completionActionId,
+    objectType: "std_project",
+    objectId: completionObjectId,
+    objectName: "workflow-case-completion-smoke",
+    objectStatus: "ENABLE",
+    readbackStatus: "readback_verified",
+    evidenceRef: `EV-${completionJob.jobId}-READBACK`,
+    readbackAt: new Date().toISOString()
+  });
+  const consumedReadbackPlan = await repo.consumeConfirmedStdProjectCreatePlanAfterReadback({
+    jobId: completionJob.jobId,
+    planId: completionPlanId
+  });
+  assert(consumedReadbackPlan.consumed === true, "verified_readback_must_consume_create_plan");
+  assert((await repo.getLatestLaunchExecutionPlan(completionJob.jobId))?.plan_status === "consumed", "consumed_plan_status_missing");
+  await repo.updateNodeRun(completionJob.jobId, "std_project_draft_builder", {
+    status: "needs_confirmation",
+    summary: "stale confirmation snapshot",
+    diagnosticLevel: "warning"
+  });
+  await repo.updateNodeRun(completionJob.jobId, "std_project_create_executor", {
+    status: "waiting",
+    summary: "stale create snapshot",
+    diagnosticLevel: "pending"
+  });
+  const completionView = await getJobView(repo, completionJob.jobId);
+  const completionNodeStatuses = Object.fromEntries(
+    completionView.phases.flatMap((phase) => phase.nodes).map((node) => [node.id, node.status])
+  );
+  assert(completionNodeStatuses.std_project_draft_builder === "passed", "created_object_must_project_node5_passed_without_a_new_command");
+  assert(completionNodeStatuses.std_project_create_executor === "passed", "created_object_must_preserve_node6_passed_without_a_new_command");
+  assert(completionNodeStatuses.readback_closer === "passed", "verified_readback_must_project_node7_passed_without_a_new_command");
   await repo.updateJob(completionJob.jobId, { status: "created", currentNode: "7" });
   const completionSummary = await repo.getWorkflowCaseSummary(completionCase.case_id);
   assert(completionSummary.current_gate === "first_std_project_create_completed", "verified_create_must_close_case_before_ready_plan_gate");
@@ -362,6 +443,7 @@ try {
     sharedReadonlyRootBlocker: sharedReadonlyDegradedSummary.root_blocker_codes[0],
     confirmedResourceStopRootBlocker: confirmedResourceStopSummary.root_blocker_codes[0],
     completedCreateGate: completionSummary.current_gate,
+    confirmedCreatePlanLifecycle: ["ready", "waiting_readback", "consumed"],
     historicalJobSeparated: historicalView.isLatestCaseJob === false && latestView.isLatestCaseJob === true,
     structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,
     platformWrites: 0

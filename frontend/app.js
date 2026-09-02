@@ -279,7 +279,10 @@ import {
       if (gate.rootBlocker?.nextActionLabel) panel.append(el("span", "", `处理建议：${gate.rootBlocker.nextActionLabel}`));
     }
     if (currentCaseView && gate.suggestedNextAction) {
-      panel.append(el("span", "", `下一步：${gate.suggestedNextAction}`));
+      const nextAction = gate.currentGate === "first_std_project_create_completed"
+        ? "已完成，无需继续执行"
+        : gate.suggestedNextAction;
+      panel.append(el("span", "", `下一步：${nextAction}`));
     }
   }
 
@@ -382,7 +385,11 @@ import {
     const activeCaseConversation = job?.isLatestCaseJob === true && !viewOnly;
     const input = document.getElementById("chatInput");
     input.disabled = viewOnly || busy || Boolean(job && !activeCaseConversation);
-    input.placeholder = activeCaseConversation ? "输入“继续执行”或“查看状态”..." : "输入投放需求...";
+    input.placeholder = activeCaseConversation
+      ? job?.caseGate?.currentGate === "first_std_project_create_completed"
+        ? "已完成，可输入“查看状态”..."
+        : "输入“继续执行”或“查看状态”..."
+      : "输入投放需求...";
     document.querySelector(".send-button").disabled = input.disabled;
     refreshIcons();
   }

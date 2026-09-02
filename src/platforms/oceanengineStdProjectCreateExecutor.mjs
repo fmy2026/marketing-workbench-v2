@@ -179,7 +179,13 @@ function summarizeListPayload(payload = {}, projectName = "") {
   const data = payload.data || {};
   const list = data.list || data.items || data.projects || [];
   const items = Array.isArray(list) ? list : [];
-  const match = items.find((item) => clean(item.name || item.project_name || item.std_project_name) === projectName) || null;
+  const nameMatch = items.find((item) => clean(item.name || item.project_name || item.std_project_name) === projectName) || null;
+  // The list endpoint is filtered by draft name, but retain the first returned
+  // object when that filter is eventually consistent or interpreted loosely.
+  // That lets the readback close immediately and preserve an ID/name mismatch
+  // for manual inspection instead of relabeling a visible inconsistent object
+  // as another ordinary "not found" attempt.
+  const match = nameMatch || items[0] || null;
   return {
     apiCode: extractApiCode(payload),
     requestIdPresent: Boolean(extractRequestId(payload)),
@@ -187,7 +193,7 @@ function summarizeListPayload(payload = {}, projectName = "") {
     objectId: clean(match?.project_id || match?.std_project_id || match?.id || ""),
     objectName: clean(match?.name || match?.project_name || match?.std_project_name || ""),
     objectStatus: clean(match?.status || match?.project_status || match?.opt_status || ""),
-    objectNameMatches: Boolean(match)
+    objectNameMatches: Boolean(nameMatch)
   };
 }
 
@@ -639,6 +645,12 @@ export async function createStdProjectForTargetOnce({
       verification_task_ref: runtimeTarget.verificationTaskRef || ""
     }
   });
+  if (runtimeTarget.planId && typeof repo.markConfirmedStdProjectCreatePlanWaitingReadback === "function") {
+    await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
+      jobId: runtimeTarget.jobId,
+      planId: runtimeTarget.planId
+    });
+  }
   return {
     status: "created_pending_readback",
     createCalled: true,
@@ -651,7 +663,7 @@ export async function createStdProjectForTargetOnce({
   };
 }
 
-const DEFAULT_STD_PROJECT_READBACK_DELAYS_MS = Object.freeze([0, 10000, 30000]);
+export const DEFAULT_STD_PROJECT_READBACK_DELAYS_MS = Object.freeze([0, 3000, 5000, 8000, 10000]);
 
 function sleep(delayMs) {
   return delayMs > 0 ? new Promise((resolve) => setTimeout(resolve, delayMs)) : Promise.resolve();
@@ -659,8 +671,9 @@ function sleep(delayMs) {
 
 function safeReadbackDelays(delays = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS) {
   const values = Array.isArray(delays) ? delays : DEFAULT_STD_PROJECT_READBACK_DELAYS_MS;
-  const normalized = values.map(Number).filter((value) => Number.isInteger(value) && value >= 0 && value <= 30000);
-  return normalized.length ? normalized.slice(0, 3) : [...DEFAULT_STD_PROJECT_READBACK_DELAYS_MS];
+  const normalized = [...new Set(values.map(Number).filter((value) => Number.isInteger(value) && value >= 0 && value <= 10000))]
+    .sort((left, right) => left - right);
+  return normalized.length ? normalized.slice(0, 5) : [...DEFAULT_STD_PROJECT_READBACK_DELAYS_MS];
 }
 
 export async function readbackStdProjectOnce({
@@ -668,7 +681,9 @@ export async function readbackStdProjectOnce({
   jobId,
   target = null,
   fetchImpl = globalThis.fetch,
-  readbackDelaysMs = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS
+  readbackDelaysMs = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS,
+  nowFn = Date.now,
+  sleepImpl = sleep
 } = {}) {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
@@ -691,13 +706,19 @@ export async function readbackStdProjectOnce({
   const createResponseObjectId = responseConfirmedByCreate
     ? clean(bundle.createdObject?.object_id)
     : "";
+  if (runtimeTarget.planId && typeof repo.markConfirmedStdProjectCreatePlanWaitingReadback === "function") {
+    await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
+      jobId,
+      planId: runtimeTarget.planId
+    });
+  }
   let response = null;
   let text = "";
   let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
-  const readbackStartedAt = Date.now();
+  const readbackStartedAt = nowFn();
   for (const delayMs of safeReadbackDelays(readbackDelaysMs)) {
-    const elapsedMs = Date.now() - readbackStartedAt;
-    await sleep(Math.max(0, delayMs - elapsedMs));
+    const elapsedMs = nowFn() - readbackStartedAt;
+    await sleepImpl(Math.max(0, delayMs - elapsedMs));
     try {
       response = await fetchImpl(url, {
         method: "GET",
@@ -745,7 +766,7 @@ export async function readbackStdProjectOnce({
       project_id_matches_create: projectIdMatchesCreate,
       response_hash: `sha256:${sha256(text)}`
     });
-    if (summary.objectId && summary.objectNameMatches) break;
+    if (summary.objectId) break;
   }
   const evidenceRef = `EV-${jobId}-STD-PROJECT-READBACK-ONCE`;
   await repo.upsertEvidence({
@@ -806,15 +827,26 @@ export async function readbackStdProjectOnce({
       },
       evidenceRef
     });
+    if (runtimeTarget.planId && typeof repo.consumeConfirmedStdProjectCreatePlanAfterReadback === "function") {
+      await repo.consumeConfirmedStdProjectCreatePlanAfterReadback({
+        jobId,
+        planId: runtimeTarget.planId
+      });
+    }
   } else {
-    const projectIdMismatch = Boolean(summary.objectId) && summary.objectNameMatches && !projectIdMatchesCreate;
+    const projectIdMismatch = Boolean(summary.objectId) && !projectIdMatchesCreate;
+    const projectNameMismatch = Boolean(summary.objectId) && projectIdMatchesCreate && !summary.objectNameMatches;
     await repo.upsertReadbackRecord({
       readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
       jobId,
       objectType: "std_project",
       objectId: projectIdMismatch ? (createResponseObjectId || "PROJECT_ID_MISMATCH") : "NOT_FOUND_AFTER_CREATE",
       objectName: runtimeTarget.projectName,
-      readbackStatus: projectIdMismatch ? "project_id_mismatch" : "not_found_after_create",
+      readbackStatus: projectIdMismatch
+        ? "project_id_mismatch"
+        : projectNameMismatch
+          ? "project_name_mismatch"
+          : "not_found_after_create",
       fieldDiffSummary: {
         object_name_matches_draft: summary.objectNameMatches === true,
         source: "oceanengine_std_project_list",
@@ -832,8 +864,10 @@ export async function readbackStdProjectOnce({
   return {
     status: readbackVerified
       ? "readback_verified"
-      : summary.objectId && summary.objectNameMatches && !projectIdMatchesCreate
+      : summary.objectId && !projectIdMatchesCreate
         ? "project_id_mismatch"
+        : summary.objectId && !summary.objectNameMatches
+          ? "project_name_mismatch"
         : "not_found_or_mismatch",
     httpStatus: response?.status || null,
     apiCode: summary.apiCode,

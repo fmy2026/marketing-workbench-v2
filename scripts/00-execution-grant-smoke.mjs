@@ -349,7 +349,7 @@ try {
   assert(statuses.creation_context === "passed", "node 2 should pass");
   assert(statuses.game_launch_pack === "passed", "node 3 should pass");
   assert(statuses.account_resource_prepare === "passed", "node 4 should pass");
-  assert(statuses.std_project_draft_builder === "needs_confirmation", "node 5 should need confirmation");
+  assert(statuses.std_project_draft_builder === "passed", "node 5 should remain passed after its confirmed create action succeeds");
   assert(statuses.std_project_create_executor === "passed", "node 6 should pass");
   assert(statuses.readback_closer === "passed", "node 7 should pass");
 

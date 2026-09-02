@@ -168,6 +168,13 @@ export async function runCreateOnceSkill({
       raw_response_stored: false
     }
   });
+  const planId = latestBundle.executionPlan?.plan_id || "";
+  if (planId && typeof repo.markConfirmedStdProjectCreatePlanWaitingReadback === "function") {
+    await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
+      jobId: latestBundle.job.job_id,
+      planId
+    });
+  }
   return {
     status: "mock_passed",
     blockers: [],

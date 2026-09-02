@@ -305,6 +305,97 @@ assert(resourceExecutionCount + createConfirmationCount === 2, "successful_path_
 assert(stdProjectCreateCount === 1, "std_project_create_count_not_one");
 assert(authoritativeReadbackCount === 1, "authoritative_readback_not_completed_once");
 
+const readbackOnlyBundle = {
+  job: {
+    job_id: "JOB-READBACK-ONLY-1",
+    case_id: "CASE-READBACK-ONLY-1",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922414575753"
+  },
+  executionPlan: {
+    plan_status: "waiting_readback",
+    plan_id: "PLAN-READBACK-ONLY-1",
+    planned_actions: [{ action_type: "std_project_create" }]
+  }
+};
+const readbackOnlyCase = {
+  lifecycle_status: "active",
+  current_gate: "run_readback_only",
+  suggested_next_action: "perform_readback_only",
+  root_blocker_codes: ["created_object_readback_pending"],
+  latest_job_id: "JOB-READBACK-ONLY-1"
+};
+const pendingReadbackView = {
+  ...jobView,
+  jobId: "JOB-READBACK-ONLY-1",
+  caseId: "CASE-READBACK-ONLY-1",
+  confirmationPreview: null,
+  caseGate: {
+    currentGate: "run_readback_only",
+    rootBlockerCodes: ["created_object_readback_pending"]
+  },
+  phases: [{
+    nodes: [{ id: "readback_closer", outputSummary: { readbackStatus: "created_pending_readback" } }]
+  }]
+};
+let readbackOnlyCalls = 0;
+const pendingReadbackResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return readbackOnlyBundle; },
+    async getWorkflowCaseSummary() { return readbackOnlyCase; }
+  },
+  jobId: "JOB-READBACK-ONLY-1",
+  message: "继续执行",
+  getJobViewFn: async () => pendingReadbackView,
+  runJobFn: async (_repo, jobId, options) => {
+    readbackOnlyCalls += 1;
+    assert(jobId === "JOB-READBACK-ONLY-1", "readback_only_job_binding_changed");
+    assert(options.mode === "readback_only", "continue_must_use_readback_only_mode");
+    return pendingReadbackView;
+  }
+});
+assert(readbackOnlyCalls === 1, "continue_must_run_one_readback_only_command");
+assert(pendingReadbackResponse.interaction.message.includes("Case 保持暂停，未再次创建"), "pending_readback_message_must_not_claim_running_or_create_again");
+
+const verifiedReadbackView = {
+  ...pendingReadbackView,
+  caseGate: { currentGate: "first_std_project_create_completed", rootBlockerCodes: [] },
+  phases: [{
+    nodes: [{ id: "readback_closer", outputSummary: { readbackStatus: "readback_verified" } }]
+  }]
+};
+const verifiedReadbackResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return readbackOnlyBundle; },
+    async getWorkflowCaseSummary() { return readbackOnlyCase; }
+  },
+  jobId: "JOB-READBACK-ONLY-1",
+  message: "继续执行",
+  getJobViewFn: async () => pendingReadbackView,
+  runJobFn: async () => verifiedReadbackView
+});
+assert(verifiedReadbackResponse.interaction.message.includes("项目 ID 与草稿名称一致"), "verified_readback_message_must_report_completion");
+
+const nameMismatchReadbackView = {
+  ...pendingReadbackView,
+  phases: [{
+    nodes: [{ id: "readback_closer", outputSummary: { readbackStatus: "project_name_mismatch" } }]
+  }]
+};
+const nameMismatchReadbackResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return readbackOnlyBundle; },
+    async getWorkflowCaseSummary() { return readbackOnlyCase; }
+  },
+  jobId: "JOB-READBACK-ONLY-1",
+  message: "继续执行",
+  getJobViewFn: async () => pendingReadbackView,
+  runJobFn: async () => nameMismatchReadbackView
+});
+assert(nameMismatchReadbackResponse.interaction.message.includes("名称与草稿不一致"), "name_mismatch_must_require_manual_check");
+assert(nameMismatchReadbackResponse.interaction.message.includes("未再次创建"), "name_mismatch_must_not_create_again");
+
 const historicalDecision = evaluateGateAction({
   intent: deterministic,
   caseSummary,
@@ -626,6 +717,7 @@ console.log(JSON.stringify({
   successfulPathConfirmationCount: resourceExecutionCount + createConfirmationCount,
   stdProjectCreateCount,
   authoritativeReadbackCount,
+  readbackOnlyCalls,
   historyEffect: historicalDecision.effect,
   terminalMonitorEffect: terminalMonitorDecision.effect,
   readonlyRecoveryEffect: recoveryResponse.interaction.kind

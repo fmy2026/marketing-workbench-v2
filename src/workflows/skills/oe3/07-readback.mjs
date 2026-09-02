@@ -70,6 +70,13 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
       fieldDiffSummary: placeholder.fieldDiffSummary,
       evidenceRef: placeholder.artifactId
     });
+    const planId = latestBundle.executionPlan?.plan_id || "";
+    if (planId && typeof repo.consumeConfirmedStdProjectCreatePlanAfterReadback === "function") {
+      await repo.consumeConfirmedStdProjectCreatePlanAfterReadback({
+        jobId: latestBundle.job.job_id,
+        planId
+      });
+    }
     return {
       status: "mock_passed",
       blockers: [],
@@ -98,12 +105,14 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     });
     const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
     const projectIdMismatch = readback.status === "project_id_mismatch";
+    const projectNameMismatch = readback.status === "project_name_mismatch";
+    const identityMismatch = projectIdMismatch || projectNameMismatch;
     const recoveredByReadback = readback.status === "readback_verified" && !responseConfirmed;
     const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && !responseConfirmed;
     return {
       status: readback.status === "readback_verified"
         ? "passed"
-        : projectIdMismatch
+        : identityMismatch
           ? "blocked"
         : readbackMissAfterUnconfirmedCreate
           ? "failed"
@@ -112,6 +121,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         ? []
         : projectIdMismatch
           ? ["readback_project_id_mismatch"]
+          : projectNameMismatch
+            ? ["readback_project_name_mismatch"]
         : readbackMissAfterUnconfirmedCreate
           ? ["create_response_unconfirmed_readback_not_found"]
           : ["created_pending_readback"],
@@ -121,6 +132,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
           ? "readback_verified"
           : projectIdMismatch
             ? "project_id_mismatch"
+            : projectNameMismatch
+              ? "project_name_mismatch"
           : readbackMissAfterUnconfirmedCreate
             ? "create_unconfirmed_readback_not_found"
             : "created_pending_readback",
@@ -137,6 +150,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
           ? "创建响应未确认，已通过回查确认对象创建成功。"
           : projectIdMismatch
             ? "创建响应与回查项目 ID 不一致，已停止且禁止自动重试。"
+            : projectNameMismatch
+              ? "创建响应与回查项目名称不一致，已停止且禁止自动重试。"
           : readbackMissAfterUnconfirmedCreate
             ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
             : "真实创建已调用，等待只读回查确认。",

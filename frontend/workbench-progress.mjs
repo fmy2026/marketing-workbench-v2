@@ -23,7 +23,6 @@ export function progressPresentation({
   if (viewOnly) return `${prefix} · 历史 Job，只读查看`;
   if (caseGate?.currentGate === "first_std_project_create_completed") return `${prefix} · 已完成`;
   if (busy) return `${prefix} · 正在处理`;
-  if (caseGate?.currentGate === "run_readback_only") return `${prefix} · 正在权威回查`;
   const blockerCode = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   const blockerTitle = blockerCode ? String(caseGate?.rootBlocker?.title || blockerCode).trim() : "";
   if (blockerTitle) return `${prefix} · 已暂停：${blockerTitle}`;

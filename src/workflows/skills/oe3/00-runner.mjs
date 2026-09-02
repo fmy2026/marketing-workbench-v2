@@ -836,8 +836,29 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
       : "passed";
   const resourceBlockers = blockedResourceStates.map((item) => item.blocker);
   const payloadContract = skillOutput("payload-contract");
-  const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
-  const create = skillOutput("create-once");
+  const previousDraftNode = (bundle.nodes || []).find((node) => node.node_key === "std_project_draft_builder");
+  const previousCreateNode = (bundle.nodes || []).find((node) => node.node_key === "std_project_create_executor");
+  const persistedCreateSucceeded = Boolean(bundle.createdObject?.object_id) &&
+    bundle.platformAction?.object_id_present === true &&
+    ["succeeded", "mock_succeeded"].includes(bundle.platformAction?.action_status);
+  const persistedCreate = persistedCreateSucceeded ? {
+    status: "passed",
+    blockers: [],
+    evidenceRefs: bundle.createdObject?.evidence_ref ? [bundle.createdObject.evidence_ref] : [],
+    outputSummary: {
+      ...(previousCreateNode?.output_summary || {}),
+      createNodeStatus: "created_pending_readback",
+      createCalled: bundle.platformAction?.action_status === "succeeded",
+      mockCreateCalled: bundle.platformAction?.action_status === "mock_succeeded",
+      realPlatformWriteCalled: bundle.platformAction?.action_status === "succeeded",
+      objectIdPresent: true,
+      retryAllowed: false,
+      nextConfirmationRequired: false
+    }
+  } : {};
+  const readiness = skillOutput("create-readiness").outputSummary?.createReadiness ||
+    previousDraftNode?.output_summary?.createReadiness || {};
+  const create = skillOutput("create-once").status ? skillOutput("create-once") : persistedCreate;
   const readback = skillOutput("readback-std-project");
   const monitorOutputs = ["monitor-state-read", "monitor-readonly-reconcile", "monitor-plan-compile", "monitor-execute-once", "monitor-readback"]
     .map((key) => skillOutput(key))
@@ -851,6 +872,14 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     .some((key) => skillOutput(key).status === "blocked");
   const draft = skillOutput("payload-build").outputSummary || {};
   const resourceOrchestrator = skillOutput("confirmed-resource-orchestrator");
+  const draftConfirmedOrCreated = ["passed", "mock_passed"].includes(create.status) || persistedCreateSucceeded;
+  const draftNodeStatus = mode === "planned_actions"
+    ? "waiting"
+    : draftConfirmedOrCreated
+      ? "passed"
+      : payloadContract.status === "passed" && readiness.canCreateCurrentJob
+        ? "needs_confirmation"
+        : "repairable";
 
   return [
     nodeStatus({
@@ -924,11 +953,13 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "std_project_draft_builder",
-      status: mode === "planned_actions" ? "waiting" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "needs_confirmation" : "repairable",
-      summary: mode === "planned_actions" ? "等待 Node 2-4 准备完成后生成草稿。" : draft.projectName
+      status: draftNodeStatus,
+      summary: mode === "planned_actions" ? "等待 Node 2-4 准备完成后生成草稿。" : draftConfirmedOrCreated
+        ? "创建草稿已确认并进入创建/回查闭环。"
+        : draft.projectName
         ? `创建草稿已生成：${draft.projectName}；${readiness.uniqueBlocker || "等待创建确认"}。`
         : "等待创建草稿。",
-      diagnosticLevel: mode === "planned_actions" ? "pending" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
+      diagnosticLevel: mode === "planned_actions" ? "pending" : draftConfirmedOrCreated ? "info" : payloadContract.status === "passed" && readiness.canCreateCurrentJob ? "warning" : "error",
       outputSummary: {
         confirmedResourceOrchestrator: resourceOrchestrator.outputSummary || {},
         projectName: draft.projectName || bundle.draft?.project_name || "",

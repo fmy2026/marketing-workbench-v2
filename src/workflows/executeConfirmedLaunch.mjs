@@ -6,6 +6,7 @@ import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
 } from "../platforms/oceanengineStdProjectCreateExecutor.mjs";
+import { finalizeVerifiedStdProjectRuntimeCase } from "./finalizeVerifiedStdProjectRuntimeCase.mjs";
 
 export const EXECUTION_GRANT_CONFIRM_ENV = "MWBV2_OE_EXECUTION_CONFIRM";
 export const EXECUTION_GRANT_INTENT = "EXECUTE_ONE_LAUNCH";
@@ -29,23 +30,6 @@ function createPrewriteBlockerFromView(view = {}) {
   const output = createNode?.outputSummary || {};
   if (output.createNodeStatus !== "blocked_before_create" || output.createCalled === true) return "";
   return String((output.blockers || [])[0] || "final_draft_plan_derivation_not_passed").trim();
-}
-
-async function closeVerifiedRuntimeCase({ repo, bundle, jobId, view, projectStatePath }) {
-  if (bundle.job?.source_usage !== "runtime_truth") return view;
-  if (view?.caseGate?.currentGate !== "first_std_project_create_completed") return view;
-  if (typeof repo.updateWorkflowCaseLifecycle !== "function") return view;
-  await repo.updateWorkflowCaseLifecycle({
-    caseId: bundle.job.case_id,
-    lifecycleStatus: "completed",
-    metadataPatch: {
-      completion_reason: "first_std_project_create_completed",
-      completed_job_id: jobId,
-      raw_payload_stored: false,
-      raw_response_stored: false
-    }
-  });
-  return getJobView(repo, jobId, { projectStatePath });
 }
 
 function validateGrant({ grantSource, executionIntent, envConfirm }) {
@@ -258,7 +242,7 @@ export async function executeConfirmedLaunch({
       }
       latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
     }
-    const view = await runJobFn(repo, jobId, {
+    const runResult = await runJobFn(repo, jobId, {
       mode: "execute_once",
       mockReady: grantSource === "test_fake_transport",
       allowReadonlyDependency: true,
@@ -276,8 +260,13 @@ export async function executeConfirmedLaunch({
       expectedPlanHash: currentPlanHash,
       confirmedPlanExecution: Boolean(currentPlanId && currentPlanHash),
       projectStatePath,
-      fetchImpl
+      fetchImpl,
+      includeExecutionSummary: true
     });
+    const view = runResult?.view || runResult;
+    const localCreateCalled = runResult?.runSummary
+      ? runResult.runSummary.createCalled === true
+      : createCalledFromView(view);
     const prewriteBlocker = createPrewriteBlockerFromView(view);
     const finalizedPrewriteBlock = prewriteBlocker && typeof repo.finalizeConfirmedCreatePlanBeforeAction === "function"
       ? await repo.finalizeConfirmedCreatePlanBeforeAction({
@@ -289,20 +278,20 @@ export async function executeConfirmedLaunch({
     const postFinalizationView = finalizedPrewriteBlock.finalized === true
       ? await getJobViewFn(repo, jobId, { projectStatePath })
       : view;
-    const completedView = await closeVerifiedRuntimeCase({
+    const finalization = await finalizeVerifiedStdProjectRuntimeCase({
       repo,
-      bundle: latestBundleBeforeCreate,
       jobId,
-      view: postFinalizationView,
-      projectStatePath
+      projectStatePath,
+      getJobViewFn
     });
+    const completedView = finalization.view || postFinalizationView;
     const result = {
       ...completedView,
       executionGrant: {
         status: finalizedPrewriteBlock.finalized === true ? "blocked" : "consumed",
         grantSource,
         executionGrantId,
-        createCalled: createCalledFromView(completedView),
+        createCalled: localCreateCalled,
         maximumActions: 1,
         retryAllowed: false,
         ...(finalizedPrewriteBlock.finalized === true ? { blockers: [prewriteBlocker] } : {})

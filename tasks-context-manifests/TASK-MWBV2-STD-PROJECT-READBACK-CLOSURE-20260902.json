@@ -1,0 +1,78 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902",
+  "task_ref": "tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 CST",
+  "completed_at": "2026-09-02 11:23 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Tighten standard-project authoritative readback to five absolute time points and make progress, plan state, and messages truthful.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/workbench-progress.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, and project.state control-plane metadata",
+    "standard-project readonly executor, Node projection, Plan lifecycle, workbench presentation, and focused smoke tests"
+  ],
+  "forbidden_actions": [
+    "all real external platform calls and writes",
+    "all confirmation consumption and runtime workflow commands",
+    "database schema or workflow_case_summary View changes",
+    "new API routes, background jobs, browser persistence, sensitive or raw platform data"
+  ],
+  "validation_plan": [
+    "focused fake-transport readback schedule and lifecycle smoke",
+    "npm run test:workbench-progress",
+    "npm run test:workbench-conversation",
+    "npm run test:create-result-mapping",
+    "npm run test:execution-plan",
+    "npm run test:workflow-case",
+    "npm run smoke:workflow-skills",
+    "npm run validate:schemas",
+    "git diff --check"
+  ],
+  "validation_result": {
+    "status": "passed",
+    "completed_at": "2026-09-02 11:23 CST",
+    "checks": [
+      "test:std-project-readback",
+      "test:workbench-progress",
+      "test:node4-progress-projection",
+      "test:workbench-conversation",
+      "test:workbench-runtime-policy",
+      "test:create-result-mapping",
+      "test:execution-plan",
+      "test:workflow-case",
+      "test:single-confirmation-orchestrator",
+      "test:execution-grant",
+      "smoke:workflow-skills",
+      "validate:schemas",
+      "git diff --check"
+    ],
+    "real_platform_write_called": false,
+    "current_business_case_changed": false
+  },
+  "stop_conditions": [
+    "a change requires a platform call, write, confirmation, or runtime job",
+    "a change requires a Schema, View, Gate, Plan/action type, public API, or background worker",
+    "the authoritative ID plus name readback condition would be weakened"
+  ]
+}

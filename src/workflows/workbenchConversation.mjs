@@ -7,6 +7,7 @@ import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/in
 import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
 import { PLAN_KIND_MONITOR_BOOTSTRAP, PLAN_KIND_RESOURCE_PREPARE } from "./executionPlan.mjs";
 import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
+import { finalizeVerifiedStdProjectRuntimeCase } from "./finalizeVerifiedStdProjectRuntimeCase.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -33,6 +34,31 @@ function confirmationContextMatches(preview = null, { expectedPlanId = "", expec
   if (clean(expectedPlanId) && clean(expectedPlanId) !== preview.planId) blockers.push("execution_plan_id_changed_since_confirmation");
   if (clean(expectedPlanHash) && clean(expectedPlanHash) !== preview.planHash) blockers.push("execution_plan_hash_changed_since_confirmation");
   return blockers;
+}
+
+function readbackOutcome(view = {}) {
+  const node = (view.phases || [])
+    .flatMap((phase) => phase.nodes || [])
+    .find((item) => item.id === "readback_closer");
+  return clean(node?.outputSummary?.readbackStatus);
+}
+
+function readbackMessage(view = {}) {
+  const currentGate = clean(view?.caseGate?.currentGate);
+  const outcome = readbackOutcome(view);
+  if (currentGate === "first_std_project_create_completed" || outcome === "readback_verified") {
+    return "只读回查已确认项目 ID 与草稿名称一致，Case 已完成收口。";
+  }
+  if (outcome === "project_id_mismatch") {
+    return "只读回查发现项目 ID 与创建响应不一致，已停止且未再次创建；请人工检查。";
+  }
+  if (outcome === "project_name_mismatch") {
+    return "只读回查发现项目名称与草稿不一致，已停止且未再次创建；请人工检查。";
+  }
+  if (currentGate === "run_readback_only" || outcome === "created_pending_readback") {
+    return "项目已创建，但本次只读回查尚未在平台 API 中验证；Case 保持暂停，未再次创建。";
+  }
+  return "只读回查已结束；请按当前 Case Gate 查看下一步。";
 }
 
 export async function handleWorkbenchCommand({
@@ -132,8 +158,17 @@ export async function handleWorkbenchCommand({
     });
   }
   if (interaction.effect === "run_readback_only") {
-    const nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath });
-    return response({ view: nextView, interaction: { ...interaction, message: "只读回查已完成。" } });
+    let nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath });
+    if (nextView?.caseGate?.currentGate === "first_std_project_create_completed") {
+      const finalization = await finalizeVerifiedStdProjectRuntimeCase({
+        repo,
+        jobId,
+        projectStatePath,
+        getJobViewFn
+      });
+      nextView = finalization.view || nextView;
+    }
+    return response({ view: nextView, interaction: { ...interaction, message: readbackMessage(nextView) } });
   }
   if (interaction.effect === "run_monitor_readonly") {
     const reconcile = await monitorReadonlyReconcile({

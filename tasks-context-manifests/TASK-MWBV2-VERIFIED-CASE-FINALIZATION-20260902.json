@@ -1,0 +1,92 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-VERIFIED-CASE-FINALIZATION-20260902",
+  "task_ref": "tasks/TASK-MWBV2-VERIFIED-CASE-FINALIZATION-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 11:33 CST",
+  "completed_at": "2026-09-02 11:52 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Finalize verified standard-project runtime Cases and make the completed workbench state truthful without new platform calls.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "verified finalization for CASE-MWBV2-5B75EB40E6F9AF2469 only"
+    ],
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-VERIFIED-CASE-FINALIZATION-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-VERIFIED-CASE-FINALIZATION-20260902.json",
+    "tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/app.js"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, and project.state control-plane metadata",
+    "internal verified-finalization workflow and focused tests",
+    "completed-gate workbench presentation",
+    "one exact guarded database finalization for the target Case, Job, and Plan"
+  ],
+  "forbidden_actions": [
+    "all real external platform calls and writes",
+    "all new confirmation, action, Job, or runtime workflow execution",
+    "database schema or workflow_case_summary View changes",
+    "new API routes, background jobs, historical Node rewrites, or sensitive data"
+  ],
+  "validation_plan": [
+    "focused verified-finalization unit and repository smoke",
+    "npm run test:workbench-conversation",
+    "npm run test:workbench-progress",
+    "npm run test:workflow-case",
+    "npm run test:execution-grant",
+    "npm run smoke:workflow-skills",
+    "npm run validate:schemas",
+    "guarded current-Case finalization and read-only Postgres verification",
+    "local workbench restart and API/UI verification",
+    "git diff --check"
+  ],
+  "validation_result": {
+    "status": "passed",
+    "completed_at": "2026-09-02 11:52 CST",
+    "checks": [
+      "test:verified-case-finalization",
+      "test:std-project-readback",
+      "test:workbench-progress",
+      "test:node4-progress-projection",
+      "test:workbench-conversation",
+      "test:workbench-runtime-policy",
+      "test:create-result-mapping",
+      "test:execution-plan",
+      "test:workflow-case",
+      "test:execution-grant",
+      "smoke:workflow-skills",
+      "validate:schemas",
+      "target Case Postgres verification",
+      "target Job local API verification",
+      "git diff --check"
+    ],
+    "target_case_lifecycle_status": "completed",
+    "target_plan_status": "consumed",
+    "target_gate": "first_std_project_create_completed",
+    "target_passed_node_count": 7,
+    "target_platform_action_count": 1,
+    "additional_platform_calls": 0,
+    "real_platform_write_called": false
+  },
+  "stop_conditions": [
+    "a change requires any platform request, confirmation, action, or Job",
+    "a change requires Schema, View, Gate, registry, Plan/action type, or public API changes",
+    "the authoritative ID plus name readback condition would be weakened"
+  ]
+}
