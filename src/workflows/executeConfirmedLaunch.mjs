@@ -22,6 +22,15 @@ function createCalledFromView(view = {}) {
     createNode?.outputSummary?.mockCreateCalled !== true;
 }
 
+function createPrewriteBlockerFromView(view = {}) {
+  const createNode = (view.phases || [])
+    .flatMap((phase) => phase.nodes || [])
+    .find((node) => node.id === "std_project_create_executor");
+  const output = createNode?.outputSummary || {};
+  if (output.createNodeStatus !== "blocked_before_create" || output.createCalled === true) return "";
+  return String((output.blockers || [])[0] || "final_draft_plan_derivation_not_passed").trim();
+}
+
 async function closeVerifiedRuntimeCase({ repo, bundle, jobId, view, projectStatePath }) {
   if (bundle.job?.source_usage !== "runtime_truth") return view;
   if (view?.caseGate?.currentGate !== "first_std_project_create_completed") return view;
@@ -269,22 +278,34 @@ export async function executeConfirmedLaunch({
       projectStatePath,
       fetchImpl
     });
+    const prewriteBlocker = createPrewriteBlockerFromView(view);
+    const finalizedPrewriteBlock = prewriteBlocker && typeof repo.finalizeConfirmedCreatePlanBeforeAction === "function"
+      ? await repo.finalizeConfirmedCreatePlanBeforeAction({
+          jobId,
+          planId: currentPlanId,
+          blockerCode: prewriteBlocker
+        })
+      : { finalized: false };
+    const postFinalizationView = finalizedPrewriteBlock.finalized === true
+      ? await getJobViewFn(repo, jobId, { projectStatePath })
+      : view;
     const completedView = await closeVerifiedRuntimeCase({
       repo,
       bundle: latestBundleBeforeCreate,
       jobId,
-      view,
+      view: postFinalizationView,
       projectStatePath
     });
     const result = {
       ...completedView,
       executionGrant: {
-        status: "consumed",
+        status: finalizedPrewriteBlock.finalized === true ? "blocked" : "consumed",
         grantSource,
         executionGrantId,
         createCalled: createCalledFromView(completedView),
         maximumActions: 1,
-        retryAllowed: false
+        retryAllowed: false,
+        ...(finalizedPrewriteBlock.finalized === true ? { blockers: [prewriteBlocker] } : {})
       }
     };
     assertNoSensitiveLeak(result.executionGrant);

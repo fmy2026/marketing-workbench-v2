@@ -30,6 +30,21 @@ function actionScopeAllowsOnlyCreate(actions = []) {
   return Array.isArray(actions) && actions.length === 1 && actions[0] === CREATE_ACTION;
 }
 
+function readyCreatePlanDraftBindingBlockers({ bundle = {}, plan = {}, scope = {} } = {}) {
+  const draft = bundle.draft || {};
+  const summary = draft.payload_summary || draft.payloadSummary || {};
+  const nodeFour = (bundle.nodes || []).find((node) => node.node_key === "account_resource_prepare");
+  return [
+    ...(bundle.job?.job_status === "draft_ready" ? [] : ["execution_job_not_stable_for_confirmation"]),
+    ...(nodeFour?.status === "passed" ? [] : ["account_resource_prepare_not_passed_for_confirmation"]),
+    ...(draft.draft_id === scope.target_draft_id ? [] : ["execution_plan_draft_id_mismatch"]),
+    ...(draft.payload_hash === scope.target_payload_hash ? [] : ["execution_plan_payload_hash_mismatch"]),
+    ...(summary.derived_from_plan_id === plan?.plan_id ? [] : ["final_draft_not_derived_from_confirmed_plan"]),
+    ...(summary.derived_from_plan_hash === plan?.plan_hash ? [] : ["final_draft_confirmed_plan_hash_mismatch"]),
+    ...(summary.plan_derivation_status === "passed" ? [] : ["final_draft_plan_derivation_not_passed"])
+  ];
+}
+
 function optionalPlanScopeBlockers(scope = {}, plan = null) {
   if (!scope.target_plan_id && !scope.target_plan_hash && !Array.isArray(scope.allowed_plan_actions)) return [];
   const blockers = [];
@@ -175,7 +190,8 @@ export async function validatePlanConfirmationScope({
     ...(Number(attemptState.createActionCount || 0) === 0 ? [] : ["std_project_create_action_already_recorded"]),
     ...(Number(attemptState.createdObjectCount || 0) === 0 ? [] : ["created_object_already_recorded"]),
     ...(plan?.metadata?.planning_intent?.project_name ? [] : ["execution_plan_project_name_missing"]),
-    ...(plan?.metadata?.planning_intent?.business_intent_hash ? [] : ["execution_plan_business_intent_hash_missing"])
+    ...(plan?.metadata?.planning_intent?.business_intent_hash ? [] : ["execution_plan_business_intent_hash_missing"]),
+    ...readyCreatePlanDraftBindingBlockers({ bundle, plan, scope })
   ];
   return {
     status: blockers.length ? "blocked" : "passed",

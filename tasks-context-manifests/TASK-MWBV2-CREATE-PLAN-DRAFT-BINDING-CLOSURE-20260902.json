@@ -1,0 +1,60 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902",
+  "task_ref": "tasks/TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 10:12 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Publish a std_project_create Plan only after exact Draft binding, close confirmed zero-action prewrite blocks, and recover the current Case to a fresh readonly confirmation card.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "maximum_real_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "mwb.workflow_case_summary",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_writes": [
+    "Solution Design, Task, Context Manifest and current mechanism/data/lessons documents",
+    "existing execution-plan, confirmation scope, runner aggregation and repository finalization code",
+    "existing mock/test_run smoke coverage",
+    "the current Case's confirmed zero-action Plan finalization and fresh readonly Job creation"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, automatic confirmations, retries and OAuth refresh",
+    "reuse or deletion of confirmed Plans, confirmations, actions, Drafts or idempotency records",
+    "new API, Schema, View, Gate, Plan/action type or worker",
+    "persisting secrets or raw platform payloads/responses"
+  ],
+  "validation_plan": [
+    "ready Plan/Draft binding and unbound confirmation fail-closed tests",
+    "runner Node 04 progressive-state and confirmed prewrite finalization tests",
+    "execution-plan, execution-grant, workbench conversation/progress, workflow-case, runtime-policy and schema smoke",
+    "current Case finalization followed by fresh readonly Job with zero platform actions"
+  ],
+  "stop_conditions": [
+    "a real platform write, automatic confirmation, retry or credential refresh would be required",
+    "a schema, view, public API, Gate or Plan/action type change would be required"
+  ],
+  "completed_at": "2026-09-02 10:34 CST",
+  "outcome": {
+    "ready_create_plan_requires_atomic_final_draft_binding": true,
+    "confirmed_zero_action_prewrite_plan_is_consumed": true,
+    "current_case_recovered_to_fresh_readonly_confirmation": true,
+    "real_platform_actions": 0,
+    "validation_status": "passed"
+  }
+}

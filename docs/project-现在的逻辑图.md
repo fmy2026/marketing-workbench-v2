@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-01 18:38 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-02 10:34 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -161,10 +161,10 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 | 场景 | 行为 |
 | --- | --- |
-| 确认前 | fresh readonly 可生成新 Plan；旧版失效 |
+| 确认前 | 无最终 Draft 的 Create Plan 不得 ready；最终 Draft 与 exact Plan ID/hash 的原子绑定、`draft_ready` Job 与 Node 04 passed 后才可确认，旧版失效 |
 | 已确认资源动作失败、超时或响应不明 | 当前 action 记为 `failed_once`，停止后续动作并执行可用的权威只读回查；父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 与旧 Plan 必须终态收口，旧 Plan 进入 `consumed`；不自动重试 |
 | 每份 Create Plan | 仅调用一次 `std_project/create` |
-| 创建失败的修正 | 必须新 Draft、payload hash、Plan、confirmation 和 attempt；最多 3 次，不自动重试 |
+| 创建前 fail-closed 的修正 | 已确认但零 create action 的 Plan 收口为 consumed、Job 进入人工修正终态；必须新 Draft、payload hash、Plan、confirmation 和 attempt；最多 3 次，不自动重试 |
 | 已出现创建对象但未回查 verified | 只允许 `readback_only`，不得再次创建 |
 | 首次创建 + 对象存在 + 回查 verified | `first_std_project_create_completed`；Case 收口并撤销写范围 |
 

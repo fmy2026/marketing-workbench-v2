@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
+import { validatePlanConfirmationScope, validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "../src/workflows/executeConfirmedLaunch.mjs";
 import { evaluatePlanBoundWriteAuthorization } from "../src/workflows/workbenchRuntimeWritePolicy.mjs";
 
@@ -147,6 +147,8 @@ try {
         binding_mode: "single_confirmation_plan",
         target_job_id: jobId,
         target_advertiser_id: advertiserId,
+        target_draft_id: draftId,
+        target_payload_hash: payloadHash,
         target_plan_id: createPlanId,
         target_plan_hash: createPlanHash,
         allowed_actions: ["std_project_create"],
@@ -161,8 +163,18 @@ try {
   let createExecutorCalls = 0;
   const createBundle = {
     ...bundle,
-    job: { ...bundle.job, object_type: "std_project" },
-    draft: { draft_id: draftId, payload_hash: payloadHash, project_name: "WORKBENCH_RUNTIME_POLICY_SMOKE" },
+    job: { ...bundle.job, object_type: "std_project", job_status: "draft_ready" },
+    nodes: [{ node_key: "account_resource_prepare", status: "passed" }],
+    draft: {
+      draft_id: draftId,
+      payload_hash: payloadHash,
+      project_name: "WORKBENCH_RUNTIME_POLICY_SMOKE",
+      payload_summary: {
+        derived_from_plan_id: createPlanId,
+        derived_from_plan_hash: createPlanHash,
+        plan_derivation_status: "passed"
+      }
+    },
     executionPlan: createPlan
   };
   const createRepo = {
@@ -187,6 +199,18 @@ try {
       return { claimed: true };
     }
   };
+  const unboundScope = await validatePlanConfirmationScope({
+    repo: createRepo,
+    bundle: {
+      ...createBundle,
+      draft: { ...createBundle.draft, payload_summary: {} }
+    },
+    projectStatePath: statePath,
+    authorizationSource: "workbench_conversation"
+  });
+  assert(unboundScope.status === "blocked", "unbound_draft_confirmation_must_block");
+  assert(unboundScope.blockers.includes("final_draft_not_derived_from_confirmed_plan"), "unbound_draft_blocker_missing");
+  assert(createConfirmationClaims === 0, "unbound_draft_must_not_claim_confirmation");
   const executeCreate = () => executeConfirmedLaunch({
     repo: createRepo,
     jobId,
@@ -211,6 +235,54 @@ try {
   assert(createResults.filter((item) => item.executionGrant?.status === "consumed").length === 1, "create_plan_atomic_winner_missing");
   assert(createResults.filter((item) => item.executionGrant?.status === "blocked").length === 1, "create_plan_atomic_loser_not_blocked");
 
+  let prewriteConfirmation = null;
+  let prewriteFinalizations = 0;
+  const prewriteRepo = {
+    ...createRepo,
+    async getLaunchJobBundle() { return { ...createBundle, executionConfirmation: prewriteConfirmation }; },
+    async getLaunchConfirmationForPlan() { return prewriteConfirmation; },
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (prewriteConfirmation) return { claimed: false };
+      prewriteConfirmation = {
+        confirmation_id: input.confirmationId,
+        plan_id: input.planId,
+        confirmation_status: input.confirmationStatus
+      };
+      return { claimed: true };
+    },
+    async finalizeConfirmedCreatePlanBeforeAction() {
+      prewriteFinalizations += 1;
+      return { finalized: true, jobFinalized: true };
+    }
+  };
+  const prewriteResult = await executeConfirmedLaunch({
+    repo: prewriteRepo,
+    jobId,
+    grantSource: "workbench_conversation",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    expectedPlanId: createPlanId,
+    expectedPlanHash: createPlanHash,
+    projectStatePath: statePath,
+    getJobViewFn: async () => ({ jobId, caseGate: { currentGate: "prepare_corrective_attempt" }, phases: [] }),
+    runJobFn: async () => ({
+      jobId,
+      caseGate: { currentGate: "prepare_corrective_attempt" },
+      phases: [{
+        nodes: [{
+          id: "std_project_create_executor",
+          outputSummary: {
+            createNodeStatus: "blocked_before_create",
+            createCalled: false,
+            blockers: ["final_draft_plan_derivation_not_passed"]
+          }
+        }]
+      }]
+    })
+  });
+  assert(prewriteFinalizations === 1, "confirmed_zero_action_prewrite_plan_not_finalized");
+  assert(prewriteResult.executionGrant?.status === "blocked", "prewrite_finalization_should_report_blocked");
+  assert(prewriteResult.executionGrant?.createCalled === false, "prewrite_finalization_must_not_create");
+
   console.log(JSON.stringify({
     status: "passed",
     authorizationMode: authorization.authorizationMode,
@@ -219,6 +291,7 @@ try {
     workbenchSourceRequired: true,
     createConfirmationWinnerCount: 1,
     createExecutorCalls,
+    confirmedZeroActionPrewriteFinalized: true,
     realPlatformWriteCalled: false
   }, null, 2));
 } finally {

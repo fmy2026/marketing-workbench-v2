@@ -719,6 +719,9 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
     resourceStates
   }));
   const hasCreateAction = plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
+  if (hasCreateAction && !draftReady(bundle) && !blockerCodes.includes("draft_not_ready_for_std_project_create")) {
+    blockerCodes.push("draft_not_ready_for_std_project_create");
+  }
   const planStatus = blockerCodes.length
     ? "blocked"
     : plannedActions.length
@@ -1357,7 +1360,35 @@ export async function compileAndSaveExecutionPlan({
   if (expectedPlanHash && plan.planHash !== expectedPlanHash) {
     throw new Error("confirmed_plan_hash_drift");
   }
-  await repo.upsertLaunchExecutionPlan(plan);
+  if (plan.planStatus === "ready" && plan.planKind === PLAN_KIND_STD_PROJECT_CREATE) {
+    const draft = bundle.draft || {};
+    const draftSummary = draft.payload_summary || draft.payloadSummary || {};
+    const derivation = evaluateConfirmedPlanDraftDerivation({
+      plan,
+      draft: {
+        ...draft,
+        payload_summary: {
+          ...draftSummary,
+          derived_from_plan_id: "",
+          derived_from_plan_hash: "",
+          plan_derivation_status: "not_applicable",
+          plan_derivation_blockers: []
+        }
+      }
+    });
+    const scope = plan.metadata?.execution_scope || {};
+    const bindingBlockers = [
+      ...(derivation.status === "passed" ? [] : derivation.blockers),
+      ...(draft.draft_id === plan.draftId && draft.draft_id === scope.target_draft_id ? [] : ["ready_create_plan_draft_id_mismatch"]),
+      ...(draft.payload_hash === plan.payloadHash && draft.payload_hash === scope.target_payload_hash ? [] : ["ready_create_plan_payload_hash_mismatch"])
+    ];
+    if (bindingBlockers.length) throw new Error(`ready_create_plan_draft_binding_invalid:${bindingBlockers[0]}`);
+    await repo.upsertReadyStdProjectCreatePlanWithDraftBinding(plan, {
+      derivationHash: derivation.derivationHash
+    });
+  } else {
+    await repo.upsertLaunchExecutionPlan(plan);
+  }
   const stored = await repo.getLaunchExecutionPlan(plan.planId);
   assertNoSensitiveLeak(stored || plan);
   return { plan, stored };

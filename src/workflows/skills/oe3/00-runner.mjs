@@ -790,16 +790,20 @@ async function executeSkill({ repo, context, skillKey }) {
   return memoryResult;
 }
 
-function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
+export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   const cachedReadonly = cachedReadonlyFromBundle(bundle);
   const skillOutput = (key) => skillOutputs.get(key) || {};
   const resourceOutputs = OE3_REQUIRED_RESOURCE_TYPES.map((type) => skillOutput(resourceSkillKey(type)));
   const awemeAuthorization = skillOutput("aweme-authorization-readonly");
+  const previousResourceNode = (bundle.nodes || []).find((node) => node.node_key === "account_resource_prepare");
+  const hasPendingResourceSkill = resourceOutputs.some((item) => !item.status);
   const resourceStates = resourceOutputs.map((item, index) => {
     const resourceType = item.outputSummary?.resourceType || item.outputSummary?.resource_type || OE3_REQUIRED_RESOURCE_TYPES[index];
     const capabilityState = item.outputSummary?.prepareCapability?.status ||
       item.outputSummary?.prepare_capability?.status || "";
-    const state = item.status === "passed" || capabilityState === "ready"
+    const state = !item.status && !capabilityState
+      ? "WAITING"
+      : item.status === "passed" || capabilityState === "ready"
       ? "READY"
       : capabilityState === "prepare_supported"
         ? "PLANNED"
@@ -824,6 +828,12 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     });
   }
   const blockedResourceStates = resourceStates.filter((item) => item.state === "BLOCKED");
+  const resourceStateStable = blockedResourceStates.length > 0 || !hasPendingResourceSkill;
+  const resourceNodeStatus = blockedResourceStates.length
+    ? "blocked"
+    : !resourceStateStable
+      ? previousResourceNode?.status === "passed" ? "passed" : "waiting"
+      : "passed";
   const resourceBlockers = blockedResourceStates.map((item) => item.blocker);
   const payloadContract = skillOutput("payload-contract");
   const readiness = skillOutput("create-readiness").outputSummary?.createReadiness || {};
@@ -886,9 +896,11 @@ function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
-      status: blockedResourceStates.length ? "blocked" : "passed",
+      status: resourceNodeStatus,
       summary: blockedResourceStates.length
         ? `账户资源存在阻断；唯一根阻断：${blockedResourceStates[0].blocker}。`
+        : !resourceStateStable
+          ? "账户资源正在核验，保留上一份稳定资源状态。"
         : resourceStates.some((item) => item.state === "PLANNED")
           ? "账户资源无外部阻断，待一次确认后按 Plan 准备。"
           : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,

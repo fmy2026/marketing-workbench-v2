@@ -168,6 +168,10 @@ try {
   assert(first.plan.planHash === second.plan.planHash, "execution_plan_hash_not_stable");
   assert(second.stored?.plan_id === second.plan.planId, "execution_plan_not_persisted");
   assert(second.stored?.planned_actions?.length === second.plan.plannedActions.length, "stored_plan_action_count_mismatch");
+  const boundBundleAfterPlan = await repo.getLaunchJobBundle(jobId);
+  assert(boundBundleAfterPlan.draft?.payload_summary?.derived_from_plan_id === second.plan.planId, "ready_plan_draft_id_binding_missing");
+  assert(boundBundleAfterPlan.draft?.payload_summary?.derived_from_plan_hash === second.plan.planHash, "ready_plan_draft_hash_binding_missing");
+  assert(boundBundleAfterPlan.draft?.payload_summary?.plan_derivation_status === "passed", "ready_plan_draft_derivation_not_passed");
   assert(actionTypes(second.plan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_not_planned");
   assert(second.plan.metadata.success_profile?.success_profile_version === JSZC_SUCCESS_PROFILE_VERSION, "success_profile_version_not_in_plan_metadata");
   assert(/^sha256:[a-f0-9]{64}$/.test(second.plan.metadata.success_profile?.field_shape_hash || ""), "field_shape_hash_not_in_plan_metadata");
@@ -193,6 +197,9 @@ try {
   assert(outsideScope.blockers.includes("action_not_planned:outside_plan_action"), "outside_plan_action_blocker_missing");
 
   const bundle = await repo.getLaunchJobBundle(jobId);
+  const preDraftPlan = buildExecutionPlanFromBundle({ ...bundle, draft: null });
+  assert(preDraftPlan.planStatus === "blocked", "std_project_create_plan_must_not_be_ready_without_final_draft");
+  assert(preDraftPlan.blockerCodes.includes("draft_not_ready_for_std_project_create"), "pre_draft_plan_blocker_missing");
   const boundExperiment = {
     status: "passed",
     baselineJobId: "JOB-BASELINE-P02",
@@ -371,6 +378,34 @@ try {
   const storedAfterConfirmation = await repo.getLatestLaunchExecutionPlan(jobId);
   assert(storedAfterConfirmation?.plan_hash === boundPlan.planHash, "confirmed_execution_plan_hash_changed");
 
+  const zeroActionJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-finalization:${new Date().toISOString()}`, cleanupJobIds);
+  await runJob(repo, zeroActionJobId, { mode: "dry_run", mockReady: true });
+  const zeroActionPlan = await compileAndSaveExecutionPlan({ repo, jobId: zeroActionJobId });
+  const zeroActionBundle = await repo.getLaunchJobBundle(zeroActionJobId);
+  const zeroActionClaim = await repo.claimLaunchExecutionPlanConfirmation({
+    confirmationId: `CONFIRM-${zeroActionJobId}-EXECUTION-PLAN`,
+    jobId: zeroActionJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: zeroActionBundle.draft?.project_name || "",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: zeroActionPlan.plan.planId,
+    metadata: { test_only: true }
+  });
+  assert(zeroActionClaim.claimed === true, "zero_action_confirmation_not_claimed");
+  const zeroActionFinalized = await repo.finalizeConfirmedCreatePlanBeforeAction({
+    jobId: zeroActionJobId,
+    planId: zeroActionPlan.plan.planId,
+    blockerCode: "final_draft_plan_derivation_not_passed"
+  });
+  assert(zeroActionFinalized.finalized === true, "confirmed_zero_action_plan_not_finalized");
+  const zeroActionClosedBundle = await repo.getLaunchJobBundle(zeroActionJobId);
+  assert(zeroActionClosedBundle.executionPlan?.plan_status === "consumed", "confirmed_zero_action_plan_not_consumed");
+  assert(zeroActionClosedBundle.job?.job_status === "failed_waiting_manual_review", "confirmed_zero_action_job_not_finalized");
+
   const result = {
     status: "passed",
     persistedPlan: {
@@ -387,6 +422,8 @@ try {
       stableHash: true
     },
     confirmedPlanImmutable,
+    readyPlanDraftBound: true,
+    confirmedZeroActionPlanFinalized: true,
     leafBlockerProjection: {
       rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
       structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")

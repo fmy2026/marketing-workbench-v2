@@ -2632,6 +2632,120 @@ export class PostgresRepository {
     return saved;
   }
 
+  async upsertReadyStdProjectCreatePlanWithDraftBinding(plan, { derivationHash = "" } = {}) {
+    assertId("plan_id", plan.planId);
+    assertId("job_id", plan.jobId);
+    assertId("draft_id", plan.draftId);
+    if (plan.planStatus !== "ready" || String(plan.planKind || plan.plan_kind || "").trim() !== "std_project_create") {
+      throw new Error("ready_std_project_create_plan_required");
+    }
+    const { jobId, draftId, payloadHash, planId, planHash } = plan;
+    if (!/^sha256:[a-f0-9]{64}$/i.test(String(payloadHash || ""))) throw new Error("draft_payload_hash_invalid");
+    if (!/^sha256:[a-f0-9]{64}$/i.test(String(planHash || ""))) throw new Error("execution_plan_hash_invalid");
+    if (derivationHash && !/^sha256:[a-f0-9]{64}$/i.test(String(derivationHash))) throw new Error("plan_derivation_hash_invalid");
+    const saved = await queryJson(`
+      WITH confirmed AS (
+        SELECT confirmation_id
+        FROM mwb.launch_confirmations
+        WHERE plan_id = ${sqlLiteral(planId)}
+          AND confirmation_status = 'confirmed_for_execution_plan'
+      ), staled AS (
+        UPDATE mwb.launch_execution_plans
+        SET plan_status = 'stale',
+            updated_at = now()
+        WHERE job_id = ${sqlLiteral(jobId)}
+          AND plan_version < ${Number(plan.planVersion || 1)}
+          AND plan_status IN ('blocked', 'planned', 'ready', 'executing', 'waiting_readback')
+          AND NOT EXISTS (SELECT 1 FROM confirmed)
+        RETURNING plan_id
+      ), stale_barrier AS (
+        SELECT count(*) AS stale_count FROM staled
+      ), draft_candidate AS (
+        SELECT draft.draft_id
+        FROM mwb.launch_drafts draft
+        WHERE draft.job_id = ${sqlLiteral(jobId)}
+          AND draft.draft_id = ${sqlLiteral(draftId)}
+          AND draft.payload_hash = ${sqlLiteral(payloadHash)}
+        FOR UPDATE
+      ), persisted AS (
+        INSERT INTO mwb.launch_execution_plans (
+          plan_id,
+          job_id,
+          plan_version,
+          plan_kind,
+          plan_status,
+          plan_hash,
+          planned_actions,
+          blocker_codes,
+          draft_id,
+          payload_hash,
+          source_usage,
+          metadata,
+          created_at,
+          updated_at
+        )
+        SELECT
+          ${sqlLiteral(planId)},
+          ${sqlLiteral(jobId)},
+          ${Number(plan.planVersion || 1)},
+          'std_project_create',
+          'ready',
+          ${sqlLiteral(planHash)},
+          ${sqlJson(plan.plannedActions || [])},
+          ${sqlJson(plan.blockerCodes || [])},
+          ${sqlLiteral(draftId)},
+          ${sqlLiteral(payloadHash)},
+          ${sqlLiteral(plan.sourceUsage || "runtime_truth")},
+          ${sqlJson(plan.metadata || {})},
+          now(),
+          now()
+        FROM stale_barrier, draft_candidate
+        WHERE NOT EXISTS (SELECT 1 FROM confirmed)
+        ON CONFLICT (job_id, plan_version) DO UPDATE SET
+          plan_kind = EXCLUDED.plan_kind,
+          plan_status = 'ready',
+          plan_hash = EXCLUDED.plan_hash,
+          planned_actions = EXCLUDED.planned_actions,
+          blocker_codes = EXCLUDED.blocker_codes,
+          draft_id = EXCLUDED.draft_id,
+          payload_hash = EXCLUDED.payload_hash,
+          source_usage = EXCLUDED.source_usage,
+          metadata = EXCLUDED.metadata,
+          updated_at = now()
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM mwb.launch_confirmations confirmation
+          WHERE confirmation.plan_id = mwb.launch_execution_plans.plan_id
+            AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+        )
+        RETURNING plan_id
+      ), bound AS (
+        UPDATE mwb.launch_drafts draft
+        SET payload_summary = draft.payload_summary || jsonb_build_object(
+          'derived_from_plan_id', ${sqlLiteral(planId)},
+          'derived_from_plan_hash', ${sqlLiteral(planHash)},
+          'plan_derivation_status', 'passed',
+          'plan_derivation_blockers', '[]'::jsonb,
+          'plan_derivation_hash', ${sqlLiteral(derivationHash)}
+        )
+        FROM persisted, draft_candidate
+        WHERE draft.job_id = ${sqlLiteral(jobId)}
+          AND draft.draft_id = ${sqlLiteral(draftId)}
+          AND draft.payload_hash = ${sqlLiteral(payloadHash)}
+        RETURNING draft.draft_id
+      )
+      SELECT jsonb_build_object(
+        'saved', EXISTS (SELECT 1 FROM persisted),
+        'bound', EXISTS (SELECT 1 FROM bound),
+        'immutable', EXISTS (SELECT 1 FROM confirmed)
+      )::text;
+    `, this.database);
+    if (saved?.immutable || saved?.saved !== true || saved?.bound !== true) {
+      throw new Error("ready_create_plan_draft_binding_not_persisted");
+    }
+    return saved;
+  }
+
   async staleExecutionPlanForContractChange({ planId, blockerCode }) {
     assertId("plan_id", planId);
     assertId("blocker_code", blockerCode);
@@ -2738,6 +2852,57 @@ export class PostgresRepository {
       SELECT jsonb_build_object('finalized', EXISTS (SELECT 1 FROM finalized))::text;
     `, this.database);
     return result || { finalized: false };
+  }
+
+  async finalizeConfirmedCreatePlanBeforeAction({ jobId, planId, blockerCode = "final_draft_plan_derivation_not_passed" } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    assertId("blocker_code", blockerCode);
+    const result = await queryJson(`
+      WITH finalized AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', 'blocked_before_create',
+              'confirmed_execution_blocker', ${sqlLiteral(blockerCode)},
+              'platform_action_count', 0,
+              'retry_allowed', false
+            ),
+            updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'ready'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = plan.job_id
+              AND confirmation.plan_id = plan.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.platform_actions action
+            WHERE action.job_id = plan.job_id
+              AND action.plan_id = plan.plan_id
+              AND action.action_type = 'oceanengine_std_project_create'
+          )
+        RETURNING plan.plan_id
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = 'failed_waiting_manual_review',
+            current_node = '6',
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM finalized)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object(
+        'finalized', EXISTS (SELECT 1 FROM finalized),
+        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized)
+      )::text;
+    `, this.database);
+    return result || { finalized: false, jobFinalized: false };
   }
 
   async getLaunchExecutionPlan(planId) {

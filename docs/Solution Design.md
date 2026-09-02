@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-01 18:31 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-02 10:34 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；当前逻辑图与数据报表契约 |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -114,6 +114,12 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 `?case_id=` 的工作台底栏必须明确展示当前节点计数与当前 Case 的稳定状态：仅在前端请求尚未返回时显示“正在处理”；存在 `root_blocker_codes[0]` 时显示“已暂停”及已有脱敏 blocker 标题；存在确认卡时显示“待确认”；`first_std_project_create_completed` 时显示“已完成”。Gate、blocker、建议动作及最新 Job 仍只消费既有 `workflow_case_summary` 与 Job view，展示层不得自行计算 Gate。
 
 底栏提供一个只读“刷新进度”按钮。该按钮先读取当前 `case_id` 的 summary，再以其 `latest_job_id` 读取 Job view；若最新 Job 已变化，前端只在内存中切换到该 Job，Case URL 保持不变。前端命令或 dry-run 请求进行期间以 1.2 秒间隔复用该只读刷新；请求结束立即停止并做一次最终同步。历史 `?job_id=` 只刷新自身历史 Job，根页不轮询。不新增 API、Schema、View、后台任务或浏览器持久化，刷新不执行 workflow、不创建 Job、不确认 Plan、不产生平台写入。
+
+## 已批准设计：Create Plan 与最终 Draft 的发布绑定
+
+`std_project_create` Plan 缺少最终 Draft 时只能保持非 ready 诊断状态，不能展示确认卡。最终 Draft 存在后，编译器先验证项目名、预算、出价、ROI、draft ID 与 payload hash 同 Plan 的 planning intent 与 execution scope 一致；在同一原子持久化内锁定 Draft、写入 `derived_from_plan_id`、`derived_from_plan_hash` 和 `plan_derivation_status=passed`，并发布 ready Plan。确认 scope 在写入 `launch_confirmations` 前再次校验该绑定、`draft_ready` Job 与 Node 04 `passed`；任何缺失只 fail-closed，confirmation 与平台 action 均不得新增。
+
+执行中尚未产生本轮资源 Skill 输出时，Node 04 保留上一份 canonical READY，或在无稳定事实时显示 waiting；只有已完成的真实资源失败才能投影为 blocked。已确认的 Create Plan 若在 action claim 前被创建前校验阻断且零 `std_project_create` action，必须将 Plan 收口为 `consumed`、Job 进入既有人工修正终态，并保留 confirmation 供审计。修正使用 fresh Job、Draft、Plan/hash 与新 confirmation；不新增 API、Schema、View、Gate、Plan/action 类型，不自动确认或重试。
 
 ## 已批准设计：小程序实例被动就绪状态保留
 

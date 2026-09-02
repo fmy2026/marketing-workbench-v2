@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-01 18:38 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-EVENT-CONFIG-PLAN-SCOPED-IDEMPOTENCY-20260901`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
+| 最后更新时间 | 2026-09-02 10:34 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -106,6 +106,7 @@ frontend / API
 - `project.state.json.guardrails` 只提供全局边界；真实写入必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限，并且只能由 active Task scope 或启用的 loopback Plan-bound 工作台策略二选一授权。
 - 只有 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其他缺失资源只形成 blocker。
 - 每份确认 Plan 只能按冻结动作执行一次；修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
+- 缺少最终 Draft 时 `std_project_create` Plan 只能保持非 ready 诊断状态。ready Plan 必须在同一原子持久化中完成当前 Draft 的精确 Plan ID/hash 绑定并写入 `plan_derivation_status=passed`，且最新 Job 为 `draft_ready`、Node 04 为 `passed` 后才可确认；任一条件不满足时不得写入 confirmation 或 action。已确认 Create Plan 在创建前 fail-closed 且零 `std_project_create` action 时，必须收口为 `consumed` 并将 Job 置于既有人工修正终态，旧 confirmation 保留且不得重用。
 - 创建响应不等于 READY；只有权威只读回查通过才能写入 verified。
 - `runtime_truth` 是真实用户轮次；`test_run` 必须由 smoke/CLI 清理；`seed_source` 仅用于初始化。
 - 平台长数字 ID 默认按字符串保存和比较。
