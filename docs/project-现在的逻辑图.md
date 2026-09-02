@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 17:00 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 17:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `070_canonical_account_readiness_projection.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -38,7 +38,7 @@ frontend / API / CLI / 任务卡 / 工作台对话
 工作台三项输入（route + game + advertiser）
 → 验证路线×游戏默认配置
 → 账户缺失时执行乾坤 accountIndex 精确只读预检
-→ 唯一命中且身份合同完整：写 advertiser_accounts + 脱敏 evidence
+→ 唯一命中且身份合同完整：写 canonical `auth_status` 的 advertiser_accounts + 脱敏 evidence
 → 创建或复用 active Case → fresh runtime Job
 → 先读取唯一 Gate：`run_monitor_readonly` 时自动 fresh readonly reconcile
 → 已有且 canonical READY 的 monitor：同一 Job 自动 dry_run 继续资源检查
@@ -46,6 +46,8 @@ frontend / API / CLI / 任务卡 / 工作台对话
 ```
 
 账户发现只补齐当前 route×game×advertiser 记录，不继承其他账户的 monitor、触点或动态资源 ID。零/多匹配、凭据异常、owner/agent/媒体主体缺失或既有账户 scope 冲突均在 Case/Job 前 fail-closed。自动阶段只读平台并写内部事实；`launch_confirmations`、`platform_actions`、`monitor_provision_attempts` 仍必须等到精确“确认创建 monitor”后才可产生创建记录。
+
+账户状态只允许在 `advertiser_accounts` 唯一持久化入口归一：“授权正常”“已授权”“ready”“active”均为 `ready`，其余值保持 fail-closed。`workflow_case_summary` 对最新 Job 读取当前同 scope 账户：账户存在时历史 `account_missing` 不再阻断，账户为 `ready` 时历史 `account_not_ready` 不再阻断；Skill 历史仍在 `?job_id=` 审计视图保留。没有当前账户或状态非 READY 时，原 blocker 与 Gate 不变。
 
 ```text
 Case

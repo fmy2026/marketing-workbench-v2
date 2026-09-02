@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 17:00 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 17:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `070_canonical_account_readiness_projection.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -42,6 +42,8 @@
 ```
 
 全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台启动先读取 active Case 最新 Job 的唯一 Gate：`run_monitor_readonly` 时自动执行一次 fresh monitor readonly reconcile；只有 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，直接返回“确认创建 monitor”卡片；该 Plan 的确认与权威回查成功后仍由同一有界推进器继续 readonly。每轮最多一次 reconcile 和一次 dry-run，到达确认 Gate、真实 blocker、完成态或 Gate 无变化立即停止，确认前不得调用创建接口。
+
+`advertiser_accounts.auth_status` 的唯一持久化入口必须将“授权正常”“已授权”“ready”“active”归一为 `ready`；其他状态继续 fail-closed。`workflow_case_summary` 只将当前同 scope 账户事实用于当前 Gate：账户存在时历史 `account_missing` 不再是 root blocker，账户为 `ready` 时历史 `account_not_ready` 不再是 root blocker；历史 Skill 记录仅供审计，当前账户确实缺失或非 READY 时仍阻断。
 
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 

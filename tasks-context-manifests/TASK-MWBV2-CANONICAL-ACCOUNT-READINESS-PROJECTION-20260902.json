@@ -1,0 +1,51 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902",
+  "task_ref": "tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md",
+  "status": "in_progress",
+  "created_at": "2026-09-02 17:19 CST",
+  "updated_at": "2026-09-02 17:19 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Make current canonical account readiness supersede obsolete context Skill blockers without weakening non-ready account fail-closed behavior.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "Task, Manifest, project state, mechanism docs, focused tests, and migration 070",
+      "one existing Case Gate-driven readonly continuation after migration verification"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/repositories/postgresRepository.mjs",
+    "db/066_monitor_ready_stale_skill_projection.sql"
+  ],
+  "allowed_writes": [
+    "canonical account readiness normalization, workflow_case_summary projection migration, focused smoke tests, and mechanism documentation",
+    "one Gate-driven readonly continuation for CASE-MWBV2-7F8C748BE84126BE77 after migration"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmations, monitor creates, resource creates, project creates, retries, token refreshes, and budget or bid changes",
+    "new endpoint, table, Plan/action type, confirmation phrase, or write authorization path",
+    "deletion or rewriting of historical runtime facts",
+    "raw credential, request, response, transcript, URL, or payload persistence"
+  ],
+  "validation_plan": [
+    "canonical ready normalization and stale blocker projection positive/negative smoke coverage",
+    "schema, workflow Case, monitor, workbench, runtime-policy, API, and diff checks",
+    "current Case same-Job readonly continuation with no platform write"
+  ],
+  "stop_conditions": [
+    "any real platform write would be required",
+    "the change weakens non-ready account fail-closed behavior or exact Plan confirmation",
+    "the change requires a new API, table, Plan/action type, or external coordination"
+  ]
+}

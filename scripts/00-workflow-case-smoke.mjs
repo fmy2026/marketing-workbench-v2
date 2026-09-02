@@ -68,7 +68,7 @@ try {
     status: "blocked",
     inputHash: `sha256:${"8".repeat(64)}`,
     outputSummary: { monitorIdPresent: false },
-    blockers: ["monitor_id_missing"],
+    blockers: ["monitor_id_missing", "account_missing", "account_not_ready"],
     evidenceRefs: [],
     sourceUsage: "test_run"
   });
@@ -89,6 +89,7 @@ try {
     getJobView(repo, touchpointJob.jobId),
     getJobView(repo, touchpointJob.jobId, { currentCaseReadiness: false })
   ]);
+  const canonicalAccountSummary = await repo.getWorkflowCaseSummary(touchpointCase.case_id);
   const nodeChildren = (view) => (view.phases || [])
     .flatMap((phase) => phase.nodes || [])
     .find((node) => node.id === "creation_context")?.children || [];
@@ -97,6 +98,7 @@ try {
   assert(currentChildren.get("account-status")?.status === "passed", "latest_case_account_status_must_use_current_account_truth");
   assert(currentChildren.get("touchpoint-reference")?.status === "passed", "latest_case_touchpoint_must_use_canonical_readiness");
   assert(currentChildren.get("monitor")?.status === "passed", "latest_case_monitor_must_use_canonical_readiness");
+  assert(canonicalAccountSummary.root_blocker_codes?.length === 0, "canonical_ready_account_must_ignore_stale_context_account_blockers");
   assert(historicalChildren.get("account-status")?.status === "blocked", "history_account_status_must_preserve_skill_snapshot");
   assert(historicalChildren.get("touchpoint-reference")?.status === "blocked", "history_touchpoint_status_must_preserve_skill_snapshot");
 

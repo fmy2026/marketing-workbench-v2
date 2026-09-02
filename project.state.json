@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-01.project-control-plane-v3",
   "methodology_version": "human-ai-project-v2",
-  "updated_at": "2026-09-02 17:10 CST",
+  "updated_at": "2026-09-02 17:19 CST",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,7 +9,24 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": null,
+  "active_task": {
+    "task_id": "TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902",
+    "task_ref": "tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.json",
+    "status": "in_progress",
+    "read_order": [
+      "AGENTS.md",
+      "project.state.json",
+      "tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md",
+      "tasks-context-manifests/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.json",
+      "docs/Solution Design.md",
+      "docs/project-现在的逻辑图.md",
+      "docs/project-数据与报表契约.md",
+      "src/repositories/postgresRepository.mjs",
+      "db/066_monitor_ready_stale_skill_projection.sql"
+    ],
+    "updated_at": "2026-09-02 17:19 CST"
+  },
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

@@ -94,6 +94,12 @@ function assertOwnerKey(value) {
   return text;
 }
 
+export function canonicalAccountAuthStatus(value) {
+  const status = String(value ?? "").trim();
+  if (["授权正常", "已授权", "ready", "active"].includes(status)) return "ready";
+  return status || "unknown";
+}
+
 function compactSql(sql) {
   return String(sql).replace(/\s+/g, " ").trim();
 }
@@ -1797,6 +1803,7 @@ export class PostgresRepository {
     assertId("advertiser_id", account.advertiserId, /^[0-9A-Za-z_\-.]+$/);
     assertId("route_id", account.routeId);
     assertId("game_code", account.gameCode);
+    const authStatus = canonicalAccountAuthStatus(account.authStatus);
     const qiankunIdentityStatus = account.qiankunIdentityStatus
       ? assertId("qiankun_identity_status", account.qiankunIdentityStatus)
       : "";
@@ -1828,7 +1835,7 @@ export class PostgresRepository {
         ${sqlLiteral(account.gameCode)},
         ${sqlLiteral(account.accountName || account.advertiserId)},
         ${sqlLiteral(account.platform || "oceanengine")},
-        ${sqlLiteral(account.authStatus || "unknown")},
+        ${sqlLiteral(authStatus)},
         ${sqlLiteral(account.platformStatus || "unknown")},
         ${sqlLiteral(account.ownerName || "")},
         ${sqlLiteral(account.monitorId || "")},

@@ -1,4 +1,6 @@
 import { buildConfirmationPreview } from "../src/workflows/gateActionPolicy.mjs";
+import { canonicalAccountAuthStatus } from "../src/repositories/postgresRepository.mjs";
+import { runContextSkill } from "../src/workflows/skills/oe3/02-context-resolvers.mjs";
 import {
   createWorkflowCase,
   reconcileMonitorAndPersistPlan,
@@ -14,6 +16,22 @@ const TARGET = Object.freeze({
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+for (const authStatus of ["授权正常", "已授权", "ready", "active"]) {
+  assert(canonicalAccountAuthStatus(authStatus) === "ready", `account_auth_status_not_canonical:${authStatus}`);
+}
+assert(canonicalAccountAuthStatus("pending") === "pending", "non_ready_auth_status_must_not_be_promoted");
+const nonReadyAccountContext = runContextSkill({
+  bundle: {
+    account: {
+      advertiser_id: TARGET?.advertiserId || "1999999999999999",
+      auth_status: canonicalAccountAuthStatus("pending"),
+      monitor_id: "MONITOR-MOCK"
+    }
+  },
+  skillKey: "context-resolve-account"
+});
+assert(nonReadyAccountContext.blockers.includes("account_not_ready"), "non_ready_account_must_remain_fail_closed");
 
 function caseInput(suffix) {
   return {

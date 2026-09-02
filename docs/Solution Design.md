@@ -3,11 +3,17 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 17:00 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-WORKBENCH-GATE-DRIVEN-READONLY-AUTO-ADVANCE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `069` |
+| 最后更新时间 | 2026-09-02 17:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `070` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
+
+## 2026-09-02 账户 READY 的历史 blocker 投影修正（已批准）
+
+`advertiser_accounts` 是账户可用性的唯一当前事实。其唯一持久化入口把“授权正常”“已授权”“ready”“active”统一保存为 `ready`；其他状态不提升、不猜测，继续由 Node 02 的 `account_not_ready` fail-closed。该归一只作用于后续写入，不改写历史 Skill 审计记录。
+
+migration `070` 仅修正 `mwb.workflow_case_summary`：当前同 scope 账户存在时，旧 `context-resolve-account` 的 `account_missing` 不参与 root blocker；当前账户为 `ready` 时，旧 `account_not_ready` 同样不参与。账户实际缺失或非 READY 时保持原 blocker。它不删除历史 Job/Skill/Plan/confirmation/action/readback，不新增 endpoint、Plan 类型、确认短语或平台权限。迁移后的 active latest Job 继续由既有 Gate-driven readonly 推进器读取 `run_fresh_readiness`；不新建 Job、不复用 Monitor Plan，也不产生平台写入。
 
 ## 2026-09-02 全新账户启动与 Monitor Plan 自动落库（已批准）
 
