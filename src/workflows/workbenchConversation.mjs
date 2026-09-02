@@ -2,7 +2,14 @@ import { resolveConversationIntent } from "../agents/conversationIntentResolver.
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirmedLaunch.mjs";
 import { executeConfirmedResourcePlan } from "./skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
-import { createJob, createReadonlyRecoveryJob, getJobView, runJob } from "./launchWorkflow.mjs";
+import {
+  createJob,
+  createReadonlyRecoveryJob,
+  getJobView,
+  reconcileMonitorAndPersistPlan,
+  runJob,
+  runWorkbenchInitialReadonly
+} from "./launchWorkflow.mjs";
 import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
 import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
 import { PLAN_KIND_MONITOR_BOOTSTRAP, PLAN_KIND_RESOURCE_PREPARE } from "./executionPlan.mjs";
@@ -74,9 +81,11 @@ export async function handleWorkbenchCommand({
   createFreshJobFn = createJob,
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
+  runWorkbenchInitialReadonlyFn = runWorkbenchInitialReadonly,
   executeConfirmedResourcePlanFn = executeConfirmedResourcePlan,
   executeConfirmedLaunchFn = executeConfirmedLaunch,
   monitorReadonlyReconcile = runMonitorProvisionReadonlyReconcile,
+  monitorReadonlyPlanBridge = reconcileMonitorAndPersistPlan,
   credentialStateFn = () => createOceanEngineReadonlyClient().credentialState()
 } = {}) {
   if (!repo) throw new Error("repo_required");
@@ -103,7 +112,11 @@ export async function handleWorkbenchCommand({
   });
 
   if (interaction.effect === "run_dry_run") {
-    const nextView = await runJobFn(repo, jobId, { mode: "dry_run", projectStatePath });
+    const nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      runJobFn
+    });
     return response({
       view: nextView,
       interaction: {
@@ -147,7 +160,11 @@ export async function handleWorkbenchCommand({
         }
       });
     }
-    const nextView = await runJobFn(repo, recovery.jobId, { mode: "dry_run", projectStatePath });
+    const nextView = await runWorkbenchInitialReadonlyFn(repo, recovery.jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      runJobFn
+    });
     return response({
       view: nextView,
       interaction: {
@@ -171,30 +188,36 @@ export async function handleWorkbenchCommand({
     return response({ view: nextView, interaction: { ...interaction, message: readbackMessage(nextView) } });
   }
   if (interaction.effect === "run_monitor_readonly") {
-    const reconcile = await monitorReadonlyReconcile({
-      repo,
-      target: {
-        routeId: bundle.job.route_id,
-        gameCode: bundle.job.game_code,
-        advertiserId: bundle.job.advertiser_id
-      },
-      jobId,
-      fetchImpl: fetchImpl || globalThis.fetch
+    const bridged = await monitorReadonlyPlanBridge(repo, jobId, {
+      monitorReadonlyReconcile,
+      fetchImpl: fetchImpl || globalThis.fetch,
+      projectStatePath,
+      getJobViewFn
     });
-    const nextView = await getJobViewFn(repo, jobId, { projectStatePath });
+    const reconcile = bridged.reconcile || {};
+    const nextView = bridged.view || await getJobViewFn(repo, jobId, { projectStatePath });
     const resolved = nextView?.caseGate?.monitorResolved === true;
     const reconcileBlocker = clean((reconcile?.blockers || [])[0]);
     const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0] || reconcileBlocker);
     const monitorFound = Boolean(clean(reconcile?.resolvedMonitor?.monitorId)) ||
       clean(reconcile?.runStatus) === "monitor_resolved_touchpoint_pending";
-    const message = resolved
+    const message = bridged.planSaved === true
+      ? "fresh readonly 已确认当前账户没有 monitor，并保存唯一 ready Monitor Plan；请核对确认卡后输入“确认创建 monitor”。"
+      : resolved
       ? "fresh readonly monitor 回查已确认 monitor 与受控触点，Case 状态已刷新。"
       : monitorFound
         ? `fresh readonly monitor 回查已找到 monitor，但受控触点回查未完成：${blocker || "touchpoint_url_missing"}。未创建、未重试。`
       : blocker
         ? `fresh readonly monitor 回查未确认 monitor：${blocker}。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。`
         : "fresh readonly monitor 回查未确认 monitor。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。";
-    return response({ view: nextView, interaction: { ...interaction, message } });
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        message,
+        confirmationPreview: nextView?.confirmationPreview || null
+      }
+    });
   }
   if (interaction.effect !== "execute_confirmed_plan") return response({ view, interaction });
 
@@ -258,7 +281,11 @@ export async function handleWorkbenchCommand({
       source_usage: bundle.job.source_usage || "runtime_truth",
       source_record_ref: `workbench:resource-plan:${confirmationPreview.planId}`
     });
-    nextView = await runJobFn(repo, fresh.jobId, { mode: "dry_run", projectStatePath });
+    nextView = await runWorkbenchInitialReadonlyFn(repo, fresh.jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      runJobFn
+    });
   }
   return response({
     view: nextView,

@@ -1,0 +1,66 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902",
+  "task_ref": "tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 16:26 CST",
+  "updated_at": "2026-09-02 16:34 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Bridge new-account Qiankun readonly discovery into Case creation and persist a ready monitor_bootstrap Plan during the first workbench readonly run.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "new account identity and redacted preflight evidence",
+      "runtime Case/Job/readonly monitor facts and monitor_bootstrap Plan"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, Solution Design, project state, and stable mechanism docs",
+    "new-account bootstrap orchestration and guarded account lookup",
+    "first workbench dry-run monitor readonly and Plan persistence bridge",
+    "focused mock tests"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmations, monitor creates, resource creates, project creates, and retries",
+    "new database schema, endpoint, Plan/action type, or write authorization path",
+    "cross-scope advertiser overwrite or raw credential/request/response persistence"
+  ],
+  "validation_plan": [
+    "new account exact/zero/multiple/credential/scope-conflict bootstrap tests",
+    "monitor missing/existing/blocker/idempotent Plan persistence tests",
+    "workflow-case, workbench conversation/runtime policy, monitor, execution-plan, API, and schema regression"
+  ],
+  "stop_conditions": [
+    "any unconfirmed real platform write would be required",
+    "account identity is not an exact Qiankun match",
+    "the bridge weakens current Plan-bound confirmation or fresh-readonly guarantees"
+  ],
+  "completion": {
+    "completed_at": "2026-09-02 16:34 CST",
+    "migration_added": false,
+    "new_api_endpoint_added": false,
+    "account_bootstrap_fail_closed": true,
+    "monitor_plan_action_types": [
+      "ensure_monitor"
+    ],
+    "real_platform_writes": 0,
+    "validation_status": "passed"
+  }
+}

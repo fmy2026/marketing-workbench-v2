@@ -3,15 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 15:47 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 16:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
 
-配套静态图：[project-现在的逻辑图.jpg](</Users/hys/Projects/marketing-workbench-v2/docs/project-现在的逻辑图.jpg>)（图内元信息同为 2026-09-02 14:39 CST；仅说明机制，不承载动态运行事实）。
+当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
 
 ## 1. 真值与唯一主链
 
@@ -33,6 +33,19 @@ frontend / API / CLI / 任务卡 / 工作台对话
 正式业务写入只有一条入口：`工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories`。CLI 不属于正式写入面，只保留 `00-oe3-workflow-cli.mjs`、`00-oe3-readonly-readiness-cli.mjs` 的安全 dry-run/readback，Node 02 状态与 readonly reconcile/配置只读同步，以及 Node 03/04、token 和合同诊断。任何 CLI 都不能绕过当前 Plan/hash、confirmation、action grant 或调用上限。
 
 `scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
+
+```text
+工作台三项输入（route + game + advertiser）
+→ 验证路线×游戏默认配置
+→ 账户缺失时执行乾坤 accountIndex 精确只读预检
+→ 唯一命中且身份合同完整：写 advertiser_accounts + 脱敏 evidence
+→ 创建或复用 active Case → fresh runtime Job
+→ 首次 dry_run 自动推进至 monitor fresh readonly reconcile
+→ 已有 monitor：沿现有只读链继续资源检查
+→ 无 monitor且合同完整：保存唯一 ready monitor_bootstrap Plan并返回确认卡
+```
+
+账户发现只补齐当前 route×game×advertiser 记录，不继承其他账户的 monitor、触点或动态资源 ID。零/多匹配、凭据异常、owner/agent/媒体主体缺失或既有账户 scope 冲突均在 Case/Job 前 fail-closed。自动阶段只读平台并写内部事实；`launch_confirmations`、`platform_actions`、`monitor_provision_attempts` 仍必须等到精确“确认创建 monitor”后才可产生创建记录。
 
 ```text
 Case

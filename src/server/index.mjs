@@ -4,7 +4,14 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
-import { buildWorkbenchView, createJob, createWorkflowCase, getJobView, runJob } from "../workflows/launchWorkflow.mjs";
+import {
+  buildWorkbenchView,
+  createJob,
+  createWorkflowCase,
+  getJobView,
+  runJob,
+  runWorkbenchInitialReadonly
+} from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 import {
@@ -150,7 +157,10 @@ async function handleApi(req, res, url) {
     if (bundle.job.source_usage === "runtime_truth" && !runtimeReadonlyModes.has(mode)) {
       return sendJson(res, 403, { error: "runtime_truth_run_mode_readonly_only" });
     }
-    return sendJson(res, 200, await runJob(repo, jobId, { mode }));
+    const view = bundle.job.source_usage === "runtime_truth" && mode === "dry_run"
+      ? await runWorkbenchInitialReadonly(repo, jobId, { mode })
+      : await runJob(repo, jobId, { mode });
+    return sendJson(res, 200, view);
   }
   if (req.method === "POST" && action === "command") {
     const body = await readBody(req);

@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 15:59 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
+| 最后更新时间 | 2026-09-02 16:31 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -40,6 +40,8 @@
 → 状态说明 / safe readonly / Plan 确认卡
 → 既有 Plan-bound executor
 ```
+
+全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台 `dry_run` 到达 monitor Gate 后自动执行 fresh monitor readonly reconcile；无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，返回“确认创建 monitor”卡片，确认前不得调用创建接口。
 
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 

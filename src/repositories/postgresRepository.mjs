@@ -312,6 +312,16 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getAdvertiserAccount(advertiserId) {
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    return queryJson(`
+      SELECT to_jsonb(account)::text
+      FROM mwb.advertiser_accounts account
+      WHERE account.advertiser_id = ${sqlLiteral(advertiserId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
   async getGameRouteDefaults({ routeId, gameCode }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);

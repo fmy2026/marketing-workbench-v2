@@ -3,11 +3,17 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 15:59 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `069` |
+| 最后更新时间 | 2026-09-02 16:26 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `069` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
+
+## 2026-09-02 全新账户启动与 Monitor Plan 自动落库（已批准）
+
+工作台保持“三项输入 → 点击启动 → 确认卡”。Case 创建前，若目标账户尚未进入 `advertiser_accounts`，必须先验证路线×游戏配置，再复用乾坤 accountIndex readonly preflight；只有精确命中一条且 owner、agent、媒体主体合同齐全时，才写账户与脱敏证据并继续创建 Case/Job。凭据异常、零/多匹配或既有账户范围冲突均 fail-closed，禁止 Case/Job 与跨范围覆盖。
+
+首次工作台 `dry_run` 必须自动完成 monitor readonly reconcile。已有 monitor 时沿既有只读落账继续；没有 monitor 且取得完整 `monitorBootstrapContract` 时，立即使用既有 compiler 保存唯一 ready `monitor_bootstrap` Plan，并返回“确认创建 monitor”卡片。Plan 只含一次 `ensure_monitor`；精确确认前不得写 confirmation、action、attempt 或调用创建接口，确认后的 fresh readonly、单次执行和权威回查保持不变。本变更不新增 Schema、endpoint、Plan/action 类型或平台写授权。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
 

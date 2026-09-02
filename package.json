@@ -23,6 +23,7 @@
     "test:verified-case-finalization": "node scripts/00-verified-case-finalization-smoke.mjs",
     "test:workbench-runtime-policy": "node scripts/00-workbench-runtime-write-policy-smoke.mjs",
     "test:workflow-case": "node scripts/00-workflow-case-smoke.mjs",
+    "test:new-account-monitor-bridge": "node scripts/00-new-account-monitor-bootstrap-bridge-smoke.mjs",
     "smoke:readonly": "node scripts/00-readonly-oceanengine-smoke.mjs",
     "validate:schemas": "node scripts/00-schema-validation-smoke.mjs",
     "test:payload-contract": "node scripts/05-payload-contract-smoke.mjs",

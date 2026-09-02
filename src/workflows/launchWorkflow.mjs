@@ -6,9 +6,17 @@ import {
   runOe3WorkflowSkills
 } from "./skills/oe3/00-index.mjs";
 import { readonlyPermissionState } from "./skills/oe3/00-readonly-permission.mjs";
+import {
+  runMonitorProvisionReadonlyReconcile,
+  runQiankunAccountIndexReadonlyPreflight
+} from "./skills/oe3/02-monitor/index.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
 import { buildConfirmationPreview } from "./gateActionPolicy.mjs";
-import { PLAN_KIND_STD_PROJECT_CREATE } from "./executionPlan.mjs";
+import {
+  compileAndSaveMonitorBootstrapExecutionPlan,
+  PLAN_KIND_MONITOR_BOOTSTRAP,
+  PLAN_KIND_STD_PROJECT_CREATE
+} from "./executionPlan.mjs";
 import {
   workbenchCaseUrl,
   workbenchHomeUrl,
@@ -1035,7 +1043,7 @@ function requiredCaseScope(body = {}, intake = {}) {
   };
 }
 
-export async function createWorkflowCase(repo, body = {}) {
+export async function createWorkflowCase(repo, body = {}, options = {}) {
   const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
   const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, intake);
   const caseKey = String(body.case_key || body.caseKey || "").trim();
@@ -1051,7 +1059,63 @@ export async function createWorkflowCase(repo, body = {}) {
     error.details = { missingFields };
     throw error;
   }
-  const context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+  let context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+  if (!context && sourceUsage === "runtime_truth") {
+    const defaults = typeof repo.getGameRouteDefaults === "function"
+      ? await repo.getGameRouteDefaults({ routeId, gameCode })
+      : null;
+    if (!defaults) {
+      const error = new Error("core_context_not_found");
+      error.statusCode = 404;
+      throw error;
+    }
+    const existingAccount = typeof repo.getAdvertiserAccount === "function"
+      ? await repo.getAdvertiserAccount(advertiserId)
+      : null;
+    if (existingAccount && (
+      existingAccount.route_id !== routeId ||
+      existingAccount.game_code !== gameCode
+    )) {
+      const error = new Error("advertiser_scope_conflict");
+      error.statusCode = 409;
+      error.details = {
+        advertiserId,
+        existingRouteId: existingAccount.route_id || "",
+        existingGameCode: existingAccount.game_code || ""
+      };
+      throw error;
+    }
+    if (!existingAccount) {
+      const accountBootstrap = options.accountBootstrapFn || runQiankunAccountIndexReadonlyPreflight;
+      let bootstrap;
+      try {
+        bootstrap = await accountBootstrap({
+          repo,
+          ownerKey: options.qiankunOwnerKey || "",
+          target: { routeId, gameCode, advertiserId },
+          fetchImpl: options.fetchImpl || globalThis.fetch
+        });
+      } catch {
+        bootstrap = { status: "blocked", blockers: ["account_bootstrap_failed"] };
+      }
+      if (bootstrap?.status !== "passed" || bootstrap?.accountIdentityWritten !== true) {
+        const error = new Error("account_bootstrap_blocked");
+        error.statusCode = 409;
+        error.details = {
+          blockers: bootstrap?.blockers || ["account_identity_not_materialized"],
+          evidenceArtifactId: bootstrap?.evidenceArtifactId || ""
+        };
+        throw error;
+      }
+    }
+    context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+    if (!context) {
+      const error = new Error("account_bootstrap_blocked");
+      error.statusCode = 409;
+      error.details = { blockers: ["account_identity_not_materialized"], evidenceArtifactId: "" };
+      throw error;
+    }
+  }
   if (!context) {
     const error = new Error("core_context_not_found");
     error.statusCode = 404;
@@ -1254,4 +1318,75 @@ export async function runJob(repo, jobId, options = {}) {
     };
   }
   return view;
+}
+
+function readyMonitorBootstrapPlan(bundle = {}) {
+  const plan = bundle.executionPlan || {};
+  return plan.plan_status === "ready" &&
+    String(plan.plan_kind || plan.metadata?.plan_kind || "") === PLAN_KIND_MONITOR_BOOTSTRAP;
+}
+
+export async function reconcileMonitorAndPersistPlan(repo, jobId, options = {}) {
+  const getJobViewFn = options.getJobViewFn || getJobView;
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  if (!bundle?.job) {
+    const error = new Error("job_not_found");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (readyMonitorBootstrapPlan(bundle)) {
+    return {
+      view: await getJobViewFn(repo, jobId, options),
+      reconcile: null,
+      planSaved: false,
+      existingReadyPlan: true
+    };
+  }
+  const reconcileFn = options.monitorReadonlyReconcile || runMonitorProvisionReadonlyReconcile;
+  const reconcile = await reconcileFn({
+    repo,
+    ownerKey: options.qiankunOwnerKey || "",
+    target: {
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id
+    },
+    jobId,
+    fetchImpl: options.fetchImpl || globalThis.fetch
+  });
+  let planSaved = false;
+  if (reconcile?.monitorBootstrapContract) {
+    const compilePlan = options.monitorPlanCompiler || compileAndSaveMonitorBootstrapExecutionPlan;
+    const compiled = await compilePlan({
+      repo,
+      jobId,
+      monitorContract: reconcile.monitorBootstrapContract,
+      planningIntent: {
+        mode: PLAN_KIND_MONITOR_BOOTSTRAP,
+        source: "workbench_monitor_readonly_bridge",
+        no_resource_prepare: true,
+        no_std_project_create: true
+      }
+    });
+    planSaved = compiled?.plan?.planStatus === "ready" || compiled?.stored?.plan_status === "ready";
+  }
+  return {
+    view: await getJobViewFn(repo, jobId, options),
+    reconcile,
+    planSaved,
+    existingReadyPlan: false
+  };
+}
+
+export async function runWorkbenchInitialReadonly(repo, jobId, options = {}) {
+  const runJobFn = options.runJobFn || runJob;
+  const monitorBridgeFn = options.monitorBridgeFn || reconcileMonitorAndPersistPlan;
+  let view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });
+  if (view?.caseGate?.currentGate !== "run_monitor_readonly") return view;
+  const bridged = await monitorBridgeFn(repo, jobId, options);
+  if (bridged.reconcile?.runStatus === "touchpoint_resolved") {
+    view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });
+    return view;
+  }
+  return bridged.view;
 }
