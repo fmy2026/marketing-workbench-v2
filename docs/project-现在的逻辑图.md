@@ -96,7 +96,8 @@ v_monitor_readiness（唯一状态读取）
 → Guardrail + confirmation + action grant
 → fresh readonly 查重 → atomic claim → 单次创建 → 权威回查
 → 脱敏证据与触点落账
-→ 下一次继续执行创建 fresh runtime Job，进入正常 01–07
+→ monitor 创建及权威回查通过，刷新同一 Job 的 Case Gate
+→ 下一次“继续执行”按 Gate 在当前 Job 继续 readonly / 正常 01–07
 ```
 
 `monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
