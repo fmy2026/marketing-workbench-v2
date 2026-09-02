@@ -162,7 +162,10 @@ import {
     const gate = job.caseGate;
     const blocker = gate.rootBlockerCodes?.[0] ? `；唯一阻断：${gate.rootBlockerCodes[0]}` : "";
     if (job.isLatestCaseJob && !viewOnly) {
-      return `当前 Gate：${gate.currentGate}${blocker}；下一步：${gate.suggestedNextAction || "等待后端更新"}`;
+      const nextAction = gate.currentGate === "first_std_project_create_completed"
+        ? "已完成，无需继续执行"
+        : gate.suggestedNextAction || "等待后端更新";
+      return `当前 Gate：${gate.currentGate}${blocker}；下一步：${nextAction}`;
     }
     return `历史运行，只读查看。当前 Case Gate：${gate.currentGate}${blocker}`;
   }
@@ -259,31 +262,6 @@ import {
     const selected = nodes.find((node) => node.id === focusedNodes.get(key));
     if (selected) return selected;
     return nodes.find((node) => node.status !== "passed") || nodes.at(-1) || null;
-  }
-
-  function renderCaseGate() {
-    const panel = document.getElementById("caseGate");
-    panel.innerHTML = "";
-    if (!job?.caseGate?.currentGate) {
-      panel.hidden = true;
-      return;
-    }
-    panel.hidden = false;
-    const gate = job.caseGate;
-    const currentCaseView = job.isLatestCaseJob && !viewOnly;
-    const scope = currentCaseView ? "当前 Case" : "历史 Job · 当前 Case";
-    panel.append(el("strong", "", `${scope} Gate：${gate.currentGate}`));
-    if (gate.rootBlockerCodes?.[0]) {
-      panel.append(el("span", "", `唯一阻断：${gate.rootBlocker?.title || gate.rootBlockerCodes[0]}（${gate.rootBlockerCodes[0]}）`));
-      if (gate.rootBlocker?.reason) panel.append(el("span", "", gate.rootBlocker.reason));
-      if (gate.rootBlocker?.nextActionLabel) panel.append(el("span", "", `处理建议：${gate.rootBlocker.nextActionLabel}`));
-    }
-    if (currentCaseView && gate.suggestedNextAction) {
-      const nextAction = gate.currentGate === "first_std_project_create_completed"
-        ? "已完成，无需继续执行"
-        : gate.suggestedNextAction;
-      panel.append(el("span", "", `下一步：${nextAction}`));
-    }
   }
 
   function renderWorkflow() {
@@ -398,7 +376,6 @@ import {
     renderIntake();
     renderActiveCases();
     renderChat();
-    renderCaseGate();
     renderWorkflow();
     renderCommand();
     refreshIcons();

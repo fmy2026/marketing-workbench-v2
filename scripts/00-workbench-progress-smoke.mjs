@@ -89,7 +89,17 @@ assert(progressRefreshLabel({ hasJob: true, refreshing: true }) === "同步中�
 assert(progressRefreshLabel({ hasJob: true, failed: true }) === "刷新失败，重试", "refresh_failure_label_mismatch");
 assert(latestCaseJobId({ summary: { latest_job_id: "JOB-FRESH-2" } }) === "JOB-FRESH-2", "latest_case_job_missing");
 
-const clientSource = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
+const [htmlSource, clientSource, styleSource] = await Promise.all([
+  readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),
+  readFile(new URL("../frontend/app.js", import.meta.url), "utf8"),
+  readFile(new URL("../frontend/styles.css", import.meta.url), "utf8")
+]);
+assert(!htmlSource.includes('id="caseGate"'), "duplicate_case_gate_panel_still_present");
+assert(!clientSource.includes("renderCaseGate"), "duplicate_case_gate_renderer_still_present");
+assert(!styleSource.includes(".case-gate"), "duplicate_case_gate_styles_still_present");
+assert(clientSource.includes("function operationalMessage()"), "left_conversation_gate_projection_missing");
+assert(htmlSource.includes('id="progressText"'), "bottom_progress_text_removed");
+assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refresh_removed");
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");
 assert(clientSource.includes("withProgressPolling"), "command_progress_polling_missing");
 assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_switch_missing");

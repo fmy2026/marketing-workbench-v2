@@ -1,0 +1,68 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-WORKBENCH-REMOVE-DUPLICATE-GATE-CARD-20260902",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-REMOVE-DUPLICATE-GATE-CARD-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 12:11 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Remove the duplicate right-pane Case Gate card while preserving the single backend Gate truth, left conversation status, workflow nodes and bottom progress refresh.",
+    "mode": "frontend_presentation_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-REMOVE-DUPLICATE-GATE-CARD-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-REMOVE-DUPLICATE-GATE-CARD-20260902.json",
+    "docs/project-现在的逻辑图.md",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-workbench-progress-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest and project control-plane status",
+    "frontend presentation files and the directly related smoke test"
+  ],
+  "forbidden_actions": [
+    "all external platform calls and writes",
+    "all workbench runtime commands, confirmation consumption and runtime Job creation",
+    "database, schema, workflow_case_summary, backend API or Gate policy changes",
+    "removal of the bottom progress and refresh controls",
+    "persistence of raw or sensitive data"
+  ],
+  "validation_plan": [
+    "node --check frontend/app.js",
+    "npm run test:workbench-progress",
+    "npm run test:workbench-conversation",
+    "desktop and narrow viewport readonly browser verification",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "the change requires a backend, API, database or Gate semantic modification",
+    "left conversation status, confirmation cards or bottom progress refresh regress",
+    "a validation path would submit a workbench command or create a runtime Job"
+  ],
+  "completed_at": "2026-09-02 12:14 CST",
+  "result": {
+    "duplicate_case_gate_card_removed": true,
+    "left_conversation_gate_projection_preserved": true,
+    "bottom_progress_refresh_preserved": true,
+    "backend_or_database_changes": 0,
+    "platform_calls": 0,
+    "runtime_jobs_created": 0,
+    "validation": {
+      "frontend_syntax": "passed",
+      "workbench_progress_smoke": "passed",
+      "workbench_conversation_smoke": "passed",
+      "root_current_history_browser_checks": "passed",
+      "desktop_and_390px_visual_checks": "passed",
+      "diff_check": "passed"
+    }
+  }
+}

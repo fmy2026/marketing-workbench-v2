@@ -748,28 +748,6 @@ p {
   white-space: nowrap;
 }
 
-.case-gate {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px 12px;
-  margin-top: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.case-gate strong {
-  color: var(--text);
-}
-
-.case-gate[hidden] {
-  display: none;
-}
-
 .command-bar {
   justify-content: space-between;
   gap: 14px;
