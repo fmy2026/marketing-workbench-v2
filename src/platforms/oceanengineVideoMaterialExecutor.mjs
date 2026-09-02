@@ -6,6 +6,7 @@ import {
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import {
   runVideoMaterialReadonlyGate,
   runVideoMaterialTargetReadonlyProbe
@@ -869,7 +870,7 @@ export async function ensureVideoMaterialBindSetOnce({
     let text = "";
     let payload = {};
     try {
-      response = await fetchImpl(`${API_BASE}${MATERIAL_BIND_ENDPOINT}`, {
+      response = await fetchWithDeadline(fetchImpl, `${API_BASE}${MATERIAL_BIND_ENDPOINT}`, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -877,7 +878,7 @@ export async function ensureVideoMaterialBindSetOnce({
           "Access-Token": env.OCEANENGINE_ACCESS_TOKEN
         },
         body: JSON.stringify(requestPayload)
-      });
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
       text = await response.text();
       try {
         payload = JSON.parse(text);
@@ -885,6 +886,7 @@ export async function ensureVideoMaterialBindSetOnce({
         payload = {};
       }
     } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
       const evidenceRef = await saveVideoBatchEvidence({
         repo,
         jobId,
@@ -904,10 +906,10 @@ export async function ensureVideoMaterialBindSetOnce({
         attemptNo: batchIndex,
         requestHash,
         errorSummary: "video_material_bind_transport_failed",
-        errorCategory: "unclassified",
+        errorCategory: timedOut ? "timeout" : "unclassified",
         idempotencyKey: `IDEMP-${jobId}-VIDEO-MATERIAL-BIND-BATCH-${String(batchIndex).padStart(2, "0")}`,
         requestFieldManifest,
-        responseSummary: { transport_error: true, response_body_stored: false },
+        responseSummary: { transport_error: true, timeout: timedOut, response_body_stored: false },
         metadata,
         finishedAt: new Date().toISOString()
       });
@@ -1387,7 +1389,7 @@ export async function bindVideoMaterialToTargetOnce({
   });
 
   const env = oceanEngineEnv || readOceanEngineEnv().env;
-  const response = await fetchImpl(`${API_BASE}${MATERIAL_BIND_ENDPOINT}`, {
+  const response = await fetchWithDeadline(fetchImpl, `${API_BASE}${MATERIAL_BIND_ENDPOINT}`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -1395,7 +1397,7 @@ export async function bindVideoMaterialToTargetOnce({
       "Access-Token": env.OCEANENGINE_ACCESS_TOKEN
     },
     body: JSON.stringify(requestPayload)
-  });
+  }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
   const text = await response.text();
   let payload = {};
   try {

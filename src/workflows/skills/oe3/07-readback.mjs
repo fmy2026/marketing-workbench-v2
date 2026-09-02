@@ -17,6 +17,12 @@ function readbackPlaceholder({ jobId, projectName }) {
   };
 }
 
+function responseUnknownCreateAction(action = {}) {
+  const responseSummary = action.response_summary || action.responseSummary || {};
+  return action.action_status === "failed_or_unconfirmed" &&
+    responseSummary.outcome_category === "platform_response_unknown";
+}
+
 export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "", createResult = null } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const isMock = latestBundle.platformAction?.action_type === "mock_oceanengine_std_project_create";
@@ -96,6 +102,28 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     ? latestBundle.platformAction
     : null;
   if (realCreateAction) {
+    const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
+    const responseUnknown = responseUnknownCreateAction(realCreateAction);
+    if (!responseConfirmed && !responseUnknown) {
+      const planId = latestBundle.executionPlan?.plan_id || "";
+      if (planId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function") {
+        await repo.finalizeConfirmedStdProjectCreatePlanAfterAction({ jobId: latestBundle.job.job_id, planId });
+      }
+      return {
+        status: "failed",
+        blockers: ["create_response_explicitly_failed"],
+        evidenceRefs: [],
+        outputSummary: {
+          readbackStatus: "skipped_after_explicit_create_failure",
+          objectNameSource: "launch_drafts.project_name",
+          objectNameMatchesDraft: false,
+          realPlatformReadbackCalled: false,
+          createResponseConfirmed: false,
+          responseAnomalyPreserved: false,
+          userVisibleSummary: "创建请求已被平台明确拒绝，已停止且禁止自动重试。"
+        }
+      };
+    }
     const readback = await readbackStdProjectOnce({
       repo,
       jobId: latestBundle.job.job_id,
@@ -103,12 +131,17 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
       fetchImpl,
       readbackDelaysMs: grantSource === "test_fake_transport" ? [0] : undefined
     });
-    const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
     const projectIdMismatch = readback.status === "project_id_mismatch";
     const projectNameMismatch = readback.status === "project_name_mismatch";
     const identityMismatch = projectIdMismatch || projectNameMismatch;
-    const recoveredByReadback = readback.status === "readback_verified" && !responseConfirmed;
-    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && !responseConfirmed;
+    const recoveredByReadback = readback.status === "readback_verified" && responseUnknown;
+    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && responseUnknown;
+    if (readbackMissAfterUnconfirmedCreate) {
+      const planId = latestBundle.executionPlan?.plan_id || "";
+      if (planId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function") {
+        await repo.finalizeConfirmedStdProjectCreatePlanAfterAction({ jobId: latestBundle.job.job_id, planId });
+      }
+    }
     return {
       status: readback.status === "readback_verified"
         ? "passed"
@@ -145,7 +178,7 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         createResponseConfirmed: responseConfirmed,
         projectIdMatchesCreate: readback.projectIdMatchesCreate !== false,
         recoveredByReadback,
-        responseAnomalyPreserved: !responseConfirmed,
+        responseAnomalyPreserved: responseUnknown,
         userVisibleSummary: recoveredByReadback
           ? "创建响应未确认，已通过回查确认对象创建成功。"
           : projectIdMismatch

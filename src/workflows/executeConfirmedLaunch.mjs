@@ -275,9 +275,15 @@ export async function executeConfirmedLaunch({
           blockerCode: prewriteBlocker
         })
       : { finalized: false };
-    const postFinalizationView = finalizedPrewriteBlock.finalized === true
+    const postPrewriteFinalizationView = finalizedPrewriteBlock.finalized === true
       ? await getJobViewFn(repo, jobId, { projectStatePath })
       : view;
+    const finalizedTerminalCreate = currentPlanId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function"
+      ? await repo.finalizeConfirmedStdProjectCreatePlanAfterAction({ jobId, planId: currentPlanId })
+      : { consumed: false };
+    const postFinalizationView = finalizedTerminalCreate.consumed === true
+      ? await getJobViewFn(repo, jobId, { projectStatePath })
+      : postPrewriteFinalizationView;
     const finalization = await finalizeVerifiedStdProjectRuntimeCase({
       repo,
       jobId,

@@ -9,6 +9,7 @@ import {
   parseOceanEngineResponse,
   parseOceanEngineStdProjectResponse
 } from "./oceanengineStdProjectResponse.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 
@@ -143,13 +144,13 @@ export class OceanEngineReadonlyClient {
     });
 
     try {
-      const response = await this.fetchImpl(url, {
+      const response = await fetchWithDeadline(this.fetchImpl, url, {
         method: "GET",
         headers: {
           Accept: "application/json",
           "Access-Token": this.loadEnv().OCEANENGINE_ACCESS_TOKEN
         }
-      });
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
       const text = await response.text();
       let payload = {};
       let responseParseFailed = false;
@@ -197,6 +198,7 @@ export class OceanEngineReadonlyClient {
             : "平台只读 API 返回非通过状态。"
       };
     } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
       return {
         label,
         endpoint: key,
@@ -223,7 +225,10 @@ export class OceanEngineReadonlyClient {
         responseHash: "",
         requestFieldManifest,
         summary: {},
-        gap: `平台只读请求失败：${clean(error.code || error.name || "transport_error")}`
+        gap: timedOut
+          ? "平台只读请求超时。"
+          : `平台只读请求失败：${clean(error.code || error.name || "transport_error")}`,
+        timeout: timedOut
       };
     }
   }

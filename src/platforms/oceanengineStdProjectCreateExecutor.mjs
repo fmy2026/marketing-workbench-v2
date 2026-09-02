@@ -12,6 +12,12 @@ import {
 } from "../workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { buildStdProjectCreateWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 import { parseOceanEngineStdProjectResponse } from "./oceanengineStdProjectResponse.mjs";
+import {
+  fetchWithDeadline,
+  isPlatformDeadlineError,
+  PLATFORM_JSON_TIMEOUT_MS,
+  STD_PROJECT_READBACK_DEADLINE_MS
+} from "./httpDeadline.mjs";
 
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
@@ -26,6 +32,11 @@ function sha256(value) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function responseUnknownCreateAction(action = {}) {
+  return action.action_status === "failed_or_unconfirmed" &&
+    action.response_summary?.outcome_category === "platform_response_unknown";
 }
 
 function canonicalJson(value) {
@@ -474,13 +485,14 @@ export async function createStdProjectForTargetOnce({
   let response = null;
   let text = "";
   try {
-    response = await fetchImpl(`${API_BASE}${CREATE_ENDPOINT}`, {
+    response = await fetchWithDeadline(fetchImpl, `${API_BASE}${CREATE_ENDPOINT}`, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
       body: wireBody.body
-    });
+    }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
     text = await response.text();
-  } catch {
+  } catch (error) {
+    const timedOut = isPlatformDeadlineError(error);
     const responseHash = `sha256:${sha256(canonicalJson({
       request_hash: requestHash,
       outcome: "transport_unconfirmed",
@@ -500,7 +512,7 @@ export async function createStdProjectForTargetOnce({
       requestHash,
       responseHash,
       httpStatus: null,
-      apiCode: "transport_error",
+      apiCode: timedOut ? "timeout" : "transport_error",
       requestIdPresent: false,
       objectIdPresent: false,
       errorSummary: "platform_create_transport_not_confirmed",
@@ -509,12 +521,14 @@ export async function createStdProjectForTargetOnce({
       offendingFieldPath: "",
       idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
       responseSummary: {
-        api_code: "transport_error",
+        api_code: timedOut ? "timeout" : "transport_error",
         request_id_present: false,
         object_id_present: false,
         error_category: "unclassified",
         offending_field_path: "",
         transport_unconfirmed: true,
+        outcome_category: "platform_response_unknown",
+        timeout: timedOut,
         response_hash_present: true,
         raw_response_stored: false
       },
@@ -544,7 +558,7 @@ export async function createStdProjectForTargetOnce({
       status: "create_failed_stop_for_manual_review",
       createCalled: true,
       httpStatus: null,
-      apiCode: "transport_error",
+      apiCode: timedOut ? "timeout" : "transport_error",
       requestIdPresent: false,
       stdProjectId: "",
       evidenceRef
@@ -571,7 +585,7 @@ export async function createStdProjectForTargetOnce({
     actionType: "oceanengine_std_project_create",
     endpoint: CREATE_ENDPOINT,
     method: "POST",
-    actionStatus: passed ? "succeeded" : "failed_or_unconfirmed",
+    actionStatus: passed ? "succeeded" : "failed",
     attemptNo: runtimeTarget.createAttemptNo,
     requestHash,
     responseHash,
@@ -683,7 +697,8 @@ export async function readbackStdProjectOnce({
   fetchImpl = globalThis.fetch,
   readbackDelaysMs = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS,
   nowFn = Date.now,
-  sleepImpl = sleep
+  sleepImpl = sleep,
+  readbackDeadlineMs = STD_PROJECT_READBACK_DEADLINE_MS
 } = {}) {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
@@ -703,6 +718,7 @@ export async function readbackStdProjectOnce({
   const attempts = [];
   const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
     bundle.platformAction?.object_id_present === true;
+  const responseUnknownByCreate = responseUnknownCreateAction(bundle.platformAction);
   const createResponseObjectId = responseConfirmedByCreate
     ? clean(bundle.createdObject?.object_id)
     : "";
@@ -716,20 +732,28 @@ export async function readbackStdProjectOnce({
   let text = "";
   let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
   const readbackStartedAt = nowFn();
+  const absoluteDeadlineMs = Math.max(1, Number(readbackDeadlineMs) || STD_PROJECT_READBACK_DEADLINE_MS);
   for (const delayMs of safeReadbackDelays(readbackDelaysMs)) {
     const elapsedMs = nowFn() - readbackStartedAt;
-    await sleepImpl(Math.max(0, delayMs - elapsedMs));
+    if (elapsedMs >= absoluteDeadlineMs) break;
+    const requestedWaitMs = Math.max(0, delayMs - elapsedMs);
+    const remainingBeforeWaitMs = absoluteDeadlineMs - elapsedMs;
+    await sleepImpl(Math.min(requestedWaitMs, remainingBeforeWaitMs));
+    if (requestedWaitMs >= remainingBeforeWaitMs) break;
+    const remainingMs = absoluteDeadlineMs - (nowFn() - readbackStartedAt);
+    if (remainingMs <= 0) break;
     try {
-      response = await fetchImpl(url, {
+      response = await fetchWithDeadline(fetchImpl, url, {
         method: "GET",
         headers: { Accept: "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN }
-      });
+      }, { timeoutMs: Math.min(PLATFORM_JSON_TIMEOUT_MS, remainingMs) });
       text = await response.text();
-    } catch {
+    } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
       response = null;
-      text = canonicalJson({ endpoint: "std_project/list", delay_ms: delayMs, outcome: "transport_error" });
+      text = canonicalJson({ endpoint: "std_project/list", delay_ms: delayMs, outcome: timedOut ? "timeout" : "transport_error" });
       summary = {
-        apiCode: "transport_error",
+        apiCode: timedOut ? "timeout" : "transport_error",
         requestIdPresent: false,
         objectId: "",
         objectName: "",
@@ -739,11 +763,12 @@ export async function readbackStdProjectOnce({
       attempts.push({
         delay_ms: delayMs,
         http_status: null,
-        api_code: "transport_error",
+        api_code: timedOut ? "timeout" : "transport_error",
         request_id_present: false,
         object_id_present: false,
         object_name_matches: false,
-        response_hash: `sha256:${sha256(text)}`
+        response_hash: `sha256:${sha256(text)}`,
+        timeout: timedOut
       });
       continue;
     }
@@ -784,15 +809,6 @@ export async function readbackStdProjectOnce({
     (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
   const readbackVerified = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate;
   if (readbackVerified) {
-    if (!responseConfirmedByCreate && bundle.platformAction?.action_id && typeof repo.mergePlatformActionMetadata === "function") {
-      await repo.mergePlatformActionMetadata(bundle.platformAction.action_id, {
-        recovered_by_readback: true,
-        readback_object_name_matches_draft: true,
-        retry_allowed: false,
-        raw_payload_stored: false,
-        raw_response_stored: false
-      });
-    }
     await repo.upsertCreatedObject({
       createdObjectId: `CO-${jobId}-STD-PROJECT-${summary.objectId}`,
       jobId,
@@ -827,6 +843,29 @@ export async function readbackStdProjectOnce({
       },
       evidenceRef
     });
+    if (responseUnknownByCreate && bundle.platformAction?.action_id && typeof repo.promoteUnconfirmedStdProjectCreateActionAfterReadback === "function") {
+      await repo.promoteUnconfirmedStdProjectCreateActionAfterReadback({
+        jobId,
+        planId: runtimeTarget.planId,
+        actionId: bundle.platformAction.action_id,
+        objectId: summary.objectId,
+        objectName: summary.objectName
+      });
+    } else if (!responseConfirmedByCreate && bundle.platformAction?.action_id && typeof repo.mergePlatformActionMetadata === "function") {
+      await repo.mergePlatformActionMetadata(bundle.platformAction.action_id, {
+        recovered_by_readback: false,
+        recovery_blocked_reason: "create_response_was_explicit_failure",
+        retry_allowed: false,
+        raw_payload_stored: false,
+        raw_response_stored: false
+      });
+    }
+    if (responseUnknownByCreate && runtimeTarget.planId && typeof repo.markConfirmedStdProjectCreatePlanWaitingReadback === "function") {
+      await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
+        jobId,
+        planId: runtimeTarget.planId
+      });
+    }
     if (runtimeTarget.planId && typeof repo.consumeConfirmedStdProjectCreatePlanAfterReadback === "function") {
       await repo.consumeConfirmedStdProjectCreatePlanAfterReadback({
         jobId,
@@ -877,6 +916,7 @@ export async function readbackStdProjectOnce({
     objectStatus: summary.objectStatus,
     objectNameMatches: summary.objectNameMatches,
     projectIdMatchesCreate,
+    responseUnknownByCreate,
     readbackAttempts: attempts,
     evidenceRef
   };

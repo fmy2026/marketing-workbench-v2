@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；已验证可复用经验集 |
-| 最后更新时间 | 2026-09-02 12:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与既有回归证据 |
+| 最后更新时间 | 2026-09-02 14:39 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与回归证据 |
 | 重新校验条件 | 新增可复用闭环经验、接口/字段合同变化，或既有经验被当前代码、Schema、官方资料或真实回查否定时 |
 
 ## 使用规则
@@ -193,6 +193,17 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 验证状态 | 已以真实手动共享后的只读回查闭环：来源默认页可用、目标普通库存未命中、目标共享库存同站点命中且 `AUDIT_ACCEPTED`，来源/目标 hash 一致；全程 0 次平台写入。 |
 | 创建字段边界 | 备用落地页资源可作为路线候选准备事实；`external_url_material_list` 是否发送由 `official_create_field_contract.nested_rules` 决定。已验证成功的受控场景发送 1 条，但该成功事实不应被泛化为所有 JSZC/BYTE_GAME 场景必填。 |
 | 不适用边界 | 不在文档、日志、API 或前端保存完整落地页 URL；不把落地页通过替代产品图或小程序实例 Gate，也不因资源存在就默认进入创建字段。 |
+
+## Create 终态与 HTTP deadline（2026-09-02）
+
+| 项 | 经验结论 |
+| --- | --- |
+| Plan 不可重放 | 已确认 Create Plan 一旦存在平台 action，就不得继续为 `ready`。成功链固定为 `ready → waiting_readback → consumed`；明确失败、超时、异常或结果不明在相应只读收口后都必须离开可确认态。 |
+| 不明与明确失败的区别 | 只有 `failed_or_unconfirmed + outcome_category=platform_response_unknown` 才能进入严格只读回查恢复；平台明确业务失败保留失败事实，禁止用同名对象回查改写成成功。 |
+| 恢复门槛 | 不明响应的恢复同时要求该 action/Plan、项目 ID、最新 Draft 名称、created object 与 `readback_verified` 精确一致；恢复只标记“由回查确认成功”，不伪造或重用 confirmation/action。 |
+| 终态一致性 | verified 成功同时收口 Plan、Job 和 Case；非 active Case 不再投影确认、重试或执行入口，只有完整完成证据保留完成 Gate。 |
+| deadline 单一来源 | 所有生产 HTTP 经同一封装：JSON 15 秒、上传 60 秒；Node 07 保留 `0/3/5/8/10` 秒绝对回查点并设 25 秒整轮硬截止。封装必须组合 caller signal、超时 abort 与 timer 清理，且不实现自动重试。 |
+| 回归范围 | 可控假传输覆盖超时 abort、timer 清理、一次写入、不明恢复、明确失败不可恢复和 Node 07 截止；数据库迁移只收口已落库的确定性证据。 |
 
 ## 新案例模板
 

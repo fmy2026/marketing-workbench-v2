@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 12:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `067` |
+| 最后更新时间 | 2026-09-02 14:39 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `068` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -126,6 +126,14 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 `std_project_create` 成功受理后不等于 READY：Create Plan 由 `ready` 进入 `waiting_readback`，Node 05/06 投影为已通过，Node 07 从本轮回查起点按绝对 `0/3/5/8/10` 秒调用既有 `std_project/list`，命中即提前停止。回查必须同时满足项目 ID 与最新 Draft 名称一致；五次未命中保持 `created_pending_readback` / `run_readback_only`，ID 或名称不一致进入人工检查，所有分支都禁止再次 create。
 
 verified 后由 `execute_once` 与后续 `readback_only` 共用的内部 finalizer 强校验：目标必须是同一 Case 的最新 `runtime_truth` Job、已确认 Create Plan、唯一成功 create action、唯一创建对象、最新 Draft，以及 ID/名称一致的 verified readback。通过后 Plan 才进入 `consumed`，active Case 才进入 `completed`；该收口幂等，不改写历史 Node run、不新建 confirmation/action/Job，也不产生额外平台请求。工作台完成态只读取刷新后的 `first_std_project_create_completed` 与 7/7 投影。
+
+## 已批准设计：Create 终态一致性与统一 HTTP Deadline
+
+Create Plan 的一次确认权一旦产生平台 action，就不得继续以 `ready` 投影。成功 action 保持既有 `ready → waiting_readback → consumed`；明确平台失败、超时、异常或响应不明均在本轮只读回查结束后将已确认 Plan 置为 `consumed`，Job 保持既有人工修正语义，绝不自动创建第二次。超时或响应不明统一保留为 `failed_or_unconfirmed`：仅当同一 Case 最新 runtime Job 的权威回查精确满足账户范围、最新 Draft 名称及对象 ID 条件时，才可把该 action 以脱敏 `recovered_by_readback=true` 证据确认成功，并复用现有 verified finalizer；明确 API 失败不可由同名对象回查改判成功。
+
+`workflow_case_summary` 对非活动 Case 先处理生命周期：完整 verified 创建证据继续投影既有完成 Gate；其他非活动 Case 只投影既有 `review_latest_job`，不得暴露确认、重试或纠错执行入口。migration `068` 只修正可由既有 confirmation/action/object/readback 证据确定的历史 Plan/Case 元数据：已执行 `ready` Plan 收口、verified completed Case 补齐 completion metadata、非活动 Case 未执行 `ready` Plan 标为 `stale`。无法确定的行不修改，并输出脱敏审计计数。该迁移不删除、不伪造业务证据，不重开 Case，也不触发平台请求。
+
+所有生产平台 HTTP 请求通过唯一 deadline 封装：普通 JSON 读写为 15 秒，文件上传为 60 秒；封装合并调用方 AbortSignal、超时 abort 并清理 timer，不包含重试。Node 07 继续在本轮起点的绝对 `0/3/5/8/10` 秒发起只读回查，但整轮硬截止为 25 秒。写超时按结果不明记录 action 并仅回查，读超时使用既有只读失败结果且保存脱敏 `timeout` 诊断；事件配置已有 15 秒规则迁入该统一封装，语义不变。该设计不新增公开 API、表、Plan 状态、Gate 或平台权限。
 
 ## 已批准设计：Create Plan 与最终 Draft 的发布绑定
 

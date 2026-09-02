@@ -15,6 +15,7 @@ import {
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_UPLOAD_TIMEOUT_MS } from "./httpDeadline.mjs";
 
 export const PRODUCT_IMAGE_CONFIRM_ENV = PRODUCT_IMAGE_ENSURE_CONFIRM_ENV;
 export const PRODUCT_IMAGE_CONFIRM_VALUE = PRODUCT_IMAGE_ENSURE_CONFIRM_VALUE;
@@ -238,7 +239,7 @@ async function callProductImageUpload({ repo, jobId, body, headers, requestHash,
     metadata
   });
   try {
-    const response = await fetchImpl(IMAGE_UPLOAD_FULL_ENDPOINT, { method: "POST", headers, body });
+    const response = await fetchWithDeadline(fetchImpl, IMAGE_UPLOAD_FULL_ENDPOINT, { method: "POST", headers, body }, { timeoutMs: PLATFORM_UPLOAD_TIMEOUT_MS });
     const text = await response.text();
     let payload = {};
     try { payload = JSON.parse(text); } catch { payload = {}; }
@@ -268,7 +269,8 @@ async function callProductImageUpload({ repo, jobId, body, headers, requestHash,
     });
     return { actionId, passed, response, payload, responseHash };
   } catch (error) {
-    const errorCategory = clean(error?.code || error?.name || "transport_error");
+    const timedOut = isPlatformDeadlineError(error);
+    const errorCategory = timedOut ? "timeout" : clean(error?.code || error?.name || "transport_error");
     await updateAction(repo, {
       actionId,
       jobId,
@@ -280,13 +282,13 @@ async function callProductImageUpload({ repo, jobId, body, headers, requestHash,
       requestHash,
       responseHash: "",
       httpStatus: null,
-      apiCode: "",
+      apiCode: timedOut ? "timeout" : "",
       requestIdPresent: false,
       objectIdPresent: false,
       errorSummary: "product_image_platform_transport_failed",
       errorCategory,
       requestFieldManifest,
-      responseSummary: { transport_error: true, raw_response_stored: false },
+      responseSummary: { transport_error: true, timeout: timedOut, raw_response_stored: false },
       metadata,
       finishedAt: new Date().toISOString()
     });

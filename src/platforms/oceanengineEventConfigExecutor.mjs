@@ -29,11 +29,12 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
 
 export const EVENT_CONFIGS_CONFIRM_ENV = EVENT_CONFIGS_ENSURE_CONFIRM_ENV;
 export const EVENT_CONFIGS_CONFIRM_VALUE = EVENT_CONFIGS_ENSURE_CONFIRM_VALUE;
-export const EVENT_CONFIG_CREATE_TIMEOUT_MS = 15_000;
+export const EVENT_CONFIG_CREATE_TIMEOUT_MS = PLATFORM_JSON_TIMEOUT_MS;
 
 const API_ORIGIN = "https://ad.oceanengine.com";
 const EVENT_CONFIG_CREATE_FULL_ENDPOINT = `${API_ORIGIN}${EVENT_CONFIG_CREATE_ENDPOINT}`;
@@ -502,34 +503,6 @@ async function updateAction(repo, action) {
   await repo.upsertPlatformAction(action);
 }
 
-async function fetchEventConfigCreate(fetchImpl, url, options = {}, timeoutMs = EVENT_CONFIG_CREATE_TIMEOUT_MS) {
-  const boundedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
-    ? Number(timeoutMs)
-    : EVENT_CONFIG_CREATE_TIMEOUT_MS;
-  const controller = new AbortController();
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, controller.signal])
-    : controller.signal;
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      const error = new Error("event_config_create_timeout");
-      error.name = "TimeoutError";
-      error.code = "ETIMEDOUT";
-      controller.abort(error);
-      reject(error);
-    }, boundedTimeoutMs);
-  });
-  try {
-    return await Promise.race([
-      Promise.resolve(fetchImpl(url, { ...options, signal })),
-      timeout
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function callEventConfigCreate({
   repo,
   bundle,
@@ -556,11 +529,11 @@ async function callEventConfigCreate({
     metadata
   });
   try {
-    const response = await fetchEventConfigCreate(fetchImpl, EVENT_CONFIG_CREATE_FULL_ENDPOINT, {
+    const response = await fetchWithDeadline(fetchImpl, EVENT_CONFIG_CREATE_FULL_ENDPOINT, {
       method: EVENT_CONFIG_CREATE_METHOD,
       headers,
       body: request.body
-    }, timeoutMs);
+    }, { timeoutMs });
     const text = await response.text();
     let payload = {};
     try { payload = JSON.parse(text); } catch { payload = {}; }
@@ -591,6 +564,7 @@ async function callEventConfigCreate({
     });
     return { actionId, passed, response, payload, responseHash, eventType: request.event_type };
   } catch (error) {
+    const timedOut = isPlatformDeadlineError(error);
     const persistedErrorCategory = "unclassified";
     await updateAction(repo, {
       actionId,
@@ -603,7 +577,7 @@ async function callEventConfigCreate({
       requestHash: request.requestHash,
       responseHash: "",
       httpStatus: null,
-      apiCode: "",
+      apiCode: timedOut ? "timeout" : "",
       requestIdPresent: false,
       objectIdPresent: false,
       errorSummary: "event_config_platform_response_unknown_readback_required",
@@ -613,6 +587,7 @@ async function callEventConfigCreate({
       responseSummary: {
         outcome_category: "platform_response_unknown",
         response_unknown: true,
+        timeout: timedOut,
         readback_required: true,
         response_persisted: false
       },

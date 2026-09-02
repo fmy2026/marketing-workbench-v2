@@ -156,7 +156,7 @@ async function getBundleView(jobId) {
   };
 }
 
-async function writeProjectStateForScope({ jobId, draftId, payloadHash, enabled = true, overrides = {} }) {
+async function writeProjectStateForScope({ jobId, draftId, payloadHash, enabled = true, planBound = false, overrides = {} }) {
   const dir = await mkdtemp(join(tmpdir(), "mwbv2-execution-grant-"));
   tempDirs.push(dir);
   const projectStatePath = join(dir, "project.state.json");
@@ -164,7 +164,9 @@ async function writeProjectStateForScope({ jobId, draftId, payloadHash, enabled 
     guardrails: {
       platform_write_allowed: enabled,
       platform_write_scope: {
-        mode: "single_oceanengine_std_project_create",
+        // Legacy fixture scopes cover compatibility checks. Terminal-plan cases
+        // deliberately exercise the production Plan-bound confirmation branch.
+        mode: planBound ? "test_plan_bound_confirmation" : "single_oceanengine_std_project_create",
         target_job_id: jobId,
         target_draft_id: draftId,
         target_payload_hash: payloadHash,
@@ -511,14 +513,45 @@ try {
   assert(boundAfter?.metadata?.single_variable_experiment?.candidate_path === "audience.filter_event", "bound experiment candidate was lost");
   assert(boundAfter?.metadata?.single_variable_experiment?.diff_hash === boundExperiment.diffHash, "bound experiment diff hash was lost");
 
-  const recoveredView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-hit");
-  const recoveredState = await writeProjectStateForScope(recoveredView);
-  const recoveredFetch = fakeFetchFactory({
+  const explicitFailureView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-hit");
+  const explicitFailureState = await writeProjectStateForScope({ ...explicitFailureView, planBound: true });
+  const explicitFailureFetch = fakeFetchFactory({
     projectId: "999900004",
     createApiCode: "40000",
     createObjectIdPresent: false,
     listMatch: true,
     createMessage: "invalid parameter: project_materials.external_url_material_list"
+  });
+  const explicitFailure = await executeConfirmedLaunch({
+    repo,
+    jobId: explicitFailureView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: explicitFailureFetch,
+    projectStatePath: explicitFailureState
+  });
+  const explicitFailureStatuses = nodeStatuses(explicitFailure);
+  assert(callCount(explicitFailureFetch, "/std_project/create/") === 1, "explicit failure must issue exactly one create");
+  assert(callCount(explicitFailureFetch, "/std_project/list/") === 0, "explicit failure must not be recovered by same-name readback");
+  assert(explicitFailureStatuses.std_project_create_executor === "failed", "explicit failure must preserve failed create node");
+  assert(explicitFailureStatuses.readback_closer === "failed", "explicit failure must stop Node 7");
+  assert(explicitFailure.headline.status === "failed_waiting_manual_review", "explicit failure must remain manual review");
+  const explicitFailureAudit = await repo.getLaunchJobBundle(explicitFailureView.jobId);
+  const explicitFailurePlan = await repo.getLatestLaunchExecutionPlan(explicitFailureView.jobId);
+  assert(explicitFailureAudit.platformAction?.action_status === "failed", "explicit platform rejection must stay failed");
+  assert(explicitFailurePlan?.plan_status === "consumed", "explicit failure must consume confirmed plan");
+  assert(explicitFailureAudit.platformAction?.request_id_recorded === false, "complete request_id must not be retained in action audit");
+  assert(explicitFailureAudit.platformAction?.error_category === "landing_url_invalid", "field error should have a safe landing URL category");
+  assert(explicitFailureAudit.platformAction?.offending_field_path === "project_materials.external_url_material_list", "field error should retain only the allowed field path");
+  assert(!JSON.stringify(explicitFailureAudit.platformAction || {}).includes("invalid parameter"), "platform error text must not be persisted in public job data");
+  assertNoSensitiveLeak(explicitFailure);
+
+  const recoveredView = await createReadyTestJob("execution-grant-smoke:create-transport-readback-hit");
+  const recoveredState = await writeProjectStateForScope({ ...recoveredView, planBound: true });
+  const recoveredFetch = fakeFetchFactory({
+    projectId: "999900004",
+    createTransportThrows: true,
+    listMatch: true
   });
   const recovered = await executeConfirmedLaunch({
     repo,
@@ -531,16 +564,15 @@ try {
   const recoveredStatuses = nodeStatuses(recovered);
   const recoveredReadback = latestSkill(recovered, "readback-std-project");
   assertOneCreateOneReadback(recoveredFetch);
-  assert(recoveredStatuses.std_project_create_executor === "failed", "anomalous create node should preserve failed response");
-  assert(recoveredStatuses.readback_closer === "passed", "readback hit should pass node 7");
-  assert(recovered.headline.status === "created", "readback hit should close job as created");
-  assert(recovered.readback?.status === "readback_verified", "recovered readback should be verified");
-  assert(recoveredReadback.outputSummary?.recoveredByReadback === true, "readback should mark recoveredByReadback");
+  assert(recoveredStatuses.std_project_create_executor === "passed", "verified response-unknown create should project the recovered action as passed");
+  assert(recoveredStatuses.readback_closer === "passed", "strict response-unknown readback hit should pass node 7");
+  assert(recovered.readback?.status === "readback_verified", "response-unknown readback should be verified");
+  assert(recoveredReadback.outputSummary?.recoveredByReadback === true, "strict response-unknown readback should mark recovery");
   const recoveredAudit = await repo.getLaunchJobBundle(recoveredView.jobId);
-  assert(recoveredAudit.platformAction?.request_id_recorded === false, "complete request_id must not be retained in action audit");
-  assert(recoveredAudit.platformAction?.error_category === "landing_url_invalid", "field error should have a safe landing URL category");
-  assert(recoveredAudit.platformAction?.offending_field_path === "project_materials.external_url_material_list", "field error should retain only the allowed field path");
-  assert(!JSON.stringify(recoveredAudit.platformAction || {}).includes("invalid parameter"), "platform error text must not be persisted in public job data");
+  const recoveredPlan = await repo.getLatestLaunchExecutionPlan(recoveredView.jobId);
+  assert(recoveredAudit.platformAction?.action_status === "succeeded", "verified response-unknown action must be promoted to succeeded");
+  assert(recoveredAudit.platformAction?.metadata?.recovered_by_readback === true, "recovered action metadata missing");
+  assert(recoveredPlan?.plan_status === "consumed", "verified response-unknown plan must be consumed");
   assertNoSensitiveLeak(recovered);
 
   const missView = await createReadyTestJob("execution-grant-smoke:create-40000-readback-miss");
@@ -561,7 +593,8 @@ try {
     projectStatePath: missState
   });
   const missedStatuses = nodeStatuses(missed);
-  assertOneCreateOneReadback(missFetch);
+  assert(callCount(missFetch, "/std_project/create/") === 1, "explicit failure must issue exactly one create");
+  assert(callCount(missFetch, "/std_project/list/") === 0, "explicit failure must not trigger readback");
   assert(missedStatuses.std_project_create_executor === "failed", "missed create node should fail");
   assert(missedStatuses.readback_closer === "failed", "readback miss should fail node 7");
   assert(missed.headline.status === "failed_waiting_manual_review", "readback miss should stop for manual review");
@@ -678,7 +711,8 @@ try {
     fetchImpl: seriesFirstFetch,
     projectStatePath: seriesFirstState
   });
-  assertOneCreateOneReadback(seriesFirstFetch);
+  assert(callCount(seriesFirstFetch, "/std_project/create/") === 1, "series explicit failure must issue one create");
+  assert(callCount(seriesFirstFetch, "/std_project/list/") === 0, "series explicit failure must not trigger readback");
   assert(seriesFirstResult.executionGrant.createCalled === true, "series attempt 1 should make exactly one create call");
 
   const seriesSecond = await createReadyTestJob("execution-grant-smoke:series-attempt-2", {

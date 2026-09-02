@@ -1,0 +1,72 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902",
+  "task_ref": "tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 14:12 CST",
+  "updated_at": "2026-09-02 15:07 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Close confirmed Create Plan terminal states and provide one deadline policy for all live platform HTTP paths.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "migration 068 evidence-guarded Plan/Case terminal reconciliation only"
+    ],
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/finalizeVerifiedStdProjectRuntimeCase.mjs",
+    "db/068_case_terminal_http_deadline_reconciliation.sql"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, and project control-plane metadata",
+    "internal deadline utility and production platform client call sites",
+    "Create Plan terminal-state repository/workflow logic and focused fake-transport tests",
+    "migration 068 with evidence-guarded Plan/Case reconciliation and workflow_case_summary projection",
+    "stable mechanism documentation and logical diagram artifacts"
+  ],
+  "forbidden_actions": [
+    "all real external platform calls and writes",
+    "all confirmation consumption and runtime workflow commands",
+    "new public APIs, database tables, Gate types, Plan statuses, Nodes, or background workers",
+    "historical action/object/readback/confirmation rewrites, Case reactivation, or sensitive data persistence"
+  ],
+  "validation_plan": [
+    "unit fake-transport deadline coverage including abort and timer cleanup",
+    "Create terminal lifecycle and strict readback-recovery coverage",
+    "migration transaction/idempotency and workflow_case_summary projection checks",
+    "Execution Plan, execution grant, readback, Case, Monitor, resources, workbench, schema, and contract regression"
+  ],
+  "stop_conditions": [
+    "any platform request, write, confirmation, action, or Job would be created",
+    "authoritative project ID plus latest Draft-name verification would be weakened",
+    "a target reconciliation row has insufficient persisted evidence"
+  ],
+  "completion": {
+    "completed_at": "2026-09-02 15:07 CST",
+    "migration": "068_case_terminal_http_deadline_reconciliation.sql",
+    "migration_idempotent": true,
+    "real_platform_calls": 0,
+    "verified": [
+      "platform HTTP deadline smoke",
+      "std-project readback smoke",
+      "execution plan and execution-grant smoke",
+      "verified Case and workflow Case smoke",
+      "Monitor, workbench, resource executor, schema, API and database contract smoke"
+    ]
+  }
+}

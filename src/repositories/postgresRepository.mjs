@@ -810,6 +810,7 @@ export class PostgresRepository {
             'offending_field_path', pa.offending_field_path,
             'request_field_manifest', pa.request_field_manifest,
             'response_summary', pa.response_summary,
+            'metadata', pa.metadata,
             'started_at', pa.started_at,
             'finished_at', pa.finished_at
           )
@@ -997,6 +998,14 @@ export class PostgresRepository {
           )
         ORDER BY draft.created_at DESC
         LIMIT 1
+      ), job_completed AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = 'completed',
+            current_node = '7',
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM eligible)
+        RETURNING job.job_id
       ), completed AS (
         UPDATE mwb.workflow_cases workflow_case
         SET lifecycle_status = 'completed',
@@ -1009,11 +1018,12 @@ export class PostgresRepository {
               ELSE now()
             END
         WHERE workflow_case.case_id = ${sqlLiteral(caseId)}
-          AND EXISTS (SELECT 1 FROM eligible)
+          AND EXISTS (SELECT 1 FROM job_completed)
         RETURNING workflow_case.case_id
       )
       SELECT jsonb_build_object(
         'completed', EXISTS (SELECT 1 FROM completed),
+        'jobCompleted', EXISTS (SELECT 1 FROM job_completed),
         'caseId', ${sqlLiteral(caseId)},
         'jobId', ${sqlLiteral(jobId)},
         'planId', ${sqlLiteral(planId)}
@@ -3097,6 +3107,128 @@ export class PostgresRepository {
       SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed))::text;
     `, this.database);
     return result || { consumed: false };
+  }
+
+  async promoteUnconfirmedStdProjectCreateActionAfterReadback({ jobId, planId, actionId, objectId, objectName } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    assertId("action_id", actionId);
+    assertId("object_id", objectId);
+    if (!String(objectName || "").trim()) throw new Error("object_name_required");
+    const result = await queryJson(`
+      WITH promoted AS (
+        UPDATE mwb.platform_actions action
+        SET action_status = 'succeeded',
+            object_id_present = true,
+            error_summary = '',
+            error_category = '',
+            metadata = action.metadata || jsonb_build_object(
+              'recovered_by_readback', true,
+              'recovery_source', 'std_project_list_verified',
+              'retry_allowed', false,
+              'raw_payload_stored', false,
+              'raw_response_stored', false
+            ),
+            response_summary = action.response_summary || jsonb_build_object(
+              'outcome_category', 'recovered_by_readback',
+              'verified_object_id_present', true,
+              'raw_response_stored', false
+            ),
+            finished_at = coalesce(action.finished_at, now())
+        WHERE action.action_id = ${sqlLiteral(actionId)}
+          AND action.job_id = ${sqlLiteral(jobId)}
+          AND action.plan_id = ${sqlLiteral(planId)}
+          AND action.action_type = 'oceanengine_std_project_create'
+          AND action.action_status = 'failed_or_unconfirmed'
+          AND coalesce(action.response_summary->>'outcome_category', '') = 'platform_response_unknown'
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = action.job_id
+              AND confirmation.plan_id = action.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_drafts draft
+            JOIN mwb.created_objects object
+              ON object.job_id = draft.job_id
+             AND object.object_type = 'std_project'
+             AND object.object_id = ${sqlLiteral(objectId)}
+             AND object.object_name = draft.project_name
+            JOIN mwb.readback_records readback
+              ON readback.job_id = draft.job_id
+             AND readback.object_type = 'std_project'
+             AND readback.object_id = ${sqlLiteral(objectId)}
+             AND readback.object_name = draft.project_name
+             AND readback.readback_status = 'readback_verified'
+            WHERE draft.job_id = action.job_id
+              AND draft.project_name = ${sqlLiteral(objectName)}
+              AND draft.draft_id = (
+                SELECT latest_draft.draft_id
+                FROM mwb.launch_drafts latest_draft
+                WHERE latest_draft.job_id = action.job_id
+                ORDER BY latest_draft.created_at DESC, latest_draft.draft_id DESC
+                LIMIT 1
+              )
+          )
+        RETURNING action.action_id
+      )
+      SELECT jsonb_build_object('promoted', EXISTS (SELECT 1 FROM promoted))::text;
+    `, this.database);
+    return result || { promoted: false };
+  }
+
+  async finalizeConfirmedStdProjectCreatePlanAfterAction({ jobId, planId } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    const result = await queryJson(`
+      WITH terminal_action AS (
+        SELECT action.action_status
+        FROM mwb.platform_actions action
+        WHERE action.job_id = ${sqlLiteral(jobId)}
+          AND action.plan_id = ${sqlLiteral(planId)}
+          AND action.action_type = 'oceanengine_std_project_create'
+          AND action.action_status IN ('failed', 'failed_or_unconfirmed')
+        ORDER BY action.attempt_no DESC, action.finished_at DESC NULLS LAST, action.started_at DESC
+        LIMIT 1
+      ), consumed AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', coalesce((SELECT action_status FROM terminal_action), 'failed_or_unconfirmed'),
+              'retry_allowed', false,
+              'platform_action_count', 1
+            ),
+            updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status IN ('ready', 'waiting_readback')
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = plan.job_id
+              AND confirmation.plan_id = plan.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND EXISTS (SELECT 1 FROM terminal_action)
+        RETURNING plan.plan_id
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = 'failed_waiting_manual_review',
+            current_node = '7',
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM consumed)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object(
+        'consumed', EXISTS (SELECT 1 FROM consumed),
+        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized)
+      )::text;
+    `, this.database);
+    return result || { consumed: false, jobFinalized: false };
   }
 
   async getLaunchExecutionPlan(planId) {

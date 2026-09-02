@@ -3,13 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 12:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-02 14:39 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `068_case_terminal_http_deadline_reconciliation.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
+
+配套静态图：[project-现在的逻辑图.jpg](</Users/hys/Projects/marketing-workbench-v2/docs/project-现在的逻辑图.jpg>)（图内元信息同为 2026-09-02 14:39 CST；仅说明机制，不承载动态运行事实）。
 
 ## 1. 真值与唯一主链
 
@@ -165,13 +167,15 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 已确认资源动作失败、超时或响应不明 | 当前 action 记为 `failed_once`，停止后续动作并执行可用的权威只读回查；父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 与旧 Plan 必须终态收口，旧 Plan 进入 `consumed`；不自动重试 |
 | 每份 Create Plan | 仅调用一次 `std_project/create` |
 | 创建前 fail-closed 的修正 | 已确认但零 create action 的 Plan 收口为 consumed、Job 进入人工修正终态；必须新 Draft、payload hash、Plan、confirmation 和 attempt；最多 3 次，不自动重试 |
-| 创建成功受理、尚未 verified | Create Plan 进入 `waiting_readback`；Node 05/06 通过、Node 07 等待；只允许 `readback_only`，不得再次创建 |
-| Node 07 当轮同步回查 | 从本轮起点按绝对 `0/3/5/8/10` 秒调用 `std_project/list`，命中即停止；五次未命中保持待回查，ID/名称不一致转人工检查 |
-| 首次创建 + ID/最新 Draft 名称一致 + 回查 verified | Create Plan 进入 `consumed`；共享 finalizer 强校验最新 runtime Job、确认、成功 action、唯一对象、最新 Draft 与 verified readback 后，将 Case 收口为 `completed` 并投影 `first_std_project_create_completed` |
+| 创建成功受理、尚未 verified | Create Plan 严格进入 `ready → waiting_readback`；Node 05/06 通过、Node 07 等待；只允许 `readback_only`，不得再次创建 |
+| Node 07 当轮同步回查 | 从本轮起点按绝对 `0/3/5/8/10` 秒调用 `std_project/list`，命中即停止；整轮硬截止 25 秒；未命中保持待回查，ID/名称不一致转人工检查 |
+| 超时、异常或响应不明 | action 标记为结果不明且不重试；仅项目 ID 与最新 Draft 名称严格匹配的 verified readback 可将 action 标为“由回查确认成功”，再按正常链关闭 Plan、Job 与 Case |
+| 平台明确业务失败 | 不得通过同名对象回查改为成功；Create Plan 直接 `consumed`，Job 为人工修正终态，必须新 Job/Draft/Plan/confirmation |
+| 首次创建 + ID/最新 Draft 名称一致 + 回查 verified | Create Plan 进入 `consumed`；共享 finalizer 强校验最新 runtime Job、确认、成功 action、唯一对象、最新 Draft 与 verified readback 后，将 Job 与 Case 收口为 `completed` 并投影 `first_std_project_create_completed` |
 
 平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
 
-事件配置写请求固定 15 秒超时。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
+所有生产平台 HTTP 请求只能经过唯一 deadline 封装：普通 JSON 单次 15 秒、文件上传单次 60 秒；封装组合已有 `AbortSignal`、超时中止与 timer 清理，不引入自动重试。读超时落既有只读失败与脱敏 `timeout` 诊断；写超时、异常或响应不明只允许权威只读回查。事件配置保留 15 秒 deadline。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
 
 ## 5. 当前 Case Gate 与工作台
 
@@ -179,15 +183,17 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 | 优先级 | 条件 | `current_gate` | 消费端动作 |
 | ---: | --- | --- | --- |
-| 1 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
-| 2 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
-| 3 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
-| 4 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
-| 5 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
-| 6 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
-| 7 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
-| 8 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
-| 9 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
+| 1 | 非 active 且有完整 verified 完成证据 | `first_std_project_create_completed` | 只读完成投影 |
+| 2 | 非 active 且证据不完整 | `review_latest_job` | 只读检查最新 Job；不展示确认、重试或执行入口 |
+| 3 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
+| 4 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
+| 5 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
+| 6 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
+| 7 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
+| 8 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
+| 9 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
+| 10 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
+| 11 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
 
 ```text
 唯一入口：http://127.0.0.1:3000/

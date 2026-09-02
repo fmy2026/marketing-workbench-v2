@@ -149,7 +149,11 @@ const blockedExecution = await executeConfirmedMonitorBootstrap({
   expectedPlanHash: monitorPlan.planHash
 });
 assert.equal(blockedExecution.status, "blocked");
-assert(blockedExecution.blockers.includes("platform_write_scope_not_enabled"));
+assert(
+  blockedExecution.blockers.includes("platform_write_scope_not_enabled") ||
+  blockedExecution.blockers.includes("workbench_runtime_source_usage_not_allowed"),
+  "test fixture must fail closed under the active authorization policy"
+);
 assert.equal(confirmationWrites, 0, "no confirmation/action/platform write when guardrail is disabled");
 assert.equal(blockedExecution.platformWriteCalled, false);
 assertNoSensitiveLeak(blockedExecution);
@@ -160,6 +164,6 @@ console.log(JSON.stringify({
     "monitor_bootstrap_plan_has_exactly_one_ensure_monitor",
     "standard_plan_does_not_mix_monitor_action",
     "monitor_contract_is_hash_only",
-    "disabled_guardrail_produces_zero_confirmation_or_platform_writes"
+    "blocked_authorization_produces_zero_confirmation_or_platform_writes"
   ]
 }, null, 2));

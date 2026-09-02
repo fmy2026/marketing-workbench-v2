@@ -13,6 +13,7 @@ import {
   scheduledTokenRefreshScopeStatus,
   updateOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
+import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 
 const REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refresh_token/";
 const DEFAULT_LOCK_STALE_SECONDS = 15 * 60;
@@ -39,14 +40,14 @@ function safeTransportError(error) {
 }
 
 async function postRefresh(url, body, fetchImpl) {
-  const response = await fetchImpl(url, {
+  const response = await fetchWithDeadline(fetchImpl, url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json"
     },
     body: JSON.stringify(body)
-  });
+  }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
   const text = await response.text();
   let payload = {};
   try {

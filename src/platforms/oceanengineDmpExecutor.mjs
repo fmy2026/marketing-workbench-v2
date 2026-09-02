@@ -12,6 +12,7 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 
 export const DMP_PUSH_V2_ENDPOINT = "https://api.oceanengine.com/open_api/2/dmp/custom_audience/push_v2/";
 export const DMP_PUSH_ACTION = "oceanengine_dmp_custom_audience_push_v2";
@@ -253,7 +254,7 @@ export async function ensureDmpBaselineForTargetOnce({
     let text = "";
     let response = null;
     try {
-      response = await fetchImpl(`${API_BASE}${PUSH_PATH}`, {
+      response = await fetchWithDeadline(fetchImpl, `${API_BASE}${PUSH_PATH}`, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -261,10 +262,11 @@ export async function ensureDmpBaselineForTargetOnce({
           "Access-Token": env.OCEANENGINE_ACCESS_TOKEN
         },
         body: JSON.stringify(requestBody)
-      });
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
       text = await response.text();
       try { payload = JSON.parse(text); } catch { payload = {}; }
     } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
       const evidenceRef = await saveDmpPushEvidence({ repo, jobId, customAudienceId: plan.custom_audience_id, stage: "transport", status: "transport_failed", pushActionId: actionId });
       await recordPushAction({
         repo,
@@ -273,8 +275,8 @@ export async function ensureDmpBaselineForTargetOnce({
         status: "failed_once",
         requestHash,
         errorSummary: "dmp_push_transport_failed",
-        errorCategory: clean(error?.code || error?.name || "transport_error"),
-        response: { transport_error: true, response_body_stored: false }
+        errorCategory: timedOut ? "timeout" : clean(error?.code || error?.name || "transport_error"),
+        response: { transport_error: true, timeout: timedOut, response_body_stored: false }
       });
       await repo.updateDmpPackagePushPlanStatus({ pushPlanId: plan.push_plan_id, planStatus: "failed", evidenceRef, metadata: { blocker: "transport_failed" } });
       return sanitizeForPublic({ status: "dmp_push_failed_once", jobId, failed_custom_audience_id: plan.custom_audience_id, platform_write_called: true, evidence_ref: evidenceRef });

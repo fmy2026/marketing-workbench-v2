@@ -4,6 +4,7 @@ import {
   pendingQiankunCredentialForBootstrap,
   readQiankunCredentialStore
 } from "./qiankunCredentialStore.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 
 const ALLOWED_ENDPOINTS = new Set([
   "/tf/account_info/accountIndex",
@@ -421,7 +422,7 @@ export class QiankunMonitorClient {
     const url = endpointUrl(credential.apiBaseUrl, cleanEndpoint);
     let response;
     try {
-      response = await this.fetchImpl(url, {
+      response = await fetchWithDeadline(this.fetchImpl, url, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -429,8 +430,9 @@ export class QiankunMonitorClient {
           "X-Passport-Token": this.passportTokenForOwner(ownerKey)
         },
         body: formBody(params, { allowEmptyFields: emptyFormFieldsForEndpoint(cleanEndpoint) })
-      });
-    } catch {
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
+    } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
       return {
         label,
         endpoint: cleanEndpoint,
@@ -445,13 +447,14 @@ export class QiankunMonitorClient {
           credentialStorePathPresent: credential.credentialStorePathPresent
         },
         httpStatus: null,
-        apiCode: "transport_error",
+        apiCode: timedOut ? "timeout" : "transport_error",
         apiMessage: "",
         dataPresent: false,
         responseHash: "",
         summary: {},
         rawResponseStored: false,
-        gap: "乾坤技术 API 只读请求未建立连接。"
+        gap: timedOut ? "乾坤技术 API 请求超时。" : "乾坤技术 API 只读请求未建立连接。",
+        timeout: timedOut
       };
     }
     const text = await response.text();

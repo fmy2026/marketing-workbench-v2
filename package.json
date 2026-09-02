@@ -19,6 +19,7 @@
     "test:node4-progress-projection": "node scripts/00-node4-progress-projection-smoke.mjs",
     "test:workbench-conversation": "node scripts/00-workbench-conversation-smoke.mjs",
     "test:std-project-readback": "node scripts/00-std-project-readback-schedule-smoke.mjs",
+    "test:platform-http-deadline": "node scripts/00-platform-http-deadline-smoke.mjs",
     "test:verified-case-finalization": "node scripts/00-verified-case-finalization-smoke.mjs",
     "test:workbench-runtime-policy": "node scripts/00-workbench-runtime-write-policy-smoke.mjs",
     "test:workflow-case": "node scripts/00-workflow-case-smoke.mjs",

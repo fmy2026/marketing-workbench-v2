@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 12:48 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-02 14:39 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `068_case_terminal_http_deadline_reconciliation.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -94,14 +94,14 @@ frontend / API
 - Node 02 monitor 的唯一公开入口是 `src/workflows/skills/oe3/02-monitor/index.mjs`；CLI 只允许状态、readonly reconcile 和配置只读同步。monitor 写入必须消费 `monitor_bootstrap` Plan，不能由 CLI 或环境变量直接授权。
 - 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
 - 事件资产 detail 必须同时匹配当前账户的受控 App 与唯一实例候选；`micro_app_id` / `micro_app_instance_id` 等 allowlist 长数字字段须在 `JSON.parse` 前无损保留为字符串，缺失、失配、歧义或解析失败均 fail-closed。
-- 事件配置写请求固定 15 秒超时；超时、异常或响应不明统一记为 `failed_once`，随后只做权威只读回查并收口已确认 Plan，不自动重试。事件配置子 action 的幂等键必须绑定已验证 planned action key、当前 Plan ID 与 event type；任一绑定缺失时须在 action 占位和平台调用前 fail-closed，request hash 不得作为跨 Job 的全局幂等身份。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类；读取函数不得各自要求 available 覆盖 6/6。它只为“尚未配置且当前 available”的事件生成候选。
+- 所有生产平台 HTTP 调用必须经唯一 deadline 封装：普通 JSON 15 秒、文件上传 60 秒；组合已有 `AbortSignal`、超时中止与 timer 清理，不自动重试。读超时只落脱敏 `timeout` 诊断；写超时、异常或响应不明一律先记为结果不明，再只做权威只读回查。事件配置保留 15 秒期限并沿该封装执行；其子 action 幂等键必须绑定已验证 planned action key、当前 Plan ID 与 event type，任一绑定缺失时在 action 占位和平台调用前 fail-closed。partial baseline 仍只由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类。
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。
-- `std_project_create` 成功受理后，Create Plan 必须先进入 `waiting_readback`；Node 07 按本轮起点的绝对 `0/3/5/8/10` 秒只读回查，命中即停止。只有项目 ID 与最新 Draft 名称均一致的 verified 结果才能把 Plan 置为 `consumed`，并由共享强校验将 active runtime Case 收口为 `completed`；未命中、ID/名称不一致或响应异常只允许保持/进入只读回查或人工修正，不得再次创建。
+- `std_project_create` 成功受理后，Create Plan 必须 `ready → waiting_readback → consumed`；Node 07 按本轮起点的绝对 `0/3/5/8/10` 秒只读回查，整轮硬截止 25 秒，命中即停止。只有项目 ID 与最新 Draft 名称均一致的 verified 结果才能把 Plan 置为 `consumed`，并由共享强校验将 Job 与 active runtime Case 收口为 `completed`。平台明确业务失败直接收口为 `consumed` + 人工修正，禁止同名回查恢复；超时、异常或响应不明仅可由上述严格回查恢复，否则同样收口且不得再次创建。
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
 - `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
-- `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。
+- `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。非 active Case 只允许 `review_latest_job`，除非已具备完整 verified 完成证据并投影 `first_std_project_create_completed`；两类都不得暴露确认、重试或执行入口。
 
 ## 权限与安全
 

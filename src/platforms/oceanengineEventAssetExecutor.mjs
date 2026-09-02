@@ -25,6 +25,7 @@ import {
   getOceanEngineCredentialSummary,
   readOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
+import { fetchWithDeadline, isPlatformDeadlineError, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
 
 export const EVENT_ASSET_CONFIRM_ENV = EVENT_ASSET_ENSURE_CONFIRM_ENV;
@@ -177,7 +178,7 @@ async function callEventAssetCreate({
     metadata
   });
   try {
-    const response = await fetchImpl(EVENT_ASSET_CREATE_FULL_ENDPOINT, { method: EVENT_ASSET_CREATE_METHOD, headers, body });
+    const response = await fetchWithDeadline(fetchImpl, EVENT_ASSET_CREATE_FULL_ENDPOINT, { method: EVENT_ASSET_CREATE_METHOD, headers, body }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
     const text = await response.text();
     let payload = {};
     try { payload = JSON.parse(text); } catch { payload = {}; }
@@ -213,7 +214,8 @@ async function callEventAssetCreate({
     });
     return { actionId, passed, response, payload, responseHash, assetId };
   } catch (error) {
-    const errorCategory = clean(error?.code || error?.name || "transport_error");
+    const timedOut = isPlatformDeadlineError(error);
+    const errorCategory = timedOut ? "timeout" : clean(error?.code || error?.name || "transport_error");
     await updateAction(repo, {
       actionId,
       jobId,
@@ -225,14 +227,14 @@ async function callEventAssetCreate({
       requestHash,
       responseHash: "",
       httpStatus: null,
-      apiCode: "",
+      apiCode: timedOut ? "timeout" : "",
       requestIdPresent: false,
       objectIdPresent: false,
       errorSummary: "event_asset_platform_transport_failed",
       errorCategory,
       idempotencyKey,
       requestFieldManifest,
-      responseSummary: { transport_error: true, response_persisted: false },
+      responseSummary: { transport_error: true, timeout: timedOut, response_persisted: false },
       metadata,
       finishedAt: new Date().toISOString()
     });
