@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-08-31.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902",
+  "task_ref": "tasks/TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 12:21 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Audit and minimally align the six named core documentation artifacts with the current unique runtime, Gate, data-contract and workbench projection mechanisms.",
+    "mode": "documentation_truth_audit_only",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "db/067_active_runtime_workflow_case_scope.sql",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs"
+  ],
+  "allowed_writes": [
+    "the six explicitly named documentation artifacts",
+    "Task, Context Manifest and project control-plane status",
+    "a temporary deterministic image metadata helper that is removed before closure"
+  ],
+  "forbidden_actions": [
+    "runtime code, API, database, schema, View, migration or Gate semantic changes",
+    "all external platform calls and writes",
+    "all workbench runtime commands, confirmation consumption and runtime Job creation",
+    "new long-term lesson content",
+    "persistence of dynamic business facts or sensitive data"
+  ],
+  "validation_plan": [
+    "read-only schema and database contract checks",
+    "metadata and current-mechanism assertions for all named documents",
+    "visual inspection of the updated JPG metadata strip and unchanged diagram body",
+    "JSON parse checks and git diff --check"
+  ],
+  "stop_conditions": [
+    "the correction requires runtime code, database, API or Gate semantic changes",
+    "a claimed data fact cannot be confirmed from current schema or read-only database truth",
+    "the JPG body would need to be regenerated rather than metadata-only extended"
+  ],
+  "completed_at": "2026-09-02 12:53 CST",
+  "result": {
+    "named_artifacts_audited": 6,
+    "metadata_and_last_updated_present": true,
+    "workbench_projection_boundary_aligned": true,
+    "std_project_readback_lifecycle_aligned": true,
+    "database_contract": {
+      "base_tables": 33,
+      "views": 5,
+      "workflow_case_summary_columns": 24,
+      "migration_files": 68,
+      "latest_migration": "067_active_runtime_workflow_case_scope.sql"
+    },
+    "registry_contract": {
+      "nodes": 7,
+      "required_resource_types": 8,
+      "traceable_children": 34
+    },
+    "validation": {
+      "schema_validation": "passed",
+      "database_contract_check": "passed",
+      "workflow_registry_smoke": "passed",
+      "workbench_progress_smoke": "passed",
+      "workbench_conversation_smoke": "passed",
+      "std_project_readback_smoke": "passed",
+      "verified_case_finalization_smoke": "passed",
+      "jpg_visual_and_metadata_check": "passed",
+      "diff_check": "passed"
+    },
+    "runtime_code_changes": 0,
+    "database_or_schema_changes": 0,
+    "platform_writes": 0,
+    "token_refreshes": 0
+  }
+}

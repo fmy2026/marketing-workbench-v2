@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-02 10:34 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-02 12:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
@@ -52,7 +52,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；已确认 Resource Plan 成功或阻断后均须离开 `ready`，失败终态以 `consumed` + 脱敏 outcome metadata 保存，不代表执行成功 | Plan 编译、显式确认与 confirmed-resource 终态收口 | 执行 scope、Case summary |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；已确认 Resource Plan 成功或阻断后均须离开 `ready`，失败终态以 `consumed` + 脱敏 outcome metadata 保存，不代表执行成功；Create Plan 成功受理后为 `waiting_readback`，仅 verified 后为 `consumed` | Plan 编译、显式确认、confirmed-resource 终态与 Create 回查收口 | 执行 scope、Case summary |
 |  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -115,7 +115,9 @@ route_id + game_code
 | --- | --- |
 | 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表；Resource Plan 成功后可在同一 Case 建立 fresh runtime Job，但不得复制旧 Job 的 Plan/confirmation |
 | Create Plan/Draft 绑定 | 无最终 Draft 时 Create Plan 不得 ready。ready `std_project_create` Plan 与 `launch_drafts.payload_summary` 的 exact Plan ID/hash、`plan_derivation_status=passed` 必须在同一原子持久化中完成；确认 scope 复核该绑定、`draft_ready` Job 与 Node 04 passed。已确认但零 create action 的创建前阻断 Plan 只可收口为 consumed，confirmation 保留。 |
+| Create 回查与 Case 收口 | create 成功受理后 Plan 为 `waiting_readback`；Node 07 按绝对 `0/3/5/8/10` 秒只读回查，五次未命中保持待回查，ID/名称不一致转人工检查。只有同一 Case 最新 `runtime_truth` Job、已确认 Plan、唯一成功 action/对象、最新 Draft 与 ID/名称一致的 verified readback 同时成立，Plan 才可 `consumed`、Case 才可 `completed`；收口幂等且不改写历史 Node run。 |
 | 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
+| 工作台投影 | `job.caseGate` 是 `workflow_case_summary` 的同一后端投影，不是第二套 Gate。右侧只展示注册表驱动的固定 3 阶段 7 Node；左侧对话展示动态 Gate/blocker/下一步与确认卡，底部进度栏保留计数和只读刷新。删除右侧独立 Gate 卡片不删除字段，也不改变节点等待态、确认资格或 API/View 合同。 |
 | 工作台恢复 | 唯一入口根页只读列出 active runtime Case；`?case_id=` 恢复活动 Case 的最新 Job，`?job_id=` 仅历史只读；两参数并存或非法时 fail-closed，不加载其他账户。`resolve_case_blocker` 的精确“重新只读准备”只消费当前 summary：已确认资源 Plan 停止时 Case lock 下创建 fresh Job 后 `dry_run`，其他 blocker 重跑当前 Job 的 `dry_run`；不复制旧 Plan/confirmation/action/grant，不产生平台写入。 |
 | Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |
 | 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 `micro_app_id` / `micro_app_instance_id` 归一后必须精确匹配 App + instance，allowlist 长数字 ID 在解析前无损保留为字符串；configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |

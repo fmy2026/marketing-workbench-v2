@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 10:34 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3` |
+| 最后更新时间 | 2026-09-02 12:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -42,6 +42,8 @@
 ```
 
 Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
+
+右侧 Workflow 面板只展示由唯一节点注册表驱动的固定 3 阶段 7 Node、子节点详情与运行状态，不设置独立 Case Gate 卡片。动态 `currentGate`、唯一 blocker 与 `suggestedNextAction` 继续来自同一 `job.caseGate` / `workflow_case_summary`，由左侧对话和底部进度/刷新栏投影；删除重复展示不得删除 Gate 数据或其对确认卡、节点等待态和输入状态的控制。
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
 
@@ -96,6 +98,7 @@ frontend / API
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。
+- `std_project_create` 成功受理后，Create Plan 必须先进入 `waiting_readback`；Node 07 按本轮起点的绝对 `0/3/5/8/10` 秒只读回查，命中即停止。只有项目 ID 与最新 Draft 名称均一致的 verified 结果才能把 Plan 置为 `consumed`，并由共享强校验将 active runtime Case 收口为 `completed`；未命中、ID/名称不一致或响应异常只允许保持/进入只读回查或人工修正，不得再次创建。
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
 - `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
 - `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。

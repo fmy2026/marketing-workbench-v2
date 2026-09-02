@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 10:34 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；当前逻辑图与数据报表契约 |
+| 最后更新时间 | 2026-09-02 12:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `067` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -114,6 +114,18 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 `?case_id=` 的工作台底栏必须明确展示当前节点计数与当前 Case 的稳定状态：仅在前端请求尚未返回时显示“正在处理”；存在 `root_blocker_codes[0]` 时显示“已暂停”及已有脱敏 blocker 标题；存在确认卡时显示“待确认”；`first_std_project_create_completed` 时显示“已完成”。Gate、blocker、建议动作及最新 Job 仍只消费既有 `workflow_case_summary` 与 Job view，展示层不得自行计算 Gate。
 
 底栏提供一个只读“刷新进度”按钮。该按钮先读取当前 `case_id` 的 summary，再以其 `latest_job_id` 读取 Job view；若最新 Job 已变化，前端只在内存中切换到该 Job，Case URL 保持不变。前端命令或 dry-run 请求进行期间以 1.2 秒间隔复用该只读刷新；请求结束立即停止并做一次最终同步。历史 `?job_id=` 只刷新自身历史 Job，根页不轮询。不新增 API、Schema、View、后台任务或浏览器持久化，刷新不执行 workflow、不创建 Job、不确认 Plan、不产生平台写入。
+
+## 已批准设计：工作台 Gate 投影去重
+
+右侧 Workflow 面板保持固定结构，只展示唯一注册表提供的 3 阶段 7 Node、节点流、子节点详情与运行状态；标题后不得再插入独立 `case-gate` 卡片。动态 `currentGate`、唯一 blocker 与 `suggestedNextAction` 仍由后端同一 `job.caseGate` / `workflow_case_summary` 提供：左侧对话负责状态说明与确认卡，底部进度栏负责节点计数、稳定状态和手动只读刷新。
+
+这是纯展示层去重。`job.caseGate` 数据、Gate Action Policy、节点等待态、确认资格、输入状态、最新 Case/历史 Job 隔离、API 字段、数据库 View 与 Plan-bound executor 全部保持不变；不得通过前端复制 Gate 计算来填补被删除的卡片。
+
+## 已批准设计：标准项目回查与 verified Case 终态收口
+
+`std_project_create` 成功受理后不等于 READY：Create Plan 由 `ready` 进入 `waiting_readback`，Node 05/06 投影为已通过，Node 07 从本轮回查起点按绝对 `0/3/5/8/10` 秒调用既有 `std_project/list`，命中即提前停止。回查必须同时满足项目 ID 与最新 Draft 名称一致；五次未命中保持 `created_pending_readback` / `run_readback_only`，ID 或名称不一致进入人工检查，所有分支都禁止再次 create。
+
+verified 后由 `execute_once` 与后续 `readback_only` 共用的内部 finalizer 强校验：目标必须是同一 Case 的最新 `runtime_truth` Job、已确认 Create Plan、唯一成功 create action、唯一创建对象、最新 Draft，以及 ID/名称一致的 verified readback。通过后 Plan 才进入 `consumed`，active Case 才进入 `completed`；该收口幂等，不改写历史 Node run、不新建 confirmation/action/Job，也不产生额外平台请求。工作台完成态只读取刷新后的 `first_std_project_create_completed` 与 7/7 投影。
 
 ## 已批准设计：Create Plan 与最终 Draft 的发布绑定
 

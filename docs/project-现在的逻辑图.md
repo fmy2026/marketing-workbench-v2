@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 10:34 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CREATE-PLAN-DRAFT-BINDING-CLOSURE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
+| 最后更新时间 | 2026-09-02 12:48 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-DOCS-LATEST-MECHANISM-AUDIT-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `067_active_runtime_workflow_case_scope.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -165,8 +165,9 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 已确认资源动作失败、超时或响应不明 | 当前 action 记为 `failed_once`，停止后续动作并执行可用的权威只读回查；父 action、blocked Skill、`blocked_confirmed_resource_plan` Job 与旧 Plan 必须终态收口，旧 Plan 进入 `consumed`；不自动重试 |
 | 每份 Create Plan | 仅调用一次 `std_project/create` |
 | 创建前 fail-closed 的修正 | 已确认但零 create action 的 Plan 收口为 consumed、Job 进入人工修正终态；必须新 Draft、payload hash、Plan、confirmation 和 attempt；最多 3 次，不自动重试 |
-| 已出现创建对象但未回查 verified | 只允许 `readback_only`，不得再次创建 |
-| 首次创建 + 对象存在 + 回查 verified | `first_std_project_create_completed`；Case 收口并撤销写范围 |
+| 创建成功受理、尚未 verified | Create Plan 进入 `waiting_readback`；Node 05/06 通过、Node 07 等待；只允许 `readback_only`，不得再次创建 |
+| Node 07 当轮同步回查 | 从本轮起点按绝对 `0/3/5/8/10` 秒调用 `std_project/list`，命中即停止；五次未命中保持待回查，ID/名称不一致转人工检查 |
+| 首次创建 + ID/最新 Draft 名称一致 + 回查 verified | Create Plan 进入 `consumed`；共享 finalizer 强校验最新 runtime Job、确认、成功 action、唯一对象、最新 Draft 与 verified readback 后，将 Case 收口为 `completed` 并投影 `first_std_project_create_completed` |
 
 平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
 
@@ -195,6 +196,8 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
   └─ ?job_id=：仅历史只读查看，Node 02 保留该 Job 的历史 Skill 状态
 
 同一 route×game×advertiser 最多一个 active runtime Case；重复启动请求恢复该 Case，不创建新 Case 或 fresh Job。case_id 与 job_id 同时出现、格式非法或目标不存在时 fail-closed，不能回退到其他账户。
+
+右侧 Workflow 面板是节点注册表的固定结构投影：只保留 3 阶段 7 Node、节点流、子节点详情和运行状态，标题后不再设置独立 Case Gate 卡片。动态 Gate、唯一 blocker 与下一步仍只读取同一 `job.caseGate` / `workflow_case_summary`：左侧对话展示状态说明和确认卡，底部操作栏保留“进度 n/7 + 刷新进度”。同一 Gate 数据仍控制节点等待态、确认资格与输入状态；去除重复卡片不等于删除后端字段或创建第二套前端逻辑。
 
 用户消息 → allowlist Intent Resolver → Gate Action Policy（只读 summary）
 → 状态说明 / safe readonly / 脱敏确认卡
