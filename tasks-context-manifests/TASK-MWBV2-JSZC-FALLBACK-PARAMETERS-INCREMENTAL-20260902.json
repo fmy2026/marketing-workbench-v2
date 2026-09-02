@@ -1,0 +1,68 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902",
+  "task_ref": "tasks/TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902.md",
+  "status": "completed",
+  "created_at": "2026-09-02 15:33 CST",
+  "updated_at": "2026-09-02 15:59 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Incrementally correct the JSZC route fallback values and make the formal Node 05 payload contract enforce the new CTA, budget/bid/ROI, targeting, and schedule shape without reducing existing resources.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "migration 069 leaf-only JSZC game_route_defaults correction"
+    ],
+    "maximum_platform_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "db/054_jszc_success_profile_contract.sql",
+    "db/069_jszc_fallback_parameters_incremental.sql"
+  ],
+  "allowed_writes": [
+    "Task, Context Manifest, Solution Design, and project control-plane metadata",
+    "migration 069 leaf-only JSZC route-default correction with preservation assertions",
+    "Node 05 payload, preflight, nested contract, field ledger, success profile, and focused local tests",
+    "stable mechanism documentation required by the changed payload contract"
+  ],
+  "forbidden_actions": [
+    "all real external platform calls, writes, token refreshes, confirmations, actions, Jobs, creates, or retries",
+    "all DMP set/member/account-state, resource, historical Draft/Plan/action/readback, or existing platform-project rewrites",
+    "whole-object replacement of raw_defaults, payload_defaults, targeting, product, or schedule",
+    "new tables, Views, Nodes, Gates, Plan/action types, public APIs, or sensitive data persistence"
+  ],
+  "validation_plan": [
+    "migration pre/post JSON allowlist diff and idempotency",
+    "exact CTA, numeric, gender, age, schedule length/charset/digest checks",
+    "DMP 10-member and final retargeting_tags_exclude non-reduction checks",
+    "schema, payload contract, wire body, Execution Plan, workflow skills, and database contract regression"
+  ],
+  "stop_conditions": [
+    "any real platform request or runtime business write would be required",
+    "any non-allowlisted route-default or DMP/resource field changes",
+    "the new shape requires weakening an existing fail-closed contract"
+  ],
+  "completion": {
+    "completed_at": "2026-09-02 15:59 CST",
+    "migration": "db/069_jszc_fallback_parameters_incremental.sql",
+    "migration_applied": true,
+    "idempotency_verified": true,
+    "dmp_member_count": 10,
+    "real_platform_calls": 0,
+    "validation_status": "passed"
+  }
+}

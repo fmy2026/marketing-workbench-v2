@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-02 14:39 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `068_case_terminal_http_deadline_reconciliation.sql` |
+| 最后更新时间 | 2026-09-02 15:59 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -101,6 +101,7 @@ frontend / API
 - `std_project_create` 成功受理后，Create Plan 必须 `ready → waiting_readback → consumed`；Node 07 按本轮起点的绝对 `0/3/5/8/10` 秒只读回查，整轮硬截止 25 秒，命中即停止。只有项目 ID 与最新 Draft 名称均一致的 verified 结果才能把 Plan 置为 `consumed`，并由共享强校验将 Job 与 active runtime Case 收口为 `completed`。平台明确业务失败直接收口为 `consumed` + 人工修正，禁止同名回查恢复；超时、异常或响应不明仅可由上述严格回查恢复，否则同样收口且不得再次创建。
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
 - `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
+- `oceanengine_3_byte_mini_game × JSZC` 的 fresh Job 只从当前 `game_route_defaults` 取得 CTA、预算/出价/ROI、性别/年龄与 336 位时段保底值；Node 05 必须校验 success profile、字段账本、时段摘要与至少 10 个 fresh readonly DMP 排除 ID。账户动态资源 ID 不得固化进路线默认值。
 - `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。非 active Case 只允许 `review_latest_job`，除非已具备完整 verified 完成证据并投影 `first_std_project_create_completed`；两类都不得暴露确认、重试或执行入口。
 
 ## 权限与安全

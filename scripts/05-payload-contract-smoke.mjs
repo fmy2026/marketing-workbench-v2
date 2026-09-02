@@ -15,6 +15,13 @@ import {
   nestedFieldContractManifest
 } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
 import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_BID,
+  JSZC_FALLBACK_BUDGET,
+  JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_ROI_GOAL,
+  JSZC_FALLBACK_SCHEDULE_TIME,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_SOURCE,
   JSZC_SUCCESS_PROFILE_VERSION
@@ -111,6 +118,7 @@ function titleMaterialManifestPreflight({
 function createFieldContractManifestPreflight({
   deliveryEvidence = { fieldPath: "delivery_type", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
   layerEvidence = { fieldPath: "layer_roi_switch", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
+  scheduleEvidence = { fieldPath: "schedule_time", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
   omittedFieldPaths = ["micro_promotion_type"],
   extraFields = []
 } = {}) {
@@ -120,7 +128,7 @@ function createFieldContractManifestPreflight({
         status: "passed",
         blockerCodes: [],
         omittedFieldPaths,
-        fields: [deliveryEvidence, layerEvidence, ...extraFields].filter(Boolean)
+        fields: [deliveryEvidence, layerEvidence, scheduleEvidence, ...extraFields].filter(Boolean)
       }
     }
   }).diagnostics.find((item) => item.check_id === "manifest:create_field_contract_delivery_layer_micro");
@@ -134,16 +142,22 @@ function createFieldPayloadPreflight(payloadPatch = {}, requestFieldManifest = {
       asset_id: 456,
       delivery_type: "NORMAL",
       layer_roi_switch: "OFF",
+      budget: JSZC_FALLBACK_BUDGET,
+      cpa_bid: JSZC_FALLBACK_BID,
+      roi_goal: JSZC_FALLBACK_ROI_GOAL,
+      schedule_time: JSZC_FALLBACK_SCHEDULE_TIME,
       brand_info: { brand_name_id: 1, cdp_brand_id: 2, yuntu_category_id: 3 },
       audience: {
-        gender: "GENDER_UNLIMITED",
+        gender: JSZC_FALLBACK_GENDER,
+        age: [...JSZC_FALLBACK_AGES],
         hide_if_converted: "NO_EXCLUDE",
-        retargeting_tags_exclude: [123]
+        retargeting_tags_exclude: Array.from({ length: 10 }, (_, index) => 123 + index)
       },
       project_materials: {
         image_material_list: [],
         product_info: { selling_points: ["开局装备全靠捡"] },
-        title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }]
+        title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }],
+        call_to_action_buttons: [...JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS]
       },
       ...payloadPatch
     },
@@ -230,9 +244,10 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
     delivery_medium: "BYTE_GAME",
     external_action: "AD_CONVERT_TYPE_PAY",
     audience: {
-      gender: "GENDER_UNLIMITED",
+      gender: JSZC_FALLBACK_GENDER,
+      age: [...JSZC_FALLBACK_AGES],
       hide_if_converted: "NO_EXCLUDE",
-      retargeting_tags_exclude: [123]
+      retargeting_tags_exclude: Array.from({ length: 10 }, (_, index) => 123 + index)
     },
     brand_info: {
       brand_name_id: 1,
@@ -254,7 +269,7 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
         image_ids: ["789"],
         selling_points: ["开局装备全靠捡"]
       },
-      call_to_action_buttons: ["立即试玩"],
+      call_to_action_buttons: [...JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS],
       source: "巨兽战场",
       anchor_related_type: "OFF",
       mini_program_info: {
@@ -272,7 +287,7 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
       raw_defaults: {
         official_create_field_contract: { nested_rules: nestedRules(externalUrlMaterialListPolicy) },
         payload_defaults: {
-          product: { call_to_action_buttons: ["立即试玩"] }
+          product: { call_to_action_buttons: [...JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS] }
         }
       }
     },
@@ -422,6 +437,10 @@ try {
   assert(dryManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION, "dry success profile version mismatch");
   assert(dryManifest.successProfile?.source === JSZC_SUCCESS_PROFILE_SOURCE, "dry success profile source mismatch");
   assert(dryManifest.successProfile?.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH, "dry success profile fixture mismatch");
+  assert(dryManifest.budgetMatchesFallback === true && dryManifest.bidMatchesFallback === true && dryManifest.roiGoalMatchesFallback === true, "dry numeric fallback values mismatch");
+  assert(dryManifest.audienceGender === JSZC_FALLBACK_GENDER && dryManifest.audienceAgeMatchesFallback === true && dryManifest.audienceAgeCount === 5, "dry gender/age fallback mismatch");
+  assert(dryManifest.callToActionMatchesFallback === true && dryManifest.callToActionCount === 5, "dry incremental CTA fallback mismatch");
+  assert(dryManifest.scheduleTimeLength === 336 && dryManifest.scheduleTimeBinary === true && dryManifest.scheduleTimeDigestMatches === true && dryManifest.scheduleTimeExactMatch === true, "dry schedule_time fallback contract mismatch");
   assert(/^sha256:[a-f0-9]{64}$/.test(dryManifest.fieldShapeHash || ""), "dry field shape hash missing");
   assert(dryManifest.createFieldLedger?.fieldShapeHash === dryManifest.fieldShapeHash, "dry field shape hash must match ledger");
   assert(dryManifest.createFieldLedger?.entries?.some((entry) => entry.path === "audience.converted_time_duration" && entry.sendPolicy === "omit" && entry.preCreateStatus === "passed"), "dry ledger must attest converted_time_duration omission");
@@ -442,6 +461,7 @@ try {
     assert(dryManifest.advertiserIdTransportSafe === true, "dry advertiser_id transport not safe");
     assert(dryManifest.dmpRetargetingTagsExcludePresent === true, "DMP retargeting_tags_exclude missing");
     assert(dryManifest.dmpRetargetingTagsExcludeIntegerArray === true, "DMP retargeting_tags_exclude is not integer[]");
+    assert(dryManifest.dmpRetargetingTagsExcludeCount >= 10, "DMP retargeting_tags_exclude was reduced below 10");
   }
   assert(dryView.prewriteGate.canCreate === false, "dry prewrite gate must not allow real create");
   assert(!dry.bundle.platformAction, "dry run recorded platform action");
@@ -476,6 +496,10 @@ try {
   assert(mockManifest.advertiserIdTransportSafe === true, "mock advertiser_id transport not safe");
   assert(mockManifest.dmpRetargetingTagsExcludePresent === true, "mock DMP retargeting_tags_exclude missing");
   assert(mockManifest.dmpRetargetingTagsExcludeIntegerArray === true, "mock DMP retargeting_tags_exclude is not integer[]");
+  assert(mockManifest.dmpRetargetingTagsExcludeCount >= 10, "mock DMP retargeting_tags_exclude was reduced below 10");
+  assert(mockManifest.budgetMatchesFallback === true && mockManifest.bidMatchesFallback === true && mockManifest.roiGoalMatchesFallback === true, "mock numeric fallback values mismatch");
+  assert(mockManifest.audienceGender === JSZC_FALLBACK_GENDER && mockManifest.audienceAgeMatchesFallback === true, "mock gender/age fallback mismatch");
+  assert(mockManifest.callToActionMatchesFallback === true && mockManifest.scheduleTimeDigestMatches === true, "mock CTA/schedule fallback mismatch");
   assert(mockManifest.productSellingPointsSource === "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points", "mock selling_points source mismatch");
   assert(mockManifest.productSellingPointsValidated === true, "mock selling_points contract not validated");
   assert(mockManifest.productSellingPointsCount >= 1 && mockManifest.productSellingPointsCount <= 10, "mock selling_points count out of range");
@@ -545,6 +569,15 @@ try {
   assert(productSellingPointManifestPreflight({ count: 3, minChars: 4, maxChars: 8 })?.blocker_code === "product_selling_points_contract_not_verified", "invalid selling_points manifest should block");
   assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "enum:delivery_type")?.status === "passed", "valid delivery_type enum should pass");
   assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "enum:layer_roi_switch")?.status === "passed", "valid layer_roi_switch enum should pass");
+  assert(createFieldPayloadPreflight().diagnostics.find((item) => item.check_id === "contract:schedule_time")?.status === "passed", "valid 336-bit schedule_time should pass");
+  assert(createFieldPayloadPreflight({ schedule_time: `${JSZC_FALLBACK_SCHEDULE_TIME.slice(0, -1)}0` }).blocker_codes.includes("schedule_time_not_jszc_fallback_contract"), "schedule_time digest drift should block");
+  assert(createFieldPayloadPreflight({ schedule_time: JSZC_FALLBACK_SCHEDULE_TIME.slice(0, -1) }).blocker_codes.includes("schedule_time_not_jszc_fallback_contract"), "335-bit schedule_time should block");
+  assert(createFieldPayloadPreflight({ budget: 88888 }).blocker_codes.includes("jszc_fallback_number_mismatch:budget"), "old budget fallback should block");
+  assert(createFieldPayloadPreflight({ cpa_bid: 488 }).blocker_codes.includes("jszc_fallback_number_mismatch:cpa_bid"), "old bid fallback should block");
+  assert(createFieldPayloadPreflight({ roi_goal: 0.088 }).blocker_codes.includes("jszc_fallback_number_mismatch:roi_goal"), "old ROI fallback should block");
+  assert(createFieldPayloadPreflight({ audience: { gender: JSZC_FALLBACK_GENDER, age: [...JSZC_FALLBACK_AGES].reverse(), hide_if_converted: "NO_EXCLUDE", retargeting_tags_exclude: Array.from({ length: 10 }, (_, index) => 123 + index) } }).blocker_codes.includes("jszc_fallback_array_mismatch:audience.age"), "age order drift should block");
+  assert(createFieldPayloadPreflight({ audience: { gender: JSZC_FALLBACK_GENDER, age: [...JSZC_FALLBACK_AGES], hide_if_converted: "NO_EXCLUDE", retargeting_tags_exclude: Array.from({ length: 9 }, (_, index) => 123 + index) } }).blocker_codes.includes("invalid_integer_array:audience.retargeting_tags_exclude"), "DMP exclusions below 10 should block");
+  assert(createFieldPayloadPreflight({ project_materials: { image_material_list: [], product_info: { selling_points: ["开局装备全靠捡"] }, title_material_list: [{ title: "开局一把枪，装备全靠捡，看你能射多远！" }], call_to_action_buttons: ["打开游戏", "点击即玩", "进入游戏", "无需下载"] } }).blocker_codes.includes("jszc_fallback_array_mismatch:project_materials.call_to_action_buttons"), "CTA removal of 立即试玩 should block");
   assert(createFieldPayloadPreflight({ delivery_type: "BAD" }).blocker_codes.includes("invalid_enum:delivery_type"), "invalid delivery_type enum should block");
   assert(createFieldPayloadPreflight({ layer_roi_switch: "BAD" }).blocker_codes.includes("invalid_enum:layer_roi_switch"), "invalid layer_roi_switch enum should block");
   assert(createFieldPayloadPreflight({ micro_promotion_type: "BYTE_GAME" }).blocker_codes.includes("forbidden_field:micro_promotion_type"), "micro_promotion_type should be forbidden in create preflight");
@@ -570,7 +603,7 @@ try {
     { project_materials: { image_material_list: [], external_url_material_list: ["https://example.invalid/one", "https://example.invalid/two"] } },
     { externalUrlMaterialListPolicy: "send" }
   ).blocker_codes.includes("invalid_https_string_array:project_materials.external_url_material_list"), "send policy should reject multiple external_url_material_list items");
-  assert(createFieldContractManifestPreflight()?.status === "passed", "valid delivery/layer/micro manifest should pass");
+  assert(createFieldContractManifestPreflight()?.status === "passed", "valid delivery/layer/schedule/micro manifest should pass");
   assert(createFieldContractManifestPreflight({ deliveryEvidence: null })?.blocker_code === "create_field_contract_not_direct_send:delivery_type", "missing delivery_type direct evidence should block");
   assert(createFieldContractManifestPreflight({ layerEvidence: { fieldPath: "layer_roi_switch", evidenceLevel: "unverified", sendPolicy: "omit", status: "blocked" } })?.blocker_code === "create_field_contract_not_direct_send:layer_roi_switch", "downgraded layer_roi_switch evidence should block");
   assert(createFieldContractManifestPreflight({ omittedFieldPaths: [] })?.blocker_code === "micro_promotion_type_not_omitted_from_create_payload", "micro_promotion_type omitted evidence should be required");

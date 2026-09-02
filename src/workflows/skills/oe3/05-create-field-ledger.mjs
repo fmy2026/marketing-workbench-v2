@@ -1,6 +1,6 @@
 import { hashValue } from "./00-contracts.mjs";
 
-export const CREATE_FIELD_LEDGER_VERSION = "2026-08-30.oe3-std-project-create-field-ledger-v3";
+export const CREATE_FIELD_LEDGER_VERSION = "2026-09-02.oe3-std-project-create-field-ledger-v4";
 
 const ALWAYS_OMITTED_PATHS = Object.freeze([
   "micro_promotion_type",
@@ -25,7 +25,14 @@ const ENUM_RULES = Object.freeze({
   pricing: ["PRICING_OCPM"],
   audience_type: ["CUSTOM"],
   "audience.district": ["NONE"],
-  "audience.gender": ["GENDER_UNLIMITED"],
+  "audience.gender": ["GENDER_MALE"],
+  "audience.age.[]": [
+    "AGE_BETWEEN_18_23",
+    "AGE_BETWEEN_24_30",
+    "AGE_BETWEEN_31_40",
+    "AGE_BETWEEN_41_49",
+    "AGE_ABOVE_50"
+  ],
   "audience.hide_if_converted": ["NO_EXCLUDE"],
   "project_materials.anchor_related_type": ["OFF"],
   "track_url_setting.send_type": ["SERVER_SEND"],
@@ -51,7 +58,7 @@ function fieldGroup(path = "") {
   if (path.startsWith("brand_info.")) return "brand";
   if (path.startsWith("project_materials.")) return "materials";
   if (path.startsWith("track_url_setting.")) return "tracking";
-  if (["budget", "cpa_bid", "roi_goal", "pricing", "bid_type", "budget_mode", "schedule_type"].includes(path)) return "optimization";
+  if (["budget", "cpa_bid", "roi_goal", "pricing", "bid_type", "budget_mode", "schedule_type", "schedule_time"].includes(path)) return "optimization";
   return "identity_delivery";
 }
 

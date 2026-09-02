@@ -3,15 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-02 14:39 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `068_case_terminal_http_deadline_reconciliation.sql` |
+| 最后更新时间 | 2026-09-02 15:47 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
 
-本次复核确认 `db/*.sql` 共 69 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
+本次复核确认 `db/*.sql` 共 70 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -39,7 +39,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 
 | 层 | 表 | 行粒度 / 主关联 | 写入者 | 主要消费者 |
 | --- | --- | --- | --- | --- |
-| L1 配置（13） | `platform_routes`、`games`、`game_route_defaults`、`game_platform_apps` | 路线、游戏、路线×游戏、游戏×平台 App | migration、种子、受控配置维护 | Node 01–03、Node 05 |
+| L1 配置（13） | `platform_routes`、`games`、`game_route_defaults`、`game_platform_apps` | 路线、游戏、路线×游戏、游戏×平台 App；JSZC 路线默认值含数值保底、CTA、性别/年龄、336 位时段及其 success-profile/ledger 摘要 | migration、种子、受控配置维护 | Node 01–03、Node 05 |
 |  | `game_assets`、`material_packs`、`material_pack_items` | 游戏资产、路线物料包、物料包条目 | 同上 | Node 03、Node 05 |
 |  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
@@ -116,6 +116,7 @@ route_id + game_code
 | 主题 | 合同 |
 | --- | --- |
 | 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表；Resource Plan 成功后可在同一 Case 建立 fresh runtime Job，但不得复制旧 Job 的 Plan/confirmation |
+| JSZC 保底与账户资源 | migration `069` 仅逐叶更新 `game_route_defaults` 的 CTA、预算/出价/ROI、性别/年龄、时段和对应合同摘要；fresh Job 才消费新值。DMP 集合/成员及其目标账户 ID、素材、事件资产、实例、授权和触点仍来自各自配置与 fresh readonly，不允许固化到路线默认值或减少既有 10 个 DMP 成员。 |
 | Create Plan/Draft 绑定 | 无最终 Draft 时 Create Plan 不得 ready。ready `std_project_create` Plan 与 `launch_drafts.payload_summary` 的 exact Plan ID/hash、`plan_derivation_status=passed` 必须在同一原子持久化中完成；确认 scope 复核该绑定、`draft_ready` Job 与 Node 04 passed。已确认但零 create action 的创建前阻断 Plan 只可收口为 consumed，confirmation 保留。 |
 | Create 回查与 Case/Job 收口 | create 成功受理后 Plan 为 `waiting_readback`；Node 07 按绝对 `0/3/5/8/10` 秒只读回查，整轮硬截止 25 秒。只有同一 Case 最新 `runtime_truth` Job、已确认 Plan、唯一成功 action/对象、最新 Draft 与 ID/名称一致的 verified readback 同时成立，Plan 才可 `consumed`、Job 与 Case 才可 `completed`。明确业务失败不得由同名回查恢复；超时、异常或响应不明仅可由同一严格回查恢复，否则 Plan consumed + Job 人工修正；收口幂等且不改写历史 Node run。 |
 | HTTP deadline | 所有生产平台请求由内部唯一封装执行：普通 JSON 15 秒、文件上传 60 秒；组合 caller `AbortSignal`、超时中止和 timer 清理，无自动重试。读超时映射只读失败 + 脱敏 `timeout` 诊断，写超时只允许后续权威只读回查。 |

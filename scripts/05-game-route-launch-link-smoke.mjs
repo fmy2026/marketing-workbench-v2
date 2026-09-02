@@ -3,7 +3,17 @@ import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payloa
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
 import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_BID,
+  JSZC_FALLBACK_BUDGET,
+  JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_ROI_GOAL,
+  JSZC_FALLBACK_SCHEDULE_TIME,
+  JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_SOURCE,
   JSZC_SUCCESS_PROFILE_VERSION
 } from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
@@ -54,9 +64,10 @@ function bundle() {
       objective: "AD_CONVERT_TYPE_PAY",
       deep_objective: "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
       deep_bid_type: "DEEP_BID_DEFAULT",
-      budget: 300,
-      bid: 30,
-      roi_goal: 1,
+      budget: JSZC_FALLBACK_BUDGET,
+      bid: JSZC_FALLBACK_BID,
+      roi_goal: JSZC_FALLBACK_ROI_GOAL,
+      schedule: { schedule_time_digest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST },
       raw_defaults: {
         contract_mapping: {
           mini_game_instance_candidate_create_field: "instance_id",
@@ -67,7 +78,10 @@ function bundle() {
           success_profile: {
             version: JSZC_SUCCESS_PROFILE_VERSION,
             source: JSZC_SUCCESS_PROFILE_SOURCE,
-            fixture_hash: JSZC_SUCCESS_PROFILE_FIXTURE_HASH
+            fixture_hash: JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
+            golden_field_shape_hash: JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+            expected_ledger_path_count: JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+            schedule_time_digest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST
           },
           nested_rules: {
             version: NESTED_FIELD_CONTRACT.ruleVersion,
@@ -100,6 +114,7 @@ function bundle() {
             instance_id: { evidence_level: "official_direct", send_policy: "send" },
             delivery_type: { evidence_level: "official_direct", send_policy: "send" },
             layer_roi_switch: { evidence_level: "official_direct", send_policy: "send" },
+            schedule_time: { evidence_level: "official_direct", send_policy: "send" },
             micro_promotion_type: { evidence_level: "official_related_endpoint", send_policy: "omit" }
           }
         },
@@ -107,9 +122,9 @@ function bundle() {
           project: { ad_type: "ALL", landing_type: "MICRO_GAME", marketing_goal: "VIDEO_AND_IMAGE", native_type: "AWEME", delivery_mode: "MANUAL" },
           strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM", layer_roi_switch: "OFF", aigc_dynamic_creative_switch: "OFF", is_comment_disable: "OFF" },
           track_url_setting: { send_type: "SERVER_SEND" },
-          schedule: { schedule_type: "SCHEDULE_START_END" },
-          targeting: { district: "CITY", gender: "GENDER_UNLIMITED", age: [], converted_time_duration: "SIX_MONTH", hide_if_converted: "NO_EXCLUDE", interest_action_mode: "CUSTOM" },
-          product: { selling_points: ["开局装备全靠捡"], call_to_action_buttons: ["立即下载"], anchor_related_type: "OFF" }
+          schedule: { schedule_type: "SCHEDULE_FROM_NOW", schedule_time: JSZC_FALLBACK_SCHEDULE_TIME },
+          targeting: { district: "CITY", gender: JSZC_FALLBACK_GENDER, age: [...JSZC_FALLBACK_AGES], converted_time_duration: "SIX_MONTH", hide_if_converted: "NO_EXCLUDE", interest_action_mode: "CUSTOM" },
+          product: { selling_points: ["开局装备全靠捡"], call_to_action_buttons: [...JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS], anchor_related_type: "OFF" }
         }
       }
     },
@@ -143,7 +158,7 @@ function bundle() {
     },
     resources: [
       readyResource("avatar", { platformResourceId: "65276361673", metadata: { aweme_id: "65276361673" } }),
-      readyResource("dmp_audience_package", { metadata: { custom_audience_ids: ["123"] } }),
+      readyResource("dmp_audience_package", { metadata: { custom_audience_ids: Array.from({ length: 10 }, (_, index) => String(123 + index)) } }),
       readyResource("event_asset", { platformResourceId: "456" }),
       readyResource("product_image", { platformResourceId: "789", metadata: { product_image_target_upload_readback: { status: "passed", image_id_present: true, material_id_present: true } } }),
       readyResource("brand_info", { metadata: { brand_info_official: { brand_name_id: "1", cdp_brand_id: "2", cdp_brand_name: "巨兽战场", yuntu_category_id: "3" } } }),

@@ -10,11 +10,19 @@ import {
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
 import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_BID,
+  JSZC_FALLBACK_BUDGET,
+  JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_ROI_GOAL,
+  JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_SOURCE,
-  JSZC_SUCCESS_PROFILE_VERSION
+  JSZC_SUCCESS_PROFILE_VERSION,
+  evaluateJsZcScheduleTime
 } from "./05-jszc-success-profile.mjs";
 
 function clean(value) {
@@ -47,6 +55,7 @@ export const OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS = new Set([
   "instance_id",
   "asset_id",
   "schedule_type",
+  "schedule_time",
   "bid_type",
   "budget_mode",
   "budget",
@@ -59,6 +68,7 @@ export const OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS = new Set([
   "audience.district",
   "audience.gender",
   "audience.age",
+  "audience.age[]",
   "audience.filter_event[]",
   "audience.converted_time_duration",
   "audience.hide_if_converted",
@@ -207,17 +217,65 @@ function checkIntegerOrDigitString(payload, path, { blockerCode = `invalid_integ
   });
 }
 
-function checkIntegerArray(payload, path) {
+function checkIntegerArray(payload, path, { minimumCount = 1 } = {}) {
   const value = valueAt(payload, path);
-  const ok = Array.isArray(value) && value.length > 0 && value.every((item) => Number.isInteger(item));
+  const ok = Array.isArray(value) && value.length >= minimumCount && value.every((item) => Number.isInteger(item));
   return diag({
     checkId: `integer_array:${path}`,
     fieldPath: path,
     status: ok ? "passed" : "blocked",
-    expectedTypeOrRule: "non_empty_integer_array",
+    expectedTypeOrRule: `integer_array_min_count_${minimumCount}`,
     actualValue: value,
     blockerCode: `invalid_integer_array:${path}`,
-    repairHint: `${path} 必须是非空 integer[]。`
+    repairHint: `${path} 必须是至少 ${minimumCount} 项的 integer[]。`
+  });
+}
+
+function checkExactNumber(payload, path, expected) {
+  const value = valueAt(payload, path);
+  return diag({
+    checkId: `exact_number:${path}`,
+    fieldPath: path,
+    status: Number(value) === expected ? "passed" : "blocked",
+    expectedTypeOrRule: `exact_number:${expected}`,
+    actualValue: value,
+    blockerCode: `jszc_fallback_number_mismatch:${path}`,
+    repairHint: `${path} 必须使用当前 JSZC 路线保底值 ${expected}。`
+  });
+}
+
+function checkExactStringArray(payload, path, expected) {
+  const value = valueAt(payload, path);
+  const ok = Array.isArray(value) && value.length === expected.length &&
+    value.every((item, index) => clean(item) === expected[index]);
+  return diag({
+    checkId: `exact_string_array:${path}`,
+    fieldPath: path,
+    status: ok ? "passed" : "blocked",
+    expectedTypeOrRule: `exact_ordered_string_array_count_${expected.length}`,
+    actualValue: value,
+    blockerCode: `jszc_fallback_array_mismatch:${path}`,
+    repairHint: `${path} 必须与当前 JSZC 路线增量保底合同顺序一致。`
+  });
+}
+
+function checkScheduleTime(payload) {
+  const value = valueAt(payload, "schedule_time");
+  const result = evaluateJsZcScheduleTime(value);
+  return diag({
+    checkId: "contract:schedule_time",
+    fieldPath: "schedule_time",
+    status: result.status,
+    expectedTypeOrRule: `binary_string_length_336_sha256:${JSZC_FALLBACK_SCHEDULE_TIME_DIGEST}`,
+    actualValue: {
+      length: result.length,
+      binary: result.binary,
+      digestMatches: result.digestMatches,
+      exactScheduleMatches: result.exactScheduleMatches,
+      rawValueStored: false
+    },
+    blockerCode: "schedule_time_not_jszc_fallback_contract",
+    repairHint: "schedule_time 必须是与当前 JSZC 排期摘要一致的 336 位二进制字符串。"
   });
 }
 
@@ -324,7 +382,8 @@ function checkOfficialDirectCreateFields(manifest = {}) {
   const byPath = new Map(fields.map((field) => [clean(field.fieldPath), field]));
   const required = [
     ["delivery_type", "official_direct", "send"],
-    ["layer_roi_switch", "official_direct", "send"]
+    ["layer_roi_switch", "official_direct", "send"],
+    ["schedule_time", "official_direct", "send"]
   ];
   const failures = required.filter(([fieldPath, evidenceLevel, sendPolicy]) => {
     const field = byPath.get(fieldPath) || {};
@@ -336,7 +395,7 @@ function checkOfficialDirectCreateFields(manifest = {}) {
     checkId: "manifest:create_field_contract_delivery_layer_micro",
     fieldPath: "final_payload_manifest.officialFieldEvidence",
     status: blocked ? "blocked" : "passed",
-    expectedTypeOrRule: "delivery_type+layer_roi_switch:official_direct/send;micro_promotion_type:omitted_not_sent",
+    expectedTypeOrRule: "delivery_type+layer_roi_switch+schedule_time:official_direct/send;micro_promotion_type:omitted_not_sent",
     actualValue: {
       failedRequiredFields: failures.map(([fieldPath]) => fieldPath),
       microPromotionTypeOmitted: microOmitted
@@ -781,6 +840,23 @@ function checkJsZcSuccessProfile(manifest = {}) {
     profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
     profile.externalUrlMaterialListPolicy === "send" &&
     Number(profile.externalUrlMaterialListRequiredCount || 0) === 1 &&
+    profile.scheduleTimeDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST &&
+    profile.configuredScheduleDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST &&
+    profile.scheduleTimeValidation?.status === "passed" &&
+    profile.fallbackDefaultsMatch === true &&
+    manifest.budgetMatchesFallback === true &&
+    manifest.bidMatchesFallback === true &&
+    manifest.roiGoalMatchesFallback === true &&
+    manifest.audienceGender === JSZC_FALLBACK_GENDER &&
+    manifest.audienceAgeMatchesFallback === true &&
+    Number(manifest.audienceAgeCount || 0) === JSZC_FALLBACK_AGES.length &&
+    manifest.callToActionMatchesFallback === true &&
+    Number(manifest.callToActionCount || 0) === 5 &&
+    manifest.scheduleTimePresent === true &&
+    Number(manifest.scheduleTimeLength || 0) === 336 &&
+    manifest.scheduleTimeBinary === true &&
+    manifest.scheduleTimeDigestMatches === true &&
+    manifest.scheduleTimeExactMatch === true &&
     profile.rawPayloadStored === false;
   return diag({
     checkId: "manifest:jszc_success_profile",
@@ -798,6 +874,13 @@ function checkJsZcSuccessProfile(manifest = {}) {
       convertedTimeDurationPolicy: profile.convertedTimeDurationPolicy || "",
       externalUrlMaterialListPolicy: profile.externalUrlMaterialListPolicy || "",
       externalUrlMaterialListRequiredCount: Number(profile.externalUrlMaterialListRequiredCount || 0),
+      scheduleTimeDigestMatches: profile.scheduleTimeDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+      configuredScheduleDigestMatches: profile.configuredScheduleDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+      fallbackDefaultsMatch: profile.fallbackDefaultsMatch === true,
+      manifestFallbackMatches: manifest.budgetMatchesFallback === true &&
+        manifest.bidMatchesFallback === true && manifest.roiGoalMatchesFallback === true &&
+        manifest.audienceAgeMatchesFallback === true && manifest.callToActionMatchesFallback === true,
+      scheduleTimeValidated: manifest.scheduleTimeDigestMatches === true && manifest.scheduleTimeExactMatch === true,
       rawPayloadStored: false
     },
     blockerCode: "jszc_success_profile_not_verified",
@@ -825,6 +908,7 @@ export function evaluateStdProjectCreatePreflight({
       "native_type",
       "delivery_mode",
       "schedule_type",
+      "schedule_time",
       "bid_type",
       "budget_mode",
       "pricing",
@@ -843,6 +927,10 @@ export function evaluateStdProjectCreatePreflight({
     diagnostics.push(checkRequired(payload, "layer_roi_switch"));
     diagnostics.push(checkEnum(payload, "delivery_type", ["NORMAL", "UBX_INTELLIGENT"]));
     diagnostics.push(checkEnum(payload, "layer_roi_switch", ["OFF", "ON"]));
+    diagnostics.push(checkExactNumber(payload, "budget", JSZC_FALLBACK_BUDGET));
+    diagnostics.push(checkExactNumber(payload, "cpa_bid", JSZC_FALLBACK_BID));
+    diagnostics.push(checkExactNumber(payload, "roi_goal", JSZC_FALLBACK_ROI_GOAL));
+    diagnostics.push(checkScheduleTime(payload));
     if (Object.hasOwn(payload, "instance_id")) {
       diagnostics.push(checkIntegerOrDigitString(payload, "instance_id", {
         blockerCode: "invalid_lossless_platform_id:instance_id"
@@ -870,7 +958,9 @@ export function evaluateStdProjectCreatePreflight({
     diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
     diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
     diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
-    diagnostics.push(checkEnum(payload, "audience.gender", ["GENDER_UNLIMITED"]));
+    diagnostics.push(checkEnum(payload, "audience.gender", [JSZC_FALLBACK_GENDER]));
+    diagnostics.push(checkExactStringArray(payload, "audience.age", JSZC_FALLBACK_AGES));
+    diagnostics.push(checkExactStringArray(payload, "project_materials.call_to_action_buttons", JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS));
     diagnostics.push(checkEnum(payload, "audience.hide_if_converted", [
       "NO_EXCLUDE",
       "EXCLUDE_CLICK",
@@ -892,7 +982,7 @@ export function evaluateStdProjectCreatePreflight({
         blockerCode: "filter_event_policy_invalid_for_no_exclude",
         repairHint: "将当前 JSZC 路线 filter_event_policy 修正为 omit，并重新生成 Node 5 草稿。"
       }));
-    diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude"));
+    diagnostics.push(checkIntegerArray(payload, "audience.retargeting_tags_exclude", { minimumCount: 10 }));
     diagnostics.push(checkEmptyArray(payload, "project_materials.image_material_list", {
       blockerCode: "image_material_list_must_be_empty_for_current_route"
     }));

@@ -3,13 +3,21 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 14:39 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `068` |
+| 最后更新时间 | 2026-09-02 15:59 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `069` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
+
+## 已批准设计：JSZC 保底参数增量修正
+
+`oceanengine_3_byte_mini_game × JSZC` 的路线保底配置采用逐叶增量修正，禁止以历史项目或截图整体覆盖当前 `game_route_defaults`。migration `069` 只允许同步预算、出价、ROI，合并 CTA，修正性别/年龄，并向既有 schedule 增加与摘要一致的 336 位 `schedule_time`；所有未列明的 `raw_defaults`、`payload_defaults`、`targeting`、`product` 和 `schedule` 子字段保持不变。
+
+CTA 必须保留现有“立即试玩”并追加“打开游戏、点击即玩、进入游戏、无需下载”；预算、出价、ROI 分别为 `66666`、`366`、`0.16`；性别为 `GENDER_MALE`，年龄为 18–23、24–30、31–40、41–49、50+ 五档。时段保持 `SCHEDULE_FROM_NOW`，并发送一周 7 天、每天 48 个半小时位的顶层 `schedule_time`：周一/二/三/五 09:00–24:00、周四 10:00–24:00、周末全天。Node 05 必须校验长度、二进制字符与 SHA-256 摘要后才允许进入 create Gate。
+
+DMP 集合、成员和账户目标 ID 继续由 `dmp_package_sets`、`dmp_package_members` 与 fresh readonly 账户状态提供，不写入路线默认值。素材、品牌、事件资产、小游戏实例、Aweme 授权、触点及历史 Draft/Plan/action/readback 均不在本次修改范围。只有 migration 后创建的 fresh Job 消费新默认值；禁止回写旧 Job 或现有平台项目。实施与测试不调用真实平台接口。
 
 ## 已批准设计：工作台原生 Plan-bound 首次创建闭环
 

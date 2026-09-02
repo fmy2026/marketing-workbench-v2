@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 14:39 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `068_case_terminal_http_deadline_reconciliation.sql` |
+| 最后更新时间 | 2026-09-02 15:47 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-FALLBACK-PARAMETERS-INCREMENTAL-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `069_jszc_fallback_parameters_incremental.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -70,6 +70,8 @@ Case
 | 创建执行 | 07 `readback_closer` | 创建对象和 Draft | 权威回查与证据 | 不补发 create 修复 |
 
 运行模式由 runner 决定：`dry_run` 与 `draft_readiness` 不真实写入；`planned_actions` 仅限明确计划动作；`execute_once` 只能消费冻结且已确认的 Plan；`readback_only` 绝不创建。
+
+JSZC 的 Node 03/05 保底链只消费当前 PostgreSQL 路线默认值：CTA 为保留“立即试玩”后追加 4 项，预算/出价/ROI 为 `66666/366/0.16`，定向为男性与五档年龄，投放时段为 336 位半小时排期。Node 05 同时校验合法枚举、顺序、长度、时段摘要、92 条字段账本与至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。DMP、素材、事件资产、小游戏实例、Aweme 授权和触点仍在 Node 04 按账户动态读取，不复制进路线默认值。
 
 ### Node 02 Monitor 单轨 Bootstrap
 

@@ -1,6 +1,11 @@
 import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
-import { JSZC_NESTED_FIELD_CONTRACT_VERSION } from "./05-jszc-success-profile.mjs";
+import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
+  JSZC_FALLBACK_GENDER,
+  JSZC_NESTED_FIELD_CONTRACT_VERSION
+} from "./05-jszc-success-profile.mjs";
 
 export const NESTED_FIELD_CONTRACT = Object.freeze({
   ruleVersion: JSZC_NESTED_FIELD_CONTRACT_VERSION,
@@ -375,8 +380,9 @@ export function evaluateNestedFieldContract({
       cta.length >= 1 &&
       cta.length <= 10 &&
       cta.every((item) => typeof item === "string" && unicodeLength(clean(item)) >= 2 && unicodeLength(clean(item)) <= 4) &&
-      sameArray(cta.map(clean), expectedCta),
-    rule: "route_default_cta_count_1_10_chars_2_4",
+      sameArray(cta.map(clean), expectedCta) &&
+      sameArray(cta.map(clean), JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS),
+    rule: "route_default_incremental_cta_count_5_chars_2_4",
     blockerCode: "nested_call_to_action_contract_invalid",
     actual: { count: Array.isArray(cta) ? cta.length : 0, ...ctaRange, source: "route_defaults" }
   });
@@ -468,7 +474,8 @@ export function evaluateNestedFieldContract({
   addCheck(checks, {
     group: "audience",
     path: "audience",
-    passed: clean(audience.gender) === "GENDER_UNLIMITED" &&
+    passed: clean(audience.gender) === JSZC_FALLBACK_GENDER &&
+      sameArray(audience.age, JSZC_FALLBACK_AGES) &&
       HIDE_IF_CONVERTED_VALUES.has(clean(audience.hide_if_converted)) &&
       clean(audience.hide_if_converted) !== clean(payload.external_action) &&
       filterEventPolicy === "omit" &&
@@ -480,6 +487,8 @@ export function evaluateNestedFieldContract({
     blockerCode: "nested_audience_contract_invalid",
     actual: {
       gender: clean(audience.gender),
+      ageCount: Array.isArray(audience.age) ? audience.age.length : 0,
+      ageMatchesFallback: sameArray(audience.age, JSZC_FALLBACK_AGES),
       hideIfConverted: clean(audience.hide_if_converted),
       filterEventPolicy,
       filterEventPresent,

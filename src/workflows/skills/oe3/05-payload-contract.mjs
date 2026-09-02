@@ -11,6 +11,9 @@ import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "./05-nested-field-contract.mjs";
 import { CREATE_FIELD_LEDGER_VERSION } from "./05-create-field-ledger.mjs";
 import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
@@ -386,7 +389,22 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     (!usesFinalPayloadHash || finalManifest.touchpointUrlControlledPresent === true);
   const finalPayloadManifestReady = !usesFinalPayloadHash || finalManifest.kind === "oe3_std_project_final_payload_manifest";
   const finalPayloadHasNoBlockers = !usesFinalPayloadHash || finalPayloadBlockers.length === 0;
-  const finalPayloadGenderOk = !usesFinalPayloadHash || finalManifest.audienceGender === "GENDER_UNLIMITED";
+  const finalPayloadGenderOk = !usesFinalPayloadHash || finalManifest.audienceGender === JSZC_FALLBACK_GENDER;
+  const finalPayloadIncrementalFallbackOk = !usesFinalPayloadHash || (
+    finalManifest.budgetMatchesFallback === true &&
+    finalManifest.bidMatchesFallback === true &&
+    finalManifest.roiGoalMatchesFallback === true &&
+    finalManifest.audienceAgeMatchesFallback === true &&
+    Number(finalManifest.audienceAgeCount || 0) === JSZC_FALLBACK_AGES.length &&
+    finalManifest.callToActionMatchesFallback === true &&
+    Number(finalManifest.callToActionCount || 0) === 5 &&
+    finalManifest.scheduleTimePresent === true &&
+    Number(finalManifest.scheduleTimeLength || 0) === 336 &&
+    finalManifest.scheduleTimeBinary === true &&
+    finalManifest.scheduleTimeDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST &&
+    finalManifest.scheduleTimeDigestMatches === true &&
+    finalManifest.scheduleTimeExactMatch === true
+  );
   const finalPayloadHideOk = !usesFinalPayloadHash ||
     (ALLOWED_HIDE_IF_CONVERTED.has(String(finalManifest.hideIfConverted || "")) && finalManifest.hideIfConverted !== payload.objective);
   const finalPayloadFilterEventOk = !usesFinalPayloadHash ||
@@ -419,12 +437,17 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       successProfile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
       successProfile.externalUrlMaterialListPolicy === "send" &&
       Number(successProfile.externalUrlMaterialListRequiredCount || 0) === 1 &&
+      successProfile.scheduleTimeDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST &&
+      successProfile.configuredScheduleDigest === JSZC_FALLBACK_SCHEDULE_TIME_DIGEST &&
+      successProfile.scheduleTimeValidation?.status === "passed" &&
+      successProfile.fallbackDefaultsMatch === true &&
       successProfile.rawPayloadStored === false
     );
   const finalPayloadDmpOk = !usesFinalPayloadHash ||
     (
       finalManifest.dmpRetargetingTagsExcludePresent === true &&
-      finalManifest.dmpRetargetingTagsExcludeIntegerArray === true
+      finalManifest.dmpRetargetingTagsExcludeIntegerArray === true &&
+      Number(finalManifest.dmpRetargetingTagsExcludeCount || 0) >= 10
     );
   const sellingPointCount = Number(finalManifest.productSellingPointsCount || 0);
   const sellingPointMinChars = Number(finalManifest.productSellingPointsMinChars || 0);
@@ -528,6 +551,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const omittedFieldPaths = Array.isArray(officialFieldEvidence.omittedFieldPaths) ? officialFieldEvidence.omittedFieldPaths : [];
   const deliveryTypeEvidence = officialFieldByPath.get("delivery_type") || {};
   const layerRoiSwitchEvidence = officialFieldByPath.get("layer_roi_switch") || {};
+  const scheduleTimeEvidence = officialFieldByPath.get("schedule_time") || {};
   const finalCreateFieldContractOk = !usesFinalPayloadHash ||
     (
       officialFieldEvidence.status === "passed" &&
@@ -537,6 +561,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       layerRoiSwitchEvidence.evidenceLevel === "official_direct" &&
       layerRoiSwitchEvidence.sendPolicy === "send" &&
       layerRoiSwitchEvidence.status === "passed" &&
+      scheduleTimeEvidence.evidenceLevel === "official_direct" &&
+      scheduleTimeEvidence.sendPolicy === "send" &&
+      scheduleTimeEvidence.status === "passed" &&
       omittedFieldPaths.includes("micro_promotion_type") &&
       !officialFieldByPath.has("micro_promotion_type")
     );
@@ -679,7 +706,14 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     {
       key: "audience_gender",
       status: finalPayloadGenderOk ? "passed" : "blocked",
-      summary: finalPayloadGenderOk ? "不限性别使用 GENDER_UNLIMITED。" : "不限性别未使用 GENDER_UNLIMITED。"
+      summary: finalPayloadGenderOk ? "JSZC 保底性别使用 GENDER_MALE。" : "JSZC 保底性别未使用 GENDER_MALE。"
+    },
+    {
+      key: "jszc_incremental_fallback",
+      status: finalPayloadIncrementalFallbackOk ? "passed" : "blocked",
+      summary: finalPayloadIncrementalFallbackOk
+        ? "JSZC 预算、出价、ROI、五档年龄、5 项 CTA 与 336 位时段保底合同一致。"
+        : "JSZC 增量保底参数或时段合同不一致。"
     },
     {
       key: "hide_if_converted",

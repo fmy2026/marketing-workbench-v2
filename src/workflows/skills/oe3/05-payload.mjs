@@ -28,6 +28,14 @@ import {
   evaluateCreateFieldLedger
 } from "./05-create-field-ledger.mjs";
 import {
+  JSZC_FALLBACK_AGES,
+  JSZC_FALLBACK_BID,
+  JSZC_FALLBACK_BUDGET,
+  JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_ROI_GOAL,
+  JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+  evaluateJsZcScheduleTime,
   evaluateJsZcSuccessProfile,
   jszcSuccessProfileManifest
 } from "./05-jszc-success-profile.mjs";
@@ -42,6 +50,7 @@ const REQUIRED_CREATE_FIELDS = [
   "native_type",
   "delivery_mode",
   "schedule_type",
+  "schedule_time",
   "bid_type",
   "budget_mode",
   "pricing",
@@ -136,6 +145,11 @@ function metadataValue(source = {}, paths = []) {
 
 function unique(values = []) {
   return [...new Set(values.map(clean).filter(Boolean))];
+}
+
+function sameArray(left, right) {
+  return Array.isArray(left) && Array.isArray(right) &&
+    left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function routePayloadConfig(bundle = {}) {
@@ -460,6 +474,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const sellingPointsContract = evaluateSellingPointsContract(sellingPoints, {
     blockerPrefix: "product_selling_points"
   });
+  const scheduleTimeValidation = evaluateJsZcScheduleTime(payload.schedule_time);
   const semantic = [
     ...configBlockers,
     ...(!Number.isSafeInteger(payload.advertiser_id) ? ["advertiser_id_not_safe_integer_for_platform_payload"] : []),
@@ -487,7 +502,13 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(selectedRequiredVideoCount !== coverVerifiedCount ? ["required_video_cover_readback_incomplete"] : []),
     ...(!payload.project_materials?.title_material_list?.length ? ["title_material_list_missing"] : []),
     ...(!payload.brand_info?.brand_name_id || !payload.brand_info?.cdp_brand_id || !payload.brand_info?.yuntu_category_id ? ["brand_info_integer_fields_missing"] : []),
-    ...(payload.audience?.gender !== "GENDER_UNLIMITED" ? ["audience_gender_not_unlimited_enum"] : []),
+    ...(Number(payload.budget) === JSZC_FALLBACK_BUDGET ? [] : ["jszc_fallback_budget_mismatch"]),
+    ...(Number(payload.cpa_bid) === JSZC_FALLBACK_BID ? [] : ["jszc_fallback_bid_mismatch"]),
+    ...(Number(payload.roi_goal) === JSZC_FALLBACK_ROI_GOAL ? [] : ["jszc_fallback_roi_goal_mismatch"]),
+    ...(payload.audience?.gender === JSZC_FALLBACK_GENDER ? [] : ["audience_gender_not_jszc_fallback_enum"]),
+    ...(sameArray(payload.audience?.age, JSZC_FALLBACK_AGES) ? [] : ["audience_age_not_jszc_fallback_ranges"]),
+    ...(sameArray(payload.project_materials?.call_to_action_buttons, JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS) ? [] : ["call_to_action_not_jszc_incremental_fallback"]),
+    ...(scheduleTimeValidation.status === "passed" ? [] : ["schedule_time_not_jszc_fallback_contract"]),
     ...(!ALLOWED_HIDE_IF_CONVERTED.has(clean(payload.audience?.hide_if_converted)) ? ["hide_if_converted_invalid_enum"] : []),
     ...(clean(payload.audience?.hide_if_converted) === clean(payload.external_action) ? ["hide_if_converted_uses_conversion_event"] : []),
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && filterEventPolicy !== "omit" ? ["filter_event_policy_invalid_for_no_exclude"] : []),
@@ -497,7 +518,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(successProfile.status === "passed" ? [] : (successProfile.blockers || ["jszc_success_profile_not_verified"])),
     ...(createFieldLedger.fieldShapeHash === successProfile.goldenFieldShapeHash ? [] : ["jszc_success_profile_field_shape_mismatch"]),
     ...(Number(createFieldLedger.checkedPathCount || 0) === Number(successProfile.expectedLedgerPathCount || 0) ? [] : ["jszc_success_profile_ledger_path_count_mismatch"]),
-    ...(!(payload.audience?.retargeting_tags_exclude || []).length ? ["dmp_custom_audience_ids_missing"] : []),
+    ...((payload.audience?.retargeting_tags_exclude || []).length < 10 ? ["dmp_custom_audience_ids_below_jszc_baseline"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
     ...(createFieldLedger.status === "passed" ? [] : ["create_field_ledger_blocked"]),
@@ -538,6 +559,7 @@ function fieldManifest(payload = {}, blockers = [], {
   const filterEventPolicy = nestedFieldContract.filterEventPolicy || "";
   const convertedTimeDurationPresent = Object.hasOwn(audience, "converted_time_duration");
   const convertedTimeDurationPolicy = nestedFieldContract.convertedTimeDurationPolicy || "";
+  const scheduleTimeValidation = evaluateJsZcScheduleTime(payload.schedule_time);
   const sellingPoints = materials.product_info?.selling_points;
   const sellingPointsSummary = sellingPointsManifest(sellingPoints, {
     source: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
@@ -628,6 +650,22 @@ function fieldManifest(payload = {}, blockers = [], {
     backupLandingPageHashMatch: backupLandingPage.checks?.hashMatch === true,
     touchpointUrlControlledPresent: Boolean(payload.track_url_setting?.action_track_url?.length),
     audienceGender: audience.gender || "",
+    audienceAgeCount: Array.isArray(audience.age) ? audience.age.length : 0,
+    audienceAgeOrderHash: hashValue(Array.isArray(audience.age) ? audience.age : []),
+    audienceAgeMatchesFallback: sameArray(audience.age, JSZC_FALLBACK_AGES),
+    budgetMatchesFallback: Number(payload.budget) === JSZC_FALLBACK_BUDGET,
+    bidMatchesFallback: Number(payload.cpa_bid) === JSZC_FALLBACK_BID,
+    roiGoalMatchesFallback: Number(payload.roi_goal) === JSZC_FALLBACK_ROI_GOAL,
+    callToActionCount: Array.isArray(materials.call_to_action_buttons) ? materials.call_to_action_buttons.length : 0,
+    callToActionOrderHash: hashValue(Array.isArray(materials.call_to_action_buttons) ? materials.call_to_action_buttons : []),
+    callToActionMatchesFallback: sameArray(materials.call_to_action_buttons, JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS),
+    scheduleTimePresent: scheduleTimeValidation.present,
+    scheduleTimeLength: scheduleTimeValidation.length,
+    scheduleTimeBinary: scheduleTimeValidation.binary,
+    scheduleTimeDigest: scheduleTimeValidation.digest,
+    scheduleTimeDigestMatches: scheduleTimeValidation.digestMatches,
+    scheduleTimeExactMatch: scheduleTimeValidation.exactScheduleMatches,
+    expectedScheduleTimeDigest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
     hideIfConverted: audience.hide_if_converted || "",
     filterEventPolicy,
     filterEventPresent,
@@ -738,6 +776,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     ...(instanceIdCreateEvidence.canSend ? { [instanceCandidateField]: instanceIdValue } : {}),
     asset_id: intOrNull(eventAsset.platform_resource_id),
     schedule_type: clean(requiredConfigValue(payloadDefaults, "schedule.schedule_type", configBlockers)),
+    schedule_time: clean(requiredConfigValue(payloadDefaults, "schedule.schedule_time", configBlockers)),
     bid_type: clean(requiredConfigValue(payloadDefaults, "strategy.bid_type", configBlockers)),
     budget_mode: clean(requiredConfigValue(payloadDefaults, "strategy.budget_mode", configBlockers)),
     budget: Number(summary.budget || bundle.defaults?.budget || 0),

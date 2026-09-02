@@ -12,6 +12,9 @@ import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-
 import { TITLE_MATERIAL_CONTRACT } from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
 import {
+  JSZC_FALLBACK_GENDER,
+  JSZC_FALLBACK_SCHEDULE_TIME,
+  JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
@@ -58,6 +61,20 @@ function passedCurrentRouteManifest() {
     convertedTimeDurationPolicy: "omit_when_no_exclude",
     convertedTimeDurationPresent: false,
     convertedTimeDurationOmittedByContract: true,
+    budgetMatchesFallback: true,
+    bidMatchesFallback: true,
+    roiGoalMatchesFallback: true,
+    audienceGender: JSZC_FALLBACK_GENDER,
+    audienceAgeMatchesFallback: true,
+    audienceAgeCount: 5,
+    callToActionMatchesFallback: true,
+    callToActionCount: 5,
+    scheduleTimePresent: true,
+    scheduleTimeLength: 336,
+    scheduleTimeBinary: true,
+    scheduleTimeDigest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+    scheduleTimeDigestMatches: true,
+    scheduleTimeExactMatch: true,
     successProfileVersion: JSZC_SUCCESS_PROFILE_VERSION,
     fieldShapeHash: FIELD_SHAPE_HASH,
     successProfile: {
@@ -71,6 +88,10 @@ function passedCurrentRouteManifest() {
       convertedTimeDurationPolicy: "omit_when_no_exclude",
       externalUrlMaterialListPolicy: "send",
       externalUrlMaterialListRequiredCount: 1,
+      scheduleTimeDigest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+      configuredScheduleDigest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+      scheduleTimeValidation: { status: "passed" },
+      fallbackDefaultsMatch: true,
       rawPayloadStored: false
     },
     productSellingPointsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults.product.selling_points",
@@ -97,7 +118,8 @@ function passedCurrentRouteManifest() {
       blockerCodes: [],
       fields: [
         { fieldPath: "delivery_type", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
-        { fieldPath: "layer_roi_switch", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" }
+        { fieldPath: "layer_roi_switch", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" },
+        { fieldPath: "schedule_time", evidenceLevel: "official_direct", sendPolicy: "send", status: "passed" }
       ],
       omittedFieldPaths: ["micro_promotion_type"]
     },
@@ -146,6 +168,7 @@ function basePayload(instanceId = "7434750138926546994") {
     instance_id: instanceId,
     asset_id: 100000000001,
     schedule_type: "SCHEDULE_FROM_NOW",
+    schedule_time: JSZC_FALLBACK_SCHEDULE_TIME,
     bid_type: "CUSTOM",
     budget_mode: "BUDGET_MODE_DAY",
     budget: 300,
@@ -204,6 +227,7 @@ assert.equal(wire.instanceIdTransportStrategy, INSTANCE_ID_WIRE_STRATEGY);
 assert(wire.body.includes('"instance_id":7434750138926546994'));
 assert(!wire.body.includes('"instance_id":"7434750138926546994"'));
 assert(!wire.body.includes("7.434750138926547e+18"));
+assert(wire.body.includes(`"schedule_time":"${JSZC_FALLBACK_SCHEDULE_TIME}"`));
 assert.match(wire.requestHash, /^sha256:[a-f0-9]{64}$/);
 
 const int64Wire = buildStdProjectCreateWireBody(basePayload(INT64_MAX_DECIMAL));
