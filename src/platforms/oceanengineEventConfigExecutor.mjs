@@ -35,6 +35,7 @@ import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs
 export const EVENT_CONFIGS_CONFIRM_ENV = EVENT_CONFIGS_ENSURE_CONFIRM_ENV;
 export const EVENT_CONFIGS_CONFIRM_VALUE = EVENT_CONFIGS_ENSURE_CONFIRM_VALUE;
 export const EVENT_CONFIG_CREATE_TIMEOUT_MS = PLATFORM_JSON_TIMEOUT_MS;
+export const DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS = Object.freeze([0, 1000, 3000, 5000]);
 
 const API_ORIGIN = "https://ad.oceanengine.com";
 const EVENT_CONFIG_CREATE_FULL_ENDPOINT = `${API_ORIGIN}${EVENT_CONFIG_CREATE_ENDPOINT}`;
@@ -43,6 +44,64 @@ const MAX_EVENT_ASSET_DETAILS = 50;
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function sleep(delayMs) {
+  return Number(delayMs) > 0
+    ? new Promise((resolve) => setTimeout(resolve, Number(delayMs)))
+    : Promise.resolve();
+}
+
+function safePostCreateReadbackDelays(delays = DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS) {
+  const values = Array.isArray(delays) ? delays : DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS;
+  const normalized = [...new Set(values
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 5000))]
+    .sort((left, right) => left - right);
+  return normalized.length ? normalized.slice(0, 4) : [...DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS];
+}
+
+export async function pollEventConfigPostCreateReadback({
+  repo,
+  jobId,
+  client,
+  allowReadonlyDependency = true,
+  delaysMs = DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS,
+  nowFn = Date.now,
+  sleepImpl = sleep
+} = {}) {
+  if (!repo || !jobId || !client) throw new Error("event_config_post_create_readback_context_required");
+  const startedAtMs = Number(nowFn());
+  const attempts = [];
+  let result = null;
+  for (const plannedDelayMs of safePostCreateReadbackDelays(delaysMs)) {
+    const waitMs = Math.max(0, plannedDelayMs - Math.max(0, Number(nowFn()) - startedAtMs));
+    if (waitMs > 0) await sleepImpl(waitMs);
+    const bundle = await repo.getLaunchJobBundle(jobId);
+    result = await runEventChainReadonlySkill({ repo, bundle, client, allowReadonlyDependency });
+    attempts.push(sanitizeForPublic({
+      planned_delay_ms: plannedDelayMs,
+      actual_elapsed_ms: Math.max(0, Number(nowFn()) - startedAtMs),
+      status: result.status || "blocked",
+      blocker_count: Array.isArray(result.blockers) ? result.blockers.length : 0,
+      baseline_configured_count: Number(result.outputSummary?.baselineConfiguredEventCount || 0),
+      event_configs_verified: result.outputSummary?.eventConfigsReadbackVerified === true
+    }));
+    if (result.status === "passed") {
+      return {
+        ready: true,
+        result,
+        attempts,
+        elapsedMs: Math.max(0, Number(nowFn()) - startedAtMs)
+      };
+    }
+  }
+  return {
+    ready: false,
+    result,
+    attempts,
+    elapsedMs: Math.max(0, Number(nowFn()) - startedAtMs)
+  };
 }
 
 function apiCode(payload = {}) {
@@ -613,7 +672,8 @@ async function saveEventConfigsEvidence({
   status,
   preflight = {},
   createResults = [],
-  postReadback = {}
+  postReadback = {},
+  postReadbackCycle = null
 }) {
   if (!repo?.upsertEvidence || !bundle?.job) return "";
   const artifactId = `EV-${bundle.job.job_id}-EVENT-CONFIGS-CREATE`;
@@ -628,6 +688,8 @@ async function saveEventConfigsEvidence({
     baseline_missing_before: Number(preflight.create_candidate_count || 0),
     post_readback_status: postReadback.status || "not_called",
     post_readback_blocker_count: Array.isArray(postReadback.blockers) ? postReadback.blockers.length : 0,
+    post_readback_attempt_count: Number(postReadbackCycle?.attempts?.length || (postReadback.status && postReadback.status !== "not_called" ? 1 : 0)),
+    post_readback_elapsed_ms: Number(postReadbackCycle?.elapsedMs || 0),
     payload_persisted: false,
     response_persisted: false
   });
@@ -637,7 +699,7 @@ async function saveEventConfigsEvidence({
     jobId: bundle.job.job_id,
     artifactType: "event_configs_create",
     title: "JSZC 事件配置 baseline API 创建",
-    summary: `status=${status}; attempted=${summary.attempted_create_count}; succeeded=${summary.succeeded_create_count}; baseline_before=${summary.baseline_configured_before}/${EVENT_CONFIG_BASELINE_EVENTS.length}; post_readback_status=${summary.post_readback_status}; response_persisted=false`,
+    summary: `status=${status}; attempted=${summary.attempted_create_count}; succeeded=${summary.succeeded_create_count}; baseline_before=${summary.baseline_configured_before}/${EVENT_CONFIG_BASELINE_EVENTS.length}; post_readback_status=${summary.post_readback_status}; post_readback_attempts=${summary.post_readback_attempt_count}; post_readback_elapsed_ms=${summary.post_readback_elapsed_ms}; response_persisted=false`,
     contentHash: hashValue({
       summary,
       response_hashes_present: createResults.map((item) => Boolean(item.responseHash))
@@ -660,7 +722,10 @@ export async function ensureEventConfigsForTargetOnce({
   projectStatePath,
   assetIdHint = "",
   allowReadonlyDependency = true,
-  writeTimeoutMs = EVENT_CONFIG_CREATE_TIMEOUT_MS
+  writeTimeoutMs = EVENT_CONFIG_CREATE_TIMEOUT_MS,
+  postCreateReadbackDelaysMs = DEFAULT_EVENT_CONFIG_POST_CREATE_READBACK_DELAYS_MS,
+  nowFn = Date.now,
+  sleepImpl = sleep
 } = {}) {
   if (!repo || !jobId) throw new Error("event_configs_executor_repo_and_job_required");
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -842,21 +907,26 @@ export async function ensureEventConfigsForTargetOnce({
     }
   }
 
-  bundle = await repo.getLaunchJobBundle(jobId);
-  const postReadback = await runEventChainReadonlySkill({
+  const postReadbackCycle = await pollEventConfigPostCreateReadback({
     repo,
-    bundle,
+    jobId,
     client,
-    allowReadonlyDependency
+    allowReadonlyDependency,
+    delaysMs: postCreateReadbackDelaysMs,
+    nowFn,
+    sleepImpl
   });
-  const ready = postReadback.status === "passed";
+  bundle = await repo.getLaunchJobBundle(jobId);
+  const postReadback = postReadbackCycle.result || { status: "blocked", blockers: ["event_configs_post_create_readback_blocked"] };
+  const ready = postReadbackCycle.ready === true && postReadback.status === "passed";
   const evidenceRef = await saveEventConfigsEvidence({
     repo,
     bundle,
     status: ready ? "passed" : "post_readback_blocked",
     preflight,
     createResults,
-    postReadback
+    postReadback,
+    postReadbackCycle
   });
   const result = sanitizeForPublic({
     status: ready ? "event_configs_ready" : "event_configs_readback_not_verified",
@@ -868,6 +938,8 @@ export async function ensureEventConfigsForTargetOnce({
     baseline_configured_before: preflight.baseline_configured_count,
     attempted_create_count: createResults.length,
     succeeded_create_count: createResults.filter((item) => item.passed).length,
+    readback_attempt_count: postReadbackCycle.attempts.length,
+    readback_elapsed_ms: postReadbackCycle.elapsedMs,
     event_asset_verified: postReadback.outputSummary?.eventAssetTargetReadbackVerified === true,
     event_configs_verified: postReadback.outputSummary?.eventConfigsReadbackVerified === true,
     optimized_goal_verified: postReadback.outputSummary?.objectiveFound === true &&

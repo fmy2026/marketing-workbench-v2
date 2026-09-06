@@ -9,6 +9,12 @@
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
+## 2026-09-06 Event Config 创建后有界回查（已批准）
+
+当前账户的 6 个 baseline event config 创建请求均返回 HTTP 200 / `api_code=0`，但创建后约一秒的单次权威回查只看到 5/6，缺少最后写入的 `purchase_roi_30d`；稍后的独立只读预检已稳定确认 6/6。该结果证明创建和字段映射正确，阻断来自平台最终一致性窗口，而 executor 当前只回查一次。
+
+最小修复只在本轮所有 event config create action 成功后，对既有 `runEventChainReadonlySkill` 增加绝对 `0/1/3/5` 秒的有界只读回查，命中完整事件链即停止。每次平台 HTTP 仍使用共享 15 秒 deadline，创建调用数、Plan/confirmation、子 action 幂等键与零自动重试语义不变；失败、超时或响应不明分支不进入该轮询。回查尝试数和最终耗时只写脱敏 evidence。旧 Plan 保持 `consumed`，部署后使用既有精确“重新只读准备”创建 fresh runtime Job，不复用旧授权或 action。
+
 ## 2026-09-06 Event Config 默认只读客户端修复（已批准）
 
 当前 Case 的已确认 Resource V3 已成功创建并权威回查事件资产，但 `ensure_event_configs:baseline` 在写入前停止。脱敏证据显示同一秒内事件链只读已取得唯一资产、App/实例绑定、6/6 available events 与 0/6 configured events；随后事件配置 executor 却返回 `event_asset_inventory_readonly_failed`。根因是默认只读客户端的 `fetchImpl` 包装引用了不存在的 `fetchEventConfigCreate`，产生本地 `ReferenceError` 后被统一只读客户端安全映射成 inventory 失败。

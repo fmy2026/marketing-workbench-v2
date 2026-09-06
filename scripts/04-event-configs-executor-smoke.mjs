@@ -157,6 +157,7 @@ function clientStub(state, {
   existingConfiguredCount = 0,
   missingAvailableTypes = [],
   readyAfterCreate = true,
+  postCreateVisibilityDelayReads = 0,
   assets = [asset({ appId: APP_ID, instanceId: INSTANCE_ID })]
 } = {}) {
   const calls = [];
@@ -166,7 +167,13 @@ function clientStub(state, {
     async get({ label, endpoint, summarize }) {
       calls.push({ label, endpoint });
       const availableEvents = baselineAvailableEvents({ missingTypes: missingAvailableTypes });
-      const createdTypes = readyAfterCreate ? [...state.createdEventTypes] : [];
+      const existingConfigRead = label.includes("event_configs") || label.includes("existing_configs");
+      if (existingConfigRead && state.createdEventTypes.size > 0) {
+        state.postCreateEventConfigReadCount = Number(state.postCreateEventConfigReadCount || 0) + 1;
+      }
+      const createdTypes = readyAfterCreate && Number(state.postCreateEventConfigReadCount || 0) > postCreateVisibilityDelayReads
+        ? [...state.createdEventTypes]
+        : [];
       const initialExistingTypes = existingAll
         ? EVENT_CONFIG_BASELINE_EVENTS.map((item) => item.event_type)
         : EVENT_CONFIG_BASELINE_EVENTS.slice(0, existingConfiguredCount).map((item) => item.event_type);
@@ -547,6 +554,28 @@ assert.equal(createRepo.state.actions.filter((item) => item.actionType === EVENT
 assert(createRepo.state.updates.some((item) => item.resourceType === "event_asset" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 assert(createRepo.state.updates.some((item) => item.resourceType === "micro_app_instance" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 
+const eventualState = { createFetchCount: 0, createdEventTypes: new Set(), postCreateEventConfigReadCount: 0 };
+const eventualBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-EVENTUAL" });
+const eventualRepo = repoStub(eventualBundle);
+let eventualNowMs = 0;
+const eventual = await ensureEventConfigsForTargetOnce({
+  repo: eventualRepo,
+  jobId: eventualBundle.job.job_id,
+  confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(eventualState),
+  readonlyClient: clientStub(eventualState, { postCreateVisibilityDelayReads: 1 }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(eventualBundle),
+  postCreateReadbackDelaysMs: [0, 1000, 3000],
+  nowFn: () => eventualNowMs,
+  sleepImpl: async (ms) => { eventualNowMs += ms; }
+});
+assert.equal(eventual.status, "event_configs_ready", JSON.stringify(eventual.blockers || []));
+assert.equal(eventual.readback_attempt_count, 2);
+assert.equal(eventual.readback_elapsed_ms, 1000);
+assert.equal(eventualState.createFetchCount, EVENT_CONFIG_BASELINE_EVENTS.length);
+
 const duplicateState = { createFetchCount: 0, createdEventTypes: new Set() };
 const duplicateBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-DUPLICATE" });
 const duplicateRepo = repoStub(duplicateBundle);
@@ -611,6 +640,7 @@ assert.equal(partialUnavailableState.createFetchCount, 0);
 const readbackFailState = { createFetchCount: 0, createdEventTypes: new Set() };
 const readbackFailBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-READBACK-FAIL" });
 const readbackFailRepo = repoStub(readbackFailBundle);
+let readbackFailNowMs = 0;
 const readbackFail = await ensureEventConfigsForTargetOnce({
   repo: readbackFailRepo,
   jobId: readbackFailBundle.job.job_id,
@@ -619,10 +649,15 @@ const readbackFail = await ensureEventConfigsForTargetOnce({
   readonlyClient: clientStub(readbackFailState, { readyAfterCreate: false }),
   credentialSummary: validCredential(),
   oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
-  projectStatePath: await statePathFor(readbackFailBundle)
+  projectStatePath: await statePathFor(readbackFailBundle),
+  postCreateReadbackDelaysMs: [0, 1000],
+  nowFn: () => readbackFailNowMs,
+  sleepImpl: async (ms) => { readbackFailNowMs += ms; }
 });
 assert.equal(readbackFail.status, "event_configs_readback_not_verified");
 assert(readbackFail.blockers.includes("event_configs_baseline_missing"));
+assert.equal(readbackFail.readback_attempt_count, 2);
+assert.equal(readbackFail.readback_elapsed_ms, 1000);
 assert.equal(readbackFailState.createFetchCount, EVENT_CONFIG_BASELINE_EVENTS.length);
 
 const apiFailState = { createFetchCount: 0, createdEventTypes: new Set() };
@@ -682,11 +717,13 @@ const output = {
   missingIdempotencyBlockedBeforeWrite: missingIdempotencyState.createFetchCount === 0 && missingIdempotencyRepo.state.actions.length === 0,
   noopStatus: noop.status,
   createStatus: created.status,
+  eventualConsistencyReadbackAttempts: eventual.readback_attempt_count,
+  eventualConsistencyCreateCount: eventualState.createFetchCount,
   bindingMismatchBlocked: bindingMismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   duplicateBlocked: duplicate.blockers.includes("event_config_platform_action_already_recorded_for_job"),
   missingAvailableBlocked: missingAvailable.blockers.includes("event_config_available_events_baseline_missing"),
   partialUnavailableBlocked: partialUnavailable.blockers.includes("event_config_available_events_baseline_missing"),
-  postCreateReadbackBlocked: readbackFail.status === "event_configs_readback_not_verified",
+  postCreateReadbackBlocked: readbackFail.status === "event_configs_readback_not_verified" && readbackFail.readback_attempt_count === 2,
   apiFailureBlocked: apiFail.status === "event_config_create_failed_once",
   timeoutClosedWithReadonly: timeoutResult.response_unknown === true && timeoutResult.readback_called === true,
   maxCreateCallsObserved: Math.max(

@@ -1,0 +1,80 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md",
+  "status": "completed",
+  "created_at": "2026-09-06 18:53 CST",
+  "updated_at": "2026-09-06 18:57 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add bounded post-create readonly verification for event configs and recover the current Case through the existing fresh readonly Gate.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "Task, Manifest, project state, Solution Design, event-config executor, and focused mock smoke",
+      "one existing workbench readonly recovery command for CASE-MWBV2-7F8C748BE84126BE77"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/platforms/oceanengineEventConfigExecutor.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/platforms/httpDeadline.mjs",
+    "scripts/04-event-configs-executor-smoke.mjs"
+  ],
+  "allowed_writes": [
+    "bounded event-config post-create readonly polling, focused mock regression, mechanism documentation, and current Case fresh readonly recovery"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmations, create retries, consumed Plan reuse, token refreshes, and budget or bid changes",
+    "new Schema, API, Plan/action type, confirmation phrase, or write authorization path",
+    "raw credential, request, response, URL, or payload persistence"
+  ],
+  "validation_plan": [
+    "event-config executor eventual-consistency and exhaustion mock coverage",
+    "single-confirmation orchestrator, deadline, conversation, runtime policy, schema, and diff checks",
+    "current Case one-time fresh readonly recovery with zero platform write"
+  ],
+  "stop_conditions": [
+    "any create retry or real platform write would be required",
+    "the fix changes confirmation, idempotency, deadline, or action semantics",
+    "fresh readonly recovery returns a real blocker requiring user or platform action"
+  ],
+  "completed_at": "2026-09-06 18:57 CST",
+  "result": {
+    "current_case_id": "CASE-MWBV2-7F8C748BE84126BE77",
+    "fresh_job_id": "JOB-MWBV2-20260906105619-04E8AC",
+    "current_case_gate": "await_job_write_authorization",
+    "confirmation_phrase": "确认准备资源",
+    "fresh_plan_status": "ready",
+    "fresh_plan_actions": [
+      "ensure_resource:avatar",
+      "ensure_resource:dmp_audience_package",
+      "ensure_resource:video_asset",
+      "ensure_resource:product_image"
+    ],
+    "fresh_job_platform_actions": 0,
+    "event_configs_verified": "6/6",
+    "event_chain_status": "passed",
+    "platform_write_actions_during_task": 0,
+    "token_refreshes": 0,
+    "validation": {
+      "eventual_consistency_poll": "passed",
+      "poll_window_exhaustion": "passed",
+      "event_configs_executor": "passed",
+      "single_confirmation_orchestrator": "passed",
+      "platform_http_deadline": "passed",
+      "workbench_conversation": "passed",
+      "workbench_runtime_policy": "passed",
+      "schema": "passed",
+      "fresh_readonly_recovery": "passed"
+    }
+  }
+}

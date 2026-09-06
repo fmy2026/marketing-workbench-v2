@@ -199,7 +199,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 
 平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
 
-所有生产平台 HTTP 请求只能经过唯一 deadline 封装：普通 JSON 单次 15 秒、文件上传单次 60 秒；封装组合已有 `AbortSignal`、超时中止与 timer 清理，不引入自动重试。读超时落既有只读失败与脱敏 `timeout` 诊断；写超时、异常或响应不明只允许权威只读回查。事件配置保留 15 秒 deadline。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
+所有生产平台 HTTP 请求只能经过唯一 deadline 封装：普通 JSON 单次 15 秒、文件上传单次 60 秒；封装组合已有 `AbortSignal`、超时中止与 timer 清理，不引入自动重试。读超时落既有只读失败与脱敏 `timeout` 诊断；写超时、异常或响应不明只允许权威只读回查。事件配置保留 15 秒 deadline。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。全部 event config create action 成功后，按本轮起点绝对 `0/1/3/5` 秒执行有界事件链只读回查，命中完整事件链即停；该窗口只吸收平台最终一致性延迟，不重试 create，失败、超时或响应不明分支不进入。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
 
 ## 5. 当前 Case Gate 与工作台
 
