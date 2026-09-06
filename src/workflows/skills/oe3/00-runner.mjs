@@ -58,7 +58,12 @@ import { runVideoMaterialBindPlanSkill } from "./04-video-material-bind-plan.mjs
 import { runBackupLandingPageMaterialInventorySkill } from "./04-backup-landing-page-material-inventory.mjs";
 import { runVideoMaterialReadonlyGate } from "./04-video-material-readiness.mjs";
 import { runIntakeNormalizeSkill } from "./01-intake-normalize.mjs";
-import { compileAndSaveExecutionPlan, evaluateConfirmedPlanDraftDerivation } from "../../executionPlan.mjs";
+import {
+  PLAN_KIND_MONITOR_BOOTSTRAP,
+  compileAndSaveExecutionPlan,
+  evaluateConfirmedPlanDraftDerivation
+} from "../../executionPlan.mjs";
+import { syncEventAssetAccountProvisionContract } from "./04-event-asset-account-contract.mjs";
 import { runConfirmedResourceOrchestratorSkill } from "./05-confirmed-resource-orchestrator.mjs";
 
 export const OE3_WORKFLOW_MODES = new Set(["dry_run", "draft_readiness", "execute_once", "readback_only", "planned_actions", "aweme_auth_readonly"]);
@@ -83,6 +88,30 @@ const RESOURCE_PREP_CONTRACT_SKILLS = new Set([
   "product-image-source-prepare",
   "backup-landing-page-source-prepare"
 ]);
+
+const REUSABLE_PLAN_STATUSES = new Set(["blocked", "planned", "ready"]);
+
+export function resolveWorkflowPlanVersion({ executionPlan = null, createAttemptNo = 1 } = {}) {
+  const attemptNo = Number(createAttemptNo || 1);
+  const latestVersion = Number(executionPlan?.plan_version || executionPlan?.planVersion || 0);
+  const latestAttemptNo = Number(
+    executionPlan?.metadata?.create_attempt_no ||
+    executionPlan?.metadata?.createAttemptNo ||
+    0
+  );
+  const latestKind = String(
+    executionPlan?.plan_kind ||
+    executionPlan?.planKind ||
+    executionPlan?.metadata?.plan_kind ||
+    ""
+  ).trim();
+  const latestStatus = String(executionPlan?.plan_status || executionPlan?.planStatus || "").trim();
+  const reusable = latestKind !== PLAN_KIND_MONITOR_BOOTSTRAP &&
+    latestAttemptNo === attemptNo &&
+    REUSABLE_PLAN_STATUSES.has(latestStatus) &&
+    latestVersion > 0;
+  return reusable ? latestVersion : Math.max(attemptNo, latestVersion + 1, 1);
+}
 
 function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
   const node = getWorkflowNode(nodeKey);
@@ -629,6 +658,10 @@ async function executeSkill({ repo, context, skillKey }) {
     });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "event-chain-readonly") {
+    if (!context.mockReady) {
+      await syncEventAssetAccountProvisionContract({ repo, bundle: context.bundle });
+      context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
+    }
     result = await runEventChainReadonlySkill({
       repo,
       bundle: context.bundle,
@@ -1100,6 +1133,10 @@ export async function runOe3WorkflowSkills({
   }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
+  const numericPlanVersion = resolveWorkflowPlanVersion({
+    executionPlan: bundle.executionPlan,
+    createAttemptNo: numericAttemptNo
+  });
   const confirmedPlanMode = mode === "execute_once" && confirmedPlanExecution === true &&
     Boolean(expectedPlanId && expectedPlanHash) &&
     bundle.executionPlan?.metadata?.execution_scope?.binding_mode === "single_confirmation_plan";
@@ -1110,7 +1147,7 @@ export async function runOe3WorkflowSkills({
     await compileAndSaveExecutionPlan({
       repo,
       jobId,
-      planVersion: numericAttemptNo,
+      planVersion: numericPlanVersion,
       createAttemptNo: numericAttemptNo,
       verificationSeriesId,
       verificationTaskRef,
@@ -1149,7 +1186,7 @@ export async function runOe3WorkflowSkills({
     qiankunOwnerKey,
     awemeAuthorizationClient,
     createAttemptNo: numericAttemptNo,
-    planVersion: numericAttemptNo,
+    planVersion: numericPlanVersion,
     verificationSeriesId,
     verificationTaskRef,
     maximumCreateAttempts: numericMaximumCreateAttempts,
@@ -1182,7 +1219,7 @@ export async function runOe3WorkflowSkills({
       await compileAndSaveExecutionPlan({
         repo,
         jobId,
-        planVersion: numericAttemptNo,
+        planVersion: numericPlanVersion,
         createAttemptNo: numericAttemptNo,
         verificationSeriesId,
         verificationTaskRef,

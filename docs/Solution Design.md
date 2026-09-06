@@ -3,11 +3,19 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-02 17:31 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migration `070` |
+| 最后更新时间 | 2026-09-06 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migrations `070`–`071` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
+
+## 2026-09-06 Monitor 后同 Job 的 Resource Gate 收口（已批准）
+
+当前 Case 的验收续跑确认：已消费的 `monitor_bootstrap` V2 按最高 `plan_version` 遮住随后以 V1 更新的 Resource Plan；同时，现有当前账户事件资产 provision 合同生成器未接入 Node 04 `event-chain-readonly`，使资源 Plan 继续读取历史蓝图中的账户绑定。结果是 active、monitor READY、零创建动作的 Job 以零 root blocker 落入 `review_latest_job`。
+
+修复保持同一 Case、同一 Job、3 阶段 7 Node、Plan 类型和确认模型不变。普通 readonly compiler 将 `plan_version` 与 `create_attempt_no` 分离：Monitor V2 消费后分配并在同一轮复用 Resource V3，而创建 attempt 仍为 1。Node 04 在事件链只读前调用现有账户合同同步器，只有当前账户、App 与唯一受控实例候选齐全时才把动态 template ref/hash 合并到该账户的 event asset metadata；否则零平台写入并继续 fail-closed。
+
+migration `071` 仅调整 `workflow_case_summary`：active latest Job 在 monitor READY、最新 Monitor Plan 已消费且不存在标准项目创建 action 时投影 `run_fresh_readiness`，让既有 Gate-driven 推进器完成一次 readonly。它不创建 Plan、confirmation、action 或平台对象。当前 Case 续跑后必须生成高于 Monitor V2 的 Resource Plan 并停在资源确认卡，或显示唯一真实 blocker；不得再次停在零 blocker 的 `review_latest_job`。
 
 ## 2026-09-02 账户 READY 的历史 blocker 投影修正（已批准）
 

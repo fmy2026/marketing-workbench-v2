@@ -4,14 +4,14 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `070_canonical_account_readiness_projection.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `071_post_monitor_same_job_readiness_reentry.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
 
-> 当前控制面中的 `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902` 状态仍为 `in_progress`。本图已反映其账户 READY 投影机制，但不表示该 Task 已闭环；Task 闭环仍以 `project.state.json`、Task/Manifest、验证记录和 Postgres 真值为准。
+> `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902` 已于 2026-09-06 闭环；当前控制面无 active Task。后续业务下一步只读 `workflow_case_summary`。
 
 当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
 
@@ -108,6 +108,8 @@ v_monitor_readiness（唯一状态读取）
 
 `monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
 
+Monitor Plan 与后续普通 Plan 共用同一 Job 的单调版本序列，但版本号不代表标准项目创建 attempt：已消费 Monitor V2 后，普通 readonly 编译并在同一轮复用 Resource V3，`create_attempt_no` 仍为 1。若历史 Job 已停在“monitor READY + Monitor Plan consumed + 零标准项目创建 action”，`workflow_case_summary` 只投影 `run_fresh_readiness`，由“继续执行”完成一次同 Job readonly，不得以零 blocker 退回 `review_latest_job`。
+
 最新 Case 视图中的 Node 02 子项使用当前账户事实与 `v_monitor_readiness`：账户状态只表示账户可用性，触点引用表示受控触点与回查完整性，monitor 表示 canonical `monitor_ready`。同一 Job 的历史 Skill 结果仅作为 trace；`?job_id=` 继续按历史 Skill 显示，不使用后续 reconcile 覆盖。节点已落账进度仍属于 Job 执行历史，不能由展示层回写。
 
 ## 3. Node 04：资源状态与准备边界
@@ -121,7 +123,7 @@ v_monitor_readiness（唯一状态读取）
 
 `micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
 
-事件资产是账户级受控合同，不是通用模板开关：先校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板；候选缺失、歧义或来源不受控分别 fail-closed。该阶段可直接生成带 `target_advertiser_id`、`template_ref` 与动态 `template_hash` 的脱敏合同，并在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
+事件资产是账户级受控合同，不是通用模板开关：Node 04 在 `event-chain-readonly` 前校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板，并据此把动态 `target_advertiser_id`、`template_ref` 与 `template_hash` 合并进当前账户资源；候选缺失、歧义、来源不受控或模板前提不完整时不得落合同或生成事件资产动作。该脱敏合同可在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
 平台 detail 的 `micro_app_id` / `micro_app_instance_id` 分别归一为标准 App / instance；兼容字段仍按 allowlist 处理。`asset_id`、`micro_app_instance_id`、`instance_id`、`mini_program_instance_id` 等长数字 token 必须在 `JSON.parse` 前无损保留为字符串；未列入 allowlist 的数值保持原解析语义。字段缺失、绑定失配、候选歧义、响应无效或解析失败均保持 fail-closed，且不得保存 raw response。
 
@@ -214,8 +216,9 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 7 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
 | 8 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
 | 9 | 最新 Plan ready | `await_job_write_authorization` | 展示绑定 Plan 的确认卡 |
-| 10 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
-| 11 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
+| 10 | monitor READY、最新 Monitor Plan 已 consumed 且零标准项目创建 action | `run_fresh_readiness` | 执行一次同 Job readonly，并生成或复用更高版本的普通 Plan |
+| 11 | Job created/running/waiting | `run_fresh_readiness` | 执行只读就绪检查 |
+| 12 | 其他终态 | `review_latest_job` | 只读检查最新 Job |
 
 ```text
 唯一入口：http://127.0.0.1:3000/

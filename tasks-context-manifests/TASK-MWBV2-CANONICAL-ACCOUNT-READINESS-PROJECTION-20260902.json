@@ -2,17 +2,17 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902",
   "task_ref": "tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md",
-  "status": "in_progress",
+  "status": "completed",
   "created_at": "2026-09-02 17:19 CST",
-  "updated_at": "2026-09-02 17:19 CST",
+  "updated_at": "2026-09-06 18:37 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "Make current canonical account readiness supersede obsolete context Skill blockers without weakening non-ready account fail-closed behavior.",
+    "goal": "Make canonical account readiness and the post-monitor same-Job transition reach the current account resource Gate without weakening fail-closed or Plan-bound behavior.",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
     "database_write_allowed": true,
     "database_write_scope": [
-      "Task, Manifest, project state, mechanism docs, focused tests, and migration 070",
+      "Task, Manifest, project state, mechanism docs, focused tests, migrations 070 and 071, Plan version allocation, and Node 04 current-account event provision synchronization",
       "one existing Case Gate-driven readonly continuation after migration verification"
     ],
     "maximum_platform_write_actions": 0
@@ -26,10 +26,12 @@
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
     "src/repositories/postgresRepository.mjs",
-    "db/066_monitor_ready_stale_skill_projection.sql"
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "db/066_monitor_ready_stale_skill_projection.sql",
+    "db/071_post_monitor_same_job_readiness_reentry.sql"
   ],
   "allowed_writes": [
-    "canonical account readiness normalization, workflow_case_summary projection migration, focused smoke tests, and mechanism documentation",
+    "canonical account readiness normalization, workflow_case_summary projection migrations, post-monitor Plan version allocation, Node 04 current-account event provision synchronization, focused smoke tests, and mechanism documentation",
     "one Gate-driven readonly continuation for CASE-MWBV2-7F8C748BE84126BE77 after migration"
   ],
   "forbidden_actions": [
@@ -39,7 +41,7 @@
     "raw credential, request, response, transcript, URL, or payload persistence"
   ],
   "validation_plan": [
-    "canonical ready normalization and stale blocker projection positive/negative smoke coverage",
+    "canonical ready normalization, post-monitor V2-to-V3 Plan allocation, current-account event provision synchronization, and stale Gate projection positive/negative smoke coverage",
     "schema, workflow Case, monitor, workbench, runtime-policy, API, and diff checks",
     "current Case same-Job readonly continuation with no platform write"
   ],
@@ -47,5 +49,28 @@
     "any real platform write would be required",
     "the change weakens non-ready account fail-closed behavior or exact Plan confirmation",
     "the change requires a new API, table, Plan/action type, or external coordination"
-  ]
+  ],
+  "completed_at": "2026-09-06 18:37 CST",
+  "result": {
+    "current_case_id": "CASE-MWBV2-7F8C748BE84126BE77",
+    "current_job_id": "JOB-MWBV2-20260902085008-A080A8",
+    "current_case_gate": "await_job_write_authorization",
+    "confirmation_phrase": "确认准备资源",
+    "resource_plan_version": 3,
+    "create_attempt_no": 1,
+    "platform_write_actions": 0,
+    "std_project_create_actions": 0,
+    "root_blocker_over_one": 0,
+    "validation": {
+      "workflow_plan_version": "passed",
+      "current_account_event_contract": "passed",
+      "workflow_case_projection": "passed",
+      "workbench_conversation": "passed",
+      "runtime_policy_and_execution_plan": "passed",
+      "node04_resource_contracts": "passed",
+      "schema": "passed",
+      "workflow_runner": "passed",
+      "diff_check": "passed"
+    }
+  }
 }

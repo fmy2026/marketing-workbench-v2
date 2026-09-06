@@ -3,15 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
-| 最后更新时间 | 2026-09-02 17:31 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `070_canonical_account_readiness_projection.sql` |
+| 最后更新时间 | 2026-09-06 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `071_post_monitor_same_job_readiness_reentry.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
 
-本次复核确认 `db/*.sql` 共 71 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
+本次复核确认 `db/*.sql` 共 72 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -45,14 +45,14 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
 |  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
 | L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、受控触点；全新 runtime 账户仅可由 Case 入口复用乾坤 `accountIndex` 精确只读预检后补录，禁止跨 scope 覆盖。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | Node 02、Node 05、专项 View |
-|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；事件资产合同仅可保存账户绑定、模板引用/hash、存在性与脱敏回查状态；小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
+|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
 | L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口 | Case summary、UI、API、CLI |
 | L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly 合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly 合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
 |  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -108,8 +108,9 @@ route_id + game_code
 | 7 | 有唯一 root blocker | `resolve_case_blocker` | `resolve_root_blocker:<code>` |
 | 8 | 首次创建对象且 readback verified | `first_std_project_create_completed` | `first_std_project_create_completed` |
 | 9 | 最新 Plan 为 ready | `await_job_write_authorization` | `obtain_single_plan_confirmation` |
-| 10 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
-| 11 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
+| 10 | monitor READY、最新 Monitor Plan 已 consumed 且零标准项目创建 action | `run_fresh_readiness` | `run_readonly_readiness` |
+| 11 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
+| 12 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
 
 ## 5. 读写、安全与未建边界
 

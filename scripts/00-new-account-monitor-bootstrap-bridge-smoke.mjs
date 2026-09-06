@@ -6,6 +6,7 @@ import {
   reconcileMonitorAndPersistPlan,
   runWorkbenchInitialReadonly
 } from "../src/workflows/launchWorkflow.mjs";
+import { resolveWorkflowPlanVersion } from "../src/workflows/skills/oe3/00-runner.mjs";
 
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
@@ -32,6 +33,27 @@ const nonReadyAccountContext = runContextSkill({
   skillKey: "context-resolve-account"
 });
 assert(nonReadyAccountContext.blockers.includes("account_not_ready"), "non_ready_account_must_remain_fail_closed");
+
+const postMonitorPlanVersion = resolveWorkflowPlanVersion({
+  executionPlan: {
+    plan_version: 2,
+    plan_kind: "monitor_bootstrap",
+    plan_status: "consumed",
+    metadata: {}
+  },
+  createAttemptNo: 1
+});
+assert(postMonitorPlanVersion === 3, "post_monitor_resource_plan_must_advance_to_v3");
+const stableResourcePlanVersion = resolveWorkflowPlanVersion({
+  executionPlan: {
+    plan_version: postMonitorPlanVersion,
+    plan_kind: "resource_prepare",
+    plan_status: "blocked",
+    metadata: { create_attempt_no: 1 }
+  },
+  createAttemptNo: 1
+});
+assert(stableResourcePlanVersion === 3, "same_readonly_cycle_must_reuse_resource_plan_v3");
 
 function caseInput(suffix) {
   return {
@@ -305,6 +327,8 @@ console.log(JSON.stringify({
   monitorReadonlyReconcileCalls: readonlyReconcileCalls,
   initialNoMonitorDryRuns: initialDryRuns,
   existingMonitorDryRuns,
+  postMonitorPlanVersion,
+  stableResourcePlanVersion,
   monitorPlanActions: storedPlan.planned_actions.map((action) => action.action_type),
   confirmationPhrase: bridge.view.confirmationPreview.confirmationPhrase,
   realPlatformWriteCalled: false

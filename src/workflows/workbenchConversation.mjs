@@ -220,8 +220,8 @@ export async function handleWorkbenchCommand({
       : monitorFound
         ? `fresh readonly monitor 回查已找到 monitor，但受控触点回查未完成：${blocker || "touchpoint_url_missing"}。未创建、未重试。`
       : blocker
-        ? `fresh readonly monitor 回查未确认 monitor：${blocker}。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。`
-        : "fresh readonly monitor 回查未确认 monitor。未创建、未重试；如仍需创建，须新建 monitor_bootstrap Task/Plan。";
+        ? `fresh readonly monitor 回查未确认 monitor：${blocker}。未创建、未重试；下一步只按当前 Case Gate 处理。`
+        : "fresh readonly monitor 回查未确认 monitor。未创建、未重试；下一步只按当前 Case Gate 处理。";
     return response({
       view: nextView,
       interaction: {
