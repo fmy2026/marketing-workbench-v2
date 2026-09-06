@@ -3,13 +3,15 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-02 17:31 CST |
+| 最后更新时间 | 2026-09-06 CST |
 | 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `070_canonical_account_readiness_projection.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
+
+> 当前控制面中的 `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902` 状态仍为 `in_progress`。本图已反映其账户 READY 投影机制，但不表示该 Task 已闭环；Task 闭环仍以 `project.state.json`、Task/Manifest、验证记录和 Postgres 真值为准。
 
 当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
 
@@ -36,6 +38,8 @@ frontend / API / CLI / 任务卡 / 工作台对话
 
 ```text
 工作台三项输入（route + game + advertiser）
+→ 聊天框只规范化三项输入，不创建 Case、Job 或平台对象
+→ 用户核对规范化输入后点击“启动流程”
 → 验证路线×游戏默认配置
 → 账户缺失时执行乾坤 accountIndex 精确只读预检
 → 唯一命中且身份合同完整：写 canonical `auth_status` 的 advertiser_accounts + 脱敏 evidence
@@ -230,10 +234,12 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 已有正常 Case 若仍停在 `run_monitor_readonly`，一次“继续执行”完成该回查后同样交给推进器继续 readonly；终态专用“重新只读回查 monitor”仍只做一次回查
 → active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再 `dry_run`；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
-→ Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示第二张 Create Plan 确认卡
+→ Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示下一张 Create Plan 确认卡
 ```
 
 本机正式运行的授权来源是固定 `workbench_runtime_write_policy` 加当前 Plan-bound confirmation；它只允许 loopback command、active Case 最新 runtime Job、ready Plan、精确 ID/hash/短语和一次消费。仓库 Task scope 只服务开发、迁移或专项人工写入，不再是普通用户从工作台完成首次创建的运行时前置条件。
+
+工作台运行时出现 monitor 缺失或只读回查未确认时，下一步只由当前 active Case 最新 Job 的 Gate 决定：满足合同则编译当前 Case 的 `monitor_bootstrap` Plan 并展示“确认创建 monitor”卡；不满足则显示当前 blocker。普通运行不要求用户建立仓库 Task/Manifest。任何仍把“新建 `monitor_bootstrap` Task/Plan”写成用户操作的旧提示，`Task` 仅是开发或专项人工写入的控制面概念，不能被理解为普通工作台运行前置条件。
 
 `?case_id=` 底栏的“刷新进度”只读调用当前 Case summary，再读取其最新 Job view；若 Job 已切换，页面只在内存中切到该 Job。前端命令或 dry-run 请求期间可按 1.2 秒短暂重复这一只读同步，结束后立即停止；这不是后台队列、不会推动节点、更不构成执行授权。`?job_id=` 仅刷新自身历史 Job，根页不轮询。
 
