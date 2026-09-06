@@ -9,6 +9,12 @@
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
+## 2026-09-06 Event Config 默认只读客户端修复（已批准）
+
+当前 Case 的已确认 Resource V3 已成功创建并权威回查事件资产，但 `ensure_event_configs:baseline` 在写入前停止。脱敏证据显示同一秒内事件链只读已取得唯一资产、App/实例绑定、6/6 available events 与 0/6 configured events；随后事件配置 executor 却返回 `event_asset_inventory_readonly_failed`。根因是默认只读客户端的 `fetchImpl` 包装引用了不存在的 `fetchEventConfigCreate`，产生本地 `ReferenceError` 后被统一只读客户端安全映射成 inventory 失败。
+
+最小修复只让 `ensureEventConfigsForTargetOnce` 直接复用 `createOceanEngineReadonlyClient({ fetchImpl })`；它已经通过共享 `fetchWithDeadline` 提供单次 15 秒期限、AbortSignal 合并和零自动重试。新增 mock 覆盖默认客户端路径，确保未注入 `readonlyClient` 时确实调用传入 fetch，且预检结果来自响应而非本地异常。旧 Resource V3 保持 `consumed`，不复用 confirmation/action/idempotency key；修复部署后只接受现有精确“重新只读准备”，在同一 Case 创建 fresh runtime Job 并重新生成未确认 Plan。此次修复本身不调用平台写入，也不新增 Schema、API、Plan/action 类型或确认短语。
+
 ## 2026-09-06 Monitor 后同 Job 的 Resource Gate 收口（已批准）
 
 当前 Case 的验收续跑确认：已消费的 `monitor_bootstrap` V2 按最高 `plan_version` 遮住随后以 V1 更新的 Resource Plan；同时，现有当前账户事件资产 provision 合同生成器未接入 Node 04 `event-chain-readonly`，使资源 Plan 继续读取历史蓝图中的账户绑定。结果是 active、monitor READY、零创建动作的 Job 以零 root blocker 落入 `review_latest_job`。

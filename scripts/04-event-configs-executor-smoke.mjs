@@ -282,6 +282,23 @@ function validCredential() {
   };
 }
 
+async function defaultReadonlyCredentialPath() {
+  const dir = await mkdtemp(join(tmpdir(), "mwbv2-event-configs-readonly-client-"));
+  const envPath = join(dir, "oceanengine.env");
+  await writeFile(envPath, [
+    "OCEANENGINE_APP_ID=mock-app",
+    "OCEANENGINE_APP_SECRET=mock-secret",
+    "OCEANENGINE_REDIRECT_URI=https://example.invalid/callback",
+    "OCEANENGINE_ACCESS_TOKEN=mock-access",
+    "OCEANENGINE_REFRESH_TOKEN=mock-refresh",
+    "OCEANENGINE_TOKEN_EXPIRES_AT=2099-01-01T00:00:00Z",
+    "OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=2099-01-02T00:00:00Z",
+    "OCEANENGINE_TOKEN_STATUS=valid",
+    ""
+  ].join("\n"));
+  return envPath;
+}
+
 function fetchSuccess(state, { status = 200, failAt = 0 } = {}) {
   return async (_url, options = {}) => {
     state.createFetchCount += 1;
@@ -317,6 +334,37 @@ assert.equal(requestPlan.request_count, EVENT_CONFIG_BASELINE_EVENTS.length);
 assert.equal(requestPlan.requests[0].endpoint, EVENT_CONFIG_CREATE_ENDPOINT);
 assert(requestPlan.requests[0].body.includes(`"asset_id":${EVENT_ASSET_ID}`));
 assert(!requestPlan.requests[0].body.includes(`"asset_id":"${EVENT_ASSET_ID}"`));
+
+const originalReadonlyEnvPath = process.env.OCEANENGINE_ENV_PATH;
+process.env.OCEANENGINE_ENV_PATH = await defaultReadonlyCredentialPath();
+let defaultReadonlyFetchCount = 0;
+let defaultReadonlyWriteCount = 0;
+const defaultReadonlyBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-CONFIGS-DEFAULT-READONLY" });
+const defaultReadonlyResult = await ensureEventConfigsForTargetOnce({
+  repo: repoStub(defaultReadonlyBundle),
+  jobId: defaultReadonlyBundle.job.job_id,
+  confirmVariableValue: "",
+  fetchImpl: async (_url, options = {}) => {
+    if (options.method === "GET") defaultReadonlyFetchCount += 1;
+    else defaultReadonlyWriteCount += 1;
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ code: 0, request_id: "smoke", data: { asset_list: [], page_info: { total_page: 1 } } });
+      }
+    };
+  },
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(defaultReadonlyBundle)
+});
+if (originalReadonlyEnvPath === undefined) delete process.env.OCEANENGINE_ENV_PATH;
+else process.env.OCEANENGINE_ENV_PATH = originalReadonlyEnvPath;
+assert.equal(defaultReadonlyFetchCount, 1);
+assert.equal(defaultReadonlyWriteCount, 0);
+assert(defaultReadonlyResult.blockers.includes("event_asset_target_not_found"));
+assert(!defaultReadonlyResult.blockers.includes("event_asset_inventory_readonly_failed"));
 
 const partialFour = eventConfigBaselineReadiness({
   availableEvents: baselineAvailableEvents().slice(4),
@@ -623,6 +671,8 @@ assert.equal(timeoutAction.responseSummary?.outcome_category, "platform_response
 const output = {
   status: "passed",
   requestPlanPassed: requestPlan.status === "passed",
+  defaultReadonlyClientFetchCalled: defaultReadonlyFetchCount === 1,
+  defaultReadonlyClientWriteCalled: defaultReadonlyWriteCount > 0,
   partialFourCandidateCount: partialFour.create_candidate_count,
   partialFiveCandidateCount: partialFive.create_candidate_count,
   partialSixCandidateCount: partialSix.create_candidate_count,

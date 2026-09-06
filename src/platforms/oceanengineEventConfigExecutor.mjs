@@ -666,9 +666,7 @@ export async function ensureEventConfigsForTargetOnce({
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle?.job) throw new Error("job_not_found");
   const effectiveAssetIdHint = assetIdHintFromBundle(bundle, assetIdHint);
-  const client = readonlyClient || createOceanEngineReadonlyClient({
-    fetchImpl: (url, options = {}) => fetchEventConfigCreate(fetchImpl, url, options, writeTimeoutMs)
-  });
+  const client = readonlyClient || createOceanEngineReadonlyClient({ fetchImpl });
   const preflight = await readEventConfigPreflight({
     bundle,
     client,
