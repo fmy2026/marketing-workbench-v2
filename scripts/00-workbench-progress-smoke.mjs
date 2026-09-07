@@ -60,6 +60,17 @@ assert(
 );
 assert(
   progressPresentation({
+    nodes: interruptedNodes,
+    caseGate: {
+      currentGate: "prepare_corrective_attempt",
+      rootBlockerCodes: ["corrective_attempt_requires_new_payload_version"],
+      rootBlocker: { title: "标准项目创建失败，等待人工诊断" }
+    }
+  }) === "进度 4 / 7 · 已暂停：标准项目创建失败，等待人工诊断",
+  "corrective_attempt_progress_copy_mismatch"
+);
+assert(
+  progressPresentation({
     nodes,
     confirmationPreview: { planId: "PLAN-1" },
     executionAvailability: { canExecuteOnce: true }
@@ -105,6 +116,8 @@ assert(clientSource.includes("withProgressPolling"), "command_progress_polling_m
 assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_switch_missing");
 assert(clientSource.includes("已完成，无需继续执行"), "completed_gate_next_action_copy_missing");
 assert(clientSource.includes("已完成，可输入“查看状态”"), "completed_gate_input_copy_missing");
+assert(clientSource.includes("当前状态：失败待复盘；需修正参数后建立下一次尝试"), "corrective_gate_operational_copy_missing");
+assert(clientSource.includes("失败待复盘，可输入“查看状态”；修复完成前禁止重试"), "corrective_gate_input_copy_missing");
 
 console.log(JSON.stringify({
   status: "passed",

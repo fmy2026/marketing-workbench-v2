@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：monitor_verified_waiting_resource_confirmation
+状态：pilot_case_platform_rejection_waiting_exact_diagnosis
 
 ## 目标
 
@@ -90,3 +90,9 @@ Case `CASE-MWBV2-B74ADD7F7382306A09` 的账户归属、乾坤凭据和广告账�
 ## 2026-09-07 Monitor 真实闭环进度
 
 张超博本人确认 fresh Job 的 Monitor V2 后，`ensure_monitor` 单次 action 成功；Monitor、受控触点、URL 存在性与 hash 一致性均由权威只读回查验证，Monitor Plan 已 consumed，未发生重试。相同 Job 已由唯一有界推进器完成后续 readonly，Node 01–04 passed，并生成 ready Resource V3。当前 root blocker 为空，等待本人使用精确短语“确认准备资源”；标准项目尚未创建。
+
+## 2026-09-07 张境威 Case：平台明确拒绝后的安全停止
+
+Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准备与 fresh readonly；DMP 目标账户状态为 `10/10 passed`。最新创建 Job `JOB-MWBV2-20260907101724-525219` 的 Attempt 1 经张境威本人确认后只调用一次 `std_project/create`，返回 HTTP `200`、业务码 `40000`，无项目 ID；平台 action 为 `failed`，Create Plan 已 `consumed`，Job 为 `failed_waiting_manual_review`，没有自动重试或创建后 readback。
+
+脱敏对比确认本 Job 的字段结构、字段账本和本地预检与同路线最近成功 Job 一致，所有账户资源仍为 READY；平台响应没有提供可安全保存的具体字段路径，本地 `resource_not_eligible` 只是泛化分类，不能据此猜测具体资源。按用户批准的最简方案停止生成 Attempt 2；工作台在 `prepare_corrective_attempt` Gate 明确展示“失败待复盘、禁止重试、先诊断后建立全新绑定”。只有取得明确平台原因并定位单一修正项后，才允许 fresh Job、Draft、Plan、payload hash 和本人确认。

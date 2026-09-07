@@ -723,6 +723,11 @@ function rootBlockerPresentation(code = "") {
       reason: "创建接口已返回对象 ID，但权威 list 回查尚未确认对象 ID 与草稿名称一致。",
       nextActionLabel: "输入“继续执行”进行一次只读回查；不会再次创建项目。"
     },
+    corrective_attempt_requires_new_payload_version: {
+      title: "标准项目创建失败，等待人工诊断",
+      reason: "当前创建 Attempt 已被平台明确拒绝，旧 Plan 已消费且禁止重试。",
+      nextActionLabel: "先定位账户资源或请求字段的单一修正项，再建立新的 Job、Draft、Plan 和确认。"
+    },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",

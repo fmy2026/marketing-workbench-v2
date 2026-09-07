@@ -48,6 +48,10 @@ function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = 
     : "";
 }
 
+function correctiveAttemptMessage() {
+  return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗，禁止重试。请先完成账户资源和请求字段的只读诊断；定位单一修正项后，才能建立新的 Job、Draft、Plan 和确认。";
+}
+
 export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   const plan = bundle.executionPlan || {};
   const gate = clean(caseSummary?.current_gate);
@@ -130,6 +134,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "intake_not_applicable", message: "当前流程已有 Job；请使用“继续执行”或查看当前状态。" };
   }
   if (intent.intent === "request_status") {
+    if (currentGate === "prepare_corrective_attempt") {
+      return { ...base, effect: "status", message: correctiveAttemptMessage() };
+    }
     const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
     return { ...base, effect: "status", message: blocker ? `当前卡点：${blocker}；下一步：${nextAction || "等待后端更新"}。${hint}` : `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
   }
@@ -171,6 +178,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "run_dry_run", message: "将重新执行当前 Job 的只读准备；不会确认或创建平台对象。" };
   }
   if (intent.intent === "continue_workflow") {
+    if (currentGate === "prepare_corrective_attempt") {
+      return { ...base, effect: "corrective_attempt_required", message: correctiveAttemptMessage() };
+    }
     if (currentGate === "run_monitor_readonly") {
       return { ...base, effect: "run_monitor_readonly", message: "将执行 fresh readonly monitor 回查，不会创建 monitor。" };
     }

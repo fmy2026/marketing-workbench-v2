@@ -129,6 +129,29 @@ const continueDecision = evaluateGateAction({
 });
 assert(continueDecision.effect === "confirmation_required", "continue must only present confirmation");
 
+const correctiveCaseSummary = {
+  lifecycle_status: "active",
+  current_gate: "prepare_corrective_attempt",
+  suggested_next_action: "correct_payload_then_build_next_attempt_version",
+  root_blocker_codes: ["corrective_attempt_requires_new_payload_version"],
+  latest_job_status: "failed_waiting_manual_review"
+};
+const correctiveStatus = evaluateGateAction({
+  intent: { intent: "request_status" },
+  caseSummary: correctiveCaseSummary,
+  isLatestCaseJob: true
+});
+assert(correctiveStatus.effect === "status", "corrective status must stay readonly");
+assert(correctiveStatus.message.includes("禁止重试"), "corrective status must explain retry lock");
+assert(correctiveStatus.message.includes("新的 Job、Draft、Plan 和确认"), "corrective status must require fresh bindings");
+const correctiveContinue = evaluateGateAction({
+  intent: { intent: "continue_workflow" },
+  caseSummary: correctiveCaseSummary,
+  isLatestCaseJob: true
+});
+assert(correctiveContinue.effect === "corrective_attempt_required", "corrective continue must not execute workflow");
+assert(correctiveContinue.message.includes("只读诊断"), "corrective continue must direct diagnosis");
+
 const ambiguousDecision = evaluateGateAction({
   intent: { intent: "request_confirmation" },
   caseSummary,

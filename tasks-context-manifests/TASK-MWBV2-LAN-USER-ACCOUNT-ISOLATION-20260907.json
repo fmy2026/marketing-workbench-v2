@@ -2,12 +2,12 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "monitor_verified_waiting_resource_confirmation",
+  "status": "pilot_case_platform_rejection_waiting_exact_diagnosis",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-07 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "Activate explicit temporary private-LAN HTTP access at http://192.168.42.7:3000 while retaining authenticated owner isolation and Plan-bound execution semantics.",
+    "goal": "Keep the private-LAN workbench owner-isolated and make explicit platform create failures stop with clear corrective guidance and no retry.",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
     "database_write_allowed": true,
@@ -38,7 +38,8 @@
     "explicit private-LAN HTTP bind/origin configuration, LaunchAgent deployment, focused tests and mechanism documentation",
     "one OceanEngine OAuth refresh under the existing credential_refresh_scope and exact confirmation variable",
     "a local-only hidden-input Qiankun credential setup command; credentials may be written only to the gitignored mode-600 credential store and must never appear in argv, logs or tracked files",
-    "propagate the authenticated user's exact Qiankun owner key through existing readonly/monitor paths and reconnect monitor_plan_required to the existing bounded readonly monitor bridge"
+    "propagate the authenticated user's exact Qiankun owner key through existing readonly/monitor paths and reconnect monitor_plan_required to the existing bounded readonly monitor bridge",
+    "present a consumed explicit create failure as readonly corrective guidance; compare only redacted runtime facts and successful field shape; do not create Attempt 2 without one evidenced correction"
   ],
   "forbidden_actions": [
     "all real monitor/resource/project writes, confirmations, creates, retries, budget or bid changes",
@@ -52,12 +53,14 @@
     "authentication, forced password change, session revocation and admin read-only behavior",
     "Intake owner match/mismatch, existing-account isolation and URL/API tampering",
     "user detail/admin summary report cardinality and verified-only success semantics",
-    "schema, API, workflow, Case, runtime policy, conversation and diff checks"
+    "schema, API, workflow, Case, runtime policy, conversation and diff checks",
+    "corrective Gate status/continue commands remain readonly, display Chinese stop guidance, and cannot reuse the consumed Plan"
   ],
   "stop_conditions": [
     "any real platform write other than the separately authorized single OAuth refresh would be required",
     "the change would weaken exact Plan confirmation, single-attempt execution or authoritative readback",
-    "account ownership cannot be established by an exact active user owner key"
+    "account ownership cannot be established by an exact active user owner key",
+    "a corrective Attempt would be required before an exact platform reason and one evidenced payload or resource correction are available"
   ],
   "result": {
     "implementation_status": "passed",
@@ -93,6 +96,24 @@
       "superseded_failed_job_id": "JOB-MWBV2-20260907091309-5966E0",
       "superseded_failure": "owner_key_missing_before_platform_call",
       "superseded_platform_write_called": false
+    },
+    "second_peer_case": {
+      "case_id": "CASE-MWBV2-776936E13CC487A466",
+      "advertiser_id": "1867508089433225",
+      "latest_job_id": "JOB-MWBV2-20260907101724-525219",
+      "current_gate": "prepare_corrective_attempt",
+      "root_blocker": "corrective_attempt_requires_new_payload_version",
+      "attempt_1_create_calls": 1,
+      "attempt_1_http_status": 200,
+      "attempt_1_api_code": "40000",
+      "attempt_1_object_id_present": false,
+      "attempt_1_plan_status": "consumed",
+      "dmp_target_verified": "10/10",
+      "local_resource_states": "all_ready",
+      "field_shape_matches_recent_success": true,
+      "exact_platform_field_path_available": false,
+      "attempt_2_created": false,
+      "next_step": "obtain_exact_platform_reason_then_apply_one_evidenced_correction"
     }
   }
 }
