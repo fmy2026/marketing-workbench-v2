@@ -26,11 +26,11 @@ curl -I http://192.168.42.7:3000/
 每位试用者首次查询本人账户前，需要在这台 Mac 的终端录入其本人乾坤 Passport Token：
 
 ```sh
-npm run setup:qiankun-user -- --user zhangjingwei
-npm run setup:qiankun-user -- --user zhangchaobo
+npm run setup:qiankun-user -- --user zhangjingwei --gui
+npm run setup:qiankun-user -- --user zhangchaobo --gui
 ```
 
-命令只在交互终端中隐藏读取 Token，不接受 Token 命令参数；结果写入 gitignored、权限为 `600` 的本地 credential store，终端仅输出脱敏状态。Token 默认 30 天到期、25 天后提示更新，与当前凭据合同一致。不要通过聊天、Git 或普通日志传递 Token。
+`--gui` 会打开 macOS 隐藏输入弹窗；去掉它则在交互终端中隐藏读取。命令不接受 Token 参数；结果写入 gitignored、权限为 `600` 的本地 credential store，终端仅输出脱敏状态。Token 默认 30 天到期、25 天后提示更新，与当前凭据合同一致。不要通过聊天、Git 或普通日志传递 Token。
 
 ## 长期 HTTPS 上线参数
 

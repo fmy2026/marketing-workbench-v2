@@ -70,13 +70,13 @@
     "workflow_nodes": 7,
     "platform_write_calls": 0,
     "tests": "private-LAN network policy and live responses, credential setup, authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
-    "deployment": "LaunchAgent active on http://192.168.42.7:3000; local IP/Host/Origin/auth checks passed; waiting for two owner-specific Qiankun credentials and one peer-device network acceptance check",
+    "deployment": "LaunchAgent active on http://192.168.42.7:3000; local IP/Host/Origin/auth checks passed; waiting for one peer-device network acceptance check",
     "oceanengine_token": "valid after one authorized OAuth refresh",
     "database_backup": ".local/backups/marketing_workbench_v2-20260907T083112Z.dump",
     "qiankun_credentials": {
       "fengmeiyu": "active",
       "zhangjingwei": "missing",
-      "zhangchaobo": "missing"
+      "zhangchaobo": "active"
     }
   }
 }

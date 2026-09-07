@@ -64,8 +64,8 @@
 
 - 本机 LaunchAgent 已改为监听 `192.168.42.7:3000`，`http://192.168.42.7:3000/` 在本机经真实内网地址返回登录页；错误 Host 为 421，错误 Origin 为 403，未登录 API 为 401。
 - 巨量引擎 OAuth token 已按既有 refresh scope 恢复为 `valid`；数据库有效备份已生成并通过 `pg_restore --list` 校验。
-- 冯美钰乾坤凭据为 active；张境威、张超博仍缺本人 Passport Token。已提供 `setup:qiankun-user` 隐藏输入命令，待两人分别在本机录入。
-- 最终只待另一台公司网络电脑验证 3000 端口可达，并完成两位试用者凭据录入及真实浏览器流程验收。真实创建仍只能由对应登录用户在 ready Plan 上亲自确认。
+- 冯美钰、张超博乾坤凭据为 active；张境威仍缺本人 Passport Token。`setup:qiankun-user -- --user <login> --gui` 可通过 macOS 隐藏输入弹窗写入本机凭据。
+- 最终只待另一台公司网络电脑验证 3000 端口可达，并完成真实浏览器流程验收；如需张境威参与完整 Intake，再录入其本人凭据。真实创建仍只能由对应登录用户在 ready Plan 上亲自确认。
 
 ## 2026-09-07 批准变更：临时私网 HTTP
 
