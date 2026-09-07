@@ -57,6 +57,8 @@ migration `070` 仅修正 `mwb.workflow_case_summary`：当前同 scope 账户�
 
 首次工作台启动必须先读取 active Case 最新 Job 的唯一 Gate。`run_monitor_readonly` 时先执行一次 monitor readonly reconcile；只有刷新后 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。没有 monitor 且取得完整 `monitorBootstrapContract` 时，立即使用既有 compiler 保存唯一 ready `monitor_bootstrap` Plan，并返回“确认创建 monitor”卡片，绝不得运行到 Node 05 使用空 `monitor_id`。Plan 只含一次 `ensure_monitor`；精确确认前不得写 confirmation、action、attempt 或调用创建接口。确认创建 monitor 并完成权威回查后，同一有界推进器自动继续 readonly；Resource Plan 成功后仍先创建同一 Case 的 fresh Job，再由同一推进器继续。每轮最多一次 reconcile 与一次 dry-run，只对 active latest Job 生效，并在确认 Gate、`run_readback_only`、真实 blocker、结果不明或历史 Job 立即停止。本变更不新增 Schema、endpoint、Plan/action 类型或平台写授权。
 
+多用户工作台的 `/run`、对话只读恢复、monitor Plan 编译、monitor 确认前 fresh readonly 及后续自动推进，必须始终使用当前登录用户的精确 `qiankun_owner_key`。若 `run_fresh_readiness` 的结果唯一为 `monitor_plan_required`，有界推进器在同轮调用一次既有 monitor readonly bridge；只读确认无 monitor 且合同完整时保存 ready Plan，查询失败时保留 blocker，均不自动确认或创建。
+
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
 
 ## 已批准设计：JSZC 保底参数增量修正

@@ -92,6 +92,7 @@ export async function handleWorkbenchCommand({
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!clean(jobId)) throw new Error("job_id_required");
+  const qiankunOwnerKey = clean(currentUser?.qiankun_owner_key || currentUser?.qiankunOwnerKey);
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
     const error = new Error("job_not_found");
@@ -119,7 +120,8 @@ export async function handleWorkbenchCommand({
       projectStatePath,
       getJobViewFn,
       forceDryRun: intent.intent === "request_readonly_recovery",
-      runJobFn
+      runJobFn,
+      qiankunOwnerKey
     });
     return response({
       view: nextView,
@@ -168,7 +170,8 @@ export async function handleWorkbenchCommand({
       mode: "dry_run",
       projectStatePath,
       getJobViewFn,
-      runJobFn
+      runJobFn,
+      qiankunOwnerKey
     });
     return response({
       view: nextView,
@@ -180,7 +183,7 @@ export async function handleWorkbenchCommand({
     });
   }
   if (interaction.effect === "run_readback_only") {
-    let nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath });
+    let nextView = await runJobFn(repo, jobId, { mode: "readback_only", projectStatePath, qiankunOwnerKey });
     if (nextView?.caseGate?.currentGate === "first_std_project_create_completed") {
       const finalization = await finalizeVerifiedStdProjectRuntimeCase({
         repo,
@@ -197,7 +200,8 @@ export async function handleWorkbenchCommand({
       monitorReadonlyReconcile,
       fetchImpl: fetchImpl || globalThis.fetch,
       projectStatePath,
-      getJobViewFn
+      getJobViewFn,
+      qiankunOwnerKey
     });
     const reconcile = bridged.reconcile || {};
     let nextView = bridged.view || await getJobViewFn(repo, jobId, { projectStatePath });
@@ -207,7 +211,8 @@ export async function handleWorkbenchCommand({
         mode: "dry_run",
         projectStatePath,
         getJobViewFn,
-        runJobFn
+        runJobFn,
+        qiankunOwnerKey
       });
     }
     const reconcileBlocker = clean((reconcile?.blockers || [])[0]);
@@ -258,6 +263,7 @@ export async function handleWorkbenchCommand({
       expectedPlanHash,
       projectStatePath,
       fetchImpl,
+      qiankunOwnerKey,
       confirmedByUserId: currentUser?.user_id || currentUser?.userId || ""
     })
     : isResourcePrepare
@@ -293,7 +299,8 @@ export async function handleWorkbenchCommand({
       mode: "dry_run",
       projectStatePath,
       getJobViewFn,
-      runJobFn
+      runJobFn,
+      qiankunOwnerKey
     });
   } else if (isResourcePrepare && !executionBlocked) {
     const fresh = await createFreshJobFn(repo, {
@@ -308,7 +315,8 @@ export async function handleWorkbenchCommand({
       mode: "dry_run",
       projectStatePath,
       getJobViewFn,
-      runJobFn
+      runJobFn,
+      qiankunOwnerKey
     });
   }
   return response({

@@ -305,17 +305,20 @@ const monitorResponse = await handleWorkbenchCommand({
   message: "确认创建 monitor",
   expectedPlanId: monitorPlan.plan_id,
   expectedPlanHash: monitorPlan.plan_hash,
+  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
   getJobViewFn: async () => monitorConfirmationView,
-  executeConfirmedMonitorBootstrapFn: async ({ expectedPlanId, expectedPlanHash }) => {
+  executeConfirmedMonitorBootstrapFn: async ({ expectedPlanId, expectedPlanHash, qiankunOwnerKey }) => {
     monitorExecutionCount += 1;
     assert(expectedPlanId === monitorPlan.plan_id, "monitor_execution_plan_id_drift");
     assert(expectedPlanHash === monitorPlan.plan_hash, "monitor_execution_plan_hash_drift");
+    assert(qiankunOwnerKey === "zhangchaobo", "monitor_execution_owner_key_missing");
     return { status: "passed", blockers: [] };
   },
   runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
     monitorAutoAdvanceCount += 1;
     assert(receivedJobId === "JOB-MONITOR-1", "monitor_auto_advance_job_changed");
     assert(options.mode === "dry_run", "monitor_auto_advance_must_use_dry_run");
+    assert(options.qiankunOwnerKey === "zhangchaobo", "monitor_auto_advance_owner_key_missing");
     return monitorNextView;
   }
 });
@@ -655,15 +658,18 @@ const normalMonitorResponse = await handleWorkbenchCommand({
   },
   jobId: "JOB-NORMAL-MONITOR-1",
   message: "继续执行",
+  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
   getJobViewFn: async () => normalMonitorView,
-  monitorReadonlyPlanBridge: async () => {
+  monitorReadonlyPlanBridge: async (_repo, _jobId, options) => {
     normalMonitorBridgeCalls += 1;
+    assert(options.qiankunOwnerKey === "zhangchaobo", "normal_monitor_bridge_owner_key_missing");
     return { view: normalMonitorResolvedView, reconcile: { runStatus: "touchpoint_resolved" } };
   },
   runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
     normalMonitorAutoAdvanceCalls += 1;
     assert(receivedJobId === "JOB-NORMAL-MONITOR-1", "normal_monitor_continue_job_changed");
     assert(options.mode === "dry_run", "normal_monitor_continue_must_resume_dry_run");
+    assert(options.qiankunOwnerKey === "zhangchaobo", "normal_monitor_continue_owner_key_missing");
     return normalMonitorNextView;
   }
 });

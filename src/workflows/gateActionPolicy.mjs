@@ -162,6 +162,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) {
       return { ...base, effect: "readonly_recovery_unavailable", message: "当前 Case 不满足重新只读准备条件，未执行平台操作。" };
     }
+    if (blocker === "monitor_plan_required") {
+      return { ...base, effect: "run_monitor_readonly", message: "将重新执行 monitor 只读核验并生成可确认 Plan；不会创建 monitor。" };
+    }
     if (clean(caseSummary?.latest_job_status) === "blocked_confirmed_resource_plan") {
       return { ...base, effect: "create_fresh_readonly_recovery_job", message: "将创建同一 Case 的 fresh Job 并执行只读准备；不会复用旧 Plan、确认或平台动作。" };
     }

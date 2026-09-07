@@ -1496,6 +1496,21 @@ export async function runWorkbenchInitialReadonly(repo, jobId, options = {}) {
       continue;
     }
 
+    const rootBlocker = String((gate.rootBlockerCodes || [])[0] || "").trim();
+    if (
+      gate.currentGate === "resolve_case_blocker" &&
+      rootBlocker === "monitor_plan_required" &&
+      !monitorReadonlyExecuted
+    ) {
+      monitorReadonlyExecuted = true;
+      const bridged = await monitorBridgeFn(repo, jobId, { ...options, getJobViewFn });
+      view = bridged.view || await getJobViewFn(repo, jobId, options);
+      if (bridged.reconcile?.runStatus !== "touchpoint_resolved" || view?.caseGate?.monitorResolved !== true) {
+        return view;
+      }
+      continue;
+    }
+
     if (gate.currentGate === "run_fresh_readiness" && !dryRunExecuted) {
       dryRunExecuted = true;
       view = await runJobFn(repo, jobId, { ...options, mode: "dry_run" });

@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：implementation_completed_waiting_peer_acceptance
+状态：runtime_blocker_fixed_waiting_monitor_confirmation
 
 ## 目标
 
@@ -74,3 +74,9 @@
 本轮允许修改应用监听配置、真实 LaunchAgent、部署文档和 focused smoke；允许按现有 `credential_refresh_scope` 精确执行一次巨量引擎 OAuth refresh。不得自动执行 monitor、资源或项目创建。张境威、张超博缺少的 owner-specific 乾坤 Passport 凭据只能在本机受控 credential store 中补充，缺少实际凭据时如实保留 blocker。
 
 允许增加本机终端隐藏输入的乾坤凭据配置命令；Token 不得进入 argv、shell history、日志或 Git，只能写入 gitignored 且权限为 `600` 的 credential store，命令输出必须完全脱敏。
+
+## 2026-09-07 首个异机 Case 发现的运行缺口
+
+Case `CASE-MWBV2-B74ADD7F7382306A09` 的账户归属、乾坤凭据和广告账户授权均已验证正常，但 fresh readonly 后停在 `monitor_plan_required`。根因是多用户接入后的 `/run`、对话只读推进和 monitor 确认执行没有继续传递当前登录用户的精确 `qiankun_owner_key`，且 `run_fresh_readiness` 结束后出现 `monitor_plan_required` 时未接回既有 monitor readonly bridge。修复仅补齐 authenticated owner 上下文并复用既有有界桥接器，不新增 Node、Gate、Plan/action 类型、确认短语或平台权限。
+
+修复后已对原 Job 执行一次安全 fresh monitor readonly：乾坤 accountIndex 返回 200、精确命中 1 条、owner 为 `zhangchaobo`、广告账户授权归一为 ready；确认当前无 monitor 后保存 `PLAN-JOB-MWBV2-20260907091309-5966E0-MONITOR-V2`。当前 Gate 为 `await_job_write_authorization`、Plan 为 ready、根阻断为空、平台动作数为 0，等待张超博本人使用精确短语“确认创建 monitor”。

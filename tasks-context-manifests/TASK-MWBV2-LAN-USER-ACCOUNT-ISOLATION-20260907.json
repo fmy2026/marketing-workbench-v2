@@ -2,7 +2,7 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "implementation_completed_waiting_peer_acceptance",
+  "status": "runtime_blocker_fixed_waiting_monitor_confirmation",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-07 CST",
   "owner_agent": "codex",
@@ -37,7 +37,8 @@
   "allowed_writes": [
     "explicit private-LAN HTTP bind/origin configuration, LaunchAgent deployment, focused tests and mechanism documentation",
     "one OceanEngine OAuth refresh under the existing credential_refresh_scope and exact confirmation variable",
-    "a local-only hidden-input Qiankun credential setup command; credentials may be written only to the gitignored mode-600 credential store and must never appear in argv, logs or tracked files"
+    "a local-only hidden-input Qiankun credential setup command; credentials may be written only to the gitignored mode-600 credential store and must never appear in argv, logs or tracked files",
+    "propagate the authenticated user's exact Qiankun owner key through existing readonly/monitor paths and reconnect monitor_plan_required to the existing bounded readonly monitor bridge"
   ],
   "forbidden_actions": [
     "all real monitor/resource/project writes, confirmations, creates, retries, budget or bid changes",
@@ -69,7 +70,7 @@
     "pilot_users": 3,
     "workflow_nodes": 7,
     "platform_write_calls": 0,
-    "tests": "private-LAN network policy and live responses, credential setup, authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
+    "tests": "private-LAN network policy and live responses, credential setup, authenticated owner propagation, fresh-readiness monitor bridge, monitor Plan, authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
     "deployment": "LaunchAgent active on http://192.168.42.7:3000; local IP/Host/Origin/auth checks passed; waiting for one peer-device network acceptance check",
     "oceanengine_token": "valid after one authorized OAuth refresh",
     "database_backup": ".local/backups/marketing_workbench_v2-20260907T083112Z.dump",
@@ -77,6 +78,14 @@
       "fengmeiyu": "active",
       "zhangjingwei": "missing",
       "zhangchaobo": "active"
+    },
+    "first_peer_case": {
+      "case_id": "CASE-MWBV2-B74ADD7F7382306A09",
+      "latest_job_id": "JOB-MWBV2-20260907091309-5966E0",
+      "current_gate": "await_job_write_authorization",
+      "ready_plan_id": "PLAN-JOB-MWBV2-20260907091309-5966E0-MONITOR-V2",
+      "ready_plan_kind": "monitor_bootstrap",
+      "platform_action_count": 0
     }
   }
 }

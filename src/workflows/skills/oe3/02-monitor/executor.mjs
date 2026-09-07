@@ -118,6 +118,7 @@ export async function executeConfirmedMonitorBootstrap({
   grantSource = "workbench_conversation",
   projectStatePath,
   fetchImpl = globalThis.fetch,
+  qiankunOwnerKey = "",
   confirmedByUserId = ""
 } = {}) {
   if (!repo || !jobId) throw new Error("monitor_bootstrap_executor_job_required");
@@ -188,6 +189,7 @@ export async function executeConfirmedMonitorBootstrap({
   };
   const fresh = await runMonitorProvisionReadonlyReconcile({
     repo,
+    ownerKey: qiankunOwnerKey,
     target,
     jobId,
     planId: planId(grant.plan),

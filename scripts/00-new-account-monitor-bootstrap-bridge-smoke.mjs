@@ -1,4 +1,4 @@
-import { buildConfirmationPreview } from "../src/workflows/gateActionPolicy.mjs";
+import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
 import { canonicalAccountAuthStatus } from "../src/repositories/postgresRepository.mjs";
 import { runContextSkill } from "../src/workflows/skills/oe3/02-context-resolvers.mjs";
 import {
@@ -306,6 +306,55 @@ assert(existingMonitorBridgeCalls === 1, "monitor_ready_bridge_must_run_once");
 assert(existingMonitorDryRuns === 1, "monitor_ready_must_run_one_dry_run");
 assert(existingMonitorView.confirmationPreview?.confirmationPhrase === "确认准备资源", "monitor_ready_must_return_next_confirmation");
 
+const initialFreshView = {
+  ...activeMonitorGateView,
+  caseGate: {
+    ...activeMonitorGateView.caseGate,
+    currentGate: "run_fresh_readiness",
+    rootBlockerCodes: []
+  }
+};
+const monitorPlanRequiredView = {
+  ...activeMonitorGateView,
+  caseGate: {
+    ...activeMonitorGateView.caseGate,
+    currentGate: "resolve_case_blocker",
+    rootBlockerCodes: ["monitor_plan_required"]
+  }
+};
+let freshThenMonitorDryRuns = 0;
+let freshThenMonitorBridgeCalls = 0;
+const freshThenMonitorView = await runWorkbenchInitialReadonly({}, JOB_ID, {
+  qiankunOwnerKey: "zhangchaobo",
+  getJobViewFn: async () => initialFreshView,
+  runJobFn: async (_repo, receivedJobId, options) => {
+    freshThenMonitorDryRuns += 1;
+    assert(receivedJobId === JOB_ID, "fresh_then_monitor_job_changed");
+    assert(options.qiankunOwnerKey === "zhangchaobo", "fresh_readonly_owner_key_missing");
+    return monitorPlanRequiredView;
+  },
+  monitorBridgeFn: async (_repo, receivedJobId, options) => {
+    freshThenMonitorBridgeCalls += 1;
+    assert(receivedJobId === JOB_ID, "monitor_plan_bridge_job_changed");
+    assert(options.qiankunOwnerKey === "zhangchaobo", "monitor_plan_bridge_owner_key_missing");
+    return { view: bridge.view, reconcile: { runStatus: "account_resolved" }, planSaved: true };
+  }
+});
+assert(freshThenMonitorDryRuns === 1, "fresh_readiness_must_run_once");
+assert(freshThenMonitorBridgeCalls === 1, "monitor_plan_required_must_bridge_once");
+assert(freshThenMonitorView.confirmationPreview?.confirmationPhrase === "确认创建 monitor", "fresh_readiness_monitor_plan_card_missing");
+
+const monitorPlanRecovery = evaluateGateAction({
+  intent: { intent: "request_readonly_recovery" },
+  caseSummary: {
+    lifecycle_status: "active",
+    current_gate: "resolve_case_blocker",
+    root_blocker_codes: ["monitor_plan_required"]
+  },
+  isLatestCaseJob: true
+});
+assert(monitorPlanRecovery.effect === "run_monitor_readonly", "monitor_plan_recovery_must_use_readonly_bridge");
+
 let historicalBridgeCalls = 0;
 const historicalView = await runWorkbenchInitialReadonly({}, JOB_ID, {
   getJobViewFn: async () => ({
@@ -327,6 +376,8 @@ console.log(JSON.stringify({
   monitorReadonlyReconcileCalls: readonlyReconcileCalls,
   initialNoMonitorDryRuns: initialDryRuns,
   existingMonitorDryRuns,
+  freshThenMonitorDryRuns,
+  freshThenMonitorBridgeCalls,
   postMonitorPlanVersion,
   stableResourcePlanVersion,
   monitorPlanActions: storedPlan.planned_actions.map((action) => action.action_type),

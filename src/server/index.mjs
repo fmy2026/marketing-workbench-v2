@@ -380,8 +380,14 @@ async function handleApi(req, res, url) {
       return sendJson(res, 403, { error: "runtime_truth_run_mode_readonly_only" });
     }
     const view = bundle.job.source_usage === "runtime_truth" && mode === "dry_run"
-      ? await runWorkbenchInitialReadonly(repo, jobId, { mode })
-      : await runJob(repo, jobId, { mode });
+      ? await runWorkbenchInitialReadonly(repo, jobId, {
+        mode,
+        qiankunOwnerKey: auth.user.qiankun_owner_key
+      })
+      : await runJob(repo, jobId, {
+        mode,
+        qiankunOwnerKey: auth.user.qiankun_owner_key
+      });
     return sendJson(res, 200, view);
   }
   if (req.method === "POST" && action === "command") {
