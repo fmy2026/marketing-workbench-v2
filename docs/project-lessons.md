@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；已验证可复用经验集 |
-| 最后更新时间 | 2026-09-02 14:39 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与回归证据 |
+| 最后更新时间 | 2026-09-07 17:55 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与首个异机真实流程证据 |
 | 重新校验条件 | 新增可复用闭环经验、接口/字段合同变化，或既有经验被当前代码、Schema、官方资料或真实回查否定时 |
 
 ## 使用规则
@@ -16,6 +16,19 @@
 官方接口只记录 method、endpoint path、用途与边界；不记录完整请求 URL、token、raw query/body 或 raw response。OE3 合同优先查官方 3.0 知识库，3.0 缺失时再补 2.0 / 2.0 copy，并在经验中标明“当前项目实际使用的接口”和“仅作为后续/受控写入使用的接口”。
 
 Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查目标账户真实只读状态；只为 `prepare_supported=true` 且获得单次授权的资源生成写入计划。一个资源通过不能替代其他资源的 Gate。
+
+## 通用：多人内网工作台
+
+| 场景 | 可复用经验 |
+| --- | --- |
+| 登录用户与乾坤凭据 | 每个用户必须绑定唯一 `qiankun_owner_key` 和本机受控凭据。任何 readonly、Plan 编译、确认前回查及最终 executor 都显式传递当前登录用户的 owner key；不能根据“当前只有一份 active 凭据”推断身份。 |
+| 账户归属 | Intake 在 Case/Job 前用 `accountIndex.sso_owner` 精确匹配登录用户；不匹配时零 Case、零 Job、零归属变更。后续 Case、Job、历史、command 和 confirmation 继续校验同一 owner。 |
+| Monitor 缺失 | fresh readiness 得到 `monitor_plan_required` 时，只接入一次既有 monitor readonly bridge并生成确认卡；Monitor ID 为空时草稿保持等待，不能向触点仓储或 payload 构建传空 ID。 |
+| 确认后、平台调用前失败 | confirmation 已记录也不能复用旧 Plan。旧 action 记为失败、Plan 收口为 `consumed`、Job 进入停止态；恢复必须使用同一 Case 的 fresh Job、新 Plan/hash/confirmation/idempotency key。 |
+| 验收证据 | 不能只看页面节点颜色。至少核对 confirmation actor、action 单次状态、`create_called`、对象存在性和权威只读回查；只有回查 verified 才算完成。 |
+| 回归边界 | 多人测试必须覆盖 owner key 从 HTTP 会话到最终 executor 的完整传递、跨用户 URL/API 拒绝、确认单次占有、平台调用前失败收口，以及 fresh Job 恢复不复用旧授权。 |
+
+首个异机真实流程已验证：修复后的 Monitor Plan 由账户本人确认，只调用一次创建，Monitor、受控触点和 hash 均经权威回查通过，随后由同一有界推进器进入资源确认 Gate。该证据证明上述 owner 传递与恢复机制已进入公共主链；后续用户仍需各自具备有效乾坤凭据。
 
 ## 通用：Node 4 资源准备
 
