@@ -16,9 +16,7 @@ import {
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 import {
-  WORKBENCH_HOST,
-  WORKBENCH_ORIGIN,
-  WORKBENCH_PORT
+  WORKBENCH_ORIGIN
 } from "../../frontend/workbench-address.mjs";
 import {
   WORKBENCH_SESSION_COOKIE,
@@ -34,19 +32,18 @@ import {
   validateNewPassword,
   verifyPassword
 } from "../security/workbenchAuth.mjs";
+import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
 const repo = new PostgresRepository();
-const publicOrigin = String(process.env.WORKBENCH_PUBLIC_ORIGIN || WORKBENCH_ORIGIN).replace(/\/$/, "");
-const publicOriginUrl = new URL(publicOrigin);
-if (publicOriginUrl.origin !== publicOrigin) throw new Error("WORKBENCH_PUBLIC_ORIGIN_must_be_an_origin");
-if (publicOrigin !== WORKBENCH_ORIGIN && publicOriginUrl.protocol !== "https:") {
-  throw new Error("WORKBENCH_PUBLIC_ORIGIN_must_use_https");
-}
-const secureCookies = publicOriginUrl.protocol === "https:";
-const acceptedOrigins = new Set([publicOrigin, WORKBENCH_ORIGIN]);
-const acceptedHosts = new Set([publicOriginUrl.host.toLowerCase(), `${WORKBENCH_HOST}:${WORKBENCH_PORT}`]);
+const networkPolicy = resolveWorkbenchNetworkPolicy(process.env);
+const { bindHost, bindPort, publicOrigin, publicOriginUrl, secureCookies } = networkPolicy;
+const acceptedOrigins = new Set([
+  publicOrigin,
+  ...(networkPolicy.privateLanHttp ? [] : [WORKBENCH_ORIGIN])
+]);
+const acceptedHosts = new Set([publicOriginUrl.host.toLowerCase(), `${bindHost}:${bindPort}`]);
 const securityHeaders = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
@@ -451,6 +448,6 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(WORKBENCH_PORT, WORKBENCH_HOST, () => {
-  console.log(`marketing-workbench-v2 listening on ${WORKBENCH_ORIGIN}/ for ${publicOrigin}/`);
+server.listen(bindPort, bindHost, () => {
+  console.log(`marketing-workbench-v2 listening on ${networkPolicy.bindOrigin}/ for ${publicOrigin}/`);
 });

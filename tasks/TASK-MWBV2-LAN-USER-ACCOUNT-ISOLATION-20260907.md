@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：implementation_completed_waiting_lan_endpoint
+状态：implementation_completed_waiting_peer_acceptance
 
 ## 目标
 
@@ -26,7 +26,7 @@
 
 - 不新增或修改 3 阶段 7 Node 注册表，不新增业务 Gate、Plan/action 类型或确认短语。
 - 实施和测试不得发起真实平台写入、确认、创建或重试。
-- 不保存乾坤密码、Passport Token、Cookie、raw transcript、raw request/payload/response 或完整敏感 URL。
+- 不在数据库、Git、普通日志或 API 响应中保存乾坤密码、Passport Token、Cookie、raw transcript、raw request/payload/response 或完整敏感 URL；Passport Token 仅可保存在 gitignored、权限 `600` 的本机 credential store。
 - 不自动转移账户归属；历史账户无法唯一映射时保持不可运行。
 
 ## 验收
@@ -49,7 +49,7 @@
 - 新 Intake 在 Case/Job 前按当前用户 owner key 执行乾坤 `accountIndex` 精确只读校验；匹配后原子绑定唯一 owner，不匹配不建 Case/Job、不转移归属。
 - 工作台、Case、Job、历史、运行、刷新和 command API 均校验 active 用户、账户 owner 与乾坤 owner key；管理员只有跨人报表和用户管理权限。
 - confirmation 记录真实登录用户，authenticated-LAN Plan policy 继续保留 exact Plan/hash/phrase、单次 claim、零重试和权威回查。
-- Node 仍固定为 3 阶段 7 个。Node 服务仍只监听 `127.0.0.1:3000`；已提供 nginx HTTPS、LaunchAgent、每日备份配置和三用户验收清单。
+- Node 仍固定为 3 阶段 7 个。默认保持 `127.0.0.1:3000`；当前 LaunchAgent 通过显式临时开关仅监听 `192.168.42.7:3000`，同时保留长期 nginx HTTPS 模板、每日备份配置和三用户验收清单。
 
 ## 验证结果
 
@@ -58,7 +58,19 @@
 - `smoke:api`、`check:runtime-consistency`、`validate:schemas`、前端地址/进度测试、语法和 diff 检查：passed。
 - 浏览器检查确认未登录只显示登录卡；数据库备份已生成并由 `pg_restore --list` 校验。
 - 验收结束后三名用户均为 active + `must_change_password=true`，活动会话 0，当日 `test_run` Job 0；人员明细 11 个 Case 对应 11 行。
+- `test:workbench-network-policy`、真实 IP Host/Origin/401 响应、IP 模式登录/改密和跨用户 HTTP 隔离均通过；`test:qiankun-credential-setup` 验证隐藏输入后的本地写入逻辑只返回脱敏结果并保持文件权限 `600`。
 
-## 待激活的环境输入
+## 当前环境状态
 
-代码和本机服务已就绪。真正发布到公司局域网还需要最终内网 HTTPS 域名，以及该域名对应、由试用电脑信任的证书和私钥路径；收到后替换 `deploy/` 占位值、设置 `WORKBENCH_PUBLIC_ORIGIN` 并完成三台试用端验收。
+- 本机 LaunchAgent 已改为监听 `192.168.42.7:3000`，`http://192.168.42.7:3000/` 在本机经真实内网地址返回登录页；错误 Host 为 421，错误 Origin 为 403，未登录 API 为 401。
+- 巨量引擎 OAuth token 已按既有 refresh scope 恢复为 `valid`；数据库有效备份已生成并通过 `pg_restore --list` 校验。
+- 冯美钰乾坤凭据为 active；张境威、张超博仍缺本人 Passport Token。已提供 `setup:qiankun-user` 隐藏输入命令，待两人分别在本机录入。
+- 最终只待另一台公司网络电脑验证 3000 端口可达，并完成两位试用者凭据录入及真实浏览器流程验收。真实创建仍只能由对应登录用户在 ready Plan 上亲自确认。
+
+## 2026-09-07 批准变更：临时私网 HTTP
+
+用户批准短期试用改用 `http://192.168.42.7:3000/`，不使用域名、IP 证书或反向代理。实现必须使用显式临时开关，仅允许 RFC1918 IPv4 origin；Host、Origin、登录、owner、Plan/hash/确认短语、单次 claim、零自动重试和权威回查均保持不变。Node 只绑定当前内网地址，不监听公网接口；试用结束后可关闭开关恢复 loopback。
+
+本轮允许修改应用监听配置、真实 LaunchAgent、部署文档和 focused smoke；允许按现有 `credential_refresh_scope` 精确执行一次巨量引擎 OAuth refresh。不得自动执行 monitor、资源或项目创建。张境威、张超博缺少的 owner-specific 乾坤 Passport 凭据只能在本机受控 credential store 中补充，缺少实际凭据时如实保留 blocker。
+
+允许增加本机终端隐藏输入的乾坤凭据配置命令；Token 不得进入 argv、shell history、日志或 Git，只能写入 gitignored 且权限为 `600` 的 credential store，命令输出必须完全脱敏。

@@ -9,6 +9,12 @@
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
+## 2026-09-07 临时私网 HTTP 试用入口（已批准）
+
+首批三人短期试用直接使用 `http://192.168.42.7:3000/`，不申请域名、IP 证书或反向代理。服务通过显式 `WORKBENCH_ALLOW_PRIVATE_LAN_HTTP=true` 开关允许非 HTTPS origin；该例外仅接受 RFC1918 IPv4、精确 Host/Origin 和指定 bind 地址，默认配置仍为 loopback，其他 HTTP origin 启动失败。会话继续使用 HttpOnly + SameSite=Strict，因 HTTP 不带 Secure；该边界只用于公司内网短测。
+
+临时入口不改变登录、强制改密、账户唯一 owner、管理员不可代操作、Case/Job 隔离、七 Node、业务 Gate、Plan/hash/短语绑定、单次 action claim、零自动重试或权威回查。真实 LaunchAgent 固化 bind/origin/临时开关并自动拉起；试用结束删除三项环境变量即可恢复 loopback。部署前保留有效数据库备份，网络可达性必须从另一台公司电脑验收。
+
 ## 2026-09-07 局域网用户与账户隔离（已批准）
 
 工作台增加本地用户与服务端会话，首批固定为管理员冯美钰 `fengmeiyu`、试用者张境威 `zhangjingwei` 和张超博 `zhangchaobo`。账号绑定乾坤 `userList` 的唯一 owner key；初始密码为 `12345678`，首次登录必须修改。管理员仅管理用户和查看团队只读汇总，不能启动、运行或确认他人账户。

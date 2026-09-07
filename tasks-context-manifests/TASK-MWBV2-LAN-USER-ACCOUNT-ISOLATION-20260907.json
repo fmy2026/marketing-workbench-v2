@@ -2,17 +2,17 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "implementation_completed_waiting_lan_endpoint",
+  "status": "implementation_completed_waiting_peer_acceptance",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-07 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "Add authenticated LAN access, single-owner advertiser isolation and per-user workflow reporting without changing the seven-node workflow or Plan-bound execution semantics.",
+    "goal": "Activate explicit temporary private-LAN HTTP access at http://192.168.42.7:3000 while retaining authenticated owner isolation and Plan-bound execution semantics.",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
     "database_write_allowed": true,
     "database_write_scope": [
-      "Task, Manifest, project state, docs, migrations, authentication/session code, ownership enforcement, reporting views, frontend and focused tests"
+      "Task, Manifest, project state, docs, LAN bind/origin configuration, LaunchAgent deployment, authentication/session code and focused tests"
     ],
     "maximum_platform_write_actions": 0
   },
@@ -25,29 +25,36 @@
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
     "src/server/index.mjs",
+    "src/security/workbenchNetworkPolicy.mjs",
     "src/repositories/postgresRepository.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/workbenchRuntimeWritePolicy.mjs",
     "src/platforms/qiankunMonitorClient.mjs",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "deploy/README.md",
     "db/072_workbench_users_account_isolation.sql"
   ],
   "allowed_writes": [
-    "authentication/session/user administration, single-owner account binding, actor audit fields, user-scoped reads, reporting views, LAN origin configuration, focused tests and mechanism documentation"
+    "explicit private-LAN HTTP bind/origin configuration, LaunchAgent deployment, focused tests and mechanism documentation",
+    "one OceanEngine OAuth refresh under the existing credential_refresh_scope and exact confirmation variable",
+    "a local-only hidden-input Qiankun credential setup command; credentials may be written only to the gitignored mode-600 credential store and must never appear in argv, logs or tracked files"
   ],
   "forbidden_actions": [
-    "all real platform writes, confirmations, monitor/resource/project creates, retries, token refreshes, budget or bid changes",
+    "all real monitor/resource/project writes, confirmations, creates, retries, budget or bid changes",
     "new workflow node, business Gate, Plan/action type or confirmation phrase",
     "automatic advertiser ownership transfer or rewriting historical runtime facts",
-    "raw credential, transcript, request, response, payload or sensitive URL persistence"
+    "raw credential, transcript, request, response, payload or sensitive URL persistence outside the approved gitignored mode-600 local credential stores"
   ],
   "validation_plan": [
+    "private-LAN bind/origin fail-closed policy and live Host/Origin/unauthenticated HTTP responses",
+    "local Qiankun credential create/replace, mode-600 storage and redacted output",
     "authentication, forced password change, session revocation and admin read-only behavior",
     "Intake owner match/mismatch, existing-account isolation and URL/API tampering",
     "user detail/admin summary report cardinality and verified-only success semantics",
     "schema, API, workflow, Case, runtime policy, conversation and diff checks"
   ],
   "stop_conditions": [
-    "any real platform write would be required",
+    "any real platform write other than the separately authorized single OAuth refresh would be required",
     "the change would weaken exact Plan confirmation, single-attempt execution or authoritative readback",
     "account ownership cannot be established by an exact active user owner key"
   ],
@@ -62,7 +69,14 @@
     "pilot_users": 3,
     "workflow_nodes": 7,
     "platform_write_calls": 0,
-    "tests": "authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
-    "deployment": "local service and deployment package ready; waiting for final internal HTTPS hostname and trusted certificate paths"
+    "tests": "private-LAN network policy and live responses, credential setup, authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
+    "deployment": "LaunchAgent active on http://192.168.42.7:3000; local IP/Host/Origin/auth checks passed; waiting for two owner-specific Qiankun credentials and one peer-device network acceptance check",
+    "oceanengine_token": "valid after one authorized OAuth refresh",
+    "database_backup": ".local/backups/marketing_workbench_v2-20260907T083112Z.dump",
+    "qiankun_credentials": {
+      "fengmeiyu": "active",
+      "zhangjingwei": "missing",
+      "zhangchaobo": "missing"
+    }
   }
 }

@@ -34,6 +34,8 @@ frontend / API / CLI / 任务卡 / 工作台对话
 
 正式业务写入只有一条入口：`工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories`。CLI 不属于正式写入面，只保留 `00-oe3-workflow-cli.mjs`、`00-oe3-readonly-readiness-cli.mjs` 的安全 dry-run/readback，Node 02 状态与 readonly reconcile/配置只读同步，以及 Node 03/04、token 和合同诊断。任何 CLI 都不能绕过当前 Plan/hash、confirmation、action grant 或调用上限。
 
+网络入口默认只监听 `127.0.0.1:3000`。当前三人短期试用通过显式开关监听 `192.168.42.7:3000`；非 HTTPS 只接受 RFC1918 IPv4，且 bind host、public origin 与端口必须完全一致。该网络模式不改变登录、账户 owner、Case/Job、Plan 或业务 Gate；关闭开关即恢复默认 loopback。
+
 `scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
 
 ```text

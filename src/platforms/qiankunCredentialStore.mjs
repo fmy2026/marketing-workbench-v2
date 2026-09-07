@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -275,6 +275,66 @@ export function backfillPendingQiankunCredentialOwnerKey({ ownerKey, ownerName =
   writeFileSync(store.storePath, JSON.stringify(nextStore, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
   chmodSync(store.storePath, 0o600);
   return redactedQiankunCredentialStatus({ ownerKey: nextOwnerKey, envPath, storePath, now });
+}
+
+export function upsertQiankunCredential({
+  ownerKey,
+  ownerName,
+  passportToken,
+  envPath,
+  storePath,
+  now = new Date(),
+  validForDays = 30,
+  refreshAfterDays = 25
+} = {}) {
+  const nextOwnerKey = clean(ownerKey).toLowerCase();
+  const nextOwnerName = clean(ownerName);
+  const nextPassportToken = clean(passportToken);
+  if (!/^[a-z][a-z0-9_-]{2,127}$/u.test(nextOwnerKey)) throw new Error("invalid_owner_key");
+  if (!nextOwnerName || /[\u0000-\u001F\u007F]/u.test(nextOwnerName)) throw new Error("invalid_owner_name");
+  if (!nextPassportToken || /[\u0000-\u001F\u007F]/u.test(nextPassportToken)) throw new Error("invalid_passport_token");
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("invalid_now");
+  if (!Number.isInteger(validForDays) || validForDays < 1 || validForDays > 365) throw new Error("invalid_valid_for_days");
+  if (!Number.isInteger(refreshAfterDays) || refreshAfterDays < 1 || refreshAfterDays >= validForDays) {
+    throw new Error("invalid_refresh_after_days");
+  }
+
+  const resolvedStorePath = ensureQiankunCredentialStoreScaffold({ envPath, storePath });
+  const store = readQiankunCredentialStore({ envPath, storePath: resolvedStorePath });
+  if (store.schemaVersion !== QIANKUN_CREDENTIAL_SCHEMA_VERSION) throw new Error("credential_schema_version_mismatch");
+  const tokenUpdatedAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + validForDays * 24 * 60 * 60 * 1000).toISOString();
+  const refreshAfter = new Date(now.getTime() + refreshAfterDays * 24 * 60 * 60 * 1000).toISOString();
+  const nextItem = {
+    owner_key: nextOwnerKey,
+    owner_name: nextOwnerName,
+    passport_token: nextPassportToken,
+    token_updated_at: tokenUpdatedAt,
+    expires_at: expiresAt,
+    refresh_after: refreshAfter,
+    status: "active",
+    owner_key_confirmed_at: tokenUpdatedAt
+  };
+  const existingIndex = store.credentials.findIndex((item) => clean(item.owner_key).toLowerCase() === nextOwnerKey);
+  const nextCredentials = [...store.credentials];
+  if (existingIndex >= 0) nextCredentials[existingIndex] = nextItem;
+  else nextCredentials.push(nextItem);
+  const nextStore = {
+    schema_version: QIANKUN_CREDENTIAL_SCHEMA_VERSION,
+    updated_at: tokenUpdatedAt,
+    credentials: nextCredentials
+  };
+  const temporaryPath = `${resolvedStorePath}.tmp-${process.pid}`;
+  try {
+    writeFileSync(temporaryPath, JSON.stringify(nextStore, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+    chmodSync(temporaryPath, 0o600);
+    renameSync(temporaryPath, resolvedStorePath);
+  } catch (error) {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+    throw error;
+  }
+  chmodSync(resolvedStorePath, 0o600);
+  return redactedQiankunCredentialStatus({ ownerKey: nextOwnerKey, envPath, storePath: resolvedStorePath, now });
 }
 
 function redactedCredentialItem(item = {}, now = new Date()) {

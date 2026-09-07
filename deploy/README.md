@@ -1,8 +1,38 @@
 # 局域网部署
 
-Node 服务固定监听 `127.0.0.1:3000`。内网用户只访问 HTTPS 反向代理；应用用 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
+Node 服务默认监听 `127.0.0.1:3000`。长期内网用户通过 HTTPS 反向代理访问；应用用 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
 
-## 上线参数
+## 当前三人试用：私网 HTTP
+
+当前批准的临时入口为 `http://192.168.42.7:3000/`。它不需要域名、证书或反向代理；使用 [LAN HTTP LaunchAgent](launchd/com.hys.marketing-workbench.lan-http.plist.example) 设置以下四项：
+
+```text
+WORKBENCH_BIND_HOST=192.168.42.7
+WORKBENCH_PORT=3000
+WORKBENCH_PUBLIC_ORIGIN=http://192.168.42.7:3000
+WORKBENCH_ALLOW_PRIVATE_LAN_HTTP=true
+```
+
+应用只允许显式启用的 RFC1918 IPv4，且 bind host、public origin 和端口必须精确一致。Host、Origin、用户 owner 和 Plan-bound 校验继续生效。HTTP 不加密密码和会话，只用于当前公司内网短期试用；试用结束删除上述变量即可恢复 loopback。
+
+从另一台公司网络电脑验收：
+
+```sh
+curl -I http://192.168.42.7:3000/
+```
+
+随后用浏览器登录并执行账户隔离验收。若无法连接，先确认两台电脑所在网络/VLAN 是否允许互访以及 Mac 地址是否仍为 `192.168.42.7`。
+
+每位试用者首次查询本人账户前，需要在这台 Mac 的终端录入其本人乾坤 Passport Token：
+
+```sh
+npm run setup:qiankun-user -- --user zhangjingwei
+npm run setup:qiankun-user -- --user zhangchaobo
+```
+
+命令只在交互终端中隐藏读取 Token，不接受 Token 命令参数；结果写入 gitignored、权限为 `600` 的本地 credential store，终端仅输出脱敏状态。Token 默认 30 天到期、25 天后提示更新，与当前凭据合同一致。不要通过聊天、Git 或普通日志传递 Token。
+
+## 长期 HTTPS 上线参数
 
 上线前需要公司内网提供两个值：
 
