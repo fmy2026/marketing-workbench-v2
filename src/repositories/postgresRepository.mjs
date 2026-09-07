@@ -2839,7 +2839,7 @@ export class PostgresRepository {
           AND j.source_usage = 'runtime_truth'
           AND wc.lifecycle_status = 'active'
           AND wc.source_usage = 'runtime_truth'
-          AND j.job_status = 'blocked_confirmed_resource_plan'
+          AND j.job_status IN ('blocked_confirmed_resource_plan', 'blocked_confirmed_monitor_plan')
         LIMIT 1
       ),
       latest AS (
@@ -3302,6 +3302,60 @@ export class PostgresRepository {
       SELECT jsonb_build_object('finalized', EXISTS (SELECT 1 FROM finalized))::text;
     `, this.database);
     return result || { finalized: false };
+  }
+
+  async finalizeConfirmedMonitorExecutionPlan({ jobId, planId, blockerCode = "monitor_bootstrap_blocked_before_platform_write" }) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    assertId("blocker_code", blockerCode);
+    const result = await queryJson(`
+      WITH finalized AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            blocker_codes = jsonb_build_array(${sqlLiteral(blockerCode)}),
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', 'blocked_before_platform_write',
+              'confirmed_execution_blocker', ${sqlLiteral(blockerCode)},
+              'platform_write_called', false,
+              'retry_allowed', false
+            ),
+            updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'ready'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'monitor_bootstrap'
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = plan.job_id
+              AND confirmation.plan_id = plan.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.platform_actions action
+            WHERE action.job_id = plan.job_id
+              AND action.plan_id = plan.plan_id
+              AND action.action_type = 'ensure_monitor'
+              AND action.action_status = 'failed_once'
+              AND coalesce((action.metadata->>'platform_write_called')::boolean, false) = false
+          )
+        RETURNING plan.plan_id
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = 'blocked_confirmed_monitor_plan',
+            current_node = '2',
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM finalized)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object(
+        'finalized', EXISTS (SELECT 1 FROM finalized),
+        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized)
+      )::text;
+    `, this.database);
+    return result || { finalized: false, jobFinalized: false };
   }
 
   async finalizeConfirmedCreatePlanBeforeAction({ jobId, planId, blockerCode = "final_draft_plan_derivation_not_passed" } = {}) {

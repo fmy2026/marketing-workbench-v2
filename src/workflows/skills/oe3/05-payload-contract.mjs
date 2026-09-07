@@ -237,12 +237,15 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false, attempt
     projectSeq,
     yyyymmdd
   });
-  const touchpoint = await repo.getControlledTouchpointUrl({
-    routeId: effectiveBundle.job.route_id,
-    gameCode: effectiveBundle.job.game_code,
-    advertiserId: effectiveBundle.job.advertiser_id,
-    monitorId: effectiveBundle.account.monitor_id
-  });
+  const monitorId = clean(effectiveBundle.account?.monitor_id);
+  const touchpoint = monitorId
+    ? await repo.getControlledTouchpointUrl({
+        routeId: effectiveBundle.job.route_id,
+        gameCode: effectiveBundle.job.game_code,
+        advertiserId: effectiveBundle.job.advertiser_id,
+        monitorId
+      })
+    : null;
   const backupLandingPageUrl = mockReady
     ? {
         landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",

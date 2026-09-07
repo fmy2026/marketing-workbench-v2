@@ -511,6 +511,19 @@ const recoveryDecision = evaluateGateAction({
 });
 assert(recoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed resource blocker must create a fresh readonly job");
 
+const confirmedMonitorBlockerCase = {
+  ...confirmedResourceBlockerCase,
+  root_blocker_codes: ["monitor_plan_required"],
+  latest_job_status: "blocked_confirmed_monitor_plan",
+  monitor_resolved: false
+};
+const monitorRecoveryDecision = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: confirmedMonitorBlockerCase,
+  isLatestCaseJob: true
+});
+assert(monitorRecoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed monitor prewrite failure must create a fresh readonly job");
+
 const ordinaryReadonlyBlockerCase = {
   ...confirmedResourceBlockerCase,
   latest_job_status: "blocked",

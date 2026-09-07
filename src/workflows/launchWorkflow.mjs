@@ -195,6 +195,7 @@ function statusLabel(status) {
     blocked_brand_industry: "brand_industry 阻断",
     blocked_after_single_create_failure: "单次创建失败后锁定",
     blocked_confirmed_resource_plan: "资源准备已停止",
+    blocked_confirmed_monitor_plan: "Monitor 准备已停止",
     corrective_attempt_requires_new_payload_version: "需修正参数后建立下一次尝试",
     corrective_attempt_limit_or_sequence_blocked: "创建尝试次数或顺序阻断",
     ready_for_user_create_confirmation: "可等待创建确认",

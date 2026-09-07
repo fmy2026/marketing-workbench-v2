@@ -9,7 +9,10 @@ import {
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { buildMonitorBootstrapContract } from "../src/workflows/skills/oe3/02-monitor/readonly-reconcile.mjs";
 import { monitorReadinessFromBundle } from "../src/workflows/skills/oe3/02-monitor/readiness.mjs";
-import { executeConfirmedMonitorBootstrap } from "../src/workflows/skills/oe3/02-monitor/executor.mjs";
+import {
+  buildMonitorEnsureExecutionInput,
+  executeConfirmedMonitorBootstrap
+} from "../src/workflows/skills/oe3/02-monitor/executor.mjs";
 import { resolveMonitorTouchpointState } from "../src/workflows/skills/oe3/02-monitor/index.mjs";
 
 const target = {
@@ -104,6 +107,18 @@ assert.equal(monitorPlan.payloadHash, "");
 assert.equal(JSON.stringify(monitorPlan).includes("package_download_url"), false);
 assertNoSensitiveLeak(monitorPlan);
 
+const ensureInput = buildMonitorEnsureExecutionInput({
+  repo: {},
+  qiankunOwnerKey: "zhangchaobo",
+  target,
+  jobId: bundle.job.job_id,
+  currentPlanId: monitorPlan.planId,
+  idempotencyKey: "IDEMP-SYNTHETIC",
+  fetchImpl: async () => undefined,
+  authorization: { status: "passed" }
+});
+assert.equal(ensureInput.ownerKey, "zhangchaobo", "authenticated owner key must reach monitor ensure");
+
 const standardPlan = buildExecutionPlanFromBundle({
   ...bundle,
   monitorReadiness: {
@@ -164,6 +179,7 @@ console.log(JSON.stringify({
     "monitor_bootstrap_plan_has_exactly_one_ensure_monitor",
     "standard_plan_does_not_mix_monitor_action",
     "monitor_contract_is_hash_only",
+    "authenticated_owner_key_reaches_monitor_ensure",
     "blocked_authorization_produces_zero_confirmation_or_platform_writes"
   ]
 }, null, 2));

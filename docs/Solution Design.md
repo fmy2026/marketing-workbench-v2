@@ -57,7 +57,7 @@ migration `070` 仅修正 `mwb.workflow_case_summary`：当前同 scope 账户�
 
 首次工作台启动必须先读取 active Case 最新 Job 的唯一 Gate。`run_monitor_readonly` 时先执行一次 monitor readonly reconcile；只有刷新后 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。没有 monitor 且取得完整 `monitorBootstrapContract` 时，立即使用既有 compiler 保存唯一 ready `monitor_bootstrap` Plan，并返回“确认创建 monitor”卡片，绝不得运行到 Node 05 使用空 `monitor_id`。Plan 只含一次 `ensure_monitor`；精确确认前不得写 confirmation、action、attempt 或调用创建接口。确认创建 monitor 并完成权威回查后，同一有界推进器自动继续 readonly；Resource Plan 成功后仍先创建同一 Case 的 fresh Job，再由同一推进器继续。每轮最多一次 reconcile 与一次 dry-run，只对 active latest Job 生效，并在确认 Gate、`run_readback_only`、真实 blocker、结果不明或历史 Job 立即停止。本变更不新增 Schema、endpoint、Plan/action 类型或平台写授权。
 
-多用户工作台的 `/run`、对话只读恢复、monitor Plan 编译、monitor 确认前 fresh readonly 及后续自动推进，必须始终使用当前登录用户的精确 `qiankun_owner_key`。若 `run_fresh_readiness` 的结果唯一为 `monitor_plan_required`，有界推进器在同轮调用一次既有 monitor readonly bridge；只读确认无 monitor 且合同完整时保存 ready Plan，查询失败时保留 blocker，均不自动确认或创建。
+多用户工作台的 `/run`、对话只读恢复、monitor Plan 编译、monitor 确认前 fresh readonly、最终 monitor ensure 调用及后续自动推进，必须始终使用当前登录用户的精确 `qiankun_owner_key`。若 `run_fresh_readiness` 的结果唯一为 `monitor_plan_required`，有界推进器在同轮调用一次既有 monitor readonly bridge；只读确认无 monitor 且合同完整时保存 ready Plan，查询失败时保留 blocker，均不自动确认或创建。已确认 Monitor Plan 若在平台调用前被 owner、合同或本地前置校验阻断，必须以 `consumed` 收口并标记 `blocked_confirmed_monitor_plan`；恢复只能创建同一 Case 的 fresh Job 和新 Plan/hash/confirmation，不复用旧 action 或幂等键。草稿构建在 monitor ID 缺失时保持等待，不得向受控触点仓储传入空 ID。
 
 本文件只定义方案方法，不保存动态账户、Case、Job、Plan 或运行状态。
 
@@ -163,7 +163,7 @@ Node 02 只公开一个 monitor facade。CLI 只保留状态、fresh readonly re
 
 工作台新增精确指令“重新只读准备”，但不新增 Gate、Plan 类型、API 路由、数据库 Schema 或平台写权限。Gate Action Policy 仍只读取 `workflow_case_summary`：仅 active Case 的最新 Job 位于 `resolve_case_blocker` 且不是终态 monitor 专用回查时可用。
 
-当最新 Job 为 `blocked_confirmed_resource_plan` 时，先本地读取脱敏凭据状态；未 ready 则不创建 Job、不调用平台。凭据 ready 后，以 Case advisory lock 和确定性 `source_record_ref` 原子创建或返回一个同一 Case 的 fresh runtime Job，并只运行既有 `dry_run`。fresh Job 绝不复制旧 Job 的 Plan、confirmation、action、grant 或 idempotency key；并发重复指令只允许一个 fresh Job 运行只读准备。其他普通只读 blocker 只在当前 Job 运行 `dry_run`。终态 monitor 仍只接受“重新只读回查 monitor”。
+当最新 Job 为 `blocked_confirmed_resource_plan` 或平台调用前停止的 `blocked_confirmed_monitor_plan` 时，先本地读取脱敏凭据状态；未 ready 则不创建 Job、不调用平台。凭据 ready 后，以 Case advisory lock 和确定性 `source_record_ref` 原子创建或返回一个同一 Case 的 fresh runtime Job，并只运行既有 readonly 推进。fresh Job 绝不复制旧 Job 的 Plan、confirmation、action、grant 或 idempotency key；并发重复指令只允许一个 fresh Job 运行只读准备。其他普通只读 blocker 只在当前 Job 运行 `dry_run`。终态 monitor 仍只接受“重新只读回查 monitor”。
 
 该入口不刷新 token、不确认资源 Plan、不创建资源或项目、不更改 `project.state.json` 写权限。真实资源或项目写入仍必须在 fresh Plan/hash、独立 Task、全局 scope 和精确确认齐备后进入既有 executor。
 

@@ -13,7 +13,7 @@
     "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
     "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
     "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.json",
-    "status": "runtime_blocker_fixed_waiting_monitor_confirmation",
+    "status": "runtime_prewrite_gap_fixed_waiting_monitor_reconfirmation",
     "read_order": [
       "AGENTS.md",
       "project.state.json",

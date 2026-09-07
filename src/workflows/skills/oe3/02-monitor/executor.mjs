@@ -36,6 +36,28 @@ function actionIdempotencyKey(action = {}, actionIdValue = "") {
   return `${clean(action.idempotency_key) || `IDEMP-${actionIdValue}`}:${actionIdValue}`;
 }
 
+export function buildMonitorEnsureExecutionInput({
+  repo,
+  qiankunOwnerKey = "",
+  target,
+  jobId,
+  currentPlanId,
+  idempotencyKey,
+  fetchImpl,
+  authorization
+} = {}) {
+  return {
+    repo,
+    ownerKey: clean(qiankunOwnerKey),
+    target,
+    jobId,
+    planId: currentPlanId,
+    idempotencyKey,
+    fetchImpl,
+    authorization
+  };
+}
+
 function bootstrapPlanBlockers({ bundle, plan, expectedPlanId = "", expectedPlanHash = "" } = {}) {
   const monitor = plan?.metadata?.monitor_bootstrap || {};
   const planned = actions(plan);
@@ -243,11 +265,12 @@ export async function executeConfirmedMonitorBootstrap({
     return result("passed", [], { confirmationId, freshReadonlyCompleted: true, monitorReady: true });
   }
 
-  const ensure = await executeMonitorBootstrapWithAuthorization({
+  const ensure = await executeMonitorBootstrapWithAuthorization(buildMonitorEnsureExecutionInput({
     repo,
+    qiankunOwnerKey,
     target,
     jobId,
-    planId: planId(grant.plan),
+    currentPlanId: planId(grant.plan),
     idempotencyKey,
     fetchImpl,
     authorization: {
@@ -262,7 +285,7 @@ export async function executeConfirmedMonitorBootstrap({
       createRequestHash: monitor.create_request_hash,
       configContractHash: monitor.config_contract_hash
     }
-  });
+  }));
   const succeeded = ensure.status === "passed" && ensure.runStatus === "touchpoint_resolved";
   await repo.finishPlannedExecutionAction({
     actionId: actionIdValue,
@@ -279,6 +302,14 @@ export async function executeConfirmedMonitorBootstrap({
     }
   });
   if (!succeeded) {
+    if (ensure.createCalled !== true && typeof repo.finalizeConfirmedMonitorExecutionPlan === "function") {
+      const blockerCode = clean(ensure.blockers?.[0]) || "monitor_bootstrap_blocked_before_platform_write";
+      await repo.finalizeConfirmedMonitorExecutionPlan({
+        jobId,
+        planId: planId(grant.plan),
+        blockerCode
+      });
+    }
     await revokeTaskScope(projectStatePath, availability.authorizationMode);
     return result("blocked", ensure.blockers || ["monitor_bootstrap_readback_not_ready"], {
       confirmationId,

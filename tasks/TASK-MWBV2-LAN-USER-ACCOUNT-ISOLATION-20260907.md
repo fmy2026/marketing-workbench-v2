@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：runtime_blocker_fixed_waiting_monitor_confirmation
+状态：runtime_prewrite_gap_fixed_waiting_monitor_reconfirmation
 
 ## 目标
 
@@ -80,3 +80,9 @@
 Case `CASE-MWBV2-B74ADD7F7382306A09` 的账户归属、乾坤凭据和广告账户授权均已验证正常，但 fresh readonly 后停在 `monitor_plan_required`。根因是多用户接入后的 `/run`、对话只读推进和 monitor 确认执行没有继续传递当前登录用户的精确 `qiankun_owner_key`，且 `run_fresh_readiness` 结束后出现 `monitor_plan_required` 时未接回既有 monitor readonly bridge。修复仅补齐 authenticated owner 上下文并复用既有有界桥接器，不新增 Node、Gate、Plan/action 类型、确认短语或平台权限。
 
 修复后已对原 Job 执行一次安全 fresh monitor readonly：乾坤 accountIndex 返回 200、精确命中 1 条、owner 为 `zhangchaobo`、广告账户授权归一为 ready；确认当前无 monitor 后保存 `PLAN-JOB-MWBV2-20260907091309-5966E0-MONITOR-V2`。当前 Gate 为 `await_job_write_authorization`、Plan 为 ready、根阻断为空、平台动作数为 0，等待张超博本人使用精确短语“确认创建 monitor”。
+
+## 2026-09-07 首次 Monitor 确认后的平台调用前阻断
+
+张超博本人于 17:36:58 确认旧 Monitor V2。confirmation 已正确记录真实用户，但最终 ensure 调用漏传 `qiankun_owner_key`，以 `owner_key_missing_or_not_persisted` 在平台请求前 fail-closed；`create_called=false`、attempt 记录 0、Monitor 未创建。修复将 owner key 传至最终 ensure，并在确认后、平台调用前失败时把旧 Plan 收口为 consumed、Job 标记 `blocked_confirmed_monitor_plan`，恢复只允许 fresh Job 和全新 Plan/hash/confirmation。草稿构建同时在空 monitor ID 时保持等待，避免把空 ID 传入仓储校验。
+
+旧 Job `JOB-MWBV2-20260907091309-5966E0` 与旧 V2 已安全收口。已创建同一 Case 的 fresh Job `JOB-MWBV2-20260907094538-72505B`，完成乾坤 fresh readonly，保存新 Plan `PLAN-JOB-MWBV2-20260907094538-72505B-MONITOR-V2`。当前 Gate 为 `await_job_write_authorization`、root blocker 为空、平台写入仍为 0，等待张超博本人重新核对并确认新卡。

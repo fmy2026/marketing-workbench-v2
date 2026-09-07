@@ -2,7 +2,7 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "runtime_blocker_fixed_waiting_monitor_confirmation",
+  "status": "runtime_prewrite_gap_fixed_waiting_monitor_reconfirmation",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-07 CST",
   "owner_agent": "codex",
@@ -81,11 +81,14 @@
     },
     "first_peer_case": {
       "case_id": "CASE-MWBV2-B74ADD7F7382306A09",
-      "latest_job_id": "JOB-MWBV2-20260907091309-5966E0",
+      "latest_job_id": "JOB-MWBV2-20260907094538-72505B",
       "current_gate": "await_job_write_authorization",
-      "ready_plan_id": "PLAN-JOB-MWBV2-20260907091309-5966E0-MONITOR-V2",
+      "ready_plan_id": "PLAN-JOB-MWBV2-20260907094538-72505B-MONITOR-V2",
       "ready_plan_kind": "monitor_bootstrap",
-      "platform_action_count": 0
+      "platform_action_count": 0,
+      "superseded_failed_job_id": "JOB-MWBV2-20260907091309-5966E0",
+      "superseded_failure": "owner_key_missing_before_platform_call",
+      "superseded_platform_write_called": false
     }
   }
 }

@@ -60,6 +60,8 @@ ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源�
 
 已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 
+已确认 Monitor Plan 在平台调用前被 owner、合同或本地前置校验阻断时，同样必须把旧 Plan 收口为 `consumed`，Job 进入 `blocked_confirmed_monitor_plan`，并且保持 `create_called=false`。恢复只允许精确“重新只读准备”创建同一 Case 的 fresh runtime Job 和新 Plan/hash/confirmation；最终 monitor ensure 与全部 readonly 路径必须传递当前登录用户的精确 `qiankun_owner_key`。monitor ID 缺失时草稿构建保持等待，不得向仓储传空 ID。
+
 工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于配置的 origin、已登录且与账户 owner 完全一致的用户、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。非 HTTPS 只允许显式启用且 bind host/origin/port 完全一致的 RFC1918 IPv4；默认仍为 loopback，长期入口使用 HTTPS。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
 
 ## 真值
