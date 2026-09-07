@@ -74,6 +74,7 @@ export async function validatePlannedActionGrant({
       plan,
       projectStatePath,
       authorizationSource: confirmation?.confirmed_by || "",
+      authenticatedUserId: confirmation?.confirmed_by_user_id || "",
       requireAwaitingConfirmationGate: false
     })
     : {

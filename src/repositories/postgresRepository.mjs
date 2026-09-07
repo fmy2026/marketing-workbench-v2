@@ -155,6 +155,309 @@ export class PostgresRepository {
     this.database = database;
   }
 
+  async getWorkbenchUserByLogin(loginName) {
+    const login = String(loginName ?? "").trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]{2,63}$/.test(login)) return null;
+    return queryJson(`
+      SELECT to_jsonb(app_user)::text
+      FROM mwb.workbench_users app_user
+      WHERE lower(app_user.login_name) = ${sqlLiteral(login)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getWorkbenchUserById(userId) {
+    assertId("user_id", userId);
+    return queryJson(`
+      SELECT to_jsonb(app_user)::text
+      FROM mwb.workbench_users app_user
+      WHERE app_user.user_id = ${sqlLiteral(userId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getWorkbenchUserByOwnerKey(ownerKey) {
+    const owner = String(ownerKey ?? "").trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]{2,127}$/.test(owner)) return null;
+    return queryJson(`
+      SELECT to_jsonb(app_user)::text
+      FROM mwb.workbench_users app_user
+      WHERE lower(app_user.qiankun_owner_key) = ${sqlLiteral(owner)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async listWorkbenchUsers() {
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(
+        jsonb_build_object(
+          'userId', app_user.user_id,
+          'loginName', app_user.login_name,
+          'displayName', app_user.display_name,
+          'qiankunOwnerKey', app_user.qiankun_owner_key,
+          'role', app_user.user_role,
+          'status', app_user.user_status,
+          'mustChangePassword', app_user.must_change_password,
+          'lastLoginAt', app_user.last_login_at,
+          'updatedAt', app_user.updated_at
+        ) ORDER BY app_user.display_name, app_user.login_name
+      ), '[]'::jsonb)::text
+      FROM mwb.workbench_users app_user;
+    `, this.database);
+  }
+
+  async createWorkbenchSession({ sessionId, userId, tokenHash, expiresAt }) {
+    assertId("session_id", sessionId);
+    assertId("user_id", userId);
+    if (!/^sha256:[0-9a-f]{64}$/.test(String(tokenHash || ""))) throw new Error("invalid_session_token_hash");
+    await runPsql(`
+      INSERT INTO mwb.workbench_sessions (
+        session_id, user_id, token_hash, expires_at, last_seen_at, created_at
+      ) VALUES (
+        ${sqlLiteral(sessionId)}, ${sqlLiteral(userId)}, ${sqlLiteral(tokenHash)},
+        ${sqlLiteral(expiresAt)}::timestamptz, now(), now()
+      );
+      UPDATE mwb.workbench_users
+      SET last_login_at = now(), updated_at = now()
+      WHERE user_id = ${sqlLiteral(userId)};
+    `, this.database);
+  }
+
+  async getActiveWorkbenchSession(tokenHash) {
+    if (!/^sha256:[0-9a-f]{64}$/.test(String(tokenHash || ""))) return null;
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'session', to_jsonb(session),
+        'user', to_jsonb(app_user)
+      )::text
+      FROM mwb.workbench_sessions session
+      JOIN mwb.workbench_users app_user ON app_user.user_id = session.user_id
+      WHERE session.token_hash = ${sqlLiteral(tokenHash)}
+        AND session.revoked_at IS NULL
+        AND session.expires_at > now()
+        AND app_user.user_status = 'active'
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async touchWorkbenchSession(sessionId) {
+    assertId("session_id", sessionId);
+    await runPsql(`
+      UPDATE mwb.workbench_sessions
+      SET last_seen_at = now()
+      WHERE session_id = ${sqlLiteral(sessionId)}
+        AND revoked_at IS NULL
+        AND last_seen_at < now() - interval '5 minutes';
+    `, this.database);
+  }
+
+  async revokeWorkbenchSession(sessionId) {
+    assertId("session_id", sessionId);
+    await runPsql(`
+      UPDATE mwb.workbench_sessions
+      SET revoked_at = coalesce(revoked_at, now())
+      WHERE session_id = ${sqlLiteral(sessionId)};
+    `, this.database);
+  }
+
+  async revokeWorkbenchUserSessions(userId) {
+    assertId("user_id", userId);
+    await runPsql(`
+      UPDATE mwb.workbench_sessions
+      SET revoked_at = coalesce(revoked_at, now())
+      WHERE user_id = ${sqlLiteral(userId)} AND revoked_at IS NULL;
+    `, this.database);
+  }
+
+  async updateWorkbenchUserPassword({ userId, passwordHash, mustChangePassword = false }) {
+    assertId("user_id", userId);
+    if (!/^scrypt\$v1\$/.test(String(passwordHash || ""))) throw new Error("invalid_password_hash");
+    await runPsql(`
+      UPDATE mwb.workbench_users
+      SET password_hash = ${sqlLiteral(passwordHash)},
+          must_change_password = ${mustChangePassword === true ? "true" : "false"},
+          password_changed_at = ${mustChangePassword === true ? "NULL" : "now()"},
+          updated_at = now()
+      WHERE user_id = ${sqlLiteral(userId)};
+    `, this.database);
+  }
+
+  async updateWorkbenchUserStatus({ userId, userStatus }) {
+    assertId("user_id", userId);
+    if (!new Set(["active", "disabled"]).has(userStatus)) throw new Error("invalid_user_status");
+    await runPsql(`
+      UPDATE mwb.workbench_users
+      SET user_status = ${sqlLiteral(userStatus)}, updated_at = now()
+      WHERE user_id = ${sqlLiteral(userId)};
+    `, this.database);
+    if (userStatus === "disabled") await this.revokeWorkbenchUserSessions(userId);
+    return this.getWorkbenchUserById(userId);
+  }
+
+  async insertWorkbenchAuditEvent({
+    auditEventId,
+    actorUserId = "",
+    subjectUserId = "",
+    advertiserId = "",
+    eventType,
+    eventStatus,
+    summary = {}
+  }) {
+    assertId("audit_event_id", auditEventId);
+    if (actorUserId) assertId("actor_user_id", actorUserId);
+    if (subjectUserId) assertId("subject_user_id", subjectUserId);
+    if (advertiserId) assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("event_type", eventType);
+    assertId("event_status", eventStatus);
+    await runPsql(`
+      INSERT INTO mwb.workbench_audit_events (
+        audit_event_id, actor_user_id, subject_user_id, advertiser_id,
+        event_type, event_status, summary, created_at
+      ) VALUES (
+        ${sqlLiteral(auditEventId)},
+        ${actorUserId ? sqlLiteral(actorUserId) : "NULL"},
+        ${subjectUserId ? sqlLiteral(subjectUserId) : "NULL"},
+        ${advertiserId ? sqlLiteral(advertiserId) : "NULL"},
+        ${sqlLiteral(eventType)}, ${sqlLiteral(eventStatus)}, ${sqlJson(summary)}, now()
+      );
+    `, this.database);
+  }
+
+  async countRecentFailedLogins(loginName, { minutes = 15 } = {}) {
+    const login = String(loginName ?? "").trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]{2,63}$/.test(login)) return 0;
+    const result = await queryJson(`
+      SELECT to_jsonb(count(*))::text
+      FROM mwb.workbench_audit_events
+      WHERE event_type = 'login'
+        AND event_status = 'failed'
+        AND summary->>'loginName' = ${sqlLiteral(login)}
+        AND created_at > now() - (${Number(minutes) || 15} * interval '1 minute');
+    `, this.database);
+    return Number(result || 0);
+  }
+
+  async getUserWorkflowCaseDetail({ userId = "", admin = false } = {}) {
+    if (!admin) assertId("user_id", userId);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(detail)
+        ORDER BY detail.case_updated_at DESC, detail.case_id DESC), '[]'::jsonb)::text
+      FROM mwb.v_user_workflow_case_detail detail
+      ${admin ? "" : `WHERE detail.owner_user_id = ${sqlLiteral(userId)}`};
+    `, this.database);
+  }
+
+  async getUserWorkflowSummary({ userId = "", admin = false } = {}) {
+    if (!admin) assertId("user_id", userId);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(to_jsonb(summary)
+        ORDER BY summary.display_name, summary.login_name), '[]'::jsonb)::text
+      FROM mwb.v_user_workflow_summary summary
+      ${admin ? "" : `WHERE summary.user_id = ${sqlLiteral(userId)}`};
+    `, this.database);
+  }
+
+  async bindAdvertiserOwner({ advertiserId, userId, qiankunOwnerKey }) {
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("user_id", userId);
+    const ownerKey = String(qiankunOwnerKey ?? "").trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]{2,127}$/.test(ownerKey)) throw new Error("invalid_qiankun_owner_key");
+    const result = await queryJson(`
+      WITH eligible AS (
+        SELECT account.advertiser_id
+        FROM mwb.advertiser_accounts account
+        JOIN mwb.workbench_users app_user
+          ON app_user.user_id = ${sqlLiteral(userId)}
+         AND app_user.user_status = 'active'
+         AND lower(app_user.qiankun_owner_key) = ${sqlLiteral(ownerKey)}
+        WHERE account.advertiser_id = ${sqlLiteral(advertiserId)}
+          AND lower(account.qiankun_owner_key) = ${sqlLiteral(ownerKey)}
+          AND (account.owner_user_id IS NULL OR account.owner_user_id = app_user.user_id)
+        FOR UPDATE OF account
+      ), bound AS (
+        UPDATE mwb.advertiser_accounts account
+        SET owner_user_id = ${sqlLiteral(userId)}, updated_at = now()
+        WHERE account.advertiser_id IN (SELECT advertiser_id FROM eligible)
+        RETURNING account.*
+      )
+      SELECT jsonb_build_object(
+        'bound', EXISTS (SELECT 1 FROM bound),
+        'account', (SELECT to_jsonb(bound) FROM bound LIMIT 1)
+      )::text;
+    `, this.database);
+    return result || { bound: false, account: null };
+  }
+
+  async getAdvertiserAccess({ advertiserId, userId }) {
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("user_id", userId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'allowed', account.owner_user_id = app_user.user_id
+          AND app_user.user_status = 'active'
+          AND lower(account.qiankun_owner_key) = lower(app_user.qiankun_owner_key),
+        'advertiserId', account.advertiser_id,
+        'ownerUserId', account.owner_user_id,
+        'ownerDisplayName', coalesce(owner_user.display_name, account.owner_name, ''),
+        'ownerLoginName', coalesce(owner_user.login_name, ''),
+        'qiankunOwnerKey', account.qiankun_owner_key
+      )::text
+      FROM mwb.advertiser_accounts account
+      JOIN mwb.workbench_users app_user ON app_user.user_id = ${sqlLiteral(userId)}
+      LEFT JOIN mwb.workbench_users owner_user ON owner_user.user_id = account.owner_user_id
+      WHERE account.advertiser_id = ${sqlLiteral(advertiserId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getWorkflowCaseAccess({ caseId, userId }) {
+    assertId("case_id", caseId);
+    assertId("user_id", userId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'allowed', workflow_case.owner_user_id = app_user.user_id
+          AND account.owner_user_id = app_user.user_id
+          AND app_user.user_status = 'active'
+          AND lower(account.qiankun_owner_key) = lower(app_user.qiankun_owner_key),
+        'caseId', workflow_case.case_id,
+        'advertiserId', workflow_case.advertiser_id,
+        'ownerUserId', workflow_case.owner_user_id,
+        'ownerDisplayName', coalesce(owner_user.display_name, account.owner_name, '')
+      )::text
+      FROM mwb.workflow_cases workflow_case
+      JOIN mwb.advertiser_accounts account ON account.advertiser_id = workflow_case.advertiser_id
+      JOIN mwb.workbench_users app_user ON app_user.user_id = ${sqlLiteral(userId)}
+      LEFT JOIN mwb.workbench_users owner_user ON owner_user.user_id = workflow_case.owner_user_id
+      WHERE workflow_case.case_id = ${sqlLiteral(caseId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getLaunchJobAccess({ jobId, userId }) {
+    assertId("job_id", jobId);
+    assertId("user_id", userId);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'allowed', workflow_case.owner_user_id = app_user.user_id
+          AND account.owner_user_id = app_user.user_id
+          AND app_user.user_status = 'active'
+          AND lower(account.qiankun_owner_key) = lower(app_user.qiankun_owner_key),
+        'jobId', job.job_id,
+        'caseId', workflow_case.case_id,
+        'advertiserId', job.advertiser_id,
+        'ownerUserId', workflow_case.owner_user_id,
+        'ownerDisplayName', coalesce(owner_user.display_name, account.owner_name, '')
+      )::text
+      FROM mwb.launch_jobs job
+      JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = job.case_id
+      JOIN mwb.advertiser_accounts account ON account.advertiser_id = job.advertiser_id
+      JOIN mwb.workbench_users app_user ON app_user.user_id = ${sqlLiteral(userId)}
+      LEFT JOIN mwb.workbench_users owner_user ON owner_user.user_id = workflow_case.owner_user_id
+      WHERE job.job_id = ${sqlLiteral(jobId)}
+      LIMIT 1;
+    `, this.database);
+  }
+
   async sourceUsageForJob(jobId) {
     assertId("job_id", jobId);
     return queryJson(`
@@ -883,6 +1186,8 @@ export class PostgresRepository {
     businessGoal = "",
     lifecycleStatus = "active",
     sourceUsage = "runtime_truth",
+    ownerUserId = "",
+    createdByUserId = "",
     metadata = {}
   }) {
     assertId("case_id", caseId);
@@ -892,14 +1197,20 @@ export class PostgresRepository {
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
     assertId("lifecycle_status", lifecycleStatus);
     assertId("source_usage", sourceUsage);
+    if (ownerUserId) assertId("owner_user_id", ownerUserId);
+    if (createdByUserId) assertId("created_by_user_id", createdByUserId);
     if (typeof metadata !== "object" || Array.isArray(metadata) || metadata === null) throw new Error("invalid_workflow_case_metadata");
     await runPsql(`
       INSERT INTO mwb.workflow_cases (
         case_id, case_key, route_id, game_code, advertiser_id,
-        business_goal, lifecycle_status, source_usage, metadata, created_at, updated_at
+        business_goal, lifecycle_status, source_usage, owner_user_id,
+        created_by_user_id, metadata, created_at, updated_at
       ) VALUES (
         ${sqlLiteral(caseId)}, ${sqlLiteral(caseKey)}, ${sqlLiteral(routeId)}, ${sqlLiteral(gameCode)}, ${sqlLiteral(advertiserId)},
-        ${sqlLiteral(businessGoal)}, ${sqlLiteral(lifecycleStatus)}, ${sqlLiteral(sourceUsage)}, ${sqlJson(metadata)}, now(), now()
+        ${sqlLiteral(businessGoal)}, ${sqlLiteral(lifecycleStatus)}, ${sqlLiteral(sourceUsage)},
+        ${ownerUserId ? sqlLiteral(ownerUserId) : "NULL"},
+        ${createdByUserId ? sqlLiteral(createdByUserId) : "NULL"},
+        ${sqlJson(metadata)}, now(), now()
       );
     `, this.database);
     return this.getWorkflowCase(caseId);
@@ -1119,17 +1430,20 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async listWorkflowCaseSummaries({ sourceUsage = "", lifecycleStatus = "" } = {}) {
+  async listWorkflowCaseSummaries({ sourceUsage = "", lifecycleStatus = "", ownerUserId = "" } = {}) {
     if (sourceUsage) assertId("source_usage", sourceUsage);
     if (lifecycleStatus) assertId("lifecycle_status", lifecycleStatus);
+    if (ownerUserId) assertId("owner_user_id", ownerUserId);
     const filters = [
       sourceUsage ? `summary.source_usage = ${sqlLiteral(sourceUsage)}` : "",
-      lifecycleStatus ? `summary.lifecycle_status = ${sqlLiteral(lifecycleStatus)}` : ""
+      lifecycleStatus ? `summary.lifecycle_status = ${sqlLiteral(lifecycleStatus)}` : "",
+      ownerUserId ? `workflow_case.owner_user_id = ${sqlLiteral(ownerUserId)}` : ""
     ].filter(Boolean);
     const sourceFilter = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
     return queryJson(`
       SELECT coalesce(jsonb_agg(to_jsonb(summary) ORDER BY summary.latest_job_updated_at DESC NULLS LAST, summary.updated_at DESC), '[]'::jsonb)::text
       FROM mwb.workflow_case_summary summary
+      JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = summary.case_id
       ${sourceFilter};
     `, this.database);
   }
@@ -3792,6 +4106,7 @@ export class PostgresRepository {
         confirmation_status,
         confirm_variable,
         confirmed_by,
+        confirmed_by_user_id,
         plan_id,
         metadata,
         confirmed_at
@@ -3805,6 +4120,7 @@ export class PostgresRepository {
         ${sqlLiteral(confirmation.confirmationStatus)},
         ${sqlLiteral(confirmation.confirmVariable)},
         ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+        ${confirmation.confirmedByUserId ? sqlLiteral(assertId("confirmed_by_user_id", confirmation.confirmedByUserId)) : "NULL"},
         ${confirmation.planId ? sqlLiteral(confirmation.planId) : "NULL"},
         ${sqlJson(confirmation.metadata || {})},
         now()
@@ -3843,6 +4159,7 @@ export class PostgresRepository {
           confirmation_status,
           confirm_variable,
           confirmed_by,
+          confirmed_by_user_id,
           plan_id,
           metadata,
           confirmed_at
@@ -3856,6 +4173,7 @@ export class PostgresRepository {
           ${sqlLiteral(confirmation.confirmationStatus)},
           ${sqlLiteral(confirmation.confirmVariable)},
           ${sqlLiteral(confirmation.confirmedBy || "local_operator")},
+          ${confirmation.confirmedByUserId ? sqlLiteral(assertId("confirmed_by_user_id", confirmation.confirmedByUserId)) : "NULL"},
           ${sqlLiteral(confirmation.planId)},
           ${sqlJson(confirmation.metadata || {})},
           now()

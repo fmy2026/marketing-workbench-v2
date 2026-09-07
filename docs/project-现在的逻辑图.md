@@ -4,14 +4,14 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `071_post_monitor_same_job_readiness_reentry.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `072_workbench_users_account_isolation.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
 
-> `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902` 已于 2026-09-06 闭环；当前控制面无 active Task。后续业务下一步只读 `workflow_case_summary`。
+> 当前实施 Task 为 `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；它只增加工作台访问控制和只读人员报表，不改变业务 Gate。后续业务下一步仍只读 `workflow_case_summary`。
 
 当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
 
@@ -37,11 +37,13 @@ frontend / API / CLI / 任务卡 / 工作台对话
 `scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
 
 ```text
-工作台三项输入（route + game + advertiser）
+用户登录（首次登录强制改密）
+→ 工作台三项输入（route + game + advertiser）
 → 聊天框只规范化三项输入，不创建 Case、Job 或平台对象
 → 用户核对规范化输入后点击“启动流程”
+→ 当前用户乾坤 owner key 执行 accountIndex 精确只读归属校验
+→ sso_owner 与当前用户一致并原子绑定唯一 owner_user_id
 → 验证路线×游戏默认配置
-→ 账户缺失时执行乾坤 accountIndex 精确只读预检
 → 唯一命中且身份合同完整：写 canonical `auth_status` 的 advertiser_accounts + 脱敏 evidence
 → 创建或复用 active Case → fresh runtime Job
 → 先读取唯一 Gate：`run_monitor_readonly` 时自动 fresh readonly reconcile
@@ -50,6 +52,8 @@ frontend / API / CLI / 任务卡 / 工作台对话
 ```
 
 账户发现只补齐当前 route×game×advertiser 记录，不继承其他账户的 monitor、触点或动态资源 ID。零/多匹配、凭据异常、owner/agent/媒体主体缺失或既有账户 scope 冲突均在 Case/Job 前 fail-closed。自动阶段只读平台并写内部事实；`launch_confirmations`、`platform_actions`、`monitor_provision_attempts` 仍必须等到精确“确认创建 monitor”后才可产生创建记录。
+
+归属校验属于 Case/Job 前的工作台访问控制，不是 Workflow Node，也不生成业务 Gate。一个账户只归属一个人员；普通用户只能操作本人账户。管理员可以读取全员流程汇总和管理用户状态/初始密码，但访问 Case、Job、运行和确认时仍必须是账户本人。所有 confirmation 记录真实登录用户，URL 或请求参数中的账户、Case、Job 任一越权均按不可见处理。
 
 账户状态只允许在 `advertiser_accounts` 唯一持久化入口归一：“授权正常”“已授权”“ready”“active”均为 `ready`，其余值保持 fail-closed。`workflow_case_summary` 对最新 Job 读取当前同 scope 账户：账户存在时历史 `account_missing` 不再阻断，账户为 `ready` 时历史 `account_not_ready` 不再阻断；Skill 历史仍在 `?job_id=` 审计视图保留。没有当前账户或状态非 READY 时，原 blocker 与 Gate 不变。
 

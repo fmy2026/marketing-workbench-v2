@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
 | 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `071_post_monitor_same_job_readiness_reentry.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `072_workbench_users_account_isolation.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -30,18 +30,23 @@
 ## 工作台
 
 ```text
-工作台唯一入口：http://127.0.0.1:3000/；根页选择活动 Case，`?case_id=` 恢复最新进度，`?job_id=` 只读历史。
+工作台本机入口：http://127.0.0.1:3000/；局域网入口由 `WORKBENCH_PUBLIC_ORIGIN` 指向内网 HTTPS 反向代理。登录后根页只列本人活动 Case，`?case_id=` 恢复本人最新进度，`?job_id=` 只读本人历史。
 ```
 
 ```text
 用户消息
+→ 登录用户与强制改密
 → allowlist Intent Resolver
+→ Intake 三项完成后的乾坤 accountIndex 只读归属校验
+→ 账户、Case、Job 的 owner_user_id 访问控制
 → Gate Action Policy（只读 workflow_case_summary）
 → 状态说明 / safe readonly / Plan 确认卡
 → 既有 Plan-bound executor
 ```
 
 全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台启动先读取 active Case 最新 Job 的唯一 Gate：`run_monitor_readonly` 时自动执行一次 fresh monitor readonly reconcile；只有 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，直接返回“确认创建 monitor”卡片；该 Plan 的确认与权威回查成功后仍由同一有界推进器继续 readonly。每轮最多一次 reconcile 和一次 dry-run，到达确认 Gate、真实 blocker、完成态或 Gate 无变化立即停止，确认前不得调用创建接口。
+
+工作台用户以乾坤拼音账号登录，初始密码仅用于首次登录且必须立即修改；会话只保存随机 token 的 SHA-256。一个广告账户只能绑定一个 active `workbench_users`，每次新 Intake 都在创建 Case/Job 前用当前用户的乾坤 owner key 执行 `accountIndex` 精确校验。普通用户只能读取、启动、运行和确认本人账户；管理员可以管理用户并读取全员报表，但同样不得代操作他人账户。任何账户、Case、Job、历史或 command 访问都必须同时匹配用户、账户 owner 和当前 `qiankun_owner_key`；归属冲突只写脱敏审计，不自动转移。
 
 同一 Job 的 `plan_version` 与 `create_attempt_no` 必须分离：已消费 Monitor Plan V2 后，下一份普通 Resource Plan 使用并在同一轮复用 V3，标准项目创建 attempt 仍为 1。active latest Job 在 monitor READY、最新 Monitor Plan 已消费且零标准项目创建 action 时，由唯一 View 投影 `run_fresh_readiness`，不得以零 blocker 落入 `review_latest_job`。Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步脱敏的账户级 event asset provision 合同；前提不完整时不得落合同或生成 action。
 
@@ -55,7 +60,7 @@ ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源�
 
 已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 
-本机工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于 loopback、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
+工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于配置的内网 HTTPS origin、已登录且与账户 owner 完全一致的用户、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。本机 loopback 仅保留开发访问。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
 
 ## 真值
 
@@ -114,7 +119,7 @@ frontend / API
 ## 权限与安全
 
 - Node 结果写 `launch_node_runs`；Skill 结果写 `launch_skill_runs`。
-- `project.state.json.guardrails` 只提供全局边界；真实写入必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限，并且只能由 active Task scope 或启用的 loopback Plan-bound 工作台策略二选一授权。
+- `project.state.json.guardrails` 只提供全局边界；真实写入必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限，并且只能由 active Task scope 或启用的 authenticated-LAN Plan-bound 工作台策略二选一授权。
 - 只有 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其他缺失资源只形成 blocker。
 - 每份确认 Plan 只能按冻结动作执行一次；修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
 - 缺少最终 Draft 时 `std_project_create` Plan 只能保持非 ready 诊断状态。ready Plan 必须在同一原子持久化中完成当前 Draft 的精确 Plan ID/hash 绑定并写入 `plan_derivation_status=passed`，且最新 Job 为 `draft_ready`、Node 04 为 `passed` 后才可确认；任一条件不满足时不得写入 confirmation 或 action。已确认 Create Plan 在创建前 fail-closed 且零 `std_project_create` action 时，必须收口为 `consumed` 并将 Job 置于既有人工修正终态，旧 confirmation 保留且不得重用。

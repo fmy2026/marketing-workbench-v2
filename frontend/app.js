@@ -22,6 +22,7 @@ import {
   let draftCaseKey = "";
   let pendingConfirmation = null;
   let rootHome = false;
+  let currentUser = null;
   const chatMessages = [];
   const focusedNodes = new Map();
   const draftIntake = {
@@ -53,6 +54,7 @@ import {
     if (!response.ok) {
       const error = new Error(body.error || "执行失败");
       error.details = body.details;
+      error.status = response.status;
       throw error;
     }
     return body;
@@ -387,7 +389,8 @@ import {
   }
 
   function showError(error) {
-    message("agent", `唯一阻断：${error.message}`);
+    const owner = error.details?.ownerDisplayName ? `；账户归属人：${error.details.ownerDisplayName}` : "";
+    message("agent", `唯一阻断：${error.message}${owner}`);
   }
 
   async function refreshProgress() {
@@ -548,6 +551,193 @@ import {
     renderAll();
   }
 
+  function showLogin() {
+    currentUser = null;
+    document.getElementById("authGate").hidden = false;
+    document.getElementById("loginForm").hidden = false;
+    document.getElementById("changePasswordForm").hidden = true;
+    document.getElementById("workbenchShell").hidden = true;
+  }
+
+  function showPasswordChange({ forced = currentUser?.mustChangePassword === true } = {}) {
+    document.getElementById("authGate").hidden = false;
+    document.getElementById("loginForm").hidden = true;
+    document.getElementById("changePasswordForm").hidden = false;
+    document.getElementById("workbenchShell").hidden = true;
+    document.getElementById("changePasswordTitle").textContent = forced ? "修改初始密码" : "修改密码";
+    document.getElementById("changePasswordHint").textContent = forced ? "首次登录后才能进入工作台" : "修改后其他会话会自动退出";
+    document.getElementById("savePasswordButton").textContent = forced ? "保存并进入" : "保存新密码";
+    document.getElementById("cancelPasswordChangeButton").hidden = forced;
+    document.getElementById("changePasswordError").textContent = "";
+    document.getElementById("currentPassword").value = "";
+    document.getElementById("newPassword").value = "";
+    document.getElementById("confirmPassword").value = "";
+  }
+
+  function showWorkbench() {
+    document.getElementById("authGate").hidden = true;
+    document.getElementById("workbenchShell").hidden = false;
+    document.getElementById("operatorName").textContent = currentUser?.displayName || currentUser?.loginName || "当前用户";
+    document.getElementById("operatorAvatar").textContent = (currentUser?.displayName || "用").slice(0, 1);
+    document.getElementById("userAdminButton").hidden = currentUser?.role !== "admin";
+  }
+
+  function table(headers, rows) {
+    const tableNode = el("table", "management-table");
+    const head = el("thead", "");
+    const headRow = el("tr", "");
+    headers.forEach((header) => headRow.append(el("th", "", header)));
+    head.append(headRow);
+    tableNode.append(head);
+    const body = el("tbody", "");
+    rows.forEach((cells) => {
+      const row = el("tr", "");
+      cells.forEach((cell) => {
+        const td = el("td", "");
+        if (cell instanceof Node) td.append(cell);
+        else td.textContent = String(cell ?? "");
+        row.append(td);
+      });
+      body.append(row);
+    });
+    tableNode.append(body);
+    return tableNode;
+  }
+
+  function openManagement(title, hint) {
+    document.getElementById("managementTitle").textContent = title;
+    document.getElementById("managementHint").textContent = hint;
+    document.getElementById("managementContent").innerHTML = "";
+    document.getElementById("managementPanel").hidden = false;
+  }
+
+  async function renderReports() {
+    openManagement("创建流程统计", currentUser?.role === "admin" ? "全部试用人员汇总" : "仅统计本人归属账户");
+    const [summaryResult, detailResult] = await Promise.all([
+      api("/api/reports/workflow-summary"),
+      api("/api/reports/workflow-detail")
+    ]);
+    const content = document.getElementById("managementContent");
+    content.append(table(
+      ["人员", "账户", "Case", "已验证成功", "进行中", "阻断", "未成功终态"],
+      (summaryResult.users || []).map((item) => [
+        `${item.display_name || item.displayName} (${item.login_name || item.loginName})`,
+        item.advertiser_count ?? item.advertiserCount ?? 0,
+        item.case_count ?? item.caseCount ?? 0,
+        item.verified_success_count ?? item.verifiedSuccessCount ?? 0,
+        item.active_case_count ?? item.activeCaseCount ?? 0,
+        item.blocked_case_count ?? item.blockedCaseCount ?? 0,
+        item.terminal_unsuccessful_count ?? item.terminalUnsuccessfulCount ?? 0
+      ])
+    ));
+    content.append(table(
+      ["归属人", "账户", "游戏", "状态", "当前 Gate", "唯一阻断"],
+      (detailResult.cases || []).map((item) => [
+        item.owner_display_name || "待核实",
+        item.advertiser_id || "-",
+        item.game_code || "-",
+        item.lifecycle_status || "-",
+        item.current_gate || "-",
+        (item.root_blocker_codes || [])[0] || ""
+      ])
+    ));
+  }
+
+  async function renderUserAdmin() {
+    openManagement("用户管理", "管理员可启停用户或重置为初始密码；不能代操作账户。");
+    const result = await api("/api/admin/users");
+    const rows = (result.users || []).map((item) => {
+      const actions = el("div", "");
+      const statusButton = el("button", "topbar-action", item.status === "active" ? "停用" : "启用");
+      statusButton.disabled = item.userId === currentUser?.userId;
+      statusButton.addEventListener("click", async () => {
+        await api(`/api/admin/users/${encodeURIComponent(item.userId)}/status`, {
+          method: "POST",
+          body: JSON.stringify({ status: item.status === "active" ? "disabled" : "active" })
+        });
+        await renderUserAdmin();
+      });
+      const resetButton = el("button", "topbar-action", "重置密码");
+      resetButton.disabled = item.userId === currentUser?.userId;
+      resetButton.addEventListener("click", async () => {
+        await api(`/api/admin/users/${encodeURIComponent(item.userId)}/reset-password`, {
+          method: "POST",
+          body: "{}"
+        });
+        await renderUserAdmin();
+      });
+      actions.append(statusButton, resetButton);
+      return [
+        `${item.displayName} (${item.loginName})`,
+        item.role,
+        item.status,
+        item.mustChangePassword ? "是" : "否",
+        actions
+      ];
+    });
+    document.getElementById("managementContent").append(table(["用户", "角色", "状态", "需改密", "操作"], rows));
+  }
+
+  function bindAuthInteractions() {
+    document.getElementById("loginForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const errorNode = document.getElementById("loginError");
+      errorNode.textContent = "";
+      try {
+        const result = await api("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({
+            login_name: document.getElementById("loginName").value,
+            password: document.getElementById("loginPassword").value
+          })
+        });
+        currentUser = result.user;
+        if (currentUser.mustChangePassword) showPasswordChange();
+        else {
+          showWorkbench();
+          await loadWorkspace();
+        }
+      } catch (error) {
+        errorNode.textContent = error.message === "login_temporarily_locked" ? "登录失败次数过多，请稍后再试。" : "账号或密码错误。";
+      }
+    });
+    document.getElementById("changePasswordForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const errorNode = document.getElementById("changePasswordError");
+      const nextPassword = document.getElementById("newPassword").value;
+      if (nextPassword !== document.getElementById("confirmPassword").value) {
+        errorNode.textContent = "两次新密码不一致。";
+        return;
+      }
+      try {
+        const result = await api("/api/auth/change-password", {
+          method: "POST",
+          body: JSON.stringify({
+            current_password: document.getElementById("currentPassword").value,
+            new_password: nextPassword
+          })
+        });
+        currentUser = result.user;
+        showWorkbench();
+        if (job || workbench) renderAll();
+        else await loadWorkspace();
+      } catch (error) {
+        errorNode.textContent = error.message === "current_password_invalid" ? "当前密码错误。" : "新密码至少 8 位，且不能继续使用初始密码。";
+      }
+    });
+    document.getElementById("logoutButton").addEventListener("click", async () => {
+      await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
+      window.location.assign("/");
+    });
+    document.getElementById("changePasswordButton").addEventListener("click", () => showPasswordChange({ forced: false }));
+    document.getElementById("cancelPasswordChangeButton").addEventListener("click", () => showWorkbench());
+    document.getElementById("reportButton").addEventListener("click", () => renderReports().catch(showError));
+    document.getElementById("userAdminButton").addEventListener("click", () => renderUserAdmin().catch(showError));
+    document.getElementById("managementCloseButton").addEventListener("click", () => {
+      document.getElementById("managementPanel").hidden = true;
+    });
+  }
+
   function bindInteractions() {
     document.getElementById("progressRefreshButton").addEventListener("click", () => {
       refreshProgressFromButton();
@@ -585,30 +775,47 @@ import {
     });
   }
 
-  async function init() {
-    bindInteractions();
-    try {
-      const target = parseWorkbenchProgressTarget(window.location.search);
-      if (target.status === "invalid") throw new Error(target.error);
-      rootHome = target.status === "home";
-      viewOnly = target.status === "job";
-      if (target.status === "job") {
-        setJobView(await api(jobViewPath(target.jobId)));
-      } else if (target.status === "case") {
-        const caseView = await api(`/api/workflow-cases/${encodeURIComponent(target.caseId)}`);
-        const latestJobId = caseView.summary?.latest_job_id || "";
-        if (latestJobId) {
-          draftCaseId = target.caseId;
-          setJobView(await api(jobViewPath(latestJobId)));
-        } else {
-          workbench = await api("/api/launch/workbench");
-        }
+  async function loadWorkspace() {
+    const target = parseWorkbenchProgressTarget(window.location.search);
+    if (target.status === "invalid") throw new Error(target.error);
+    rootHome = target.status === "home";
+    viewOnly = target.status === "job";
+    if (target.status === "job") {
+      setJobView(await api(jobViewPath(target.jobId)));
+    } else if (target.status === "case") {
+      const caseView = await api(`/api/workflow-cases/${encodeURIComponent(target.caseId)}`);
+      const latestJobId = caseView.summary?.latest_job_id || "";
+      if (latestJobId) {
+        draftCaseId = target.caseId;
+        setJobView(await api(jobViewPath(latestJobId)));
       } else {
         workbench = await api("/api/launch/workbench");
       }
-      renderAll();
+    } else {
+      workbench = await api("/api/launch/workbench");
+    }
+    renderAll();
+  }
+
+  async function init() {
+    bindInteractions();
+    bindAuthInteractions();
+    try {
+      const session = await api("/api/auth/me");
+      currentUser = session.user;
+      if (currentUser.mustChangePassword) {
+        showPasswordChange();
+        return;
+      }
+      showWorkbench();
+      await loadWorkspace();
     } catch (error) {
+      if (error.status === 401) {
+        showLogin();
+        return;
+      }
       document.getElementById("agentStatus").textContent = "加载失败";
+      showWorkbench();
       showError(error);
     }
   }

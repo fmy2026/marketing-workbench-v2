@@ -282,6 +282,7 @@ export async function executeConfirmedResourcePlan({
   grantSource = "workbench_conversation",
   projectStatePath,
   fetchImpl = globalThis.fetch,
+  confirmedByUserId = "",
   executorOverrides = {}
 } = {}) {
   if (!repo || !jobId) throw new Error("confirmed_resource_plan_job_required");
@@ -300,7 +301,8 @@ export async function executeConfirmedResourcePlan({
     repo,
     bundle,
     projectStatePath,
-    authorizationSource: grantSource
+    authorizationSource: grantSource,
+    authenticatedUserId: confirmedByUserId
   });
   if (availability.status !== "passed") {
     return sanitizeForPublic({ status: "blocked", blockers: availability.blockers, createCalled: false });
@@ -318,6 +320,7 @@ export async function executeConfirmedResourcePlan({
     confirmationStatus: "confirmed_for_execution_plan",
     confirmVariable: "workbench:confirm_resource_prepare",
     confirmedBy: grantSource,
+    confirmedByUserId,
     planId: currentPlanId,
     metadata: {
       binding_mode: "single_confirmation_plan",

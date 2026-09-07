@@ -148,7 +148,8 @@ export async function validatePlanConfirmationScope({
   repo,
   bundle,
   projectStatePath = defaultProjectStatePath,
-  authorizationSource = "workbench_view"
+  authorizationSource = "workbench_view",
+  authenticatedUserId = ""
 }) {
   const state = await readProjectState(projectStatePath);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
@@ -157,7 +158,8 @@ export async function validatePlanConfirmationScope({
     bundle,
     plan,
     projectStatePath,
-    authorizationSource
+    authorizationSource,
+    authenticatedUserId
   });
   const scope = plan?.metadata?.execution_scope || {};
   const actions = plan?.planned_actions || plan?.plannedActions || [];
@@ -216,7 +218,8 @@ export async function validateResourcePlanConfirmationScope({
   repo,
   bundle,
   projectStatePath = defaultProjectStatePath,
-  authorizationSource = "workbench_view"
+  authorizationSource = "workbench_view",
+  authenticatedUserId = ""
 }) {
   const state = await readProjectState(projectStatePath);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
@@ -225,7 +228,8 @@ export async function validateResourcePlanConfirmationScope({
     bundle,
     plan,
     projectStatePath,
-    authorizationSource
+    authorizationSource,
+    authenticatedUserId
   });
   const scope = plan?.metadata?.execution_scope || {};
   const actions = plan?.planned_actions || plan?.plannedActions || [];

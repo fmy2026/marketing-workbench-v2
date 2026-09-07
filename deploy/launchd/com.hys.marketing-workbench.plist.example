@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hys.marketing-workbench</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/hys/Projects/marketing-workbench-v2/src/server/index.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/hys/Projects/marketing-workbench-v2</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WORKBENCH_PUBLIC_ORIGIN</key>
+    <string>https://&lt;workbench.internal.example&gt;</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/hys/Projects/marketing-workbench-v2/.local/logs/workbench.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/hys/Projects/marketing-workbench-v2/.local/logs/workbench.stderr.log</string>
+</dict>
+</plist>

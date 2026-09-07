@@ -2,6 +2,14 @@ export const WORKBENCH_HOST = "127.0.0.1";
 export const WORKBENCH_PORT = 3000;
 export const WORKBENCH_ORIGIN = `http://${WORKBENCH_HOST}:${WORKBENCH_PORT}`;
 
+export function currentWorkbenchOrigin() {
+  if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
+  if (typeof process !== "undefined" && process.env?.WORKBENCH_PUBLIC_ORIGIN) {
+    return String(process.env.WORKBENCH_PUBLIC_ORIGIN).replace(/\/$/, "");
+  }
+  return WORKBENCH_ORIGIN;
+}
+
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
 function requiredIdentifier(name, value) {
@@ -11,7 +19,7 @@ function requiredIdentifier(name, value) {
 }
 
 export function workbenchHomeUrl() {
-  return `${WORKBENCH_ORIGIN}/`;
+  return `${currentWorkbenchOrigin()}/`;
 }
 
 export function workbenchCaseUrl(caseId) {

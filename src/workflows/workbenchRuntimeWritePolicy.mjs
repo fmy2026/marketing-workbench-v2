@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 export const DEFAULT_PROJECT_STATE_PATH = join(rootDir, "project.state.json");
 const LOOPBACK_WORKBENCH_ORIGIN = "http://127.0.0.1:3000";
+const CONFIGURED_LAN_ORIGIN = "configured:WORKBENCH_PUBLIC_ORIGIN";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -37,6 +38,7 @@ export async function evaluatePlanBoundWriteAuthorization({
   plan = bundle?.executionPlan,
   projectStatePath = DEFAULT_PROJECT_STATE_PATH,
   authorizationSource = "",
+  authenticatedUserId = "",
   requireAwaitingConfirmationGate = true
 } = {}) {
   if (!bundle?.job) throw new Error("plan_bound_authorization_job_required");
@@ -59,12 +61,22 @@ export async function evaluatePlanBoundWriteAuthorization({
   const allowedSourceUsage = Array.isArray(policy.allowed_source_usage) ? policy.allowed_source_usage : [];
   const allowedPlanKinds = Array.isArray(policy.allowed_plan_kinds) ? policy.allowed_plan_kinds : [];
   const source = clean(authorizationSource);
+  const actorUserId = clean(authenticatedUserId);
+  const authenticatedLanMode = policy.mode === "authenticated_lan_plan_bound_confirmation_only";
+  const legacyLoopbackMode = policy.mode === "loopback_plan_bound_confirmation_only";
+  const runtimeAuthenticatedRequest = authenticatedLanMode && bundle.job.source_usage === "runtime_truth" && source === "workbench_conversation";
   const currentPlanId = planId(plan);
   const currentPlanHash = planHash(plan);
   const blockers = [
     ...(policy.enabled === true ? [] : ["platform_write_scope_not_enabled", "workbench_runtime_write_policy_not_enabled"]),
-    ...(policy.mode === "loopback_plan_bound_confirmation_only" ? [] : ["workbench_runtime_write_policy_mode_invalid"]),
-    ...(clean(policy.origin).replace(/\/$/, "") === LOOPBACK_WORKBENCH_ORIGIN ? [] : ["workbench_runtime_origin_policy_invalid"]),
+    ...(authenticatedLanMode || legacyLoopbackMode ? [] : ["workbench_runtime_write_policy_mode_invalid"]),
+    ...(authenticatedLanMode
+      ? clean(policy.origin) === CONFIGURED_LAN_ORIGIN ? [] : ["workbench_runtime_origin_policy_invalid"]
+      : clean(policy.origin).replace(/\/$/, "") === LOOPBACK_WORKBENCH_ORIGIN ? [] : ["workbench_runtime_origin_policy_invalid"]),
+    ...(authenticatedLanMode && policy.require_authenticated_owner !== true ? ["workbench_runtime_authenticated_owner_requirement_invalid"] : []),
+    ...(runtimeAuthenticatedRequest && !actorUserId ? ["workbench_runtime_authenticated_user_missing"] : []),
+    ...(runtimeAuthenticatedRequest && actorUserId && bundle.case?.owner_user_id !== actorUserId ? ["workbench_runtime_case_owner_mismatch"] : []),
+    ...(runtimeAuthenticatedRequest && actorUserId && bundle.account?.owner_user_id !== actorUserId ? ["workbench_runtime_account_owner_mismatch"] : []),
     ...(policy.require_active_case === true ? [] : ["workbench_runtime_active_case_requirement_invalid"]),
     ...(policy.require_latest_case_job === true ? [] : ["workbench_runtime_latest_job_requirement_invalid"]),
     ...(policy.require_exact_plan_binding === true ? [] : ["workbench_runtime_plan_binding_requirement_invalid"]),

@@ -74,6 +74,7 @@ export async function executeConfirmedLaunch({
   envConfirm = process.env[EXECUTION_GRANT_CONFIRM_ENV] || "",
   fetchImpl = globalThis.fetch,
   projectStatePath,
+  confirmedByUserId = "",
   getJobViewFn = getJobView,
   runJobFn = runJob
 } = {}) {
@@ -131,7 +132,7 @@ export async function executeConfirmedLaunch({
     return result;
   }
   const scopeCheck = planBound
-    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource })
+    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   if (scopeCheck.blockers.length) {
     const view = await getJobViewFn(repo, jobId, { projectStatePath });
@@ -175,7 +176,8 @@ export async function executeConfirmedLaunch({
       repo,
       bundle: latestBundleBeforeCreate,
       projectStatePath,
-      authorizationSource: grantSource
+      authorizationSource: grantSource,
+      authenticatedUserId: confirmedByUserId
     })
     : await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
   if (secondScopeCheck.blockers.length) {
@@ -213,6 +215,7 @@ export async function executeConfirmedLaunch({
         confirmationStatus: "confirmed_for_execution_plan",
         confirmVariable: `${EXECUTION_GRANT_CONFIRM_ENV}=${EXECUTION_GRANT_INTENT}`,
         confirmedBy: grantSource || "local_operator",
+        confirmedByUserId,
         planId: currentPlanId,
         metadata: {
           binding_mode: "single_confirmation_plan",

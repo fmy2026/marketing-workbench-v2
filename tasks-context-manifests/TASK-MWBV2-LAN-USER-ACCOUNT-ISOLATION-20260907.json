@@ -1,0 +1,68 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
+  "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
+  "status": "implementation_completed_waiting_lan_endpoint",
+  "created_at": "2026-09-07 CST",
+  "updated_at": "2026-09-07 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Add authenticated LAN access, single-owner advertiser isolation and per-user workflow reporting without changing the seven-node workflow or Plan-bound execution semantics.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "Task, Manifest, project state, docs, migrations, authentication/session code, ownership enforcement, reporting views, frontend and focused tests"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
+    "tasks-context-manifests/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/server/index.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchRuntimeWritePolicy.mjs",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "db/072_workbench_users_account_isolation.sql"
+  ],
+  "allowed_writes": [
+    "authentication/session/user administration, single-owner account binding, actor audit fields, user-scoped reads, reporting views, LAN origin configuration, focused tests and mechanism documentation"
+  ],
+  "forbidden_actions": [
+    "all real platform writes, confirmations, monitor/resource/project creates, retries, token refreshes, budget or bid changes",
+    "new workflow node, business Gate, Plan/action type or confirmation phrase",
+    "automatic advertiser ownership transfer or rewriting historical runtime facts",
+    "raw credential, transcript, request, response, payload or sensitive URL persistence"
+  ],
+  "validation_plan": [
+    "authentication, forced password change, session revocation and admin read-only behavior",
+    "Intake owner match/mismatch, existing-account isolation and URL/API tampering",
+    "user detail/admin summary report cardinality and verified-only success semantics",
+    "schema, API, workflow, Case, runtime policy, conversation and diff checks"
+  ],
+  "stop_conditions": [
+    "any real platform write would be required",
+    "the change would weaken exact Plan confirmation, single-attempt execution or authoritative readback",
+    "account ownership cannot be established by an exact active user owner key"
+  ],
+  "result": {
+    "implementation_status": "passed",
+    "migration_applied": "db/072_workbench_users_account_isolation.sql",
+    "database_shape": {
+      "base_tables": 36,
+      "views": 7,
+      "workflow_case_summary_columns": 24
+    },
+    "pilot_users": 3,
+    "workflow_nodes": 7,
+    "platform_write_calls": 0,
+    "tests": "authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
+    "deployment": "local service and deployment package ready; waiting for final internal HTTPS hostname and trusted certificate paths"
+  }
+}

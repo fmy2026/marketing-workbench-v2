@@ -1048,6 +1048,9 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
   const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, intake);
   const caseKey = String(body.case_key || body.caseKey || "").trim();
   const businessGoal = String(body.business_goal || body.businessGoal || "").trim();
+  const currentUser = options.currentUser || null;
+  const currentUserId = String(currentUser?.user_id || currentUser?.userId || "").trim();
+  const currentOwnerKey = String(currentUser?.qiankun_owner_key || currentUser?.qiankunOwnerKey || "").trim();
   const missingFields = [];
   if (!caseKey) missingFields.push("case_key");
   if (!routeId) missingFields.push("route_id");
@@ -1060,6 +1063,76 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
     throw error;
   }
   let context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+  if (sourceUsage === "runtime_truth" && currentUser && (!currentUserId || !currentOwnerKey || currentUser.user_status === "disabled")) {
+    const error = new Error("active_workbench_user_required");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (sourceUsage === "runtime_truth" && currentUser) {
+    const existingAccount = typeof repo.getAdvertiserAccount === "function"
+      ? await repo.getAdvertiserAccount(advertiserId)
+      : null;
+    if (existingAccount && (
+      existingAccount.route_id !== routeId ||
+      existingAccount.game_code !== gameCode
+    )) {
+      const error = new Error("advertiser_scope_conflict");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (existingAccount?.owner_user_id && existingAccount.owner_user_id !== currentUserId) {
+      const owner = await repo.getWorkbenchUserById(existingAccount.owner_user_id);
+      const error = new Error("advertiser_owner_mismatch");
+      error.statusCode = 403;
+      error.details = { ownerDisplayName: owner?.display_name || existingAccount.owner_name || "" };
+      throw error;
+    }
+    const accountBootstrap = options.accountBootstrapFn || runQiankunAccountIndexReadonlyPreflight;
+    let bootstrap;
+    try {
+      bootstrap = await accountBootstrap({
+        repo,
+        ownerKey: currentOwnerKey,
+        target: { routeId, gameCode, advertiserId },
+        fetchImpl: options.fetchImpl || globalThis.fetch
+      });
+    } catch {
+      bootstrap = { status: "blocked", blockers: ["account_bootstrap_failed"] };
+    }
+    const resolvedOwnerKey = String(bootstrap?.account?.qiankunOwnerKey || "").trim();
+    if (
+      bootstrap?.status !== "passed" ||
+      bootstrap?.accountIdentityWritten !== true ||
+      resolvedOwnerKey.toLowerCase() !== currentOwnerKey.toLowerCase()
+    ) {
+      const resolvedOwner = resolvedOwnerKey && typeof repo.getWorkbenchUserByOwnerKey === "function"
+        ? await repo.getWorkbenchUserByOwnerKey(resolvedOwnerKey)
+        : null;
+      const error = new Error(resolvedOwnerKey && resolvedOwnerKey.toLowerCase() !== currentOwnerKey.toLowerCase()
+        ? "advertiser_owner_mismatch"
+        : "account_bootstrap_blocked");
+      error.statusCode = resolvedOwnerKey && resolvedOwnerKey.toLowerCase() !== currentOwnerKey.toLowerCase() ? 403 : 409;
+      error.details = {
+        blockers: bootstrap?.blockers || ["account_identity_not_materialized"],
+        ownerDisplayName: resolvedOwner?.display_name || "",
+        evidenceArtifactId: bootstrap?.evidenceArtifactId || ""
+      };
+      throw error;
+    }
+    const binding = await repo.bindAdvertiserOwner({
+      advertiserId,
+      userId: currentUserId,
+      qiankunOwnerKey: resolvedOwnerKey
+    });
+    if (binding?.bound !== true) {
+      const access = await repo.getAdvertiserAccess({ advertiserId, userId: currentUserId });
+      const error = new Error("advertiser_owner_binding_conflict");
+      error.statusCode = 409;
+      error.details = { ownerDisplayName: access?.ownerDisplayName || "" };
+      throw error;
+    }
+    context = await repo.getCoreContext({ routeId, gameCode, advertiserId });
+  }
   if (!context && sourceUsage === "runtime_truth") {
     const defaults = typeof repo.getGameRouteDefaults === "function"
       ? await repo.getGameRouteDefaults({ routeId, gameCode })
@@ -1125,6 +1198,11 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
   if (existing) {
     if (existing.route_id === routeId && existing.game_code === gameCode && existing.advertiser_id === advertiserId &&
       existing.source_usage === "runtime_truth" && existing.lifecycle_status === "active") {
+      if (currentUser && existing.owner_user_id !== currentUserId) {
+        const error = new Error("workflow_case_owner_mismatch");
+        error.statusCode = 403;
+        throw error;
+      }
       return { ...existing, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(existing.case_id) };
     }
     const error = new Error("workflow_case_key_already_exists");
@@ -1134,7 +1212,14 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
   }
   if (sourceUsage === "runtime_truth") {
     const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
-    if (active) return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+    if (active) {
+      if (currentUser && active.owner_user_id !== currentUserId) {
+        const error = new Error("workflow_case_owner_mismatch");
+        error.statusCode = 403;
+        throw error;
+      }
+      return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+    }
   }
   try {
     return await repo.createWorkflowCase({
@@ -1145,12 +1230,17 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
       advertiserId,
       businessGoal,
       sourceUsage,
+      ownerUserId: currentUserId,
+      createdByUserId: currentUserId,
       metadata: { created_via: "workflow_case_api_or_cli" }
     });
   } catch (error) {
     if (sourceUsage !== "runtime_truth") throw error;
     const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
-    if (active) return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+    if (active) {
+      if (currentUser && active.owner_user_id !== currentUserId) throw error;
+      return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+    }
     throw error;
   }
 }

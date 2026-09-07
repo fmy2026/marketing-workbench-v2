@@ -3,11 +3,21 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；当前逻辑图、数据报表契约、7 Node 注册表与 migrations `070`–`071` |
+| 最后更新时间 | 2026-09-07 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与 migrations `070`–`072` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
+
+## 2026-09-07 局域网用户与账户隔离（已批准）
+
+工作台增加本地用户与服务端会话，首批固定为管理员冯美钰 `fengmeiyu`、试用者张境威 `zhangjingwei` 和张超博 `zhangchaobo`。账号绑定乾坤 `userList` 的唯一 owner key；初始密码为 `12345678`，首次登录必须修改。管理员仅管理用户和查看团队只读汇总，不能启动、运行或确认他人账户。
+
+用户仍一次输入 route、game、advertiser 三项。Intake 规范化后、Case/Job 创建前复用乾坤 `accountIndex` 精确只读查询；仅当返回的 `sso_owner` 精确匹配当前 active 用户 owner key 时，才保存脱敏账户事实和唯一 `owner_user_id` 并继续。归属不一致、用户不存在/停用、结果零匹配/多匹配或凭据异常均 fail-closed，不创建 Case/Job、不自动转移归属。该校验属于工作台访问控制，不新增 Workflow Node、业务 Gate、Plan/action 类型或确认短语。
+
+所有工作台/API 读取、readonly 运行和 command 在服务端按账户归属校验；登录身份不能由请求正文覆盖。一个广告账户只允许一个 owner，一个用户可拥有多个账户。Case 固化 owner 与发起人，confirmation 记录真实确认用户。个人报表仅显示本人 `runtime_truth` Case；管理员报表按用户汇总账户数、Case 数、verified 成功、进行中、阻断和终态失败，同一 Case 不因 fresh Job 重复计数。
+
+Node 服务继续监听 loopback，由内网 HTTPS 反向代理公开固定 origin。既有 Plan-bound 策略扩展为 authenticated LAN：除 active/latest/ready/exact Plan/hash/phrase/一次确认外，额外要求 active session、当前用户为账户 owner、confirmation actor 一致。平台凭据继续由后端受控存储，用户密码不替代乾坤凭据。实施和测试零真实平台写入。
 
 ## 2026-09-06 Event Config 创建后有界回查（已批准）
 
@@ -53,11 +63,11 @@ DMP 集合、成员和账户目标 ID 继续由 `dmp_package_sets`、`dmp_packag
 
 ## 已批准设计：工作台原生 Plan-bound 首次创建闭环
 
-正式运行时不得依赖 Codex 为每份 Plan 修改仓库 scope。`project.state.json.guardrails.workbench_runtime_write_policy` 是本机部署级固定策略：只允许 `127.0.0.1:3000` 的同源 JSON command、active Case 的最新 `runtime_truth` Job、ready 且零 blocker 的 `monitor_bootstrap`、`resource_prepare` 或 `std_project_create` Plan，以及当前 Plan ID/hash 对应的精确确认短语。它不选择动作、不生成 Plan、不允许重试；动作、调用上限和目标仍只来自冻结 Plan。
+正式运行时不得依赖 Codex 为每份 Plan 修改仓库 scope。`project.state.json.guardrails.workbench_runtime_write_policy` 是部署级固定策略：只允许配置的 `WORKBENCH_PUBLIC_ORIGIN` 或本机开发入口发出的同源 JSON command，并要求 active 登录用户为账户唯一 owner；其余条件仍为 active Case 的最新 `runtime_truth` Job、ready 且零 blocker 的 `monitor_bootstrap`、`resource_prepare` 或 `std_project_create` Plan，以及当前 Plan ID/hash 对应的精确确认短语。它不选择动作、不生成 Plan、不允许重试；动作、调用上限和目标仍只来自冻结 Plan。
 
 用户确认通过既有 `launch_confirmations` 原子占有当前 Plan 的一次执行权；只有首次成功记录 confirmation 的请求可进入原有 Plan-bound executor。资源执行完成后同一 Case 自动生成 fresh Job，下一份 Plan 只能包含一次 `std_project_create`。动态运行授权只保存在 Postgres confirmation/action/readback，不为每次运行生成仓库 Task/Manifest。开发、迁移、专项人工写入与非工作台入口继续使用原有 Task scope，且 `platform_write_allowed=false` 不影响已明确启用的窄化工作台策略。
 
-`POST /api/launch/jobs/:job_id/command` 是唯一正式 runtime 写入口；`/run` 对真实 Job 只接受 dry-run/readonly/readback，旧 execute 路由对 `runtime_truth` fail-closed。写请求必须满足 loopback Host、同源 Origin 与 JSON Content-Type。历史 Job 永远只读。该设计不新增数据库表、View、Gate 或 Plan 类型。
+`POST /api/launch/jobs/:job_id/command` 是唯一正式 runtime 写入口；`/run` 对真实 Job 只接受 dry-run/readonly/readback，旧 execute 路由对 `runtime_truth` fail-closed。写请求必须满足配置 Host、同源 Origin、active session、本人账户与 JSON Content-Type。历史 Job 永远只读。用户与账户隔离在 migration `072` 增加表、owner 字段和人员报表 View，但仍不新增 Gate 或 Plan 类型。
 
 ## 已批准设计：正式写入入口与历史脚本隔离
 

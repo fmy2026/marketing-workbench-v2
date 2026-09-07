@@ -59,13 +59,14 @@ function bootstrapPlanBlockers({ bundle, plan, expectedPlanId = "", expectedPlan
   ];
 }
 
-async function confirmationAvailability({ repo, bundle, plan, projectStatePath, authorizationSource }) {
+async function confirmationAvailability({ repo, bundle, plan, projectStatePath, authorizationSource, authenticatedUserId = "" }) {
   const authorization = await evaluatePlanBoundWriteAuthorization({
     repo,
     bundle,
     plan,
     projectStatePath,
-    authorizationSource
+    authorizationSource,
+    authenticatedUserId
   });
   const scope = plan?.metadata?.execution_scope || {};
   const existing = typeof repo.getLaunchConfirmationForPlan === "function"
@@ -116,7 +117,8 @@ export async function executeConfirmedMonitorBootstrap({
   expectedPlanHash = "",
   grantSource = "workbench_conversation",
   projectStatePath,
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  confirmedByUserId = ""
 } = {}) {
   if (!repo || !jobId) throw new Error("monitor_bootstrap_executor_job_required");
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -130,7 +132,8 @@ export async function executeConfirmedMonitorBootstrap({
     bundle,
     plan,
     projectStatePath,
-    authorizationSource: grantSource
+    authorizationSource: grantSource,
+    authenticatedUserId: confirmedByUserId
   });
   if (availability.status !== "passed") return result("blocked", availability.blockers);
 
@@ -145,6 +148,7 @@ export async function executeConfirmedMonitorBootstrap({
     confirmationStatus: "confirmed_for_execution_plan",
     confirmVariable: "workbench:confirm_monitor_bootstrap",
     confirmedBy: grantSource,
+    confirmedByUserId,
     planId: planId(plan),
     metadata: {
       binding_mode: "single_confirmation_plan",

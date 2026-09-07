@@ -5,10 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent 工作台 · 投放创建</title>
   <link rel="stylesheet" href="./styles.css">
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
 </head>
 <body>
-  <main class="workbench-shell">
+  <section class="auth-shell" id="authGate" aria-label="工作台登录">
+    <form class="auth-card" id="loginForm">
+      <div class="brand-mark" aria-hidden="true">A</div>
+      <h1>Agent 工作台</h1>
+      <p>使用乾坤拼音账号登录</p>
+      <label for="loginName">账号</label>
+      <input id="loginName" name="loginName" autocomplete="username" required>
+      <label for="loginPassword">密码</label>
+      <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required>
+      <button class="start-button" type="submit">登录</button>
+      <p class="auth-error" id="loginError" role="alert"></p>
+    </form>
+    <form class="auth-card" id="changePasswordForm" hidden>
+      <h1 id="changePasswordTitle">修改初始密码</h1>
+      <p id="changePasswordHint">首次登录后才能进入工作台</p>
+      <label for="currentPassword">当前密码</label>
+      <input id="currentPassword" type="password" autocomplete="current-password" required>
+      <label for="newPassword">新密码</label>
+      <input id="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="confirmPassword">确认新密码</label>
+      <input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="start-button" id="savePasswordButton" type="submit">保存并进入</button>
+      <button class="secondary-button" id="cancelPasswordChangeButton" type="button" hidden>取消</button>
+      <p class="auth-error" id="changePasswordError" role="alert"></p>
+    </form>
+  </section>
+
+  <main class="workbench-shell" id="workbenchShell" hidden>
     <header class="topbar">
       <div class="brand-lockup" aria-label="Agent 工作台">
         <span class="brand-mark" aria-hidden="true">A</span>
@@ -22,11 +48,28 @@
         <button class="module-tab is-active" type="button">投放创建</button>
       </nav>
 
-      <div class="operator-chip" aria-label="当前用户">
-        <span class="operator-avatar" aria-hidden="true">优</span>
-        <span>当前用户</span>
+      <div class="operator-actions" aria-label="当前用户">
+        <button class="topbar-action" id="reportButton" type="button">数据统计</button>
+        <button class="topbar-action" id="userAdminButton" type="button" hidden>用户管理</button>
+        <button class="topbar-action" id="changePasswordButton" type="button">修改密码</button>
+        <div class="operator-chip">
+          <span class="operator-avatar" id="operatorAvatar" aria-hidden="true">用</span>
+          <span id="operatorName">当前用户</span>
+        </div>
+        <button class="topbar-action" id="logoutButton" type="button">退出</button>
       </div>
     </header>
+
+    <section class="management-panel" id="managementPanel" hidden>
+      <div class="management-heading">
+        <div>
+          <h2 id="managementTitle">数据统计</h2>
+          <p id="managementHint"></p>
+        </div>
+        <button class="icon-button" id="managementCloseButton" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="management-content" id="managementContent"></div>
+    </section>
 
     <section class="workspace">
       <aside class="intake-panel" aria-label="对话">

@@ -74,6 +74,7 @@ export async function handleWorkbenchCommand({
   message = "",
   expectedPlanId = "",
   expectedPlanHash = "",
+  currentUser = null,
   resolver,
   projectStatePath,
   fetchImpl,
@@ -256,7 +257,8 @@ export async function handleWorkbenchCommand({
       expectedPlanId,
       expectedPlanHash,
       projectStatePath,
-      fetchImpl
+      fetchImpl,
+      confirmedByUserId: currentUser?.user_id || currentUser?.userId || ""
     })
     : isResourcePrepare
       ? await executeConfirmedResourcePlanFn({
@@ -266,7 +268,8 @@ export async function handleWorkbenchCommand({
         expectedPlanId,
         expectedPlanHash,
         projectStatePath,
-        fetchImpl
+        fetchImpl,
+        confirmedByUserId: currentUser?.user_id || currentUser?.userId || ""
       })
       : await executeConfirmedLaunchFn({
       repo,
@@ -276,7 +279,8 @@ export async function handleWorkbenchCommand({
       expectedPlanId,
       expectedPlanHash,
       projectStatePath,
-      fetchImpl
+      fetchImpl,
+      confirmedByUserId: currentUser?.user_id || currentUser?.userId || ""
     });
   const executionBlocked = isMonitorBootstrap || isResourcePrepare
     ? executed.status === "blocked"

@@ -4,14 +4,14 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态数据与只读报表契约 |
 | 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902`；Postgres 33 张基础表、5 个 View、`workflow_case_summary` 24 列；最新 migration `071_post_monitor_same_job_readiness_reentry.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `072_workbench_users_account_isolation.sql` |
 | 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
 
-本次复核确认 `db/*.sql` 共 72 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 33 表、5 View 与 24 列合同。
+本次复核确认 `db/*.sql` 共 73 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -35,24 +35,25 @@ L6 当前运营状态只读投影
 workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 ```
 
-## 2. 基础表契约（33 张）
+## 2. 基础表契约（36 张）
 
 | 层 | 表 | 行粒度 / 主关联 | 写入者 | 主要消费者 |
 | --- | --- | --- | --- | --- |
+| L0 用户（3） | `workbench_users`、`workbench_sessions`、`workbench_audit_events` | 用户、登录会话、脱敏登录/改密/用户管理/归属冲突审计；会话只存 token hash | migration、认证与管理员接口 | API 认证、账户访问控制、用户管理 |
 | L1 配置（13） | `platform_routes`、`games`、`game_route_defaults`、`game_platform_apps` | 路线、游戏、路线×游戏、游戏×平台 App；JSZC 路线默认值含数值保底、CTA、性别/年龄、336 位时段及其 success-profile/ledger 摘要 | migration、种子、受控配置维护 | Node 01–03、Node 05 |
 |  | `game_assets`、`material_packs`、`material_pack_items` | 游戏资产、路线物料包、物料包条目 | 同上 | Node 03、Node 05 |
 |  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
 |  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
-| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、受控触点；全新 runtime 账户仅可由 Case 入口复用乾坤 `accountIndex` 精确只读预检后补录，禁止跨 scope 覆盖。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | Node 02、Node 05、专项 View |
+| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、唯一 `owner_user_id`、受控触点；新 Intake 在 Case/Job 前用当前用户 owner key 执行乾坤 `accountIndex` 精确只读预检，禁止跨 scope 覆盖和自动转移。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | 访问控制、Node 02、Node 05、专项 View |
 |  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
-| L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口 | Case summary、UI、API、CLI |
+| L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；保存 `owner_user_id` 与 `created_by_user_id`；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口 | Case summary、UI、API、CLI |
 | L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly 合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
+| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation 保存真实 `confirmed_by_user_id`。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
 |  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -74,7 +75,7 @@ route_id + game_code
 - `source_usage` 用于区分真实运行、测试和种子来源；`test_run` 必须由 smoke/CLI 清理，不能作为业务报表事实。
 - 所有平台长数字 ID 按字符串存储与比较；摘要 JSON 只保存脱敏状态、hash、必要 ID 和证据引用。
 
-## 3. 只读 View 与报表边界（5 个）
+## 3. 只读 View 与报表边界（7 个）
 
 | View | 行粒度 | 输入 | 核心输出 | 消费者 | 禁止 |
 | --- | --- | --- | --- | --- | --- |
@@ -83,6 +84,8 @@ route_id + game_code
 | `v_monitor_provision_status_report` | 一个 monitor provision cycle | monitor run/attempt、账户、触点、路线默认值 | cycle、attempt、账户/触点、脱敏回查与错误摘要 | Node 02、人工诊断 | 创建 monitor、写回触点或运行状态 |
 | `v_monitor_provision_blocker_report` | 一个 monitor provision blocker | monitor run/attempt | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
 | `v_advertiser_aweme_authorization_readiness` | 一个 route×game×advertiser 授权就绪状态 | advertiser account 的脱敏抖音授权关系 | ready、blocker、next action、脱敏探测证据 | Node 04、Node 05 | 替代 fresh readonly 或修改授权 |
+| `v_user_workflow_case_detail` | 一个 `runtime_truth` Case | Case、账户、唯一 summary、owner 用户 | 账户、最新 Job、Gate、root blocker、创建/回查状态；多个 Job 不重复计数 | 个人明细、管理员明细 | 写回流程事实、统计 `test_run` |
+| `v_user_workflow_summary` | 一个工作台用户 | 账户与 Case 明细 | 账户数、Case 数、verified 成功数、进行中、阻断和终态未成功数 | 管理员汇总、个人摘要 | 把平台受理当成功、授予代操作权限 |
 
 ## 4. `workflow_case_summary` 合同
 
@@ -128,7 +131,8 @@ route_id + game_code
 | 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 `micro_app_id` / `micro_app_instance_id` 归一后必须精确匹配 App + instance，allowlist 长数字 ID 在解析前无损保留为字符串；configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
 | 事件配置中断 | 写请求固定 15 秒超时；子 action 幂等键绑定已验证 planned action key、当前 Plan ID 与 event type，缺失任一绑定时在 action 占位和平台调用前 fail-closed。超时、异常或响应不明记为 `failed_once`，随后只读回查并收口 action、Skill、Job 与已确认 Plan。partial baseline 的唯一分类器是共享 `eventConfigBaselineReadiness`，仅在 configs 与 available 都完成标准化后输出 `status`、blocker 和 candidates；已配置事件即使不再 available 也视为满足，只为尚未配置且当前 available 的事件生成候选；读取函数不得单独要求 available 为 6/6，不得自动重试。 |
 | 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
-| 授权 | `project.state.json` 只给全局 Guardrail；正式 runtime 工作台可消费启用的 loopback Plan-bound 策略，仍须匹配 active Case 最新 Job、ready Plan、精确 confirmation、action grant 与调用上限。动态授权事实只写 Postgres，不为普通运行创建仓库 Task。 |
+| 用户隔离 | 每个广告账户只有一个 `owner_user_id`；所有账户、Case、Job、历史、刷新和 command 接口同时核对 active 用户、账户 owner 与乾坤 owner key。管理员跨人只读报表，不绕过业务对象隔离。 |
+| 授权 | `project.state.json` 只给全局 Guardrail；正式 runtime 工作台可消费启用的 authenticated-LAN Plan-bound 策略，仍须匹配登录用户本人账户、active Case 最新 Job、ready Plan、精确 confirmation、action grant 与调用上限。动态授权事实只写 Postgres，不为普通运行创建仓库 Task。 |
 | 隔离脚本 | `scripts/archive/` 仅保存可恢复历史文件；禁止 package/runtime import/直接执行，不属于表或 View 的写入来源 |
 
-投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 5 个 View 是运营流程就绪状态投影，不是投放效果报表，也不是自动策略的唯一输入。
+投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 7 个 View 包含运营流程就绪状态和人员流程统计，不是投放效果报表，也不是自动策略的唯一输入。
