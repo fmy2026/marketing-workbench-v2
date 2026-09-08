@@ -273,6 +273,7 @@ export function mockReadyBundle(bundle = {}) {
         };
       }
       if (item.resource_type === "video_asset") {
+        const explicitCoverRequired = bundle.account?.video_cover_required === true;
         return {
           ...item,
           visibility_status: "visible",
@@ -284,7 +285,8 @@ export function mockReadyBundle(bundle = {}) {
               status: "passed",
               video_id_present: true,
               video_cover_id_present: true,
-              cover_mode: "platform_default_cover_allowed",
+              cover_mode: explicitCoverRequired ? "explicit_cover_verified" : "platform_default_cover_allowed",
+              verified_by_job_id: explicitCoverRequired ? (bundle.job?.job_id || "") : "",
               mock: true
             }
           }

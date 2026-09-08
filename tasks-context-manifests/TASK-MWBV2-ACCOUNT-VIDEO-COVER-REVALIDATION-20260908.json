@@ -1,0 +1,198 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908",
+  "task_ref": "tasks/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T09:27:35Z",
+  "updated_at": "2026-09-08T10:12:16Z",
+  "base_revision": "a6ae8454d7b58b3c38736c5b4df2df890742cf29",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "deploy",
+    "security"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "db/074_account_guide_video_contract.sql",
+    "db/075_case_attempt_limit_replacement_recovery.sql",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/获取投放项目下素材.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/076_account_video_cover_revalidation.sql",
+    "src/server/index.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "frontend/app.js",
+    "scripts/00-case-attempt-limit-smoke.mjs",
+    "scripts/00-workbench-address-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/04-guide-video-readonly-smoke.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
+    "evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/**"
+  ],
+  "forbidden_actions": [
+    "开发、自动测试或部署期间进行任何真实平台写入、确认、创建或重试",
+    "在旧 Case 上产生第 4 条 action，或让替代 Case产生第二条创建 action",
+    "新增 Workflow Node、业务 Gate、Plan/action 类型或确认短语",
+    "修改用户已确认合理的其他投放业务配置",
+    "保存 raw 平台请求、payload、响应、凭据、完整触点 URL 或普通日志中的敏感长 ID",
+    "由管理员或开发代理冒充账户 owner 执行真实验证"
+  ],
+  "stop_conditions": [
+    "需要弱化 owner、fresh readonly、冻结 Plan、精确 confirmation 或权威 readback 约束",
+    "需要旧 Case 第 4 次创建或替代 Case第二次创建",
+    "无法在不进行真实平台写入的情况下完成开发与自动验收"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "受控 DB 写入前后只读 SQL 证据与安全字段检查"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:case-attempt-limit && npm run test:workbench-conversation"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:guide-video-readonly"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:guide-video-payload"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run test:std-project-readback && npm run test:case-corrective-create"
+    },
+    {
+      "acceptance_id": "AC-06",
+      "command": "npm run validate:schemas && npm run test:workflow-case && npm run test:workbench-runtime-policy && npm run test:project-contracts && git diff --check"
+    },
+    {
+      "acceptance_id": "AC-07",
+      "command": "npm run db:backup；psql 单文件应用 migration 076；LaunchAgent 重启与 HTTP readiness 检查"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "受控 DB 写入前后只读 SQL 证据与安全字段检查",
+      "summary": "旧 Case 保持 3/3、三条创建 action、零对象和零 verified readback；批准结论为 video_cover_binding_v1，owner 操作前替代 Case 数为零。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-01"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:workbench-address；npm run test:case-attempt-limit；npm run test:workbench-conversation",
+      "summary": "重输入口幂等复用唯一替代 Case/Job，替代 Case 最多创建一次；测试平台写入为零。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-02"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:guide-video-readonly",
+      "summary": "fresh readonly 覆盖两条视频、两个显式封面和唯一引导视频；任一封面不可见即阻断，平台创建调用为零。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-03"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:guide-video-payload",
+      "summary": "两条视频均发送 video_id、image_mode、video_cover_id、guide_video_id；96 路径字段账本通过，普通账户合同未变。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-04"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run test:std-project-readback；npm run test:case-corrective-create",
+      "summary": "Node 07 逐视频核验视频、封面和引导视频绑定；任一不匹配保持 pending、不消费 Plan、不重试创建。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-05"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-06",
+      "command": "npm run validate:schemas；npm run test:workflow-case；npm run test:workbench-runtime-policy；npm run test:project-contracts；npm run test:payload-contract；git diff --check",
+      "summary": "Schema、Case、运行策略、payload、项目合同及 diff 检查通过；开发与自动测试真实平台写入为零。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-06"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    },
+    {
+      "acceptance_id": "AC-07",
+      "command": "npm run db:backup；psql 单文件应用 migration 076；LaunchAgent 重启与 HTTP readiness 检查",
+      "summary": "备份完成，migration 076 更新精确账户，LAN LaunchAgent 已重启，工作台入口返回 HTTP 200；未代 owner 创建。",
+      "evidence_refs": ["evidence/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908/validation.md#ac-07"],
+      "status": "passed",
+      "verified_at": "2026-09-08T10:07:25Z"
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记目标账户显式封面与单次替代验证的批准选择。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明重输三项入口、fresh 显式封面约束、四字段 payload 与三字段 Node 07 回查。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "登记 migration 076、video_cover_required 与当前 Job 视频资源证据合同。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "沿用既有 LaunchAgent、LAN 地址与部署命令，部署合同未变化。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "账户 1867508089433225 的一次性替代 Case、fresh 视频封面/引导视频校验、四字段创建 payload 与三字段权威回查已实现并部署。",
+    "side_effects": "新增一个默认关闭的账户能力列并仅为目标账户开启；旧 Case 只增加脱敏人工批准证据，仍保留三次失败事实；未发起真实平台创建。",
+    "remaining_risks": [
+      "业务 Case 尚未 verified；账户 owner 需在工作台重输三项、检查 fresh readonly 结果并精确确认一次。",
+      "若唯一一次创建返回 40000 或回查绑定不匹配，流程将停止且不提供第二次创建。"
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_cases:CASE-MWBV2-776936E13CC487A466",
+      "postgres:mwb.evidence_artifacts:EV-JOB-MWBV2-20260908051855-814308-MANUAL-REVIEW"
+    ]
+  },
+  "closed_at": "2026-09-08T10:12:16Z"
+}

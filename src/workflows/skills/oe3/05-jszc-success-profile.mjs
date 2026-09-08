@@ -84,6 +84,8 @@ export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:47bdf25b9933
 export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 92;
 export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:5ded53919aea28eeec18bedcd0c1ed3ca1c4857bd95ff77390887f8ca502db65";
 export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 94;
+export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:647fab958e4eb4e0f6fe6773db2a4a968791c0bc07d3f075259c344a10004247";
+export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 96;
 export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
   videoMaterialList: 2,
   titleMaterialList: 3,
@@ -157,12 +159,17 @@ export function configuredJsZcSuccessProfile(bundle = {}) {
 export function evaluateJsZcSuccessProfile(bundle = {}) {
   const configured = configuredJsZcSuccessProfile(bundle);
   const guideVideoRequired = bundle.account?.guide_video_required === true;
-  const selectedGoldenFieldShapeHash = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
-    : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
-  const selectedLedgerPathCount = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
-    : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
+  const videoCoverRequired = bundle.account?.video_cover_required === true;
+  const selectedGoldenFieldShapeHash = videoCoverRequired
+    ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    : guideVideoRequired
+      ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+      : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+  const selectedLedgerPathCount = videoCoverRequired
+    ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    : guideVideoRequired
+      ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+      : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
   const blockers = [
     ...(configured.version === JSZC_SUCCESS_PROFILE_VERSION ? [] : ["jszc_success_profile_version_mismatch"]),
     ...(configured.source === JSZC_SUCCESS_PROFILE_SOURCE ? [] : ["jszc_success_profile_source_mismatch"]),
@@ -188,6 +195,8 @@ export function evaluateJsZcSuccessProfile(bundle = {}) {
     expectedLedgerPathCount: selectedLedgerPathCount,
     guideVideoRequired,
     guideVideoPolicy: guideVideoRequired ? "required_unique_current_job_readonly" : "omit",
+    videoCoverRequired,
+    videoCoverPolicy: videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default",
     blockers,
     rawPayloadStored: false
   };
@@ -205,6 +214,8 @@ export function jszcSuccessProfileManifest(result = {}) {
     configuredExpectedLedgerPathCount: Number(result.configuredExpectedLedgerPathCount || result.expectedLedgerPathCount || 0),
     guideVideoRequired: result.guideVideoRequired === true,
     guideVideoPolicy: result.guideVideoPolicy || "omit",
+    videoCoverRequired: result.videoCoverRequired === true,
+    videoCoverPolicy: result.videoCoverPolicy || "optional_platform_default",
     nestedRuleVersion: result.nestedRuleVersion || "",
     filterEventPolicy: result.filterEventPolicy || "",
     convertedTimeDurationPolicy: result.convertedTimeDurationPolicy || "",

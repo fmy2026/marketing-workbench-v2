@@ -1061,6 +1061,74 @@ function requiredCaseScope(body = {}, intake = {}) {
   };
 }
 
+async function resolveApprovedReplacementForIntake(repo, workflowCase = null, currentUser = null, options = {}) {
+  if (!workflowCase || workflowCase.source_usage !== "runtime_truth" || workflowCase.lifecycle_status !== "active") {
+    return null;
+  }
+  const createdVia = String(workflowCase.metadata?.created_via || "").trim();
+  if (createdVia === "approved_manual_review_replacement") {
+    const summary = await repo.getWorkflowCaseSummary(workflowCase.case_id);
+    const latestJobId = String(summary?.latest_job_id || "").trim();
+    const latestBundle = latestJobId ? await repo.getLaunchJobBundle(latestJobId) : null;
+    return {
+      ...workflowCase,
+      reusedActiveCase: true,
+      approvedReplacementCase: true,
+      replacementJobId: latestJobId,
+      requiresInitialReadonly: latestBundle?.job?.job_status === "created",
+      workbenchUrl: workbenchCaseUrl(workflowCase.case_id)
+    };
+  }
+  if (workflowCase.metadata?.manual_review?.approved !== true) return null;
+
+  const summary = await repo.getWorkflowCaseSummary(workflowCase.case_id);
+  const blocker = String(summary?.root_blocker_codes?.[0] || "").trim();
+  if (summary?.current_gate !== "manual_review_after_attempt_limit" || blocker !== "std_project_create_attempt_limit_reached") {
+    return null;
+  }
+  const credential = typeof options.replacementCredentialStateFn === "function"
+    ? options.replacementCredentialStateFn() || {}
+    : {};
+  if (String(credential.status || "").trim() !== "ready") {
+    const error = new Error("approved_replacement_credential_unavailable");
+    error.statusCode = 409;
+    error.details = { blockers: ["credential_required"] };
+    throw error;
+  }
+  const predecessorJobId = String(summary.latest_job_id || "").trim();
+  const predecessor = predecessorJobId ? await repo.getLaunchJobBundle(predecessorJobId) : null;
+  if (!predecessor?.job) {
+    const error = new Error("approved_replacement_predecessor_unavailable");
+    error.statusCode = 409;
+    throw error;
+  }
+  const createReplacement = options.createApprovedReplacementCaseAndJobFn || createApprovedReplacementCaseAndJob;
+  const replacement = await createReplacement(repo, predecessor.job, currentUser);
+  if (!replacement?.caseId || !replacement?.jobId) {
+    const error = new Error(replacement?.blocker || "approved_replacement_not_available");
+    error.statusCode = 409;
+    throw error;
+  }
+  const replacementCase = await repo.getWorkflowCase(replacement.caseId);
+  if (!replacementCase) {
+    const error = new Error("approved_replacement_case_not_found");
+    error.statusCode = 409;
+    throw error;
+  }
+  const replacementBundle = replacement.created === true
+    ? null
+    : await repo.getLaunchJobBundle(replacement.jobId);
+  return {
+    ...replacementCase,
+    reusedActiveCase: true,
+    approvedReplacementCase: true,
+    replacementCreated: replacement.created === true,
+    replacementJobId: replacement.jobId,
+    requiresInitialReadonly: replacement.created === true || replacementBundle?.job?.job_status === "created",
+    workbenchUrl: workbenchCaseUrl(replacement.caseId)
+  };
+}
+
 export async function createWorkflowCase(repo, body = {}, options = {}) {
   const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
   const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, intake);
@@ -1221,7 +1289,8 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
         error.statusCode = 403;
         throw error;
       }
-      return { ...existing, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(existing.case_id) };
+      return await resolveApprovedReplacementForIntake(repo, existing, currentUser, options) ||
+        { ...existing, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(existing.case_id) };
     }
     const error = new Error("workflow_case_key_already_exists");
     error.statusCode = 409;
@@ -1236,7 +1305,8 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
         error.statusCode = 403;
         throw error;
       }
-      return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+      return await resolveApprovedReplacementForIntake(repo, active, currentUser, options) ||
+        { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
     }
   }
   try {
@@ -1257,7 +1327,8 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
     const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
     if (active) {
       if (currentUser && active.owner_user_id !== currentUserId) throw error;
-      return { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
+      return await resolveApprovedReplacementForIntake(repo, active, currentUser, options) ||
+        { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
     }
     throw error;
   }

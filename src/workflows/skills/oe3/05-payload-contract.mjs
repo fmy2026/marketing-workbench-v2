@@ -20,7 +20,9 @@ import {
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_SOURCE,
-  JSZC_SUCCESS_PROFILE_VERSION
+  JSZC_SUCCESS_PROFILE_VERSION,
+  JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
 } from "./05-jszc-success-profile.mjs";
 
 const REQUIRED_PAYLOAD_FIELDS = [
@@ -428,12 +430,17 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     );
   const successProfile = finalManifest.successProfile || {};
   const guideVideoRequired = finalManifest.guideVideoRequired === true;
-  const expectedFieldShapeHash = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
-    : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
-  const expectedLedgerPathCount = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
-    : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
+  const videoCoverRequired = finalManifest.videoCoverRequired === true;
+  const expectedFieldShapeHash = videoCoverRequired
+    ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    : guideVideoRequired
+      ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+      : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+  const expectedLedgerPathCount = videoCoverRequired
+    ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    : guideVideoRequired
+      ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+      : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
   const finalSuccessProfileOk = !usesFinalPayloadHash ||
     (
       finalManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
@@ -446,6 +453,8 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Number(successProfile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
       successProfile.guideVideoRequired === guideVideoRequired &&
       successProfile.guideVideoPolicy === (guideVideoRequired ? "required_unique_current_job_readonly" : "omit") &&
+      successProfile.videoCoverRequired === videoCoverRequired &&
+      successProfile.videoCoverPolicy === (videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default") &&
       finalManifest.fieldShapeHash === expectedFieldShapeHash &&
       successProfile.filterEventPolicy === "omit" &&
       successProfile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
@@ -551,7 +560,15 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Number(materialReadiness.selectedRequiredVideoCount || 0) > 0 &&
       Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.verifiedVideoCount || 0) &&
       Number(materialReadiness.selectedRequiredVideoCount || 0) === coverReadyCount &&
-      Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.guideVideoReadyCount || 0)
+      Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.guideVideoReadyCount || 0) &&
+      (!videoCoverRequired || (
+        materialReadiness.videoCoverRequired === true &&
+        (materialReadiness.items || []).every((item) =>
+          item.videoCoverRequired === true &&
+          item.videoCoverVerifiedByCurrentJob === true &&
+          item.coverMode === "explicit_cover_verified"
+        )
+      ))
     );
   const contractMapping = finalManifest.contractMapping || {};
   const contractMappingReady = !usesFinalPayloadHash ||

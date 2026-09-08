@@ -500,7 +500,13 @@ import {
         })
       });
       draftCaseId = workflowCase.case_id;
-      return { caseId: draftCaseId, reusedActiveCase: workflowCase.reusedActiveCase === true };
+      return {
+        caseId: draftCaseId,
+        reusedActiveCase: workflowCase.reusedActiveCase === true,
+        approvedReplacementCase: workflowCase.approvedReplacementCase === true,
+        replacementJobId: String(workflowCase.replacementJobId || "").trim(),
+        requiresInitialReadonly: workflowCase.requiresInitialReadonly === true
+      };
     } catch (error) {
       if (error.message === "workflow_case_key_already_exists" && error.details?.caseId) {
         draftCaseId = error.details.caseId;
@@ -515,6 +521,16 @@ import {
     setBusy(true);
     try {
       const selectedCase = await ensureWorkflowCase();
+      if (selectedCase.approvedReplacementCase && selectedCase.replacementJobId) {
+        setJobView(await api(jobViewPath(selectedCase.replacementJobId)));
+        setActiveCaseUrl(selectedCase.caseId);
+        if (selectedCase.requiresInitialReadonly) {
+          message("agent", "已建立唯一的一次性替代 Case 与 fresh Job，开始重新核验视频、封面和引导视频。");
+          await runWorkflow(selectedCase.replacementJobId);
+        }
+        await refreshProgress();
+        return;
+      }
       if (selectedCase.reusedActiveCase) {
         window.location.assign(workbenchCaseUrl(selectedCase.caseId));
         return;

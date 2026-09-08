@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；项目控制合同见 `project.state.json`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908`；项目控制合同见 `project.state.json`；最新 migration `076_account_video_cover_revalidation.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | 按 `AGENTS.md` 的对应真值链读取；实现查注册表/代码/SQL，业务事实查 Postgres，本文解释静态机制 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -115,7 +115,7 @@ Case
 
 运行模式由 runner 决定：`dry_run` 与 `draft_readiness` 不真实写入；`planned_actions` 仅限明确计划动作；`execute_once` 只能消费冻结且已确认的 Plan；`readback_only` 绝不创建。
 
-JSZC 的 Node 03/05 按 [配置与资源来源](project-数据与报表契约.md#配置与资源来源) 读取保底参数与账户动态资源。Node 05 校验合法枚举、顺序、长度、时段摘要、普通账户 92 条或引导视频账户 94 条字段账本，以及至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。
+JSZC 的 Node 03/05 按 [配置与资源来源](project-数据与报表契约.md#配置与资源来源) 读取保底参数与账户动态资源。Node 05 校验合法枚举、顺序、长度、时段摘要、普通账户 92 条、引导视频账户 94 条或显式封面加引导视频账户 96 条字段账本，以及至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。
 
 ### Node 02 Monitor 单轨 Bootstrap
 
@@ -148,7 +148,7 @@ Monitor Plan 与普通 Plan 的版本、创建 attempt 关系查 [Plan 数据合
 
 `micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
 
-账户要求引导视频时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，存储位置与读取边界查 [账户资源合同](project-数据与报表契约.md#2-基础表契约36-张)。Node 05 将本 Job 已核验的同一 ID 展开到每条推广视频，普通账户完全省略。Node 07 项目命中后再调用一次素材只读接口核验全部绑定；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
+账户要求引导视频时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，存储位置与读取边界查 [账户资源合同](project-数据与报表契约.md#2-基础表契约36-张)。账户同时要求显式视频封面时，Node 04 还必须在本 Job 逐条只读确认两条视频及各自封面，历史缓存、平台默认封面或任一不可见结果均不能进入确认。Node 05 将每条视频的 `video_id`、`image_mode`、`video_cover_id` 与本 Job 唯一 `guide_video_id` 一并发送。Node 07 项目命中后再调用一次素材只读接口，逐条按 `video_id + video_cover_id + guide_video_id` 核验；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
 
 事件资产是账户级受控合同，不是通用模板开关：Node 04 在 `event-chain-readonly` 前校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板，并据此把动态 `target_advertiser_id`、`template_ref` 与 `template_hash` 合并进当前账户资源；候选缺失、歧义、来源不受控或模板前提不完整时不得落合同或生成事件资产动作。该脱敏合同可在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
@@ -263,7 +263,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 正常启动、monitor Plan 成功与 Resource Plan 成功后，唯一有界推进器自动消费 latest active Job 的 `run_monitor_readonly` / `run_fresh_readiness`；fresh readiness 唯一落到 `monitor_plan_required` 时同轮接一次既有 monitor readonly bridge；全程传递登录用户的精确 owner key，不消费写入确认、`run_readback_only`、其他 blocker 或历史 Job
 → 已有正常 Case 若仍停在 `run_monitor_readonly`，一次“继续执行”完成该回查后同样交给推进器继续 readonly；终态专用“重新只读回查 monitor”仍只做一次回查
 → active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 或平台调用前停止的 `blocked_confirmed_monitor_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再由既有有界推进器只读核验；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant/idempotency key
-→ `manual_review_after_attempt_limit` 时“继续执行”只说明状态；只有受控维护端写入最新失败 Job 的脱敏复盘批准 evidence 后，账户本人输入精确“重新只读准备”才以 Case lock 关闭旧 Case 并创建一次 `maximum_create_attempts=1` 的替代 Case/Job；替代 Job 先完整 readonly，不自动确认或创建
+→ `manual_review_after_attempt_limit` 时“继续执行”只说明状态；只有受控维护端写入最新失败 Job 的脱敏复盘批准 evidence 后，账户本人可输入精确“重新只读准备”，或重新输入同一推广路线、游戏标识和账户 ID 并点击“启动流程”，以 Case lock 关闭旧 Case 并创建唯一一次 `maximum_create_attempts=1` 的替代 Case/Job；替代 Job 先完整 readonly，不自动确认或创建
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示下一张 Create Plan 确认卡
 ```

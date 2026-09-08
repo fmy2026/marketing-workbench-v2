@@ -6,7 +6,7 @@ function assert(condition, message) {
 
 const GUIDE_VIDEO_ID = "guide-video-smoke";
 
-function bundle({ required = true, videoCount = 2, staleVideoGuide = false, canonicalGuide = false } = {}) {
+function bundle({ required = true, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false } = {}) {
   const jobId = "JOB-GUIDE-VIDEO-READONLY-SMOKE";
   const videos = Array.from({ length: videoCount }, (_, index) => `VIDEO-${index + 1}`);
   return {
@@ -17,14 +17,26 @@ function bundle({ required = true, videoCount = 2, staleVideoGuide = false, cano
       advertiser_id: "8990000000000740",
       source_usage: "runtime_truth"
     },
-    account: { guide_video_required: required },
+    account: { guide_video_required: required, video_cover_required: coverRequired },
+    defaults: {
+      raw_defaults: {
+        material_source_account: {
+          advertiser_id: "8990000000000700",
+          account_role: "material_source",
+          target_advertiser_id: "8990000000000740"
+        }
+      }
+    },
     materialPack: {
       items: videos.map((sourceAssetId, index) => ({
         item: { item_type: "video_asset", required: true, asset_id: sourceAssetId },
         asset: {
           asset_id: sourceAssetId,
           asset_name: sourceAssetId,
-          metadata: { video_id: `video-id-${index + 1}` }
+          metadata: {
+            video_id: `video-id-${index + 1}`,
+            video_cover_id: `cover-id-${index + 1}`
+          }
         }
       }))
     },
@@ -86,7 +98,7 @@ function bundle({ required = true, videoCount = 2, staleVideoGuide = false, cano
   };
 }
 
-function clientFor(guideVideoIds) {
+function clientFor(guideVideoIds, { missingTargetCover = "" } = {}) {
   const calls = [];
   return {
     calls,
@@ -95,17 +107,36 @@ function clientFor(guideVideoIds) {
     },
     async get(request) {
       calls.push(request);
-      assert(request.endpoint === "/open_api/v3.0/gameplay/list/", "only_gameplay_list_may_be_called_for_cached_videos");
-      const payload = {
-        code: 0,
-        request_id: "request-guide-video-smoke",
-        data: {
-          play_infos: guideVideoIds.map((guideVideoId, index) => ({
-            play_id: `play-${index + 1}`,
-            guide_video_id: guideVideoId
-          }))
-        }
-      };
+      let payload;
+      if (request.endpoint === "/open_api/v3.0/gameplay/list/") {
+        payload = {
+          code: 0,
+          request_id: "request-guide-video-smoke",
+          data: {
+            play_infos: guideVideoIds.map((guideVideoId, index) => ({
+              play_id: `play-${index + 1}`,
+              guide_video_id: guideVideoId
+            }))
+          }
+        };
+      } else {
+        assert(["file/video/get", "file/image/get"].includes(request.endpoint), `unexpected_material_endpoint:${request.endpoint}`);
+        const filtering = JSON.parse(request.query.filtering);
+        const wantedId = filtering.video_ids?.[0] || filtering.image_ids?.[0] || "";
+        const targetCoverMissing = request.label === `target_video_cover_${missingTargetCover}`;
+        payload = {
+          code: 0,
+          request_id: `request-${request.label}`,
+          data: {
+            list: targetCoverMissing ? [] : [{
+              ...(request.endpoint === "file/video/get" ? { video_id: wantedId } : { image_id: wantedId }),
+              material_id: `material-${request.label}`,
+              width: 100,
+              height: 100
+            }]
+          }
+        };
+      }
       return {
         status: "passed",
         requestIdPresent: true,
@@ -116,17 +147,17 @@ function clientFor(guideVideoIds) {
   };
 }
 
-async function run(guideVideoIds, { required = true, videoCount = 2, staleVideoGuide = false, canonicalGuide = false } = {}) {
+async function run(guideVideoIds, { required = true, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, missingTargetCover = "" } = {}) {
   const resourceWrites = [];
   const evidenceWrites = [];
   const repo = {
     async upsertEvidence(value) { evidenceWrites.push(value); },
     async upsertAccountResourceReadonlyBySourceAsset(value) { resourceWrites.push(value); }
   };
-  const client = clientFor(guideVideoIds);
+  const client = clientFor(guideVideoIds, { missingTargetCover });
   const result = await runVideoMaterialReadonlyGate({
     repo,
-    bundle: bundle({ required, videoCount, staleVideoGuide, canonicalGuide }),
+    bundle: bundle({ required, coverRequired, videoCount, staleVideoGuide, canonicalGuide }),
     client,
     allowReadonlyDependency: true
   });
@@ -168,6 +199,18 @@ assert(ordinary.result.status === "passed", "ordinary_account_cached_video_readi
 assert(ordinary.client.calls.length === 0, "ordinary_account_must_not_query_gameplay");
 assert(ordinary.resourceWrites.length === 0, "ordinary_account_must_not_write_guide_video_metadata");
 
+const explicitCovers = await run([GUIDE_VIDEO_ID], { coverRequired: true });
+assert(explicitCovers.result.status === "passed", "fresh_explicit_video_covers_must_pass");
+assert(explicitCovers.client.calls.length === 9, "cover_required_job_must_fresh_read_gameplay_and_two_source_target_video_cover_pairs");
+assert(explicitCovers.result.outputSummary.videoCoverRequired === true, "cover_required_summary_flag_missing");
+assert(explicitCovers.result.outputSummary.finalMaterialReadiness.items.every((item) =>
+  item.coverMode === "explicit_cover_verified" && item.coverVerifiedByCurrentJob === true
+), "both_explicit_covers_must_be_verified_by_current_job");
+
+const missingCover = await run([GUIDE_VIDEO_ID], { coverRequired: true, missingTargetCover: "VIDEO-1" });
+assert(missingCover.result.status === "blocked", "missing_target_cover_must_block_before_confirmation");
+assert(missingCover.result.outputSummary.finalMaterialReadiness.items.some((item) => item.coverVerifiedByCurrentJob !== true), "missing_cover_current_job_evidence_not_exposed");
+
 console.log(JSON.stringify({
   status: "passed",
   uniqueCandidateCalls: unique.client.calls.length,
@@ -179,5 +222,7 @@ console.log(JSON.stringify({
   missingBlocker: missing.result.blockers[0],
   ambiguousBlocker: ambiguous.result.blockers[0],
   ordinaryGameplayCalls: ordinary.client.calls.length,
+  explicitCoverReadonlyCalls: explicitCovers.client.calls.length,
+  missingCoverStatus: missingCover.result.status,
   platformCreateCalls: 0
 }, null, 2));

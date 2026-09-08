@@ -43,6 +43,10 @@ function guideVideoRequired(bundle = {}) {
   return bundle.account?.guide_video_required === true;
 }
 
+function videoCoverRequired(bundle = {}) {
+  return bundle.account?.video_cover_required === true;
+}
+
 function gameplayList(payload = {}) {
   return [
     payload?.data?.play_infos,
@@ -336,12 +340,15 @@ function summarizeMaterial(payload = {}, wantedId = "") {
   };
 }
 
-function existingVideoReady(resource = {}) {
+function existingVideoReady(resource = {}, { requireExplicitCover = false, jobId = "" } = {}) {
   const readonlyStatus = clean(resource?.metadata?.readonly_check?.status);
   const videoPresent = resource?.metadata?.readonly_check?.video_id_present === true ||
     resource?.metadata?.final_material_readiness?.video_id_present === true;
   const coverMode = clean(resource?.metadata?.readonly_check?.cover_mode || resource?.metadata?.final_material_readiness?.cover_mode);
-  const coverReady = ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
+  const coverReady = requireExplicitCover
+    ? coverMode === "explicit_cover_verified" &&
+      clean(resource?.metadata?.readonly_check?.verified_by_job_id || resource?.metadata?.final_material_readiness?.verified_by_job_id) === clean(jobId)
+    : ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
   return resource?.visibility_status === "visible" &&
     resource?.readback_status === "readback_verified" &&
     ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) &&
@@ -365,7 +372,9 @@ function publicItem({
   videoRequestIdPresent = false,
   coverRequestIdPresent = false,
   videoResponseHashPresent = false,
-  coverResponseHashPresent = false
+  coverResponseHashPresent = false,
+  videoVerifiedByCurrentJob = false,
+  coverVerifiedByCurrentJob = false
 }) {
   return {
     sourceAssetId,
@@ -383,7 +392,9 @@ function publicItem({
     videoRequestIdPresent: Boolean(videoRequestIdPresent),
     coverRequestIdPresent: Boolean(coverRequestIdPresent),
     videoResponseHashPresent: Boolean(videoResponseHashPresent),
-    coverResponseHashPresent: Boolean(coverResponseHashPresent)
+    coverResponseHashPresent: Boolean(coverResponseHashPresent),
+    videoVerifiedByCurrentJob: Boolean(videoVerifiedByCurrentJob),
+    coverVerifiedByCurrentJob: Boolean(coverVerifiedByCurrentJob)
   };
 }
 
@@ -536,6 +547,7 @@ async function persistVideoResource({ repo, bundle, item, status, evidenceRef, b
       source_video_visible: Boolean(sourceVideoVisible),
       target_video_visible: Boolean(targetVideoVisible),
       explicit_cover_visible: Boolean(explicitCoverVisible),
+      verified_by_job_id: bundle.job.job_id,
       local_file_present: Boolean(item.localFilePath),
       local_file_hash_present: Boolean(item.localFileHash),
       source_account_id_present: Boolean(item.sourceAdvertiserId),
@@ -554,6 +566,7 @@ async function persistVideoResource({ repo, bundle, item, status, evidenceRef, b
         source_video_visible: Boolean(sourceVideoVisible),
         target_video_visible: Boolean(targetVideoVisible),
         explicit_cover_visible: Boolean(explicitCoverVisible),
+        verified_by_job_id: bundle.job.job_id,
         source_account_id_present: Boolean(item.sourceAdvertiserId),
         evidence_ref: evidenceRef || ""
       }
@@ -561,11 +574,13 @@ async function persistVideoResource({ repo, bundle, item, status, evidenceRef, b
   });
 }
 
-function summaryFromItems({ items, source = "postgres_readonly_metadata" }) {
+function summaryFromItems({ items, source = "postgres_readonly_metadata", requireExplicitCover = false }) {
   const verifiedItems = items.filter((item) => item.readbackStatus === "readback_verified");
   const coverReadyItems = items.filter((item) =>
     item.readbackStatus === "readback_verified" &&
-    ["explicit_cover_verified", "platform_default_cover_allowed"].includes(item.coverMode)
+    (requireExplicitCover
+      ? item.coverMode === "explicit_cover_verified" && item.coverVerifiedByCurrentJob === true
+      : ["explicit_cover_verified", "platform_default_cover_allowed"].includes(item.coverMode))
   );
   const selectedRequiredVideoCount = items.length;
   const verifiedVideoCount = verifiedItems.length;
@@ -584,6 +599,7 @@ function summaryFromItems({ items, source = "postgres_readonly_metadata" }) {
       verifiedVideoCount,
       coverVerifiedCount: coverReadyCount,
       coverReadyCount,
+      videoCoverRequired: requireExplicitCover,
       readonlyStatus: ready ? "passed" : "blocked",
       materialReadinessSource: source,
       displayText: `视频素材 ${verifiedVideoCount}/${selectedRequiredVideoCount} 已就绪`,
@@ -593,6 +609,7 @@ function summaryFromItems({ items, source = "postgres_readonly_metadata" }) {
         verifiedVideoCount,
         coverVerifiedCount: coverReadyCount,
         coverReadyCount,
+        videoCoverRequired: requireExplicitCover,
         items: items.map(publicItem)
       },
       nextAction: ready ? "无需动作" : "逐条补齐视频在目标账户的可读性；封面优先显式验证，否则使用平台默认封面"
@@ -608,8 +625,9 @@ export async function runVideoMaterialReadonlyGate({
   allowReadonlyDependency = false
 } = {}) {
   const requiredItems = requiredVideoEntries(bundle);
+  const requireExplicitCover = videoCoverRequired(bundle);
   if (requiredItems.length === 0) {
-    return summaryFromItems({ items: [], source: "material_pack_missing_required_video" });
+    return summaryFromItems({ items: [], source: "material_pack_missing_required_video", requireExplicitCover });
   }
 
   const guideVideoReadiness = await resolveGuideVideoReadonly({
@@ -625,7 +643,7 @@ export async function runVideoMaterialReadonlyGate({
 
   const cachedItems = requiredItems.map((item) => {
     const resource = accountResourceForVideo(bundle, item.sourceAssetId);
-    const cachedReady = mockReady || existingVideoReady(resource);
+    const cachedReady = mockReady || (!requireExplicitCover && existingVideoReady(resource));
     return publicItem({
       sourceAssetId: item.sourceAssetId,
       videoIdPresent: Boolean(item.videoId),
@@ -633,17 +651,19 @@ export async function runVideoMaterialReadonlyGate({
       videoReadonlyStatus: cachedReady ? "cached" : clean(resource?.metadata?.readonly_check?.status || "not_checked"),
       coverReadonlyStatus: cachedReady ? "cached" : clean(resource?.metadata?.readonly_check?.status || "not_checked"),
       coverMode: mockReady
-        ? "platform_default_cover_allowed"
+        ? (requireExplicitCover ? "explicit_cover_verified" : "platform_default_cover_allowed")
         : cachedReady
           ? clean(resource?.metadata?.readonly_check?.cover_mode || resource?.metadata?.final_material_readiness?.cover_mode || "platform_default_cover_allowed")
           : clean(resource?.metadata?.readonly_check?.cover_mode || resource?.metadata?.final_material_readiness?.cover_mode || "not_checked"),
       planStatus: clean(resource?.metadata?.readonly_check?.plan_status || resource?.metadata?.final_material_readiness?.plan_status || ""),
       nextAction: clean(resource?.metadata?.readonly_check?.next_action || ""),
       readbackStatus: cachedReady ? "readback_verified" : clean(resource?.readback_status || "missing"),
-      evidenceRef: clean(resource?.metadata?.readonly_check?.evidence_refs?.[0] || resource?.metadata?.final_material_readiness?.evidence_ref)
+      evidenceRef: clean(resource?.metadata?.readonly_check?.evidence_refs?.[0] || resource?.metadata?.final_material_readiness?.evidence_ref),
+      videoVerifiedByCurrentJob: mockReady,
+      coverVerifiedByCurrentJob: mockReady && requireExplicitCover
     });
   });
-  const cachedSummary = summaryFromItems({ items: cachedItems, source: mockReady ? "mock_ready" : "postgres_readonly_metadata" });
+  const cachedSummary = summaryFromItems({ items: cachedItems, source: mockReady ? "mock_ready" : "postgres_readonly_metadata", requireExplicitCover });
   if (guideVideoReadiness.status === "blocked") {
     return sanitizeForPublic({
       status: "blocked",
@@ -752,7 +772,11 @@ export async function runVideoMaterialReadonlyGate({
         videoSourceProbe.summary?.targetVisible === true;
       targetVideoVisible = videoTargetProbe.status === "passed" && videoTargetProbe.summary?.targetVisible === true;
       targetCoverVisible = coverTargetProbe?.status === "passed" && coverTargetProbe.summary?.targetVisible === true;
-      probeFailed = probeFailedStatus(videoSourceProbe, videoTargetProbe);
+      probeFailed = probeFailedStatus(
+        videoSourceProbe,
+        videoTargetProbe,
+        ...(requireExplicitCover ? [coverSourceProbe, coverTargetProbe] : [])
+      );
       coverMode = coverModeFrom({ explicitCoverVisible: targetCoverVisible, videoVisible: targetVideoVisible });
       planStatus = materialPlanStatus({
         sourceVideoVisible,
@@ -761,6 +785,9 @@ export async function runVideoMaterialReadonlyGate({
         probeFailed
       });
       if (!sourceAccount.advertiserId) blocker = "material_source_account_missing";
+      if (!blocker && requireExplicitCover && !item.coverId) blocker = "video_cover_id_missing";
+      if (!blocker && requireExplicitCover && coverSourceProbe?.summary?.targetVisible !== true) blocker = "video_cover_source_not_visible";
+      if (!blocker && requireExplicitCover && !targetCoverVisible) blocker = "video_cover_target_not_visible";
       if (!blocker && planStatus === "platform_probe_failed") blocker = "platform_probe_failed";
       if (!blocker && planStatus === "source_missing_local_missing") blocker = "source_missing_local_missing";
       if (!blocker && planStatus === "source_missing_local_ready") blocker = "source_missing_local_ready";
@@ -820,11 +847,13 @@ export async function runVideoMaterialReadonlyGate({
       videoRequestIdPresent: videoTargetProbe?.requestIdPresent === true,
       coverRequestIdPresent: coverTargetProbe?.requestIdPresent === true,
       videoResponseHashPresent: Boolean(videoTargetProbe?.responseHash),
-      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash)
+      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash),
+      videoVerifiedByCurrentJob: targetVideoVisible,
+      coverVerifiedByCurrentJob: targetCoverVisible
     }));
   }
 
-  const result = summaryFromItems({ items: checkedItems, source: "oceanengine_readonly_probe" });
+  const result = summaryFromItems({ items: checkedItems, source: "oceanengine_readonly_probe", requireExplicitCover });
   return sanitizeForPublic({
     ...result,
     outputSummary: {
@@ -853,8 +882,9 @@ export async function runVideoMaterialTargetReadonlyProbe({
   const requiredItems = requiredVideoEntries(bundle)
     .filter((item) => wantedAssetIds.size === 0 || wantedAssetIds.has(item.sourceAssetId));
   if (requiredItems.length === 0) {
-    return summaryFromItems({ items: [], source: "material_pack_missing_required_video" });
+    return summaryFromItems({ items: [], source: "material_pack_missing_required_video", requireExplicitCover: videoCoverRequired(bundle) });
   }
+  const requireExplicitCover = videoCoverRequired(bundle);
 
   const permission = readonlyPermissionState({ allowReadonlyDependency });
   if (!permission.allowed) {
@@ -870,7 +900,7 @@ export async function runVideoMaterialTargetReadonlyProbe({
       readbackStatus: "not_checked",
       evidenceRef: ""
     }));
-    const summary = summaryFromItems({ items, source: "target_account_readonly_permission_required" });
+    const summary = summaryFromItems({ items, source: "target_account_readonly_permission_required", requireExplicitCover });
     return sanitizeForPublic({
       ...summary,
       blockers: permission.blockers,
@@ -896,7 +926,7 @@ export async function runVideoMaterialTargetReadonlyProbe({
       readbackStatus: "not_checked",
       evidenceRef: ""
     }));
-    const summary = summaryFromItems({ items, source: "target_account_credential_required" });
+    const summary = summaryFromItems({ items, source: "target_account_credential_required", requireExplicitCover });
     return sanitizeForPublic({
       ...summary,
       blockers: ["credential_required", ...(credential.blockers || [])],
@@ -955,6 +985,8 @@ export async function runVideoMaterialTargetReadonlyProbe({
         probeFailed: probeFailedStatus(videoTargetProbe)
       });
       if (!blocker && planStatus === "platform_probe_failed") blocker = "platform_probe_failed";
+      if (!blocker && requireExplicitCover && !item.coverId) blocker = "video_cover_id_missing";
+      if (!blocker && requireExplicitCover && !targetCoverVisible) blocker = "video_cover_target_not_visible";
       if (!blocker && planStatus === "source_missing_local_missing") blocker = "source_readiness_not_verified_by_precheck";
       if (!blocker && planStatus === "source_missing_local_ready") blocker = "source_readiness_not_verified_by_precheck";
       if (!blocker && planStatus === "source_ready_target_missing") blocker = "source_ready_target_missing";
@@ -1011,11 +1043,13 @@ export async function runVideoMaterialTargetReadonlyProbe({
       videoRequestIdPresent: videoTargetProbe?.requestIdPresent === true,
       coverRequestIdPresent: coverTargetProbe?.requestIdPresent === true,
       videoResponseHashPresent: Boolean(videoTargetProbe?.responseHash),
-      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash)
+      coverResponseHashPresent: Boolean(coverTargetProbe?.responseHash),
+      videoVerifiedByCurrentJob: targetVideoVisible,
+      coverVerifiedByCurrentJob: targetCoverVisible
     }));
   }
 
-  const result = summaryFromItems({ items: checkedItems, source: "oceanengine_target_readonly_probe" });
+  const result = summaryFromItems({ items: checkedItems, source: "oceanengine_target_readonly_probe", requireExplicitCover });
   return sanitizeForPublic({
     ...result,
     evidenceRefs,

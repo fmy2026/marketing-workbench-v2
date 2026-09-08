@@ -256,20 +256,31 @@ function targetFromBundle(bundle = {}) {
 }
 
 function expectedGuideVideoBindings(bundle = {}) {
-  if (bundle.account?.guide_video_required !== true) {
-    return { required: false, status: "not_required", guideVideoId: "", videoIds: [] };
+  const guideRequired = bundle.account?.guide_video_required === true;
+  const coverRequired = bundle.account?.video_cover_required === true;
+  if (!guideRequired && !coverRequired) {
+    return { required: false, status: "not_required", guideVideoId: "", videoIds: [], bindings: [] };
   }
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  const videoIds = materialItems
+  const bindings = materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
-    .map((entry) => clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id));
-  const ready = guideReadiness.status === "passed" && videoIds.length > 0 && videoIds.every(Boolean);
+    .map((entry) => ({
+      videoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
+      videoCoverId: clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)
+    }));
+  const videoIds = bindings.map((item) => item.videoId);
+  const ready = (!guideRequired || guideReadiness.status === "passed") &&
+    bindings.length > 0 &&
+    bindings.every((item) => Boolean(item.videoId) && (!coverRequired || Boolean(item.videoCoverId)));
   return {
     required: true,
     status: ready ? "ready" : "blocked",
-    guideVideoId: ready ? guideReadiness.guideVideoId : "",
-    videoIds: ready ? videoIds : []
+    guideRequired,
+    coverRequired,
+    guideVideoId: ready && guideRequired ? guideReadiness.guideVideoId : "",
+    videoIds: ready ? videoIds : [],
+    bindings: ready ? bindings : []
   };
 }
 
@@ -280,18 +291,33 @@ function summarizeProjectVideoMaterials(payload = {}, expected = {}) {
     payload?.data?.material_list,
     payload?.data?.items
   ].find((value) => Array.isArray(value)) || [];
-  const expectedVideoIds = new Set(expected.videoIds || []);
-  const matchedVideoIds = new Set(items
-    .filter((item) => expectedVideoIds.has(clean(item?.video_id)))
-    .filter((item) => clean(item?.guide_video_id) === clean(expected.guideVideoId))
-    .map((item) => clean(item?.video_id)));
+  const expectedBindings = new Map((expected.bindings || []).map((item) => [item.videoId, item]));
+  const returnedByVideoId = new Map(items
+    .map((item) => [clean(item?.video_id), item])
+    .filter(([videoId]) => expectedBindings.has(videoId)));
+  const matchedVideoCount = [...expectedBindings.keys()].filter((videoId) => returnedByVideoId.has(videoId)).length;
+  const matchedCoverCount = [...expectedBindings.entries()].filter(([videoId, binding]) => {
+    if (!expected.coverRequired) return true;
+    const returned = returnedByVideoId.get(videoId);
+    return clean(returned?.video_cover_id || returned?.video_cover_uri) === clean(binding.videoCoverId);
+  }).length;
+  const matchedGuideVideoCount = [...expectedBindings.keys()].filter((videoId) => {
+    if (!expected.guideRequired) return true;
+    return clean(returnedByVideoId.get(videoId)?.guide_video_id) === clean(expected.guideVideoId);
+  }).length;
+  const expectedVideoCount = expectedBindings.size;
   return {
     apiCode: extractApiCode(payload),
     requestIdPresent: Boolean(extractRequestId(payload)),
     returnedVideoCount: items.length,
-    expectedVideoCount: expectedVideoIds.size,
-    matchedVideoCount: matchedVideoIds.size,
-    allExpectedBindingsMatch: expectedVideoIds.size > 0 && matchedVideoIds.size === expectedVideoIds.size
+    expectedVideoCount,
+    matchedVideoCount,
+    matchedCoverCount,
+    matchedGuideVideoCount,
+    allExpectedBindingsMatch: expectedVideoCount > 0 &&
+      matchedVideoCount === expectedVideoCount &&
+      matchedCoverCount === expectedVideoCount &&
+      matchedGuideVideoCount === expectedVideoCount
   };
 }
 
@@ -319,6 +345,8 @@ async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchIm
     returnedVideoCount: 0,
     expectedVideoCount: expected.videoIds.length,
     matchedVideoCount: 0,
+    matchedCoverCount: 0,
+    matchedGuideVideoCount: 0,
     allExpectedBindingsMatch: false
   };
   let timedOut = false;
@@ -347,7 +375,7 @@ async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchIm
     jobId: bundle.job.job_id,
     artifactType: "guide_video_material_readback",
     title: "guide video material readback",
-    summary: `endpoint=oc_project/material/get status=${passed ? "passed" : "pending"} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent === true} expected_video_count=${summary.expectedVideoCount} matched_video_count=${summary.matchedVideoCount} raw_response_stored=false`,
+    summary: `endpoint=oc_project/material/get status=${passed ? "passed" : "pending"} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent === true} expected_video_count=${summary.expectedVideoCount} matched_video_count=${summary.matchedVideoCount} matched_cover_count=${summary.matchedCoverCount} matched_guide_video_count=${summary.matchedGuideVideoCount} raw_response_stored=false`,
     contentHash: `sha256:${sha256(text)}`,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${MATERIAL_GET_ENDPOINT}`,
@@ -361,6 +389,8 @@ async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchIm
     requestIdPresent: summary.requestIdPresent,
     expectedVideoCount: summary.expectedVideoCount,
     matchedVideoCount: summary.matchedVideoCount,
+    matchedCoverCount: summary.matchedCoverCount,
+    matchedGuideVideoCount: summary.matchedGuideVideoCount,
     allExpectedBindingsMatch: summary.allExpectedBindingsMatch,
     responseHash: `sha256:${sha256(text)}`,
     evidenceRef
@@ -948,7 +978,7 @@ export async function readbackStdProjectOnce({
         remainingMs: absoluteDeadlineMs - (nowFn() - readbackStartedAt)
       })
     : {
-        status: bundle.account?.guide_video_required === true ? "project_not_found" : "not_required",
+        status: bundle.account?.guide_video_required === true || bundle.account?.video_cover_required === true ? "project_not_found" : "not_required",
         called: false,
         evidenceRef: ""
       };
@@ -1005,6 +1035,8 @@ export async function readbackStdProjectOnce({
           called: guideVideoMaterialReadback.called === true,
           expected_video_count: Number(guideVideoMaterialReadback.expectedVideoCount || 0),
           matched_video_count: Number(guideVideoMaterialReadback.matchedVideoCount || 0),
+          matched_cover_count: Number(guideVideoMaterialReadback.matchedCoverCount || 0),
+          matched_guide_video_count: Number(guideVideoMaterialReadback.matchedGuideVideoCount || 0),
           evidence_ref: guideVideoMaterialReadback.evidenceRef || "",
           raw_response_stored: false
         },
@@ -1078,6 +1110,8 @@ export async function readbackStdProjectOnce({
           called: guideVideoMaterialReadback.called === true,
           expected_video_count: Number(guideVideoMaterialReadback.expectedVideoCount || 0),
           matched_video_count: Number(guideVideoMaterialReadback.matchedVideoCount || 0),
+          matched_cover_count: Number(guideVideoMaterialReadback.matchedCoverCount || 0),
+          matched_guide_video_count: Number(guideVideoMaterialReadback.matchedGuideVideoCount || 0),
           evidence_ref: guideVideoMaterialReadback.evidenceRef || "",
           raw_response_stored: false
         },

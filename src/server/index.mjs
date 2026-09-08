@@ -14,6 +14,7 @@ import {
   runWorkbenchInitialReadonly
 } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
+import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 import {
   WORKBENCH_ORIGIN
@@ -328,7 +329,10 @@ async function handleApi(req, res, url) {
     const body = await readBody(req);
     let workflowCase;
     try {
-      workflowCase = await createWorkflowCase(repo, body, { currentUser: auth.user });
+      workflowCase = await createWorkflowCase(repo, body, {
+        currentUser: auth.user,
+        replacementCredentialStateFn: () => createOceanEngineReadonlyClient().credentialState()
+      });
     } catch (error) {
       if (["advertiser_owner_mismatch", "advertiser_owner_binding_conflict"].includes(error.message)) {
         await audit({

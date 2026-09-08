@@ -312,6 +312,7 @@ function videoMaterials(bundle = {}) {
 
 function requiredVideoMaterialReadiness(bundle = {}) {
   const guideRequired = bundle.account?.guide_video_required === true;
+  const coverRequired = bundle.account?.video_cover_required === true;
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   const items = materialItems
@@ -321,7 +322,13 @@ function requiredVideoMaterialReadiness(bundle = {}) {
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const readonlyStatus = clean(resourceItem.metadata?.readonly_check?.status);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
-      const coverReady = ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
+      const verifiedByCurrentJob = clean(
+        resourceItem.metadata?.readonly_check?.verified_by_job_id ||
+        resourceItem.metadata?.final_material_readiness?.verified_by_job_id
+      ) === clean(bundle.job?.job_id);
+      const coverReady = coverRequired
+        ? coverMode === "explicit_cover_verified" && verifiedByCurrentJob
+        : ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
       const guideReady = !guideRequired || guideReadiness.status === "passed";
       const ready = sourceAssetId &&
         resourceReady(resourceItem) &&
@@ -334,6 +341,8 @@ function requiredVideoMaterialReadiness(bundle = {}) {
         videoIdPresent: Boolean(clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id)),
         videoCoverIdPresent: Boolean(clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)),
         coverMode: coverMode || "not_checked",
+        videoCoverRequired: coverRequired,
+        videoCoverVerifiedByCurrentJob: coverRequired ? verifiedByCurrentJob : false,
         guideVideoRequired: guideRequired,
         guideVideoReady: guideReady,
         guideVideoIdPresent: Boolean(clean(guideReadiness.guideVideoId)),
@@ -362,6 +371,7 @@ function requiredVideoMaterialReadiness(bundle = {}) {
     coverVerifiedCount: coverReadyCount,
     coverReadyCount,
     guideVideoRequired: guideRequired,
+    videoCoverRequired: coverRequired,
     guideVideoReadyCount,
     items
   };
@@ -489,6 +499,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const verifiedVideoCount = Number(materialReadiness.verifiedVideoCount || 0);
   const coverVerifiedCount = Number(materialReadiness.coverVerifiedCount || 0);
   const guideVideoRequired = bundle.account?.guide_video_required === true;
+  const videoCoverRequired = bundle.account?.video_cover_required === true;
   const guideVideoReadyCount = Number(materialReadiness.guideVideoReadyCount || 0);
   const sellingPoints = payload.project_materials?.product_info?.selling_points;
   const sellingPointsContract = evaluateSellingPointsContract(sellingPoints, {
@@ -520,6 +531,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(selectedRequiredVideoCount !== payload.project_materials?.video_material_list?.length ? ["selected_required_video_count_mismatch"] : []),
     ...(selectedRequiredVideoCount !== verifiedVideoCount ? ["required_video_material_readback_incomplete"] : []),
     ...(selectedRequiredVideoCount !== coverVerifiedCount ? ["required_video_cover_readback_incomplete"] : []),
+    ...(videoCoverRequired && (payload.project_materials?.video_material_list || []).some((item) => !clean(item.video_cover_id)) ? ["video_cover_id_missing"] : []),
     ...(guideVideoRequired && selectedRequiredVideoCount !== guideVideoReadyCount ? ["required_guide_video_readback_incomplete"] : []),
     ...(guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => !clean(item.guide_video_id)) ? ["guide_video_id_missing"] : []),
     ...(!guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => Object.hasOwn(item, "guide_video_id")) ? ["guide_video_id_must_be_omitted"] : []),
@@ -658,6 +670,7 @@ function fieldManifest(payload = {}, blockers = [], {
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
     videoCoverReadyCount: (materials.video_material_list || []).filter((item) => item.video_cover_id).length,
     guideVideoRequired: materialReadiness.guideVideoRequired === true,
+    videoCoverRequired: materialReadiness.videoCoverRequired === true,
     guideVideoReadyCount: (materials.video_material_list || []).filter((item) => clean(item.guide_video_id)).length,
     imageMaterialListCount: Array.isArray(materials.image_material_list) ? materials.image_material_list.length : 0,
     imageMaterialListEmpty: Array.isArray(materials.image_material_list) && materials.image_material_list.length === 0,
@@ -717,12 +730,15 @@ function fieldManifest(payload = {}, blockers = [], {
       coverVerifiedCount: materialReadiness.coverVerifiedCount || 0,
       coverReadyCount: materialReadiness.coverReadyCount || materialReadiness.coverVerifiedCount || 0,
       guideVideoRequired: materialReadiness.guideVideoRequired === true,
+      videoCoverRequired: materialReadiness.videoCoverRequired === true,
       guideVideoReadyCount: Number(materialReadiness.guideVideoReadyCount || 0),
       items: (materialReadiness.items || []).map((item) => ({
         sourceAssetId: item.sourceAssetId,
         videoIdPresent: Boolean(item.videoIdPresent),
         videoCoverIdPresent: Boolean(item.videoCoverIdPresent),
         coverMode: item.coverMode || "",
+        videoCoverRequired: item.videoCoverRequired === true,
+        videoCoverVerifiedByCurrentJob: item.videoCoverVerifiedByCurrentJob === true,
         guideVideoRequired: item.guideVideoRequired === true,
         guideVideoReady: item.guideVideoReady === true,
         guideVideoIdPresent: item.guideVideoIdPresent === true,

@@ -61,8 +61,111 @@ assert(reused.reusedActiveCase === true, "active_case_not_reused");
 assert(reused.case_id === activeCase.case_id, "reused_case_id_changed");
 assert(createCalls === 0, "reused_case_created_duplicate");
 
+const exhaustedCase = {
+  ...activeCase,
+  case_id: "CASE-MWBV2-ADDRESS-EXHAUSTED-1",
+  owner_user_id: "USR-ZHANGJINGWEI",
+  source_usage: "runtime_truth",
+  lifecycle_status: "active",
+  maximum_create_attempts: 3,
+  metadata: { manual_review: { approved: true, fix_version: "video_cover_binding_v1" } }
+};
+const replacementCase = {
+  ...exhaustedCase,
+  case_id: "CASE-MWBV2-ADDRESS-REPLACEMENT-1",
+  case_key: "replacement.case-mwbv2-address-exhausted-1",
+  maximum_create_attempts: 1,
+  metadata: {
+    created_via: "approved_manual_review_replacement",
+    replacement_for_case_id: exhaustedCase.case_id,
+    manual_review_fix_version: "video_cover_binding_v1"
+  }
+};
+let selectedActiveCase = exhaustedCase;
+let replacementCreateCalls = 0;
+const replacementRepo = {
+  async getCoreContext() { return { account: {} }; },
+  async getAdvertiserAccount() {
+    return {
+      advertiser_id: exhaustedCase.advertiser_id,
+      route_id: exhaustedCase.route_id,
+      game_code: exhaustedCase.game_code,
+      owner_user_id: exhaustedCase.owner_user_id
+    };
+  },
+  async bindAdvertiserOwner() { return { bound: true }; },
+  async getWorkflowCaseByKey() { return null; },
+  async getActiveRuntimeWorkflowCase() { return selectedActiveCase; },
+  async getWorkflowCaseSummary(caseId) {
+    return caseId === exhaustedCase.case_id
+      ? {
+          latest_job_id: "JOB-MWBV2-ADDRESS-EXHAUSTED-3",
+          current_gate: "manual_review_after_attempt_limit",
+          root_blocker_codes: ["std_project_create_attempt_limit_reached"]
+        }
+      : { latest_job_id: "JOB-MWBV2-ADDRESS-REPLACEMENT-1" };
+  },
+  async getLaunchJobBundle(jobId) {
+    return {
+      job: {
+        job_id: jobId,
+        case_id: jobId.includes("REPLACEMENT") ? replacementCase.case_id : exhaustedCase.case_id,
+        job_status: jobId.includes("REPLACEMENT") ? "created" : "failed_waiting_manual_review"
+      }
+    };
+  },
+  async getWorkflowCase(caseId) { return caseId === replacementCase.case_id ? replacementCase : null; },
+  async createWorkflowCase() { throw new Error("approved_replacement_must_not_create_ordinary_case"); }
+};
+const currentUser = {
+  user_id: exhaustedCase.owner_user_id,
+  user_status: "active",
+  qiankun_owner_key: "zhangjingwei"
+};
+const replacementOptions = {
+  currentUser,
+  replacementCredentialStateFn: () => ({ status: "ready", blockers: [] }),
+  accountBootstrapFn: async () => ({
+    status: "passed",
+    accountIdentityWritten: true,
+    account: { qiankunOwnerKey: currentUser.qiankun_owner_key }
+  }),
+  createApprovedReplacementCaseAndJobFn: async (_repo, predecessor, user) => {
+    replacementCreateCalls += 1;
+    assert(predecessor.job_id === "JOB-MWBV2-ADDRESS-EXHAUSTED-3", "replacement_predecessor_changed");
+    assert(user.user_id === currentUser.user_id, "replacement_owner_not_bound");
+    selectedActiveCase = replacementCase;
+    return {
+      created: true,
+      caseId: replacementCase.case_id,
+      jobId: "JOB-MWBV2-ADDRESS-REPLACEMENT-1",
+      maximumCreateAttempts: 1
+    };
+  }
+};
+const replacementStarted = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(replacementStarted.case_id === replacementCase.case_id, "approved_intake_did_not_select_replacement_case");
+assert(replacementStarted.replacementJobId === "JOB-MWBV2-ADDRESS-REPLACEMENT-1", "approved_intake_replacement_job_missing");
+assert(replacementStarted.requiresInitialReadonly === true, "approved_intake_must_request_readonly_only");
+const replacementRepeated = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement.repeat",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(replacementRepeated.case_id === replacementCase.case_id, "repeated_intake_did_not_return_same_replacement_case");
+assert(replacementCreateCalls === 1, "repeated_intake_created_second_replacement_case");
+
 const clientSource = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
 assert(!/localStorage|sessionStorage/.test(clientSource), "active_account_browser_persistence_present");
+assert(clientSource.includes("approvedReplacementCase") && clientSource.includes("requiresInitialReadonly"), "replacement_start_frontend_bridge_missing");
 
 console.log(JSON.stringify({
   status: "passed",
@@ -70,5 +173,9 @@ console.log(JSON.stringify({
   canonicalCaseUrl: workbenchCaseUrl(activeCase.case_id),
   canonicalJobUrl: workbenchJobUrl(activeCase.latest_job_id),
   activeCaseReuse: reused.reusedActiveCase,
-  browserPersistence: false
+  browserPersistence: false,
+  approvedReplacementCaseId: replacementStarted.case_id,
+  repeatedReplacementCaseId: replacementRepeated.case_id,
+  replacementCreateCalls,
+  platformCreateCalls: 0
 }, null, 2));
