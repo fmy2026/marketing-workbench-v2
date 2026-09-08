@@ -207,6 +207,8 @@ active `runtime_truth` Case 的最新 Job 若为 `failed_waiting_manual_review`�
 
 fresh Job 使用失败 predecessor 生成确定性恢复引用并由 Case advisory lock 原子占有；并发或重复“继续执行”只能返回同一个 Job。只读准备重新核验账户授权、Monitor、事件、品牌、素材、DMP、查重和字段合同；已 `10/10 passed` 的 DMP 只查询、不重复推送，任何资源失效继续进入既有真实 Gate。该机制不新增 Node、业务 Gate、Plan/action 类型或确认短语，也不构成自动重试。
 
+Case 级尝试状态必须贯穿 readonly 与最终 create executor：两者都以 `getCaseCreateAttemptState(case_id)` 判定下一序号、已有对象、verified readback 和三次上限；当前 Job 的状态只用于当前 Plan/action 的原子 claim 与防重。不得在 fresh Job 的最终写前校验退回按 Job 计数，否则 Attempt 2/3 会被误判为序号不连续。已确认但在 action claim 前因此类本地校验失败的 Plan 保持 consumed，修复后仍通过“继续执行”建立新的 fresh Job；Case 没有新增平台 action 时，下一 Plan 继续使用原 Attempt 序号。
+
 ## 已批准设计：小程序实例被动就绪状态保留
 
 `micro_app_instance` 的 `waiting_on_event_asset` 与 `waiting_on_event_configs` 是事件链中的被动就绪状态，不是独立资源准备能力。资源结果归一必须保留这两个状态，同时继续声明 `prepare_supported=false`；runner 将其聚合为 `WAITING`，Execution Plan 不生成实例动作或 `resource_prepare_unsupported:micro_app_instance` blocker。实例只有在既有事件资产详情确认 App + instance 绑定后才能进入 verified，禁止猜测实例 ID、人工映射其他实例或新增实例 executor。

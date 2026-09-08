@@ -214,6 +214,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | Plan 不可重放 | 已确认 Create Plan 一旦存在平台 action，就不得继续为 `ready`。成功链固定为 `ready → waiting_readback → consumed`；明确失败、超时、异常或结果不明在相应只读收口后都必须离开可确认态。 |
 | 不明与明确失败的区别 | 只有 `failed_or_unconfirmed + outcome_category=platform_response_unknown` 才能进入严格只读回查恢复；平台明确业务失败保留失败事实，禁止用同名对象回查改写成成功。 |
 | 泛化 `40000` 的处理 | HTTP 成功但平台业务码明确失败、且脱敏响应没有具体字段路径时，本地 `resource_not_eligible` 只表示错误文本命中了资源类词，不足以归因到事件、品牌、视频、图片或 DMP。必须收口并停止当前 Attempt，禁止同 Plan 自动重试；账户本人仍可从 `prepare_corrective_attempt` 触发 fresh Job，完成全量只读后以新项目名、Draft、payload hash、Plan 和确认执行下一次，整个 Case 最多 3 次。 |
+| Case 跨 Job 尝试计数 | fresh Job 内没有历史 action，不能用单 Job 的 `nextCreateAttemptNo` 校验 Attempt 2/3。readonly 和最终 create executor 必须共同读取 Case 聚合状态；Job 级状态只负责当前 Plan/action 防重。回归测试必须覆盖“Job A Attempt 1 失败 → Job B Attempt 2 确认并调用一次”，仅验证 Plan ready 不足以证明执行链已接通。 |
 | 恢复门槛 | 不明响应的恢复同时要求该 action/Plan、项目 ID、最新 Draft 名称、created object 与 `readback_verified` 精确一致；恢复只标记“由回查确认成功”，不伪造或重用 confirmation/action。 |
 | 终态一致性 | verified 成功同时收口 Plan、Job 和 Case；非 active Case 不再投影确认、重试或执行入口，只有完整完成证据保留完成 Gate。 |
 | deadline 单一来源 | 所有生产 HTTP 经同一封装：JSON 15 秒、上传 60 秒；Node 07 保留 `0/3/5/8/10` 秒绝对回查点并设 25 秒整轮硬截止。封装必须组合 caller signal、超时 abort 与 timer 清理，且不实现自动重试。 |

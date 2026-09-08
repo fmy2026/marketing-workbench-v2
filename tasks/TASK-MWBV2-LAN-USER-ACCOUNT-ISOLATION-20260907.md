@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：corrective_reprepare_ready_waiting_owner_continue
+状态：corrective_executor_fixed_waiting_owner_continue
 
 ## 目标
 
@@ -104,3 +104,9 @@ Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准
 创建次数改为整个 Case 聚合：当前张境威 Case 的旧 action 为 Attempt 1，新 Job 必须准备 Attempt 2；Attempt 2 明确失败后可准备 Attempt 3，第三次仍未 verified 则进入人工复盘。重复“继续执行”按 predecessor 幂等返回同一 fresh Job；DMP `10/10 passed` 只重新只读核验，不重复推送。本变更不新增 Node、业务 Gate、Plan/action 类型或确认短语，实施与测试平台写入为 0。
 
 实现已完成并应用 migration `073_case_level_corrective_attempts.sql`。真实 Case 当前仍保持 Attempt 1、旧 Plan consumed、零 created object、DMP `10/10 passed`，未提前创建 Attempt 2。迁移前备份恢复到临时数据库后的完整验证确认：第一次“继续执行”语义只创建一个 fresh Job，重复请求返回同一 Job；7 Node readonly 生成 ready V2 / `create_attempt_no=2` Plan，平台创建调用为 0。当前等待张境威本人在工作台输入“继续执行”。
+
+## 2026-09-08 Attempt 2 创建前误阻断修复
+
+张境威已通过工作台建立并确认 Attempt 2 Job `JOB-MWBV2-20260908021122-A501FC`。其资源、字段合同、Draft 与 Plan 均通过，但最终 create executor 仍按 fresh Job 而非 Case 读取下一尝试序号，以 `create_attempt_number_not_next` 在 action claim 前安全停止；`real_platform_write_called=false`，Case 仍只有 Attempt 1 的一次媒体 action。修复让最终 executor 与 readonly runner 共用 `getCaseCreateAttemptState(case_id)`，并按 Case 阻止已有对象或 verified readback；Job 状态继续只负责本 Plan/action 防重。
+
+新增普通 Case 跨 Job fake-transport 回归：Attempt 1 明确失败后 Attempt 2 只调用一次 create 和一次 readback，Case 聚合为 2 个 action、1 个对象、1 个 verified readback；已有 verified 对象后的新 Job 调用数为 0。真实失败 Plan 保持 consumed，部署后仍等待张境威输入“继续执行”建立新的 Attempt 2 Plan。

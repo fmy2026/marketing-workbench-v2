@@ -58,7 +58,7 @@ Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平�
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
 
-最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最多 3 次；每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；第三次未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
+最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最多 3 次；readonly 与最终 create executor 都必须用同一 Case 聚合状态校验序号、已有对象和 verified readback，Job 级状态仅负责当前 Plan/action 防重。每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；第三次未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
 
 已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 

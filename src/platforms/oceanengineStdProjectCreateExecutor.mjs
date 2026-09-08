@@ -347,6 +347,10 @@ export async function createStdProjectForTargetOnce({
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
   const readiness = readinessOverride || latestCreateReadiness(bundle);
   const attemptState = await createAttemptState(repo, runtimeTarget.jobId);
+  const caseAttemptState = bundle.job.case_id &&
+    typeof repo.getCaseCreateAttemptState === "function"
+    ? await repo.getCaseCreateAttemptState(bundle.job.case_id)
+    : null;
   const verificationSeriesState = runtimeTarget.verificationSeriesId
     ? await repo.getCaseCreateVerificationSeriesState({
       caseId: bundle.job.case_id,
@@ -354,13 +358,15 @@ export async function createStdProjectForTargetOnce({
       maximumCreateAttempts: runtimeTarget.maximumCreateAttempts
     })
     : null;
-  const effectiveAttemptState = verificationSeriesState || attemptState;
+  const effectiveAttemptState = verificationSeriesState || caseAttemptState || attemptState;
   const blockers = [
     ...(confirmationIntent !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirmation_intent_missing_or_invalid"] : []),
     ...(confirmVariableValue !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirm_variable_missing_or_invalid"] : []),
     ...(!fakeTransport && !credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
     ...(bundle.job.source_usage !== "runtime_truth" && !fakeTransport ? ["job_not_runtime_truth"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
+    ...(caseAttemptState && Number(caseAttemptState.createdObjectCount || 0) > 0 ? ["case_created_object_already_recorded"] : []),
+    ...(caseAttemptState && Number(caseAttemptState.readbackVerifiedCount || 0) > 0 ? ["case_readback_already_verified"] : []),
     ...(verificationSeriesState && Number(verificationSeriesState.createdObjectCount || 0) > 0 ? ["verification_series_created_object_already_recorded"] : []),
     ...(verificationSeriesState && Number(verificationSeriesState.readbackVerifiedCount || 0) > 0 ? ["verification_series_readback_already_verified"] : []),
     ...(Number(runtimeTarget.createAttemptNo) !== Number(effectiveAttemptState.nextCreateAttemptNo) ? ["create_attempt_number_not_next"] : []),
