@@ -29,18 +29,32 @@ function bundle({ guideRequired = false } = {}) {
         asset: { metadata: { video_id: videoId } }
       }))
     },
-    resources: VIDEO_IDS.map((videoId, index) => ({
-      resource_type: "video_asset",
-      source_asset_id: `VIDEO-SMOKE-${index + 1}`,
-      metadata: {
-        guide_video_readiness: {
+    resources: [
+      {
+        resource_type: "micro_app_instance",
+        source_asset_id: "MICRO-APP-SMOKE",
+        platform_resource_id: "7434750138926546994",
+        visibility_status: "visible",
+        readback_status: "readback_verified",
+        metadata: {
+          guide_video_readiness: {
           status: "passed",
           required: true,
           guide_video_id: GUIDE_VIDEO_ID,
-          verified_by_job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE"
+          verified_by_job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE",
+          verified_instance_id: "7434750138926546994"
+          }
         }
-      }
-    })),
+      },
+      ...VIDEO_IDS.map((videoId, index) => ({
+        resource_type: "video_asset",
+        source_asset_id: `VIDEO-SMOKE-${index + 1}`,
+        platform_resource_id: videoId,
+        visibility_status: "visible",
+        readback_status: "readback_verified",
+        metadata: {}
+      }))
+    ],
     draft: {
       project_name: PROJECT_NAME
     },

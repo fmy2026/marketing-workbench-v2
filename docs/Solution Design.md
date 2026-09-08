@@ -211,11 +211,11 @@ Case 级尝试状态必须贯穿 readonly 与最终 create executor：两者都�
 
 ## 已批准设计：账户条件引导视频
 
-`guide_video_id` 是推广视频的官方创建字段；`gameplay/list` 可按账户、小游戏实例和资产类型只读返回审核通过玩法及其引导视频。该能力按广告账户控制，不按游戏或路线设置动态 ID。`advertiser_accounts.guide_video_required` 默认 `false`；当前仅账户 `1867508089433225` 为 `true`。引导视频 ID 不增加专用列，只保存在既有 `account_resources.video_asset.metadata.guide_video_readiness`。
+`guide_video_id` 是推广视频的官方创建字段；`gameplay/list` 可按账户、小游戏实例和资产类型只读返回审核通过玩法及其引导视频。该能力按广告账户控制，不按游戏或路线设置动态 ID。`advertiser_accounts.guide_video_required` 默认 `false`；当前仅账户 `1867508089433225` 为 `true`。引导视频 ID 不增加专用列，只保存在唯一 `account_resources.micro_app_instance.metadata.guide_video_readiness`。
 
-要求引导视频的账户在每个 fresh Job 的 Node 04 使用当前账户已权威验证的唯一 `micro_app_instance` 调用 3.0 `gameplay/list`。返回的非空 `guide_video_id` 去重后恰好一个才通过，并把同一 ID 绑定到本 Job 的全部必需推广视频资源；零个、多值、实例不唯一、凭据或请求失败均在确认前停止。普通账户不调用这项依赖，原 payload 不变。
+要求引导视频的账户在每个 fresh Job 的 Node 04 使用当前账户已权威验证的唯一 `micro_app_instance` 调用 3.0 `gameplay/list`。返回的非空 `guide_video_id` 去重后恰好一个才通过，并在实例资源上绑定当前 Job 与实例 ID；零个、多值、实例不唯一、凭据或请求失败均在确认前停止。同一 Job 重入复用这条事实，不重复查询或写入；普通账户不调用这项依赖。
 
-Node 05 只在账户开关为 true、每条视频都具备本 Job 唯一只读证据时发送 `video_material_list[].guide_video_id`，并将其纳入 allowlist、嵌套合同、字段账本和账户条件 success-profile 形态；普通账户必须省略。Node 07 在项目 ID 与名称命中后附加一次 3.0 `oc_project/material/get`，要求计划中的每条视频都回读到同一引导视频后才把 readback 标记为 verified；未及时可见只保持待回查，不重复 create。
+Node 05 只在账户开关为 true、唯一实例事实属于本 Job 时，把同一 `guide_video_id` 展开到全部 `video_material_list[]`，并纳入 allowlist、嵌套合同、字段账本和账户条件 success-profile；视频资源上的旧同名 metadata 永不作为来源，普通账户必须省略。Node 07 在项目 ID 与名称命中后附加一次 3.0 `oc_project/material/get`，要求全部计划视频都回读到同一引导视频后才把 readback 标记为 verified；未及时可见只保持待回查，不重复 create。
 
 官方依据只使用本地记录：`open.oceanengine.com-3.0/04-资产管理.md` 的 `gameplay/list` 与 `guide_video_id`；`open.oceanengine.com-3.0/09-01-2-巨量营销智擎版-项目管理-创建标准项目.md` 的 `video_material_list[].guide_video_id`；`open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md` 的 `oc_project/material/get`。真实只读校验确认账户当前仅一个不同引导视频，手工项目 `7682995388417507371` 的两条推广视频均回读到该 ID。动态 ID 不进入文档、路线或游戏默认配置。
 

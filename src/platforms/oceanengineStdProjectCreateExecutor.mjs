@@ -11,6 +11,7 @@ import {
   OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS
 } from "../workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { buildStdProjectCreateWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
+import { canonicalGuideVideoReadiness } from "../workflows/skills/oe3/04-resource-verifiers.mjs";
 import { parseOceanEngineStdProjectResponse } from "./oceanengineStdProjectResponse.mjs";
 import {
   fetchWithDeadline,
@@ -236,29 +237,17 @@ function expectedGuideVideoBindings(bundle = {}) {
   if (bundle.account?.guide_video_required !== true) {
     return { required: false, status: "not_required", guideVideoId: "", videoIds: [] };
   }
-  const jobId = clean(bundle.job?.job_id);
+  const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  const videos = materialItems
+  const videoIds = materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
-    .map((entry) => {
-      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
-      const resource = (bundle.resources || []).find((item) =>
-        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
-      ) || {};
-      const guide = resource.metadata?.guide_video_readiness || {};
-      return {
-        videoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
-        guideVideoId: clean(guide.guide_video_id),
-        currentJobVerified: guide.status === "passed" && clean(guide.verified_by_job_id) === jobId
-      };
-    });
-  const guideIds = [...new Set(videos.map((item) => item.guideVideoId).filter(Boolean))];
-  const ready = videos.length > 0 && videos.every((item) => item.videoId && item.currentJobVerified) && guideIds.length === 1;
+    .map((entry) => clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id));
+  const ready = guideReadiness.status === "passed" && videoIds.length > 0 && videoIds.every(Boolean);
   return {
     required: true,
     status: ready ? "ready" : "blocked",
-    guideVideoId: ready ? guideIds[0] : "",
-    videoIds: ready ? videos.map((item) => item.videoId) : []
+    guideVideoId: ready ? guideReadiness.guideVideoId : "",
+    videoIds: ready ? videoIds : []
   };
 }
 

@@ -1,5 +1,6 @@
 import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
+import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
 import {
   JSZC_FALLBACK_AGES,
   JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
@@ -126,6 +127,7 @@ function addCheck(checks, {
 
 function requiredVideoEntries(bundle = {}) {
   const guideRequired = bundle.account?.guide_video_required === true;
+  const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const entries = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return entries
     .filter((entry) => clean(entry?.item?.item_type) === "video_asset" && entry?.item?.required === true)
@@ -134,7 +136,6 @@ function requiredVideoEntries(bundle = {}) {
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const readonly = resourceItem.metadata?.readonly_check || {};
       const finalReadiness = resourceItem.metadata?.final_material_readiness || {};
-      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
       return {
         sourceAssetId,
         expectedVideoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
@@ -143,13 +144,8 @@ function requiredVideoEntries(bundle = {}) {
         videoIdPresent: readonly.video_id_present === true,
         evidenceRefPresent: Boolean(clean(readonly.evidence_refs?.[0] || finalReadiness.evidence_ref)),
         guideVideoRequired: guideRequired,
-        expectedGuideVideoId: clean(guideReadiness.guide_video_id),
-        guideVideoReady: !guideRequired || (
-          guideReadiness.status === "passed" &&
-          guideReadiness.required === true &&
-          Boolean(clean(guideReadiness.guide_video_id)) &&
-          clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id)
-        ),
+        expectedGuideVideoId: clean(guideReadiness.guideVideoId),
+        guideVideoReady: !guideRequired || guideReadiness.status === "passed",
         ready: Boolean(sourceAssetId) &&
           resourceReady(resourceItem) &&
           ["passed", "passed_by_manual_confirmation"].includes(clean(readonly.status)) &&

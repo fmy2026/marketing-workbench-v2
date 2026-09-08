@@ -1,4 +1,5 @@
 import { hashValue } from "./00-contracts.mjs";
+import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
 import {
   applyOfficialCreateFieldSendPolicy,
   evaluateOfficialCreateFieldEvidence,
@@ -285,6 +286,7 @@ function titleMaterials(bundle = {}) {
 
 function videoMaterials(bundle = {}) {
   const guideRequired = bundle.account?.guide_video_required === true;
+  const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -293,7 +295,6 @@ function videoMaterials(bundle = {}) {
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
       const videoCoverId = clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "");
-      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
       const item = {
         image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
         video_id: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id || "")
@@ -301,8 +302,8 @@ function videoMaterials(bundle = {}) {
       if (coverMode === "explicit_cover_verified" && videoCoverId) {
         item.video_cover_id = videoCoverId;
       }
-      if (guideRequired && guideReadiness.status === "passed" && clean(guideReadiness.guide_video_id)) {
-        item.guide_video_id = clean(guideReadiness.guide_video_id);
+      if (guideRequired && guideReadiness.status === "passed" && clean(guideReadiness.guideVideoId)) {
+        item.guide_video_id = clean(guideReadiness.guideVideoId);
       }
       return item;
     })
@@ -311,6 +312,7 @@ function videoMaterials(bundle = {}) {
 
 function requiredVideoMaterialReadiness(bundle = {}) {
   const guideRequired = bundle.account?.guide_video_required === true;
+  const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   const items = materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -320,13 +322,7 @@ function requiredVideoMaterialReadiness(bundle = {}) {
       const readonlyStatus = clean(resourceItem.metadata?.readonly_check?.status);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
       const coverReady = ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
-      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
-      const guideReady = !guideRequired || (
-        guideReadiness.status === "passed" &&
-        guideReadiness.required === true &&
-        Boolean(clean(guideReadiness.guide_video_id)) &&
-        clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id)
-      );
+      const guideReady = !guideRequired || guideReadiness.status === "passed";
       const ready = sourceAssetId &&
         resourceReady(resourceItem) &&
         ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) &&
@@ -340,8 +336,8 @@ function requiredVideoMaterialReadiness(bundle = {}) {
         coverMode: coverMode || "not_checked",
         guideVideoRequired: guideRequired,
         guideVideoReady: guideReady,
-        guideVideoIdPresent: Boolean(clean(guideReadiness.guide_video_id)),
-        guideVideoVerifiedByCurrentJob: clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id),
+        guideVideoIdPresent: Boolean(clean(guideReadiness.guideVideoId)),
+        guideVideoVerifiedByCurrentJob: guideReadiness.status === "passed",
         readbackStatus: ready ? "readback_verified" : clean(resourceItem.readback_status || "missing"),
         readonlyStatus: ready ? "passed" : clean(readonlyStatus || "not_checked"),
         evidenceRef: clean(resourceItem.metadata?.readonly_check?.evidence_refs?.[0] || resourceItem.metadata?.final_material_readiness?.evidence_ref)

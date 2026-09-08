@@ -29,6 +29,61 @@ export function resourceReady(item = {}) {
     );
 }
 
+export function verifiedMicroAppInstanceResources(bundle = {}) {
+  return (bundle.resources || [])
+    .filter((item) => item.resource_type === "micro_app_instance")
+    .filter((item) => item.visibility_status === "visible" && item.readback_status === "readback_verified")
+    .filter((item) => clean(item.source_asset_id) && clean(item.platform_resource_id));
+}
+
+export function canonicalGuideVideoReadiness(bundle = {}) {
+  const required = bundle.account?.guide_video_required === true;
+  if (!required) {
+    return {
+      required: false,
+      status: "not_required",
+      blockers: [],
+      guideVideoId: "",
+      instanceId: "",
+      instanceResource: null,
+      readiness: {}
+    };
+  }
+
+  const candidates = verifiedMicroAppInstanceResources(bundle);
+  const instanceIds = [...new Set(candidates.map((item) => clean(item.platform_resource_id)))];
+  if (candidates.length !== 1 || instanceIds.length !== 1) {
+    return {
+      required: true,
+      status: "blocked",
+      blockers: [candidates.length === 0 ? "guide_video_instance_not_verified" : "guide_video_instance_ambiguous"],
+      guideVideoId: "",
+      instanceId: "",
+      instanceResource: null,
+      readiness: {}
+    };
+  }
+
+  const instanceResource = candidates[0];
+  const instanceId = instanceIds[0];
+  const readiness = instanceResource.metadata?.guide_video_readiness || {};
+  const guideVideoId = clean(readiness.guide_video_id);
+  const currentJobVerified = readiness.status === "passed" &&
+    readiness.required === true &&
+    Boolean(guideVideoId) &&
+    clean(readiness.verified_by_job_id) === clean(bundle.job?.job_id) &&
+    clean(readiness.verified_instance_id) === instanceId;
+  return {
+    required: true,
+    status: currentJobVerified ? "passed" : "blocked",
+    blockers: currentJobVerified ? [] : ["guide_video_current_job_readonly_missing"],
+    guideVideoId: currentJobVerified ? guideVideoId : "",
+    instanceId,
+    instanceResource,
+    readiness
+  };
+}
+
 function existenceStatus(item = {}) {
   return item.resource_type ? "exists" : "missing";
 }
@@ -218,28 +273,12 @@ export function mockReadyBundle(bundle = {}) {
         };
       }
       if (item.resource_type === "video_asset") {
-        const guideVideoRequired = bundle.account?.guide_video_required === true;
         return {
           ...item,
           visibility_status: "visible",
           readback_status: "readback_verified",
           metadata: {
             ...(item.metadata || {}),
-            ...(guideVideoRequired ? {
-              guide_video_readiness: {
-                status: "passed",
-                required: true,
-                guide_video_id: "guide-video-test",
-                guide_video_id_present: true,
-                approved_gameplay_count: 1,
-                distinct_guide_video_count: 1,
-                request_id_present: true,
-                response_hash: hashValue("guide-video-test"),
-                evidence_ref: "mock:guide-video-readonly",
-                verified_by_job_id: bundle.job?.job_id || "",
-                raw_response_stored: false
-              }
-            } : {}),
             readonly_check: {
               ...(item.metadata?.readonly_check || {}),
               status: "passed",
@@ -274,13 +313,31 @@ export function mockReadyBundle(bundle = {}) {
         };
       }
       if (["event_asset", "micro_app_instance"].includes(item.resource_type)) {
+        const platformResourceId = item.platform_resource_id || (item.resource_type === "event_asset" ? "800000000001" : "700000000001");
+        const guideVideoRequired = bundle.account?.guide_video_required === true && item.resource_type === "micro_app_instance";
         return {
           ...item,
-          platform_resource_id: item.platform_resource_id || (item.resource_type === "event_asset" ? "800000000001" : "700000000001"),
+          platform_resource_id: platformResourceId,
           visibility_status: "visible",
           readback_status: "readback_verified",
           metadata: {
             ...(item.metadata || {}),
+            ...(guideVideoRequired ? {
+              guide_video_readiness: {
+                status: "passed",
+                required: true,
+                guide_video_id: "guide-video-test",
+                guide_video_id_present: true,
+                approved_gameplay_count: 1,
+                distinct_guide_video_count: 1,
+                request_id_present: true,
+                response_hash: hashValue("guide-video-test"),
+                evidence_ref: "mock:guide-video-readonly",
+                verified_by_job_id: bundle.job?.job_id || "",
+                verified_instance_id: platformResourceId,
+                raw_response_stored: false
+              }
+            } : {}),
             readonly_check: {
               ...(item.metadata?.readonly_check || {}),
               status: "passed",

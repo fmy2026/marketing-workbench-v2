@@ -2,7 +2,7 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "guide_video_fix_deployed_waiting_owner_continue",
+  "status": "guide_video_single_fact_deployed_waiting_owner_continue",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-08 CST",
   "owner_agent": "codex",
@@ -12,7 +12,7 @@
     "platform_readonly_allowed": true,
     "database_write_allowed": true,
     "database_write_scope": [
-      "Task, Manifest, project state, docs, migration 074, account guide-video capability, existing video-resource metadata, conditional payload/readback contract, LaunchAgent deployment and focused tests"
+      "Task, Manifest, project state, docs, migration 074, account guide-video capability, unique micro-app-instance metadata, conditional payload/readback contract, LaunchAgent deployment and focused tests"
     ],
     "maximum_platform_write_actions": 0
   },
@@ -42,7 +42,7 @@
     "present a consumed explicit create failure as a bounded corrective Gate and allow the authenticated owner to create one idempotent fresh Job at a time for the next Case-level attempt",
     "reuse original business parameters while regenerating system-derived name/time fields, Draft, payload hash, Plan/hash and confirmation; maximum three create actions per Case",
     "add advertiser_accounts.guide_video_required with default false and enable only the approved target account in migration 074",
-    "resolve exactly one current guide_video_id from gameplay/list in Node 04 and store it only in existing video resource metadata",
+    "resolve exactly one current guide_video_id from gameplay/list in Node 04 and store it once in the unique current micro_app_instance metadata bound to the fresh Job and platform instance ID",
     "send guide_video_id for every required video only when the account capability requires it; retain the original payload for all other accounts",
     "verify guide-video bindings once through oc_project/material/get after the created project appears"
   ],
@@ -62,7 +62,8 @@
     "corrective Gate continue creates one idempotent fresh Job, remains platform-readonly, prepares the exact next Case attempt and cannot reuse the consumed Plan",
     "Case attempts aggregate across Jobs; Attempt 3 failure reaches manual review; owner isolation and single confirmation remain enforced",
     "required-account unique, zero, multiple and transport-failure gameplay/list probes stop before confirmation as appropriate",
-    "target guide-video payload contains two verified guide_video_id fields and the normal-account payload contains none",
+    "two-video and 100-video required-account runs each perform one gameplay query and one metadata write; all payload videos use the same canonical guide_video_id while the normal-account payload contains none",
+    "stale video-resource guide metadata is ignored and same-Job canonical micro-app metadata is reused without a second query or write",
     "Node 07 guide-video material readback passes only when every planned video binding matches; no platform create is called by tests",
     "migration 074 preserves 36 tables, 7 Views and all historical runtime facts"
   ],
@@ -74,7 +75,7 @@
     "guide-video resolution is not exactly one distinct nonempty ID for a required account"
   ],
   "result": {
-    "implementation_status": "guide_video_fix_deployed_waiting_owner_continue",
+    "implementation_status": "guide_video_single_fact_deployed_waiting_owner_continue",
     "migration_applied": "db/074_account_guide_video_contract.sql",
     "database_shape": {
       "base_tables": 36,
@@ -84,8 +85,8 @@
     "pilot_users": 3,
     "workflow_nodes": 7,
     "platform_write_calls": 0,
-    "tests": "private-LAN network policy and live responses, credential setup, authenticated owner propagation, fresh-readiness monitor bridge, monitor Plan, authentication, password change, cross-user HTTP, reports, Intake ownership, runtime policy, conversation, Case, execution grant, API, schema and runtime consistency passed",
-    "deployment": "LaunchAgent active on http://192.168.42.7:3000; local IP/Host/Origin/auth checks passed; waiting for one peer-device network acceptance check",
+    "tests": "guide-video canonical readonly/payload/readback including 2 and 100 videos, stale-video metadata isolation, payload contract, execution Plan/grant, corrective Case, single confirmation, runtime policy, conversation, Case, schema and runtime consistency passed; real platform writes remained zero",
+    "deployment": "LaunchAgent restarted and active on http://192.168.42.7:3000; local private-IP HTTP response is 200",
     "oceanengine_token": "valid after one authorized OAuth refresh",
     "database_backup": ".local/backups/marketing_workbench_v2-20260907T083112Z.dump",
     "qiankun_credentials": {
@@ -156,19 +157,31 @@
       "real_platform_write_calls_during_fix": 0
     },
     "account_conditional_guide_video": {
-      "status": "passed_deployed_waiting_owner_continue",
+      "status": "single_fact_passed_deployed_waiting_owner_continue",
       "target_advertiser_id": "1867508089433225",
       "target_account_required": true,
       "ordinary_account_required": false,
       "gameplay_approved_count": 1,
       "gameplay_distinct_guide_video_count": 1,
+      "canonical_resource_type": "micro_app_instance",
+      "canonical_metadata_path": "metadata.guide_video_readiness",
+      "canonical_job_and_instance_binding": true,
       "target_payload_video_count": 2,
       "target_ledger_path_count": 94,
+      "two_video_gameplay_calls": 1,
+      "two_video_metadata_writes": 1,
+      "hundred_video_gameplay_calls": 1,
+      "hundred_video_metadata_writes": 1,
+      "hundred_video_guide_field_count": 100,
+      "same_job_cached_gameplay_calls": 0,
+      "same_job_cached_metadata_writes": 0,
+      "stale_video_metadata_ignored": true,
       "ordinary_payload_guide_video_count": 0,
       "ordinary_ledger_path_count": 92,
       "node_07_material_read_calls_per_readback": 1,
       "base_tables": 36,
       "views": 7,
+      "new_schema_objects_for_single_fact_refactor": 0,
       "current_case_create_action_count": 2,
       "current_case_next_create_attempt_no": 3,
       "current_case_created_object_count": 0,

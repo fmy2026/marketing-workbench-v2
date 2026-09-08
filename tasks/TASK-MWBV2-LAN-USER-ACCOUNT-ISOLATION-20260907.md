@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：guide_video_fix_deployed_waiting_owner_continue
+状态：guide_video_single_fact_deployed_waiting_owner_continue
 
 ## 目标
 
@@ -113,15 +113,22 @@ Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准
 
 ## 2026-09-08 批准变更：账户条件引导视频
 
-用户根据账户 `1867508089433225` 的白名单表现、手工项目 `7682995388417507371` 和本地官方资料，批准最小引导视频修复。该账户增加 `guide_video_required=true`；每个 fresh Job 的 Node 04 使用已验证小游戏实例调用 `gameplay/list`，非空 `guide_video_id` 去重后恰好一个才写入现有视频资源 metadata。Node 05 为全部必需推广视频发送同一个本 Job 已验证 ID；普通账户完全省略。Node 07 在项目出现后用一次 `oc_project/material/get` 核验每条视频绑定。
+用户根据账户 `1867508089433225` 的白名单表现、手工项目 `7682995388417507371` 和本地官方资料，批准最小引导视频修复。该账户增加 `guide_video_required=true`；每个 fresh Job 的 Node 04 使用已验证小游戏实例调用 `gameplay/list`，非空 `guide_video_id` 去重后恰好一个才写入唯一 `micro_app_instance.metadata.guide_video_readiness`。Node 05 为全部必需推广视频发送同一个本 Job 已验证 ID；普通账户完全省略。Node 07 在项目出现后用一次 `oc_project/material/get` 核验每条视频绑定。
 
 本变更不新建表、不把动态 ID 写入游戏或路线默认值，不新增 Node、Gate、Plan/action 类型、确认短语或平台写权限。零候选、多候选、实例不唯一、只读失败或创建后素材未匹配均 fail-closed；实施与测试真实平台创建调用必须为 0。迁移仅允许新增账户布尔列、设置已确认目标账户开关并升级现有嵌套字段合同版本。
 
 ## 2026-09-08 引导视频实施结果
 
 - migration `074_account_guide_video_contract.sql` 已应用：基础表仍为 36、View 仍为 7；目标账户开关为 true，普通试用账户为 false。迁移前备份为 `.local/backups/marketing_workbench_v2-20260908T034435Z.dump`。
-- Node 04 已按本 Job 调用 `gameplay/list` 并只接受一个不同的非空引导视频；ID 仅合并进现有视频资源 metadata。实时只读集成确认当前审核通过玩法 1 个、不同引导视频 1 个，平台创建调用 0。
+- Node 04 已按本 Job 调用 `gameplay/list` 并只接受一个不同的非空引导视频；ID 仅合并进唯一小游戏实例资源 metadata，并绑定当前 Job 与平台实例 ID。实时只读集成确认当前审核通过玩法 1 个、不同引导视频 1 个，平台创建调用 0。
 - Node 05 的目标账户 Draft 两条推广视频均包含同一已验证 ID，字段账本为 94 条；普通账户仍为 92 条且不发送该字段。零候选、多候选和普通账户省略专项测试均通过。
 - Node 07 在项目命中后最多执行一次素材只读核验；绑定一致才完成权威回查，未匹配则保持只读回查 Gate，不重复 create。
 - 执行权限、局域网 runtime policy、对话编排、单次确认及回查回归均通过；本次实现真实平台创建调用为 0，遗留 `test_run` 数据已清理。
 - 当前 Case `CASE-MWBV2-776936E13CC487A466` 仍保持最新 Job `JOB-MWBV2-20260908024347-703DA0`、2 次已消费创建尝试、0 个创建对象、Gate `prepare_corrective_attempt`。部署后由张境威本人输入一次“继续执行”，系统才会创建 fresh Job 并准备 Attempt 3 确认卡。
+
+## 2026-09-08 引导视频单一事实源修正
+
+- 不新增表、字段或 migration；`guide_video_id` 的唯一事实源改为当前账户唯一 `micro_app_instance.metadata.guide_video_readiness`，不再复制到多条视频资源。
+- Node 04 对 2 条或 100 条推广视频均只执行一次 `gameplay/list` 和一次 metadata 写入；同一 Job 的合格事实可直接复用，历史视频 metadata 即使存在也不得成为真值。
+- Node 05 从该唯一事实向本轮全部推广视频分发同一 ID；Node 07 继续用一次 `oc_project/material/get` 核验全部计划视频绑定。
+- 实例不唯一、零候选、多候选、Job 绑定过期或实例 ID 不匹配均在确认前阻断；普通账户的 92 字段 payload 保持不变。

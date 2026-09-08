@@ -1,7 +1,11 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
 import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
-import { clean } from "./04-resource-verifiers.mjs";
+import {
+  canonicalGuideVideoReadiness,
+  clean,
+  verifiedMicroAppInstanceResources
+} from "./04-resource-verifiers.mjs";
 
 function requiredVideoEntries(bundle = {}) {
   const items = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
@@ -39,14 +43,6 @@ function guideVideoRequired(bundle = {}) {
   return bundle.account?.guide_video_required === true;
 }
 
-function verifiedMicroAppInstanceCandidates(bundle = {}) {
-  return [...new Set((bundle.resources || [])
-    .filter((item) => item.resource_type === "micro_app_instance")
-    .filter((item) => item.visibility_status === "visible" && item.readback_status === "readback_verified")
-    .map((item) => clean(item.platform_resource_id))
-    .filter(Boolean))];
-}
-
 function gameplayList(payload = {}) {
   return [
     payload?.data?.play_infos,
@@ -69,26 +65,24 @@ function summarizeGameplay(payload = {}) {
   };
 }
 
-function cachedGuideVideoReadiness(bundle = {}, requiredItems = []) {
+function cachedGuideVideoReadiness(bundle = {}) {
   if (!guideVideoRequired(bundle)) return null;
-  const states = requiredItems
-    .map((item) => accountResourceForVideo(bundle, item.sourceAssetId)?.metadata?.guide_video_readiness)
-    .filter(Boolean);
-  const ids = [...new Set(states.map((item) => clean(item.guide_video_id)).filter(Boolean))];
-  const currentJob = clean(bundle.job?.job_id);
-  if (states.length !== requiredItems.length || ids.length !== 1) return null;
-  if (!states.every((item) => item.status === "passed" && clean(item.verified_by_job_id) === currentJob)) return null;
+  const canonical = canonicalGuideVideoReadiness(bundle);
+  if (canonical.status !== "passed") return null;
+  const state = canonical.readiness || {};
   return {
     required: true,
     status: "passed",
     blockers: [],
-    guideVideoId: ids[0],
+    guideVideoId: canonical.guideVideoId,
     guideVideoIdPresent: true,
-    approvedGameplayCount: Number(states[0].approved_gameplay_count || 0),
+    approvedGameplayCount: Number(state.approved_gameplay_count || 0),
     distinctGuideVideoCount: 1,
-    requestIdPresent: states[0].request_id_present === true,
-    responseHash: clean(states[0].response_hash),
-    evidenceRef: clean(states[0].evidence_ref),
+    requestIdPresent: state.request_id_present === true,
+    responseHash: clean(state.response_hash),
+    evidenceRef: clean(state.evidence_ref),
+    verifiedInstanceId: canonical.instanceId,
+    instanceResource: canonical.instanceResource,
     source: "current_job_cached_readonly"
   };
 }
@@ -130,7 +124,6 @@ export async function resolveGuideVideoReadonly({
   repo,
   bundle,
   client = createOceanEngineReadonlyClient(),
-  requiredItems = requiredVideoEntries(bundle),
   mockReady = false,
   allowReadonlyDependency = false
 } = {}) {
@@ -150,7 +143,30 @@ export async function resolveGuideVideoReadonly({
     };
   }
 
-  const cached = cachedGuideVideoReadiness(bundle, requiredItems);
+  const instanceResources = verifiedMicroAppInstanceResources(bundle);
+  const instanceIds = [...new Set(instanceResources.map((item) => clean(item.platform_resource_id)))];
+  if (instanceResources.length !== 1 || instanceIds.length !== 1) {
+    const result = {
+      required: true,
+      status: "blocked",
+      blockers: [instanceResources.length === 0 ? "guide_video_instance_not_verified" : "guide_video_instance_ambiguous"],
+      guideVideoId: "",
+      guideVideoIdPresent: false,
+      approvedGameplayCount: 0,
+      distinctGuideVideoCount: 0,
+      requestIdPresent: false,
+      responseHash: "",
+      verifiedInstanceId: "",
+      instanceResource: null,
+      source: "verified_micro_app_instance"
+    };
+    result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
+    return result;
+  }
+
+  const instanceResource = instanceResources[0];
+  const verifiedInstanceId = instanceIds[0];
+  const cached = cachedGuideVideoReadiness(bundle);
   if (cached) return cached;
 
   if (mockReady) {
@@ -165,6 +181,8 @@ export async function resolveGuideVideoReadonly({
       requestIdPresent: true,
       responseHash: hashValue("guide-video-test"),
       evidenceRef: "mock:guide-video-readonly",
+      verifiedInstanceId,
+      instanceResource,
       source: "mock_ready"
     };
   }
@@ -203,31 +221,13 @@ export async function resolveGuideVideoReadonly({
     };
   }
 
-  const instanceIds = verifiedMicroAppInstanceCandidates(bundle);
-  if (instanceIds.length !== 1) {
-    const result = {
-      required: true,
-      status: "blocked",
-      blockers: [instanceIds.length === 0 ? "guide_video_instance_not_verified" : "guide_video_instance_ambiguous"],
-      guideVideoId: "",
-      guideVideoIdPresent: false,
-      approvedGameplayCount: 0,
-      distinctGuideVideoCount: 0,
-      requestIdPresent: false,
-      responseHash: "",
-      source: "verified_micro_app_instance"
-    };
-    result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
-    return result;
-  }
-
   const probe = await client.get({
     label: `guide_video_gameplay_${bundle.job.job_id}`,
     endpoint: "/open_api/v3.0/gameplay/list/",
     query: {
       account_id: clean(bundle.job.advertiser_id),
       account_type: "AD",
-      asset_id: instanceIds[0],
+      asset_id: verifiedInstanceId,
       asset_type: "BYTE_GAME",
       page_info: JSON.stringify({ page: 1, page_size: 100 })
     },
@@ -254,6 +254,8 @@ export async function resolveGuideVideoReadonly({
     requestIdPresent: probe.requestIdPresent === true,
     responseHash: clean(probe.responseHash),
     evidenceRef: "",
+    verifiedInstanceId,
+    instanceResource,
     source: "oceanengine_gameplay_list"
   };
   result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
@@ -275,40 +277,39 @@ function publicGuideVideoReadiness(result = {}) {
   };
 }
 
-async function persistGuideVideoReadiness({ repo, bundle, requiredItems, result }) {
+async function persistGuideVideoReadiness({ repo, bundle, result }) {
   if (bundle.job.source_usage === "test_run" || result.status !== "passed") return;
-  for (const item of requiredItems) {
-    const resource = accountResourceForVideo(bundle, item.sourceAssetId) || {};
-    await repo.upsertAccountResourceReadonlyBySourceAsset({
-      routeId: bundle.job.route_id,
-      gameCode: bundle.job.game_code,
-      advertiserId: bundle.job.advertiser_id,
-      resourceType: "video_asset",
-      sourceAssetId: item.sourceAssetId,
-      resourceName: item.resourceName || item.sourceAssetId,
-      visibilityStatus: clean(resource.visibility_status || "needs_confirmation"),
-      readbackStatus: clean(resource.readback_status || "not_checked"),
-      platformResourceId: clean(resource.platform_resource_id || item.sourceAssetId),
-      required: true,
-      metadata: resource.metadata?.readonly_check || {},
-      resourceMetadata: {
-        guide_video_readiness: {
-          status: "passed",
-          required: true,
-          guide_video_id: result.guideVideoId,
-          guide_video_id_present: true,
-          approved_gameplay_count: result.approvedGameplayCount,
-          distinct_guide_video_count: result.distinctGuideVideoCount,
-          request_id_present: result.requestIdPresent,
-          response_hash: result.responseHash,
-          evidence_ref: result.evidenceRef,
-          verified_by_job_id: bundle.job.job_id,
-          verified_at: new Date().toISOString(),
-          raw_response_stored: false
-        }
+  const resource = result.instanceResource || {};
+  await repo.upsertAccountResourceReadonlyBySourceAsset({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    advertiserId: bundle.job.advertiser_id,
+    resourceType: "micro_app_instance",
+    sourceAssetId: clean(resource.source_asset_id),
+    resourceName: clean(resource.resource_name || resource.source_asset_id),
+    visibilityStatus: clean(resource.visibility_status || "visible"),
+    readbackStatus: clean(resource.readback_status || "readback_verified"),
+    platformResourceId: result.verifiedInstanceId,
+    required: resource.required !== false,
+    metadata: resource.metadata?.readonly_check || {},
+    resourceMetadata: {
+      guide_video_readiness: {
+        status: "passed",
+        required: true,
+        guide_video_id: result.guideVideoId,
+        guide_video_id_present: true,
+        approved_gameplay_count: result.approvedGameplayCount,
+        distinct_guide_video_count: result.distinctGuideVideoCount,
+        request_id_present: result.requestIdPresent,
+        response_hash: result.responseHash,
+        evidence_ref: result.evidenceRef,
+        verified_by_job_id: bundle.job.job_id,
+        verified_instance_id: result.verifiedInstanceId,
+        verified_at: new Date().toISOString(),
+        raw_response_stored: false
       }
-    });
-  }
+    }
+  });
 }
 
 function materialList(payload = {}) {
@@ -615,12 +616,11 @@ export async function runVideoMaterialReadonlyGate({
     repo,
     bundle,
     client,
-    requiredItems,
     mockReady,
     allowReadonlyDependency
   });
-  if (guideVideoReadiness.status === "passed") {
-    await persistGuideVideoReadiness({ repo, bundle, requiredItems, result: guideVideoReadiness });
+  if (guideVideoReadiness.status === "passed" && guideVideoReadiness.source !== "current_job_cached_readonly") {
+    await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
   }
 
   const cachedItems = requiredItems.map((item) => {
