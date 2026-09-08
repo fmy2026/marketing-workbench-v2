@@ -76,6 +76,7 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 
 - 3 阶段 7 Node 的唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。
 - `mwb.workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制、写回或自行计算。
+- runtime 通用性：live `src/`、`frontend/` 与 `package.json` 的业务决策只能依据 route/game 合同、账户通用能力、Case/Gate/Plan 状态和当前已验证作用域；不得以内嵌 account/Case/Job/user ID 作为默认目标或条件分支。个体 ID 只可存在于 Postgres 动态事实、获批 migration、Task/证据或隔离测试数据；同类问题必须扩展既有通用合同并覆盖 capability 开/关正反例，不得新增账户专用入口、业务状态、Node、Gate、Plan/action 或公开脚本。
 - Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链；CLI 只允许 dry-run、readback、状态和明确标注的安全诊断，不得成为旁路写入入口。
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的文件移入 `.archive/` 并登记根 `manifest.json`。live `src/`、`scripts/` 与 package 均禁止 import、调用或执行 archive。

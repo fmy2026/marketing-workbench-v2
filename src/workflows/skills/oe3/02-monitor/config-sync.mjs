@@ -22,7 +22,6 @@ export const QIANKUN_VEST_PACKAGE_TARGET = {
 export const QIANKUN_PACKAGE_BASE_INFO_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",
   gameCode: "JSZC",
-  advertiserId: "1871922346964041",
   packageId: "36820",
   os: "3",
   expectedCateId: "122",
@@ -33,7 +32,6 @@ export const QIANKUN_PACKAGE_BASE_INFO_TARGET = {
 export const QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",
   gameCode: "JSZC",
-  advertiserId: "1871922346964041",
   os: "3",
   cateId: "122",
   vestId: "1414",
@@ -66,7 +64,6 @@ export const QIANKUN_LEVEL3_MEDIA_RETRY_CONFIRM_VALUE = "RETRY_ONE_LEVEL3_MEDIA_
 export const QIANKUN_MEDIA_CATALOG_TARGET = {
   routeId: "oceanengine_3_byte_mini_game",
   gameCode: "JSZC",
-  advertiserId: "1871922346964041",
   os: "3",
   mediaId: "310",
   mediaName: "通投智选（原生竞价）",
@@ -85,6 +82,12 @@ const CHANGE_MEDIA_ACCOUNT_ENDPOINT = "/tf/ad/changeMediaAccountId";
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function requireExplicitAdvertiserScope(target = {}) {
+  const advertiserId = clean(target.advertiserId);
+  if (!advertiserId) throw new Error("qiankun_monitor_advertiser_scope_required");
+  return { ...target, advertiserId };
 }
 
 function selectedOwnerKey(ownerKey = "", credential = {}) {
@@ -903,6 +906,7 @@ export async function runQiankunPackageBaseInfoReadonlySync({
   ownerKey = "",
   target = QIANKUN_PACKAGE_BASE_INFO_TARGET
 } = {}) {
+  target = requireExplicitAdvertiserScope(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
@@ -1099,6 +1103,7 @@ export async function runQiankunMediaCatalogReadonlySync({
   ownerKey = "",
   target = QIANKUN_MEDIA_CATALOG_TARGET
 } = {}) {
+  target = requireExplicitAdvertiserScope(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
@@ -1235,6 +1240,7 @@ export async function runQiankunMediaCandidateDiscoveryReadonlySync({
   ownerKey = "",
   target = QIANKUN_MEDIA_CANDIDATE_DISCOVERY_TARGET
 } = {}) {
+  target = requireExplicitAdvertiserScope(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
@@ -1647,6 +1653,7 @@ export async function runQiankunLevel3MediaResourceReadonlySync({
   retryOnce = false,
   env = process.env
 } = {}) {
+  target = requireExplicitAdvertiserScope(target);
   const retryMode = retryOnce === true;
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
@@ -2275,6 +2282,7 @@ export async function runQiankunMonitorTechnicalCombinationReadonlySync({
   ownerKey = "",
   target = QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET
 } = {}) {
+  target = requireExplicitAdvertiserScope(target);
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });

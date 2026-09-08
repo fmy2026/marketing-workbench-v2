@@ -1,0 +1,116 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908",
+  "task_ref": "tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T10:29:07Z",
+  "updated_at": "2026-09-08T10:42:42Z",
+  "base_revision": "fdad5de37ee9d83101d4656cf7fc42d1bcce2d6a",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/skills/oe3/02-monitor/config-sync.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/**"
+  ],
+  "forbidden_actions": [
+    "重写或修改历史 migration 074/076",
+    "改变任何账户的 video_cover_required 或 guide_video_required 数据值",
+    "新增账户 ID runtime 分支、账户专用入口、Node、Gate、Plan/action 类型或确认短语",
+    "任何真实平台读取、写入、确认、创建或重试"
+  ],
+  "stop_conditions": [
+    "需要扩大为所有 JSZC 账户强制显式封面",
+    "需要改变既有业务 Case、Job、Plan、action 或 readback",
+    "无法在无真实平台访问的情况下验证通用机制"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:workbench-address && npm run test:case-attempt-limit"},
+    {"acceptance_id": "AC-02", "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run test:std-project-readback"},
+    {"acceptance_id": "AC-03", "command": "npm run test:project-contracts"},
+    {"acceptance_id": "AC-04", "command": "npm run check:project -- --phase start/before-close/after-close && git diff --check"},
+    {"acceptance_id": "AC-05", "command": "LaunchAgent restart and LAN HTTP readiness check"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:workbench-address && npm run test:case-attempt-limit",
+      "status": "passed",
+      "verified_at": "2026-09-08T10:42:02Z",
+      "summary": "通用替代 Case 与创建次数上限回归通过；平台写入为 0。",
+      "evidence_refs": ["evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/validation.md#ac-01"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run test:std-project-readback",
+      "status": "passed",
+      "verified_at": "2026-09-08T10:42:02Z",
+      "summary": "普通测试 bundle 的 capability 开/关与视频绑定回归通过；平台创建为 0。",
+      "evidence_refs": ["evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/validation.md#ac-02"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:project-contracts",
+      "status": "passed",
+      "verified_at": "2026-09-08T10:42:02Z",
+      "summary": "项目合同检查覆盖 capability 正例和账户 ID 默认/条件分支反例。",
+      "evidence_refs": ["evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/validation.md#ac-03"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run check:project -- --phase start/before-close/after-close && git diff --check",
+      "status": "passed",
+      "verified_at": "2026-09-08T10:42:02Z",
+      "summary": "启动检查、监控回归与 diff 格式检查通过；关闭检查将在本任务终态步骤执行。",
+      "evidence_refs": ["evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/validation.md#ac-04"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "LaunchAgent restart and LAN HTTP readiness check",
+      "status": "passed",
+      "verified_at": "2026-09-08T10:42:02Z",
+      "summary": "工作台 LaunchAgent 已重启，LAN 入口使用 no-proxy 探测返回 HTTP 200。",
+      "evidence_refs": ["evidence/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908/validation.md#ac-05"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记个体事实数据化、运行机制能力化的长期决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "明确替代 Case 和视频关联均由通用 capability/状态合同驱动。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "运行期账户 ID 特例已收口为 capability/状态驱动机制，并完成回归与 LAN 就绪验证。",
+    "side_effects": "仅本地测试数据创建后清理；真实平台写入为 0。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-08T10:42:42Z"
+}

@@ -13,6 +13,15 @@ const HISTORICAL_MIGRATION_015 = new Set([
   "015_add_project_name_reservations.sql",
   "015_p04_video_material_local_assets.sql"
 ]);
+const ACCOUNT_ID_LITERAL = String.raw`(?:["']\d{10,}["']|\d{10,})`;
+const RUNTIME_ACCOUNT_ID_DEFAULT = new RegExp(
+  String.raw`\b(?:advertiserId|advertiser_id)\s*:\s*${ACCOUNT_ID_LITERAL}`,
+  "u"
+);
+const RUNTIME_ACCOUNT_ID_CONDITION = new RegExp(
+  String.raw`(?:\b(?:advertiserId|advertiser_id)\b\s*(?:===|==|!==|!=)\s*${ACCOUNT_ID_LITERAL}|${ACCOUNT_ID_LITERAL}\s*(?:===|==|!==|!=)\s*\b(?:advertiserId|advertiser_id)\b)`,
+  "u"
+);
 const SCHEMA_KEYWORDS = new Set([
   "$schema", "$id", "description", "type", "const", "enum", "anyOf",
   "required", "properties", "additionalProperties", "items", "minItems",
@@ -173,6 +182,10 @@ function containsStaleQiankunDocRef(text) {
     || text.includes("api-docs-20260825.md");
 }
 
+function hasRuntimeAccountIdentifierViolation(source) {
+  return RUNTIME_ACCOUNT_ID_DEFAULT.test(source) || RUNTIME_ACCOUNT_ID_CONDITION.test(source);
+}
+
 export function validateProjectStructure(root = PROJECT_ROOT) {
   const archiveRoot = resolve(root, ".archive");
   ensure(existsSync(archiveRoot) && lstatSync(archiveRoot).isDirectory(), "archive_root_missing");
@@ -207,6 +220,14 @@ export function validateProjectStructure(root = PROJECT_ROOT) {
     const imports = [...source.matchAll(/(?:from\s+|import\s*(?:\(\s*)?)["']([^"']+)["']/gu)].map((match) => match[1]);
     ensure(!imports.some((specifier) => /(^|\/)\.?archive(\/|$)/u.test(specifier)), "archive_runtime_import_forbidden", ref);
   }
+  const runtimeAccountScopeFiles = [
+    "package.json",
+    ...["src", "frontend"].flatMap((ref) => walkFiles(root, ref, [".mjs", ".js", ".jsx", ".ts", ".tsx", ".json", ".html", ".css"]))
+  ];
+  const runtimeAccountIdentifierViolation = runtimeAccountScopeFiles.find((ref) =>
+    hasRuntimeAccountIdentifierViolation(readFileSync(resolve(root, ref), "utf8"))
+  );
+  ensure(!runtimeAccountIdentifierViolation, "runtime_account_identifier_forbidden", runtimeAccountIdentifierViolation || "");
 
   ensure(existsSync(resolve(root, QIANKUN_API_DOC_REF)), "current_qiankun_doc_missing");
   const currentTextFiles = [

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { auditHistory, captureBaseline, checkProject, MANIFEST_VERSION, validateSchema } from "./00-project-contract-check.mjs";
+import { auditHistory, captureBaseline, checkProject, MANIFEST_VERSION, validateProjectStructure, validateSchema } from "./00-project-contract-check.mjs";
 
 const source = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ID = "TASK-FIXTURE-001", TASK = `tasks/${ID}.md`, MANIFEST = `tasks-context-manifests/${ID}.json`;
@@ -144,6 +144,21 @@ try {
     const importKeyword = "im" + "port";
     f.write("src/live.mjs", `${importKeyword} '../.archive/old.mjs';\n`);
   }, "archive_runtime_import_forbidden");
+  test("capability_driven_runtime_policy_is_allowed", () => {
+    const f = fixture();
+    f.write("src/runtime-policy.mjs", "export const requiresVerifiedCover = bundle.account?.video_cover_required === true;\n");
+    assert.doesNotThrow(() => validateProjectStructure(f.root));
+  });
+  test("runtime_account_identifier_default_is_rejected", () => {
+    const f = fixture();
+    f.write("src/runtime-account-default.mjs", "export const target = { advertiserId: \"1871922346964041\" };\n");
+    assert.throws(() => validateProjectStructure(f.root), /runtime_account_identifier_forbidden/u);
+  });
+  test("runtime_account_identifier_condition_is_rejected", () => {
+    const f = fixture();
+    f.write("frontend/runtime-account-condition.ts", "if (input.advertiser_id === \"1871922346964041\") return true;\n");
+    assert.throws(() => validateProjectStructure(f.root), /runtime_account_identifier_forbidden/u);
+  });
   rejects("missing_current_qiankun_doc_is_rejected", (f) => { rmSync(resolve(f.root, "docs/qiankun-api-docs-20260827.md")); }, "current_qiankun_doc_missing");
   rejects("stale_qiankun_doc_ref_is_rejected", (f) => { f.write("docs/current.md", "See docs/.乾坤系统/api-docs-20260827.md\n"); }, "stale_qiankun_doc_ref");
   rejects("stale_qiankun_task_context_is_rejected", (f) => {
