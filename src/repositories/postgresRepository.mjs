@@ -2874,6 +2874,132 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async createCorrectiveAttemptLaunchJobOnce({ recoveryJobId, predecessorJobId, caseId, sourceRecordRef }) {
+    assertId("recovery_job_id", recoveryJobId);
+    assertId("predecessor_job_id", predecessorJobId);
+    assertId("case_id", caseId);
+    assertId("source_record_ref", sourceRecordRef);
+    return queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(caseId)}, 0)) AS locked
+      ),
+      existing AS (
+        SELECT j.*
+        FROM mwb.launch_jobs j
+        CROSS JOIN scope_lock
+        WHERE j.case_id = ${sqlLiteral(caseId)}
+          AND j.source_record_ref = ${sqlLiteral(sourceRecordRef)}
+        ORDER BY j.updated_at DESC, j.created_at DESC, j.job_id DESC
+        LIMIT 1
+      ),
+      predecessor AS (
+        SELECT j.*
+        FROM mwb.launch_jobs j
+        JOIN mwb.workflow_cases wc ON wc.case_id = j.case_id
+        CROSS JOIN scope_lock
+        WHERE j.job_id = ${sqlLiteral(predecessorJobId)}
+          AND j.case_id = ${sqlLiteral(caseId)}
+          AND j.source_usage = 'runtime_truth'
+          AND j.job_status = 'failed_waiting_manual_review'
+          AND wc.lifecycle_status = 'active'
+          AND wc.source_usage = 'runtime_truth'
+        LIMIT 1
+      ),
+      latest AS (
+        SELECT j.job_id
+        FROM mwb.launch_jobs j
+        CROSS JOIN scope_lock
+        WHERE j.case_id = ${sqlLiteral(caseId)}
+        ORDER BY j.updated_at DESC, j.created_at DESC, j.job_id DESC
+        LIMIT 1
+      ),
+      attempt_state AS (
+        SELECT
+          count(pa.*) FILTER (WHERE pa.action_type = 'oceanengine_std_project_create')::integer AS action_count,
+          coalesce(max(pa.attempt_no) FILTER (WHERE pa.action_type = 'oceanengine_std_project_create'), 0)::integer AS max_attempt_no,
+          (
+            SELECT count(*)::integer
+            FROM mwb.created_objects co
+            JOIN mwb.launch_jobs object_job ON object_job.job_id = co.job_id
+            WHERE object_job.case_id = ${sqlLiteral(caseId)}
+              AND object_job.source_usage = 'runtime_truth'
+              AND co.object_type = 'std_project'
+          ) AS created_object_count
+        FROM mwb.platform_actions pa
+        JOIN mwb.launch_jobs action_job ON action_job.job_id = pa.job_id
+        CROSS JOIN scope_lock
+        WHERE action_job.case_id = ${sqlLiteral(caseId)}
+          AND action_job.source_usage = 'runtime_truth'
+      ),
+      inserted AS (
+        INSERT INTO mwb.launch_jobs (
+          job_id, case_id, route_id, game_code, advertiser_id, object_type,
+          job_status, current_node, source_record_ref, source_usage, created_at, updated_at
+        )
+        SELECT
+          ${sqlLiteral(recoveryJobId)}, p.case_id, p.route_id, p.game_code, p.advertiser_id, p.object_type,
+          'created', '1', ${sqlLiteral(sourceRecordRef)}, p.source_usage, now(), now()
+        FROM predecessor p
+        CROSS JOIN attempt_state state
+        CROSS JOIN scope_lock
+        WHERE p.job_id = (SELECT job_id FROM latest)
+          AND state.action_count BETWEEN 1 AND 2
+          AND state.max_attempt_no = state.action_count
+          AND state.created_object_count = 0
+          AND EXISTS (
+            SELECT 1
+            FROM mwb.launch_execution_plans ep
+            WHERE ep.job_id = p.job_id
+              AND ep.plan_kind = 'std_project_create'
+              AND ep.plan_status = 'consumed'
+          )
+          AND NOT EXISTS (SELECT 1 FROM existing)
+        RETURNING *
+      ),
+      selected_job AS (
+        SELECT * FROM inserted
+        UNION ALL
+        SELECT * FROM existing
+        WHERE NOT EXISTS (SELECT 1 FROM inserted)
+        LIMIT 1
+      ),
+      selected_attempt AS (
+        SELECT coalesce(
+          (
+            SELECT nullif(ep.metadata->>'create_attempt_no', '')::integer
+            FROM mwb.launch_execution_plans ep
+            JOIN selected_job selected ON selected.job_id = ep.job_id
+            ORDER BY ep.plan_version DESC, ep.updated_at DESC
+            LIMIT 1
+          ),
+          (
+            SELECT pa.attempt_no
+            FROM mwb.platform_actions pa
+            JOIN selected_job selected ON selected.job_id = pa.job_id
+            WHERE pa.action_type = 'oceanengine_std_project_create'
+            ORDER BY pa.attempt_no DESC, pa.started_at DESC
+            LIMIT 1
+          ),
+          (SELECT max_attempt_no + 1 FROM attempt_state)
+        )::integer AS attempt_no
+      )
+      SELECT jsonb_build_object(
+        'created', EXISTS (SELECT 1 FROM inserted),
+        'job', (SELECT to_jsonb(selected) FROM selected_job selected),
+        'attemptNo', coalesce((SELECT attempt_no FROM selected_attempt), 0),
+        'maximumCreateAttempts', 3,
+        'caseCreateActionCount', (SELECT action_count FROM attempt_state),
+        'blockedReason', CASE
+          WHEN EXISTS (SELECT 1 FROM selected_job) THEN ''
+          WHEN (SELECT created_object_count FROM attempt_state) > 0 THEN 'case_created_object_already_recorded'
+          WHEN (SELECT action_count FROM attempt_state) >= 3 THEN 'std_project_create_attempt_limit_reached'
+          WHEN NOT EXISTS (SELECT 1 FROM predecessor) THEN 'corrective_predecessor_not_eligible'
+          ELSE 'corrective_predecessor_not_latest'
+        END
+      )::text;
+    `, this.database);
+  }
+
   async updateJob(jobId, { status, currentNode }) {
     assertId("job_id", jobId);
     await runPsql(`
@@ -4887,6 +5013,60 @@ export class PostgresRepository {
           WHERE job_id = ${sqlLiteral(jobId)}
             AND action_type = 'oceanengine_std_project_create'
         ), 1),
+        'maximumCreateAttempts', 3
+      )::text;
+    `, this.database);
+  }
+
+  async getCaseCreateAttemptState(caseId) {
+    assertId("case_id", caseId);
+    return queryJson(`
+      WITH case_jobs AS (
+        SELECT job.job_id
+        FROM mwb.launch_jobs job
+        JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = job.case_id
+        WHERE job.case_id = ${sqlLiteral(caseId)}
+          AND job.source_usage = workflow_case.source_usage
+      ),
+      create_actions AS (
+        SELECT pa.*
+        FROM mwb.platform_actions pa
+        WHERE pa.job_id IN (SELECT job_id FROM case_jobs)
+          AND pa.action_type = 'oceanengine_std_project_create'
+      )
+      SELECT jsonb_build_object(
+        'caseId', ${sqlLiteral(caseId)},
+        'createActionCount', (SELECT count(*) FROM create_actions),
+        'confirmationCount', (
+          SELECT count(*)
+          FROM mwb.launch_confirmations confirmation
+          JOIN mwb.launch_execution_plans plan ON plan.plan_id = confirmation.plan_id
+          WHERE confirmation.job_id IN (SELECT job_id FROM case_jobs)
+            AND plan.plan_kind = 'std_project_create'
+        ),
+        'createdObjectCount', (
+          SELECT count(*)
+          FROM mwb.created_objects
+          WHERE job_id IN (SELECT job_id FROM case_jobs)
+            AND object_type = 'std_project'
+        ),
+        'realReadbackCount', (
+          SELECT count(*)
+          FROM mwb.readback_records
+          WHERE job_id IN (SELECT job_id FROM case_jobs)
+            AND object_type = 'std_project'
+            AND readback_status <> 'not_applicable'
+            AND object_id <> 'NOT_APPLICABLE_DRY_RUN'
+        ),
+        'readbackVerifiedCount', (
+          SELECT count(*)
+          FROM mwb.readback_records
+          WHERE job_id IN (SELECT job_id FROM case_jobs)
+            AND object_type = 'std_project'
+            AND readback_status = 'readback_verified'
+        ),
+        'maxCreateAttemptNo', coalesce((SELECT max(attempt_no) FROM create_actions), 0),
+        'nextCreateAttemptNo', coalesce((SELECT max(attempt_no) + 1 FROM create_actions), 1),
         'maximumCreateAttempts', 3
       )::text;
     `, this.database);

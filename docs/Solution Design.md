@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案设计规范 |
-| 最后更新时间 | 2026-09-07 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与 migrations `070`–`072` |
+| 最后更新时间 | 2026-09-08 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与 migrations `070`–`073` |
 | 重新校验条件 | 真值优先级、Task/Manifest、Plan/确认、平台写入或回查机制变化时 |
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
@@ -198,6 +198,14 @@ Create Plan 的一次确认权一旦产生平台 action，就不得继续以 `re
 `std_project_create` Plan 缺少最终 Draft 时只能保持非 ready 诊断状态，不能展示确认卡。最终 Draft 存在后，编译器先验证项目名、预算、出价、ROI、draft ID 与 payload hash 同 Plan 的 planning intent 与 execution scope 一致；在同一原子持久化内锁定 Draft、写入 `derived_from_plan_id`、`derived_from_plan_hash` 和 `plan_derivation_status=passed`，并发布 ready Plan。确认 scope 在写入 `launch_confirmations` 前再次校验该绑定、`draft_ready` Job 与 Node 04 `passed`；任何缺失只 fail-closed，confirmation 与平台 action 均不得新增。
 
 执行中尚未产生本轮资源 Skill 输出时，Node 04 保留上一份 canonical READY，或在无稳定事实时显示 waiting；只有已完成的真实资源失败才能投影为 blocked。已确认的 Create Plan 若在 action claim 前被创建前校验阻断且零 `std_project_create` action，必须将 Plan 收口为 `consumed`、Job 进入既有人工修正终态，并保留 confirmation 供审计。修正使用 fresh Job、Draft、Plan/hash 与新 confirmation；不新增 API、Schema、View、Gate、Plan/action 类型，不自动确认或重试。
+
+## 已批准设计：创建明确失败后的有界重新准备
+
+active `runtime_truth` Case 的最新 Job 若为 `failed_waiting_manual_review`，且 Case 尚无已创建对象或 verified readback、Case 级 `std_project_create` action 少于 3 次，工作台允许本人输入“继续执行”原子创建同一 Case 的 fresh Job。该动作只运行既有完整 readonly 推进，沿用账户、路线、游戏和业务参数，重新生成项目名、系统时间字段、Draft、payload hash 与 Create Plan；不调用创建接口，不复制或修改旧 Plan、confirmation、action、grant、readback 或幂等键。
+
+创建序号按整个 Case 聚合，不随 fresh Job 重置。新 Plan 的 `create_attempt_no` 必须等于 Case 已有创建 action 数加一；每个 Plan 仍只允许本人精确确认一次、最多调用一次 `std_project/create`。Attempt 2 明确失败后可重新准备 Attempt 3；Attempt 3 未 verified 后进入 `manual_review_after_attempt_limit`。出现 created object 但尚未 verified 时只允许现有权威回查，不得创建下一 Attempt。
+
+fresh Job 使用失败 predecessor 生成确定性恢复引用并由 Case advisory lock 原子占有；并发或重复“继续执行”只能返回同一个 Job。只读准备重新核验账户授权、Monitor、事件、品牌、素材、DMP、查重和字段合同；已 `10/10 passed` 的 DMP 只查询、不重复推送，任何资源失效继续进入既有真实 Gate。该机制不新增 Node、业务 Gate、Plan/action 类型或确认短语，也不构成自动重试。
 
 ## 已批准设计：小程序实例被动就绪状态保留
 

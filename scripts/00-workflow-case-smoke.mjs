@@ -1,5 +1,5 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, createWorkflowCase, getJobView } from "../src/workflows/launchWorkflow.mjs";
+import { createJob, createWorkflowCase, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
@@ -401,6 +401,126 @@ try {
   assert(completionSummary.suggested_next_action === "first_std_project_create_completed", "verified_create_next_action_not_closed");
   assert(completionSummary.root_blocker_codes?.length === 0, "verified_create_must_not_have_root_blocker");
 
+  const correctiveCase = await makeCase("case-level-corrective");
+  const correctiveJobs = [];
+  for (const attemptNo of [1, 2, 3]) {
+    const correctiveJob = await createJob(repo, {
+      route_id: TARGET.routeId,
+      game_code: TARGET.gameCode,
+      advertiser_id: TARGET.advertiserId,
+      case_id: correctiveCase.case_id,
+      source_usage: "test_run",
+      source_record_ref: `smoke:workflow-case:corrective:${attemptNo}:${Date.now()}`
+    });
+    correctiveJobs.push(correctiveJob.jobId);
+    cleanupJobIds.push(correctiveJob.jobId);
+    const correctivePlanId = `PLAN-${correctiveJob.jobId}-V${attemptNo}`;
+    await repo.upsertLaunchExecutionPlan({
+      planId: correctivePlanId,
+      jobId: correctiveJob.jobId,
+      planVersion: attemptNo,
+      planKind: "std_project_create",
+      planStatus: "consumed",
+      planHash: `sha256:${String(attemptNo).repeat(64)}`,
+      plannedActions: [{ action_type: "std_project_create", attempt_no: attemptNo }],
+      blockerCodes: [],
+      sourceUsage: "test_run",
+      metadata: { plan_kind: "std_project_create", create_attempt_no: attemptNo, maximum_create_attempts: 3 }
+    });
+    await repo.upsertPlatformAction({
+      actionId: `ACTION-${correctiveJob.jobId}-CREATE-A${attemptNo}`,
+      jobId: correctiveJob.jobId,
+      planId: correctivePlanId,
+      actionType: "oceanengine_std_project_create",
+      endpoint: "test:std_project/create",
+      method: "POST",
+      actionStatus: "failed",
+      attemptNo,
+      requestHash: `sha256:${String(attemptNo + 3).repeat(64)}`,
+      responseHash: `sha256:${String(attemptNo + 6).repeat(64)}`,
+      httpStatus: 200,
+      apiCode: "40000",
+      errorSummary: "platform_create_response_not_confirmed",
+      errorCategory: "unclassified",
+      objectIdPresent: false,
+      finishedAt: new Date().toISOString(),
+      metadata: { retry_allowed: false, raw_payload_stored: false, raw_response_stored: false }
+    });
+    await repo.updateJob(correctiveJob.jobId, { status: "failed_waiting_manual_review", currentNode: "6" });
+    const correctiveSummary = await repo.getWorkflowCaseSummary(correctiveCase.case_id);
+    assert(Number(correctiveSummary.action_readback_state?.attempts_used) === attemptNo, `case_attempt_${attemptNo}_count_not_aggregated`);
+    assert(Number(correctiveSummary.action_readback_state?.next_attempt_no) === Math.min(attemptNo + 1, 4), `case_attempt_${attemptNo}_next_number_invalid`);
+    if (attemptNo < 3) {
+      assert(correctiveSummary.current_gate === "prepare_corrective_attempt", `case_attempt_${attemptNo}_must_allow_corrective_prepare`);
+    } else {
+      assert(correctiveSummary.current_gate === "manual_review_after_attempt_limit", "case_attempt_3_must_reach_manual_review");
+      assert(correctiveSummary.root_blocker_codes?.[0] === "std_project_create_attempt_limit_reached", "case_attempt_3_limit_blocker_missing");
+    }
+  }
+
+  const caseScopedReadinessCase = await makeCase("case-scoped-readiness");
+  const caseScopedAttempt1 = await createJob(repo, {
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: caseScopedReadinessCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:case-readiness:1:${Date.now()}`
+  });
+  cleanupJobIds.push(caseScopedAttempt1.jobId);
+  const caseScopedPlan1 = `PLAN-${caseScopedAttempt1.jobId}-V1`;
+  await repo.upsertLaunchExecutionPlan({
+    planId: caseScopedPlan1,
+    jobId: caseScopedAttempt1.jobId,
+    planVersion: 1,
+    planKind: "std_project_create",
+    planStatus: "consumed",
+    planHash: `sha256:${"a".repeat(64)}`,
+    plannedActions: [{ action_type: "std_project_create", attempt_no: 1 }],
+    blockerCodes: [],
+    sourceUsage: "test_run",
+    metadata: { plan_kind: "std_project_create", create_attempt_no: 1, maximum_create_attempts: 3 }
+  });
+  await repo.upsertPlatformAction({
+    actionId: `ACTION-${caseScopedAttempt1.jobId}-CREATE-A1`,
+    jobId: caseScopedAttempt1.jobId,
+    planId: caseScopedPlan1,
+    actionType: "oceanengine_std_project_create",
+    endpoint: "test:std_project/create",
+    method: "POST",
+    actionStatus: "failed",
+    attemptNo: 1,
+    requestHash: `sha256:${"b".repeat(64)}`,
+    responseHash: `sha256:${"c".repeat(64)}`,
+    httpStatus: 200,
+    apiCode: "40000",
+    errorSummary: "platform_create_response_not_confirmed",
+    errorCategory: "unclassified",
+    objectIdPresent: false,
+    finishedAt: new Date().toISOString(),
+    metadata: { retry_allowed: false, raw_payload_stored: false, raw_response_stored: false }
+  });
+  await repo.updateJob(caseScopedAttempt1.jobId, { status: "failed_waiting_manual_review", currentNode: "6" });
+  const caseScopedAttempt2 = await createJob(repo, {
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: caseScopedReadinessCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:case-readiness:2:${Date.now()}`
+  });
+  cleanupJobIds.push(caseScopedAttempt2.jobId);
+  await runJob(repo, caseScopedAttempt2.jobId, {
+    mode: "dry_run",
+    mockReady: true,
+    createAttemptNo: 2,
+    maximumCreateAttempts: 3
+  });
+  const caseScopedAttempt2Bundle = await repo.getLaunchJobBundle(caseScopedAttempt2.jobId);
+  assert(caseScopedAttempt2Bundle.executionPlan?.plan_status === "ready", "case_scoped_attempt_2_plan_not_ready");
+  assert(Number(caseScopedAttempt2Bundle.executionPlan?.metadata?.create_attempt_no) === 2, "case_scoped_attempt_2_binding_missing");
+  assert(caseScopedAttempt2Bundle.executionPlan?.plan_id !== caseScopedPlan1, "case_scoped_attempt_2_reused_old_plan");
+
   let runtimeCaseRequired = false;
   try {
     await createJob(repo, {
@@ -445,6 +565,8 @@ try {
     sharedReadonlyRootBlocker: sharedReadonlyDegradedSummary.root_blocker_codes[0],
     confirmedResourceStopRootBlocker: confirmedResourceStopSummary.root_blocker_codes[0],
     completedCreateGate: completionSummary.current_gate,
+    correctiveCaseAttemptLimit: 3,
+    caseScopedAttempt2Ready: caseScopedAttempt2Bundle.executionPlan?.plan_status === "ready",
     confirmedCreatePlanLifecycle: ["ready", "waiting_readback", "consumed"],
     historicalJobSeparated: historicalView.isLatestCaseJob === false && latestView.isLatestCaseJob === true,
     structuralBlockerCount: resourceBlockedSummary.structural_blocker_codes.length,

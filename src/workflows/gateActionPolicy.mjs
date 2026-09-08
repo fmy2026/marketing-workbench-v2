@@ -49,7 +49,7 @@ function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = 
 }
 
 function correctiveAttemptMessage() {
-  return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗，禁止重试。请先完成账户资源和请求字段的只读诊断；定位单一修正项后，才能建立新的 Job、Draft、Plan 和确认。";
+  return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗且不会重试。输入“继续执行”可创建同一 Case 的 fresh Job，重新只读准备下一 Attempt；真正创建仍需本人核对新确认卡并输入“确认创建”。";
 }
 
 export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
@@ -179,7 +179,7 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
   }
   if (intent.intent === "continue_workflow") {
     if (currentGate === "prepare_corrective_attempt") {
-      return { ...base, effect: "corrective_attempt_required", message: correctiveAttemptMessage() };
+      return { ...base, effect: "create_fresh_corrective_attempt", message: "将创建同一 Case 的 fresh Job 并重新完成只读准备；不会复用旧 Plan、确认或平台动作，也不会自动创建项目。" };
     }
     if (currentGate === "run_monitor_readonly") {
       return { ...base, effect: "run_monitor_readonly", message: "将执行 fresh readonly monitor 回查，不会创建 monitor。" };

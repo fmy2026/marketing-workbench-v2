@@ -428,6 +428,10 @@ async function executeCreateReadiness({ repo, context }) {
   });
   const skillBlockers = [...context.skillOutputs.values()].flatMap((item) => item.blockers || []);
   const attemptState = await repo.getCreateAttemptState(latestBundle.job.job_id);
+  const caseAttemptState = latestBundle.job.case_id &&
+    typeof repo.getCaseCreateAttemptState === "function"
+    ? await repo.getCaseCreateAttemptState(latestBundle.job.case_id)
+    : null;
   const verificationSeriesState = context.verificationSeriesId
     ? await repo.getCaseCreateVerificationSeriesState({
       caseId: latestBundle.job.case_id,
@@ -435,7 +439,7 @@ async function executeCreateReadiness({ repo, context }) {
       maximumCreateAttempts: context.maximumCreateAttempts
     })
     : null;
-  const effectiveAttemptState = verificationSeriesState || attemptState;
+  const effectiveAttemptState = verificationSeriesState || caseAttemptState || attemptState;
   const platformActions = Number(effectiveAttemptState.createActionCount || 0);
   const createdObjects = verificationSeriesState
     ? Number(verificationSeriesState.createdObjectCount || 0)

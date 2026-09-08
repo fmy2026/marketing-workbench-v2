@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：pilot_case_platform_rejection_waiting_exact_diagnosis
+状态：corrective_reprepare_ready_waiting_owner_continue
 
 ## 目标
 
@@ -96,3 +96,11 @@ Case `CASE-MWBV2-B74ADD7F7382306A09` 的账户归属、乾坤凭据和广告账�
 Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准备与 fresh readonly；DMP 目标账户状态为 `10/10 passed`。最新创建 Job `JOB-MWBV2-20260907101724-525219` 的 Attempt 1 经张境威本人确认后只调用一次 `std_project/create`，返回 HTTP `200`、业务码 `40000`，无项目 ID；平台 action 为 `failed`，Create Plan 已 `consumed`，Job 为 `failed_waiting_manual_review`，没有自动重试或创建后 readback。
 
 脱敏对比确认本 Job 的字段结构、字段账本和本地预检与同路线最近成功 Job 一致，所有账户资源仍为 READY；平台响应没有提供可安全保存的具体字段路径，本地 `resource_not_eligible` 只是泛化分类，不能据此猜测具体资源。按用户批准的最简方案停止生成 Attempt 2；工作台在 `prepare_corrective_attempt` Gate 明确展示“失败待复盘、禁止重试、先诊断后建立全新绑定”。只有取得明确平台原因并定位单一修正项后，才允许 fresh Job、Draft、Plan、payload hash 和本人确认。
+
+## 2026-09-07 批准变更：有界重新准备创建
+
+用户确认当前工作台不应在 `prepare_corrective_attempt` 永久卡住，并批准把既有最多三次的纠正尝试机制接入工作台。本人输入“继续执行”只创建同一 Case 的 fresh Job 并完成完整 readonly；下一次 Create Plan 沿用原业务参数，重新生成项目名、系统时间字段、Draft、payload hash、Plan/hash 和确认窗口。旧失败 Attempt 保持不可变，平台创建仍必须由本人再次输入“确认创建”，每个 Plan 只调用一次。
+
+创建次数改为整个 Case 聚合：当前张境威 Case 的旧 action 为 Attempt 1，新 Job 必须准备 Attempt 2；Attempt 2 明确失败后可准备 Attempt 3，第三次仍未 verified 则进入人工复盘。重复“继续执行”按 predecessor 幂等返回同一 fresh Job；DMP `10/10 passed` 只重新只读核验，不重复推送。本变更不新增 Node、业务 Gate、Plan/action 类型或确认短语，实施与测试平台写入为 0。
+
+实现已完成并应用 migration `073_case_level_corrective_attempts.sql`。真实 Case 当前仍保持 Attempt 1、旧 Plan consumed、零 created object、DMP `10/10 passed`，未提前创建 Attempt 2。迁移前备份恢复到临时数据库后的完整验证确认：第一次“继续执行”语义只创建一个 fresh Job，重复请求返回同一 Job；7 Node readonly 生成 ready V2 / `create_attempt_no=2` Plan，平台创建调用为 0。当前等待张境威本人在工作台输入“继续执行”。

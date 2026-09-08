@@ -724,9 +724,9 @@ function rootBlockerPresentation(code = "") {
       nextActionLabel: "输入“继续执行”进行一次只读回查；不会再次创建项目。"
     },
     corrective_attempt_requires_new_payload_version: {
-      title: "标准项目创建失败，等待人工诊断",
-      reason: "当前创建 Attempt 已被平台明确拒绝，旧 Plan 已消费且禁止重试。",
-      nextActionLabel: "先定位账户资源或请求字段的单一修正项，再建立新的 Job、Draft、Plan 和确认。"
+      title: "当前创建尝试失败，可重新准备",
+      reason: "当前 Attempt 已被平台明确拒绝，旧 Plan 已消费且不会重试。",
+      nextActionLabel: "输入“继续执行”创建 fresh Job，只读核验后生成下一 Attempt 的新确认卡。"
     },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
@@ -1360,6 +1360,41 @@ export async function createReadonlyRecoveryJob(repo, predecessorJob = {}) {
   if (!job?.job_id) return { created: false, jobId: "" };
   if (claimed.created === true) await repo.upsertNodeRuns(job.job_id, initialNodeRuns());
   return { created: claimed.created === true, jobId: job.job_id };
+}
+
+export async function createCorrectiveAttemptJob(repo, predecessorJob = {}) {
+  if (!repo || typeof repo.createCorrectiveAttemptLaunchJobOnce !== "function") {
+    throw new Error("corrective_attempt_repository_unavailable");
+  }
+  const predecessorJobId = String(predecessorJob.job_id || "").trim();
+  const caseId = String(predecessorJob.case_id || "").trim();
+  if (!predecessorJobId || !caseId) throw new Error("corrective_attempt_predecessor_required");
+  const recoveryJobId = `JOB-MWBV2-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${hashText(`${caseId}:${predecessorJobId}:corrective:${Date.now()}:${randomBytes(4).toString("hex")}`).slice(0, 6).toUpperCase()}`;
+  const sourceRecordRef = `workbench:corrective-reprepare:${predecessorJobId}`;
+  const claimed = await repo.createCorrectiveAttemptLaunchJobOnce({
+    recoveryJobId,
+    predecessorJobId,
+    caseId,
+    sourceRecordRef
+  });
+  const job = claimed?.job || null;
+  if (!job?.job_id) {
+    return {
+      created: false,
+      jobId: "",
+      attemptNo: 0,
+      maximumCreateAttempts: Number(claimed?.maximumCreateAttempts || 3),
+      blocker: String(claimed?.blockedReason || "corrective_attempt_not_available")
+    };
+  }
+  if (claimed.created === true) await repo.upsertNodeRuns(job.job_id, initialNodeRuns());
+  return {
+    created: claimed.created === true,
+    jobId: job.job_id,
+    attemptNo: Number(claimed.attemptNo || 0),
+    maximumCreateAttempts: Number(claimed.maximumCreateAttempts || 3),
+    blocker: ""
+  };
 }
 
 export function resolveReadonlyDependencyForRun(options = {}) {

@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `072_workbench_users_account_isolation.sql` |
+| 最后更新时间 | 2026-09-08 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `073_case_level_corrective_attempts.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -57,6 +57,8 @@ Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平�
 右侧 Workflow 面板只展示由唯一节点注册表驱动的固定 3 阶段 7 Node、子节点详情与运行状态，不设置独立 Case Gate 卡片。动态 `currentGate`、唯一 blocker 与 `suggestedNextAction` 继续来自同一 `job.caseGate` / `workflow_case_summary`，由左侧对话和底部进度/刷新栏投影；删除重复展示不得删除 Gate 数据或其对确认卡、节点等待态和输入状态的控制。
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
+
+最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最多 3 次；每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；第三次未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
 
 已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 

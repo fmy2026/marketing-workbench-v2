@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-06 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `072_workbench_users_account_isolation.sql` |
+| 最后更新时间 | 2026-09-08 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `073_case_level_corrective_attempts.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -217,7 +217,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 2 | 非 active 且证据不完整 | `review_latest_job` | 只读检查最新 Job；不展示确认、重试或执行入口 |
 | 3 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
 | 4 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
-| 5 | Job 等待人工修正 | `prepare_corrective_attempt` | 修正 payload 后准备新版本 |
+| 5 | 最新 Job 明确失败且 Case 创建次数少于 3 | `prepare_corrective_attempt` | 本人输入“继续执行”，创建唯一 fresh Job 并只读准备下一 Attempt |
 | 6 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
 | 7 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
 | 8 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |

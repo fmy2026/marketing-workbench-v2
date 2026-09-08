@@ -6,7 +6,7 @@ import {
 } from "../src/agents/conversationIntentResolver.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
 import { handleWorkbenchCommand } from "../src/workflows/workbenchConversation.mjs";
-import { createReadonlyRecoveryJob } from "../src/workflows/launchWorkflow.mjs";
+import { createCorrectiveAttemptJob, createReadonlyRecoveryJob } from "../src/workflows/launchWorkflow.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -134,7 +134,8 @@ const correctiveCaseSummary = {
   current_gate: "prepare_corrective_attempt",
   suggested_next_action: "correct_payload_then_build_next_attempt_version",
   root_blocker_codes: ["corrective_attempt_requires_new_payload_version"],
-  latest_job_status: "failed_waiting_manual_review"
+  latest_job_status: "failed_waiting_manual_review",
+  latest_job_id: "JOB-CORRECTIVE-OLD-1"
 };
 const correctiveStatus = evaluateGateAction({
   intent: { intent: "request_status" },
@@ -142,15 +143,88 @@ const correctiveStatus = evaluateGateAction({
   isLatestCaseJob: true
 });
 assert(correctiveStatus.effect === "status", "corrective status must stay readonly");
-assert(correctiveStatus.message.includes("禁止重试"), "corrective status must explain retry lock");
-assert(correctiveStatus.message.includes("新的 Job、Draft、Plan 和确认"), "corrective status must require fresh bindings");
+assert(correctiveStatus.message.includes("不会重试"), "corrective status must explain retry lock");
+assert(correctiveStatus.message.includes("fresh Job"), "corrective status must explain fresh bindings");
 const correctiveContinue = evaluateGateAction({
   intent: { intent: "continue_workflow" },
   caseSummary: correctiveCaseSummary,
   isLatestCaseJob: true
 });
-assert(correctiveContinue.effect === "corrective_attempt_required", "corrective continue must not execute workflow");
-assert(correctiveContinue.message.includes("只读诊断"), "corrective continue must direct diagnosis");
+assert(correctiveContinue.effect === "create_fresh_corrective_attempt", "corrective continue must prepare a fresh attempt");
+assert(correctiveContinue.message.includes("不会自动创建项目"), "corrective continue must remain platform-readonly");
+
+const correctiveBundle = {
+  ...bundle,
+  job: {
+    ...bundle.job,
+    job_id: "JOB-CORRECTIVE-OLD-1",
+    case_id: "CASE-CORRECTIVE-1",
+    source_usage: "runtime_truth",
+    job_status: "failed_waiting_manual_review"
+  },
+  executionPlan: { ...bundle.executionPlan, plan_status: "consumed" }
+};
+const correctiveView = {
+  ...jobView,
+  jobId: "JOB-CORRECTIVE-OLD-1",
+  caseId: "CASE-CORRECTIVE-1",
+  headline: { status: "failed_waiting_manual_review" },
+  caseGate: {
+    currentGate: "prepare_corrective_attempt",
+    suggestedNextAction: "correct_payload_then_build_next_attempt_version",
+    rootBlockerCodes: ["corrective_attempt_requires_new_payload_version"],
+    lifecycleStatus: "active",
+    isLatestCaseJob: true
+  }
+};
+const correctiveFreshView = {
+  ...jobView,
+  jobId: "JOB-CORRECTIVE-FRESH-2",
+  caseId: "CASE-CORRECTIVE-1",
+  isLatestCaseJob: true,
+  confirmationPreview: { planKind: "std_project_create", planId: "PLAN-CORRECTIVE-V2" },
+  caseGate: {
+    currentGate: "await_job_write_authorization",
+    suggestedNextAction: "obtain_single_plan_confirmation",
+    rootBlockerCodes: [],
+    lifecycleStatus: "active",
+    isLatestCaseJob: true
+  }
+};
+let correctiveCreateCalls = 0;
+let correctiveReadonlyCalls = 0;
+let correctivePlatformCreateCalls = 0;
+const correctiveResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return correctiveBundle; },
+    async getWorkflowCaseSummary() { return correctiveCaseSummary; }
+  },
+  jobId: "JOB-CORRECTIVE-OLD-1",
+  message: "继续执行",
+  getJobViewFn: async () => correctiveView,
+  credentialStateFn: () => ({ status: "ready", blockers: [] }),
+  createCorrectiveAttemptJobFn: async (_repo, predecessor) => {
+    correctiveCreateCalls += 1;
+    assert(predecessor.job_id === "JOB-CORRECTIVE-OLD-1", "corrective predecessor changed");
+    return { created: true, jobId: "JOB-CORRECTIVE-FRESH-2", attemptNo: 2, maximumCreateAttempts: 3 };
+  },
+  runWorkbenchInitialReadonlyFn: async (_repo, freshJobId, options) => {
+    correctiveReadonlyCalls += 1;
+    assert(freshJobId === "JOB-CORRECTIVE-FRESH-2", "corrective readonly did not use fresh job");
+    assert(options.createAttemptNo === 2, "corrective readonly did not bind Attempt 2");
+    assert(options.maximumCreateAttempts === 3, "corrective maximum attempt bound changed");
+    return correctiveFreshView;
+  },
+  executeConfirmedLaunchFn: async () => {
+    correctivePlatformCreateCalls += 1;
+    return {};
+  }
+});
+assert(correctiveCreateCalls === 1, "corrective continue must create one fresh job");
+assert(correctiveReadonlyCalls === 1, "corrective continue must run one readonly preparation");
+assert(correctivePlatformCreateCalls === 0, "corrective continue must not call create executor");
+assert(correctiveResponse.interaction.kind === "corrective_attempt_prepared", "corrective response must expose prepared confirmation");
+assert(correctiveResponse.view.jobId === "JOB-CORRECTIVE-FRESH-2", "corrective response did not switch to fresh job");
 
 const ambiguousDecision = evaluateGateAction({
   intent: { intent: "request_confirmation" },
@@ -905,6 +979,31 @@ assert(recoveryClaimInput.caseId === "CASE-RECOVERY-1", "direct recovery claim c
 assert(recoveryClaimInput.predecessorJobId === "JOB-RECOVERY-1", "direct recovery claim predecessor changed");
 assert(recoveryClaimInput.sourceRecordRef === "workbench:readonly-recovery:JOB-RECOVERY-1", "direct recovery source reference changed");
 
+let correctiveClaimInput = null;
+let correctiveNodeInitCount = 0;
+const directCorrective = await createCorrectiveAttemptJob({
+  async createCorrectiveAttemptLaunchJobOnce(input) {
+    correctiveClaimInput = input;
+    return {
+      created: true,
+      job: { job_id: "JOB-CORRECTIVE-DIRECT-2" },
+      attemptNo: 2,
+      maximumCreateAttempts: 3
+    };
+  },
+  async upsertNodeRuns(jobId, nodes) {
+    correctiveNodeInitCount += 1;
+    assert(jobId === "JOB-CORRECTIVE-DIRECT-2", "direct corrective initialized wrong job");
+    assert(nodes.length === 7, "direct corrective did not initialize every workflow node");
+  }
+}, correctiveBundle.job);
+assert(directCorrective.created === true && directCorrective.jobId === "JOB-CORRECTIVE-DIRECT-2", "direct corrective result changed");
+assert(directCorrective.attemptNo === 2 && directCorrective.maximumCreateAttempts === 3, "direct corrective attempt binding changed");
+assert(correctiveNodeInitCount === 1, "direct corrective must initialize new job once");
+assert(correctiveClaimInput.caseId === "CASE-CORRECTIVE-1", "direct corrective claim case changed");
+assert(correctiveClaimInput.predecessorJobId === "JOB-CORRECTIVE-OLD-1", "direct corrective predecessor changed");
+assert(correctiveClaimInput.sourceRecordRef === "workbench:corrective-reprepare:JOB-CORRECTIVE-OLD-1", "direct corrective source reference changed");
+
 console.log(JSON.stringify({
   deterministicIntent: deterministic.intent,
   fakeAdapterIntent: fakeResolved.intent,
@@ -918,5 +1017,6 @@ console.log(JSON.stringify({
   readbackOnlyCalls,
   historyEffect: historicalDecision.effect,
   terminalMonitorEffect: terminalMonitorDecision.effect,
-  readonlyRecoveryEffect: recoveryResponse.interaction.kind
+  readonlyRecoveryEffect: recoveryResponse.interaction.kind,
+  correctiveAttemptEffect: correctiveResponse.interaction.kind
 }, null, 2));

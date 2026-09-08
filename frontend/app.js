@@ -163,7 +163,7 @@ import {
     if (!job?.caseGate?.currentGate) return "";
     const gate = job.caseGate;
     if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "prepare_corrective_attempt") {
-      return "当前状态：失败待复盘；需修正参数后建立下一次尝试。当前页面不会重试创建。";
+      return "当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt；生成确认卡前不会创建项目。";
     }
     const blockerTitle = gate.rootBlockerCodes?.[0]
       ? (gate.rootBlocker?.title || gate.rootBlockerCodes[0])
@@ -375,7 +375,7 @@ import {
       ? job?.caseGate?.currentGate === "first_std_project_create_completed"
         ? "已完成，可输入“查看状态”..."
         : job?.caseGate?.currentGate === "prepare_corrective_attempt"
-          ? "失败待复盘，可输入“查看状态”；修复完成前禁止重试..."
+          ? "输入“继续执行”重新准备下一 Attempt，或输入“查看状态”..."
           : "输入“继续执行”或“查看状态”..."
       : "输入投放需求...";
     document.querySelector(".send-button").disabled = input.disabled;

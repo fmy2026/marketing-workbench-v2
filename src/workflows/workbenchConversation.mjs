@@ -3,6 +3,7 @@ import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirm
 import { executeConfirmedResourcePlan } from "./skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
 import {
+  createCorrectiveAttemptJob,
   createJob,
   createReadonlyRecoveryJob,
   getJobView,
@@ -80,6 +81,7 @@ export async function handleWorkbenchCommand({
   fetchImpl,
   getJobViewFn = getJobView,
   createFreshJobFn = createJob,
+  createCorrectiveAttemptJobFn = createCorrectiveAttemptJob,
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
   runWorkbenchInitialReadonlyFn = runWorkbenchInitialReadonly,
@@ -179,6 +181,68 @@ export async function handleWorkbenchCommand({
         ...interaction,
         effect: "readonly_recovery_started",
         message: "已创建同一 Case 的 fresh Job 并完成只读准备；旧 Plan、确认和平台动作未被复用。"
+      }
+    });
+  }
+  if (interaction.effect === "create_fresh_corrective_attempt") {
+    const credential = credentialStateFn() || {};
+    if (clean(credential.status) !== "ready") {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "corrective_attempt_credential_unavailable",
+          blocker: "credential_required",
+          message: "当前平台只读凭据不可用，未创建 fresh Job、未执行平台操作。"
+        }
+      });
+    }
+    const corrective = await createCorrectiveAttemptJobFn(repo, bundle.job);
+    if (!clean(corrective?.jobId)) {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "corrective_attempt_unavailable",
+          blocker: clean(corrective?.blocker) || "corrective_attempt_not_available",
+          message: clean(corrective?.blocker) === "std_project_create_attempt_limit_reached"
+            ? "该 Case 已达到三次创建上限，不能再生成确认窗口。"
+            : "当前 Case 状态已变化或不满足下一 Attempt 条件；请刷新进度后查看。"
+        }
+      });
+    }
+    if (corrective.created !== true) {
+      const nextView = await getJobViewFn(repo, corrective.jobId, { projectStatePath });
+      return response({
+        view: nextView,
+        interaction: {
+          ...interaction,
+          effect: "corrective_attempt_already_started",
+          confirmationPreview: nextView?.confirmationPreview || null,
+          message: `Attempt ${corrective.attemptNo} 的 fresh Job 已存在，已切换到当前进度。`
+        }
+      });
+    }
+    const nextView = await runWorkbenchInitialReadonlyFn(repo, corrective.jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      getJobViewFn,
+      runJobFn,
+      qiankunOwnerKey,
+      createAttemptNo: corrective.attemptNo,
+      maximumCreateAttempts: corrective.maximumCreateAttempts
+    });
+    const readyForConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
+      nextView?.confirmationPreview?.planKind === "std_project_create";
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        effect: readyForConfirmation ? "corrective_attempt_prepared" : "corrective_attempt_readonly_completed",
+        confirmationPreview: nextView?.confirmationPreview || null,
+        message: readyForConfirmation
+          ? `Attempt ${corrective.attemptNo} 已完成只读准备；请核对新确认卡后输入“确认创建”。`
+          : `Attempt ${corrective.attemptNo} 的 fresh Job 已完成本轮只读准备；请按当前 Gate 处理唯一卡点。`
       }
     });
   }
