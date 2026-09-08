@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `073_case_level_corrective_attempts.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `074_account_guide_video_contract.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -118,6 +118,7 @@ frontend / API
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
 - `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
 - `oceanengine_3_byte_mini_game × JSZC` 的 fresh Job 只从当前 `game_route_defaults` 取得 CTA、预算/出价/ROI、性别/年龄与 336 位时段保底值；Node 05 必须校验 success profile、字段账本、时段摘要与至少 10 个 fresh readonly DMP 排除 ID。账户动态资源 ID 不得固化进路线默认值。
+- `advertiser_accounts.guide_video_required=true` 的账户必须在每个 fresh Job 的 Node 04 使用当前已验证小游戏实例调用 `gameplay/list`；非空 `guide_video_id` 去重后必须恰好一个，并写入现有 `account_resources.video_asset.metadata.guide_video_readiness`。Node 05 仅对此类账户为每条推广视频发送该 ID，其他账户必须省略；零个、多值或只读失败均在确认前阻断。Node 07 在项目出现后额外用一次 `oc_project/material/get` 核验每条计划视频的绑定，不重试创建。
 - `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。非 active Case 只允许 `review_latest_job`，除非已具备完整 verified 完成证据并投影 `first_std_project_create_completed`；两类都不得暴露确认、重试或执行入口。
 
 ## 权限与安全

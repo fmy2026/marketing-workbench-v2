@@ -17,6 +17,8 @@ import {
   JSZC_FALLBACK_GENDER,
   JSZC_FALLBACK_ROI_GOAL,
   JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+  JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
@@ -89,6 +91,7 @@ export const OE3_STD_PROJECT_ALLOWED_PAYLOAD_PATHS = new Set([
   "project_materials.video_material_list[]",
   "project_materials.video_material_list[].image_mode",
   "project_materials.video_material_list[].video_id",
+  "project_materials.video_material_list[].guide_video_id",
   "project_materials.video_material_list[].video_cover_id",
   "project_materials.image_material_list",
   "project_materials.external_url_material_list",
@@ -455,12 +458,15 @@ function checkFinalMaterialReadiness(manifest = {}) {
   const selected = Number(readiness.selectedRequiredVideoCount || 0);
   const verified = Number(readiness.verifiedVideoCount || 0);
   const covers = Number(readiness.coverReadyCount ?? readiness.coverVerifiedCount ?? 0);
+  const guideRequired = readiness.guideVideoRequired === true;
+  const guideReady = Number(readiness.guideVideoReadyCount || 0);
+  const passed = selected > 0 && selected === verified && selected === covers && (!guideRequired || selected === guideReady);
   return diag({
     checkId: "manifest:final_material_readiness",
     fieldPath: "final_payload_manifest.finalMaterialReadiness",
-    status: selected > 0 && selected === verified && selected === covers ? "passed" : "blocked",
-    expectedTypeOrRule: "selected_required_video_count === verified_video_count === cover_ready_count",
-    actualValue: { selectedRequiredVideoCount: selected, verifiedVideoCount: verified, coverReadyCount: covers },
+    status: passed ? "passed" : "blocked",
+    expectedTypeOrRule: "selected_required_video_count === verified_video_count === cover_ready_count; guide-required accounts also equal guide_video_ready_count",
+    actualValue: { selectedRequiredVideoCount: selected, verifiedVideoCount: verified, coverReadyCount: covers, guideVideoRequired: guideRequired, guideVideoReadyCount: guideReady },
     blockerCode: "final_material_readiness_not_passed",
     repairHint: "两条最终视频必须在目标账户可读；封面需显式验证或允许平台默认封面。"
   });
@@ -794,12 +800,14 @@ function checkNestedFieldContractManifest(manifest = {}) {
 
 function checkCreateFieldLedger(manifest = {}) {
   const ledger = manifest.createFieldLedger || {};
+  const profile = manifest.successProfile || {};
+  const expectedPathCount = Number(profile.expectedLedgerPathCount || 0);
   const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
   const passed = ledger.status === "passed" &&
     ledger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
     Number(ledger.checkedPathCount || 0) > 0 &&
     Number(ledger.blockedPathCount || 0) === 0 &&
-    Number(ledger.checkedPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
+    Number(ledger.checkedPathCount || 0) === expectedPathCount &&
     entries.length === Number(ledger.checkedPathCount || 0) &&
     /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)) &&
     ledger.fieldShapeHash === manifest.fieldShapeHash &&
@@ -818,6 +826,7 @@ function checkCreateFieldLedger(manifest = {}) {
       fieldShapeHashPresent: /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)),
       manifestFieldShapeHashMatch: ledger.fieldShapeHash === manifest.fieldShapeHash,
       entriesPresent: entries.length,
+      expectedPathCount,
       rawPayloadStored: ledger.rawPayloadStored === true
     },
     blockerCode: "create_field_ledger_not_verified",
@@ -827,15 +836,24 @@ function checkCreateFieldLedger(manifest = {}) {
 
 function checkJsZcSuccessProfile(manifest = {}) {
   const profile = manifest.successProfile || {};
+  const guideVideoRequired = manifest.guideVideoRequired === true;
+  const expectedShapeHash = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+  const expectedLedgerPathCount = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
   const passed = manifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
     /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)) &&
     profile.status === "passed" &&
     profile.version === JSZC_SUCCESS_PROFILE_VERSION &&
     profile.source === JSZC_SUCCESS_PROFILE_SOURCE &&
     profile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH &&
-    profile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
-    Number(profile.expectedLedgerPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
-    manifest.fieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+    profile.goldenFieldShapeHash === expectedShapeHash &&
+    Number(profile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
+    profile.guideVideoRequired === guideVideoRequired &&
+    profile.guideVideoPolicy === (guideVideoRequired ? "required_unique_current_job_readonly" : "omit") &&
+    manifest.fieldShapeHash === expectedShapeHash &&
     profile.filterEventPolicy === "omit" &&
     profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
     profile.externalUrlMaterialListPolicy === "send" &&
@@ -867,8 +885,10 @@ function checkJsZcSuccessProfile(manifest = {}) {
       version: profile.version || "",
       source: profile.source || "",
       fixtureHashMatches: profile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
-      goldenFieldShapeHashMatches: profile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
+      goldenFieldShapeHashMatches: profile.goldenFieldShapeHash === expectedShapeHash,
       expectedLedgerPathCount: Number(profile.expectedLedgerPathCount || 0),
+      guideVideoRequired,
+      guideVideoPolicy: profile.guideVideoPolicy || "",
       fieldShapeHashPresent: /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)),
       filterEventPolicy: profile.filterEventPolicy || "",
       convertedTimeDurationPolicy: profile.convertedTimeDurationPolicy || "",

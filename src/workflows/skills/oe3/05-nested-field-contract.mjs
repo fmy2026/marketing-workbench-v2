@@ -125,6 +125,7 @@ function addCheck(checks, {
 }
 
 function requiredVideoEntries(bundle = {}) {
+  const guideRequired = bundle.account?.guide_video_required === true;
   const entries = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return entries
     .filter((entry) => clean(entry?.item?.item_type) === "video_asset" && entry?.item?.required === true)
@@ -133,6 +134,7 @@ function requiredVideoEntries(bundle = {}) {
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const readonly = resourceItem.metadata?.readonly_check || {};
       const finalReadiness = resourceItem.metadata?.final_material_readiness || {};
+      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
       return {
         sourceAssetId,
         expectedVideoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
@@ -140,6 +142,14 @@ function requiredVideoEntries(bundle = {}) {
         coverMode: clean(readonly.cover_mode || finalReadiness.cover_mode || "not_checked"),
         videoIdPresent: readonly.video_id_present === true,
         evidenceRefPresent: Boolean(clean(readonly.evidence_refs?.[0] || finalReadiness.evidence_ref)),
+        guideVideoRequired: guideRequired,
+        expectedGuideVideoId: clean(guideReadiness.guide_video_id),
+        guideVideoReady: !guideRequired || (
+          guideReadiness.status === "passed" &&
+          guideReadiness.required === true &&
+          Boolean(clean(guideReadiness.guide_video_id)) &&
+          clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id)
+        ),
         ready: Boolean(sourceAssetId) &&
           resourceReady(resourceItem) &&
           ["passed", "passed_by_manual_confirmation"].includes(clean(readonly.status)) &&
@@ -247,6 +257,28 @@ export function evaluateNestedFieldContract({
         expectedMatch: Boolean(clean(item.video_id) && clean(item.video_id) === clean(expected.expectedVideoId)),
         sourceReady: expected.ready === true,
         evidenceRefPresent: expected.evidenceRefPresent === true
+      }
+    });
+    const guideSent = Object.hasOwn(item, "guide_video_id");
+    addCheck(checks, {
+      group: "video_materials",
+      path: `project_materials.video_material_list[${index}].guide_video_id`,
+      passed: expected.guideVideoRequired
+        ? guideSent && Boolean(clean(item.guide_video_id)) &&
+          clean(item.guide_video_id) === clean(expected.expectedGuideVideoId) && expected.guideVideoReady === true
+        : !guideSent,
+      rule: expected.guideVideoRequired
+        ? "guide_video_id_from_current_job_unique_gameplay_readonly"
+        : "guide_video_id_omitted_when_account_policy_not_required",
+      blockerCode: expected.guideVideoRequired
+        ? `nested_guide_video_id_source_not_verified:${index}`
+        : `nested_guide_video_id_must_be_omitted:${index}`,
+      actual: {
+        required: expected.guideVideoRequired === true,
+        sent: guideSent,
+        present: Boolean(clean(item.guide_video_id)),
+        expectedMatch: Boolean(clean(item.guide_video_id) && clean(item.guide_video_id) === clean(expected.expectedGuideVideoId)),
+        currentJobReadonlyReady: expected.guideVideoReady === true
       }
     });
     addCheck(checks, {
@@ -571,6 +603,8 @@ export function evaluateNestedFieldContract({
     },
     videoCoverMode: coverModes.length ? coverModes.join("+") : "not_checked",
     videoEvidenceRefCount: requiredVideos.filter((item) => item.evidenceRefPresent).length,
+    guideVideoRequired: bundle.account?.guide_video_required === true,
+    guideVideoReadyCount: requiredVideos.filter((item) => item.guideVideoReady === true).length,
     materialReadinessStatus: clean(materialReadiness.status || "not_checked"),
     backupLandingPageReady: backupLandingPage.ready === true,
     externalUrlMaterialListPolicy: externalUrlPolicy || "missing",
@@ -603,6 +637,8 @@ export function nestedFieldContractManifest(result = {}) {
     enumResults: result.enumResults || {},
     videoCoverMode: result.videoCoverMode || "not_checked",
     videoEvidenceRefCount: Number(result.videoEvidenceRefCount || 0),
+    guideVideoRequired: result.guideVideoRequired === true,
+    guideVideoReadyCount: Number(result.guideVideoReadyCount || 0),
     materialReadinessStatus: result.materialReadinessStatus || "not_checked",
     backupLandingPageReady: result.backupLandingPageReady === true,
     externalUrlMaterialListPolicy: result.externalUrlMaterialListPolicy || "",

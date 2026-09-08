@@ -22,6 +22,7 @@ import {
 const API_BASE = "https://api.oceanengine.com";
 const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
 const LIST_ENDPOINT = "/open_api/v3.0/std_project/list/";
+const MATERIAL_GET_ENDPOINT = "/open_api/v3.0/oc_project/material/get/";
 
 export const STD_PROJECT_CREATE_CONFIRM_ENV = "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM";
 export const STD_PROJECT_CREATE_CONFIRM_VALUE = "CREATE_ONE_STD_PROJECT";
@@ -228,6 +229,130 @@ function targetFromBundle(bundle = {}) {
     maximumCreateAttempts: Number(executionPlan.metadata?.maximum_create_attempts || 3),
     verificationSeriesId: clean(executionPlan.metadata?.verification_series_id || ""),
     verificationTaskRef: clean(executionPlan.metadata?.task_ref || "")
+  };
+}
+
+function expectedGuideVideoBindings(bundle = {}) {
+  if (bundle.account?.guide_video_required !== true) {
+    return { required: false, status: "not_required", guideVideoId: "", videoIds: [] };
+  }
+  const jobId = clean(bundle.job?.job_id);
+  const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
+  const videos = materialItems
+    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
+    .map((entry) => {
+      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+      const resource = (bundle.resources || []).find((item) =>
+        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+      ) || {};
+      const guide = resource.metadata?.guide_video_readiness || {};
+      return {
+        videoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
+        guideVideoId: clean(guide.guide_video_id),
+        currentJobVerified: guide.status === "passed" && clean(guide.verified_by_job_id) === jobId
+      };
+    });
+  const guideIds = [...new Set(videos.map((item) => item.guideVideoId).filter(Boolean))];
+  const ready = videos.length > 0 && videos.every((item) => item.videoId && item.currentJobVerified) && guideIds.length === 1;
+  return {
+    required: true,
+    status: ready ? "ready" : "blocked",
+    guideVideoId: ready ? guideIds[0] : "",
+    videoIds: ready ? videos.map((item) => item.videoId) : []
+  };
+}
+
+function summarizeProjectVideoMaterials(payload = {}, expected = {}) {
+  const items = [
+    payload?.data?.video_material_list,
+    payload?.data?.list,
+    payload?.data?.material_list,
+    payload?.data?.items
+  ].find((value) => Array.isArray(value)) || [];
+  const expectedVideoIds = new Set(expected.videoIds || []);
+  const matchedVideoIds = new Set(items
+    .filter((item) => expectedVideoIds.has(clean(item?.video_id)))
+    .filter((item) => clean(item?.guide_video_id) === clean(expected.guideVideoId))
+    .map((item) => clean(item?.video_id)));
+  return {
+    apiCode: extractApiCode(payload),
+    requestIdPresent: Boolean(extractRequestId(payload)),
+    returnedVideoCount: items.length,
+    expectedVideoCount: expectedVideoIds.size,
+    matchedVideoCount: matchedVideoIds.size,
+    allExpectedBindingsMatch: expectedVideoIds.size > 0 && matchedVideoIds.size === expectedVideoIds.size
+  };
+}
+
+async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchImpl, accessToken, remainingMs }) {
+  const expected = expectedGuideVideoBindings(bundle);
+  if (!expected.required) return { status: "not_required", called: false, evidenceRef: "" };
+  if (expected.status !== "ready") {
+    return { status: "blocked_precondition", called: false, evidenceRef: "", expectedVideoCount: 0, matchedVideoCount: 0 };
+  }
+  if (remainingMs <= 0) {
+    return { status: "deadline_exhausted", called: false, evidenceRef: "", expectedVideoCount: expected.videoIds.length, matchedVideoCount: 0 };
+  }
+
+  const url = new URL(`${API_BASE}${MATERIAL_GET_ENDPOINT}`);
+  url.searchParams.set("advertiser_id", clean(bundle.job.advertiser_id));
+  url.searchParams.set("project_id", clean(objectId));
+  url.searchParams.set("filtering", JSON.stringify({ material_type: "VIDEO" }));
+  url.searchParams.set("page", "1");
+  url.searchParams.set("page_size", "100");
+  let response = null;
+  let text = "";
+  let summary = {
+    apiCode: "",
+    requestIdPresent: false,
+    returnedVideoCount: 0,
+    expectedVideoCount: expected.videoIds.length,
+    matchedVideoCount: 0,
+    allExpectedBindingsMatch: false
+  };
+  let timedOut = false;
+  try {
+    response = await fetchWithDeadline(fetchImpl, url, {
+      method: "GET",
+      headers: { Accept: "application/json", "Access-Token": accessToken }
+    }, { timeoutMs: Math.min(PLATFORM_JSON_TIMEOUT_MS, remainingMs) });
+    text = await response.text();
+    let payload = {};
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = {};
+    }
+    summary = summarizeProjectVideoMaterials(payload, expected);
+  } catch (error) {
+    timedOut = isPlatformDeadlineError(error);
+    text = canonicalJson({ endpoint: "oc_project/material/get", outcome: timedOut ? "timeout" : "transport_error" });
+    summary.apiCode = timedOut ? "timeout" : "transport_error";
+  }
+  const passed = Boolean(response?.ok) && (summary.apiCode === "0" || summary.apiCode === "") && summary.allExpectedBindingsMatch;
+  const evidenceRef = `EV-${bundle.job.job_id}-GUIDE-VIDEO-MATERIAL-READBACK`;
+  await repo.upsertEvidence({
+    artifactId: evidenceRef,
+    jobId: bundle.job.job_id,
+    artifactType: "guide_video_material_readback",
+    title: "guide video material readback",
+    summary: `endpoint=oc_project/material/get status=${passed ? "passed" : "pending"} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent === true} expected_video_count=${summary.expectedVideoCount} matched_video_count=${summary.matchedVideoCount} raw_response_stored=false`,
+    contentHash: `sha256:${sha256(text)}`,
+    storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+    sourceRef: `oceanengine:${MATERIAL_GET_ENDPOINT}`,
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  });
+  return {
+    status: passed ? "passed" : timedOut ? "timeout" : "pending_or_mismatch",
+    called: true,
+    httpStatus: response?.status || null,
+    apiCode: summary.apiCode,
+    requestIdPresent: summary.requestIdPresent,
+    expectedVideoCount: summary.expectedVideoCount,
+    matchedVideoCount: summary.matchedVideoCount,
+    allExpectedBindingsMatch: summary.allExpectedBindingsMatch,
+    responseHash: `sha256:${sha256(text)}`,
+    evidenceRef
   };
 }
 
@@ -799,13 +924,27 @@ export async function readbackStdProjectOnce({
     });
     if (summary.objectId) break;
   }
+  const guideVideoMaterialReadback = summary.objectId
+    ? await readbackGuideVideoMaterialsOnce({
+        repo,
+        bundle,
+        objectId: summary.objectId,
+        fetchImpl,
+        accessToken: env.OCEANENGINE_ACCESS_TOKEN,
+        remainingMs: absoluteDeadlineMs - (nowFn() - readbackStartedAt)
+      })
+    : {
+        status: bundle.account?.guide_video_required === true ? "project_not_found" : "not_required",
+        called: false,
+        evidenceRef: ""
+      };
   const evidenceRef = `EV-${jobId}-STD-PROJECT-READBACK-ONCE`;
   await repo.upsertEvidence({
     artifactId: evidenceRef,
     jobId,
     artifactType: "std_project_readback_once",
     title: "std_project readback once",
-    summary: `endpoint=std_project/list attempts=${attempts.length} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches}`,
+    summary: `endpoint=std_project/list attempts=${attempts.length} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches} guide_video_material_status=${guideVideoMaterialReadback.status}`,
     contentHash: `sha256:${sha256(text)}`,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${LIST_ENDPOINT}`,
@@ -813,7 +952,8 @@ export async function readbackStdProjectOnce({
   });
   const projectIdMatchesCreate = !createResponseObjectId ||
     (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
-  const readbackVerified = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate;
+  const guideVideoMaterialVerified = ["not_required", "passed"].includes(guideVideoMaterialReadback.status);
+  const readbackVerified = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate && guideVideoMaterialVerified;
   if (readbackVerified) {
     await repo.upsertCreatedObject({
       createdObjectId: `CO-${jobId}-STD-PROJECT-${summary.objectId}`,
@@ -829,6 +969,7 @@ export async function readbackStdProjectOnce({
         readback_source: "oceanengine_std_project_list",
         object_name_matches_draft: true,
         readback_attempt_count: attempts.length,
+        guide_video_material_status: guideVideoMaterialReadback.status,
         raw_response_stored: false
       }
     });
@@ -844,6 +985,15 @@ export async function readbackStdProjectOnce({
         object_status: summary.objectStatus || "readable",
         source: "oceanengine_std_project_list",
         readback_attempts: attempts,
+        guide_video_material_readback: {
+          required: guideVideoMaterialReadback.status !== "not_required",
+          status: guideVideoMaterialReadback.status,
+          called: guideVideoMaterialReadback.called === true,
+          expected_video_count: Number(guideVideoMaterialReadback.expectedVideoCount || 0),
+          matched_video_count: Number(guideVideoMaterialReadback.matchedVideoCount || 0),
+          evidence_ref: guideVideoMaterialReadback.evidenceRef || "",
+          raw_response_stored: false
+        },
         create_field_ledger_status: "manual_console_verification_required",
         raw_response_stored: false
       },
@@ -881,16 +1031,23 @@ export async function readbackStdProjectOnce({
   } else {
     const projectIdMismatch = Boolean(summary.objectId) && !projectIdMatchesCreate;
     const projectNameMismatch = Boolean(summary.objectId) && projectIdMatchesCreate && !summary.objectNameMatches;
+    const guideVideoMaterialPending = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate && !guideVideoMaterialVerified;
     await repo.upsertReadbackRecord({
       readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
       jobId,
       objectType: "std_project",
-      objectId: projectIdMismatch ? (createResponseObjectId || "PROJECT_ID_MISMATCH") : "NOT_FOUND_AFTER_CREATE",
+      objectId: projectIdMismatch
+        ? (createResponseObjectId || "PROJECT_ID_MISMATCH")
+        : guideVideoMaterialPending
+          ? summary.objectId
+          : "NOT_FOUND_AFTER_CREATE",
       objectName: runtimeTarget.projectName,
       readbackStatus: projectIdMismatch
         ? "project_id_mismatch"
         : projectNameMismatch
           ? "project_name_mismatch"
+          : guideVideoMaterialPending
+            ? "guide_video_material_pending"
           : "not_found_after_create",
       fieldDiffSummary: {
         object_name_matches_draft: summary.objectNameMatches === true,
@@ -901,6 +1058,15 @@ export async function readbackStdProjectOnce({
         create_response_confirmed: responseConfirmedByCreate,
         create_response_id_matches_readback: projectIdMatchesCreate,
         readback_attempts: attempts,
+        guide_video_material_readback: {
+          required: guideVideoMaterialReadback.status !== "not_required",
+          status: guideVideoMaterialReadback.status,
+          called: guideVideoMaterialReadback.called === true,
+          expected_video_count: Number(guideVideoMaterialReadback.expectedVideoCount || 0),
+          matched_video_count: Number(guideVideoMaterialReadback.matchedVideoCount || 0),
+          evidence_ref: guideVideoMaterialReadback.evidenceRef || "",
+          raw_response_stored: false
+        },
         raw_response_stored: false
       },
       evidenceRef
@@ -913,6 +1079,8 @@ export async function readbackStdProjectOnce({
         ? "project_id_mismatch"
         : summary.objectId && !summary.objectNameMatches
           ? "project_name_mismatch"
+        : summary.objectId && !guideVideoMaterialVerified
+          ? "guide_video_material_pending"
         : "not_found_or_mismatch",
     httpStatus: response?.status || null,
     apiCode: summary.apiCode,
@@ -924,6 +1092,7 @@ export async function readbackStdProjectOnce({
     projectIdMatchesCreate,
     responseUnknownByCreate,
     readbackAttempts: attempts,
+    guideVideoMaterialReadback,
     evidenceRef
   };
 }

@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：corrective_executor_fixed_waiting_owner_continue
+状态：guide_video_fix_deployed_waiting_owner_continue
 
 ## 目标
 
@@ -64,7 +64,7 @@
 
 - 本机 LaunchAgent 已改为监听 `192.168.42.7:3000`，`http://192.168.42.7:3000/` 在本机经真实内网地址返回登录页；错误 Host 为 421，错误 Origin 为 403，未登录 API 为 401。
 - 巨量引擎 OAuth token 已按既有 refresh scope 恢复为 `valid`；数据库有效备份已生成并通过 `pg_restore --list` 校验。
-- 冯美钰、张超博乾坤凭据为 active；张境威仍缺本人 Passport Token。`setup:qiankun-user -- --user <login> --gui` 可通过 macOS 隐藏输入弹窗写入本机凭据。
+- 冯美钰、张境威、张超博乾坤凭据均为 active；`setup:qiankun-user -- --user <login> --gui` 可通过 macOS 隐藏输入弹窗安全更新本机凭据。
 - 最终只待另一台公司网络电脑验证 3000 端口可达，并完成真实浏览器流程验收；如需张境威参与完整 Intake，再录入其本人凭据。真实创建仍只能由对应登录用户在 ready Plan 上亲自确认。
 
 ## 2026-09-07 批准变更：临时私网 HTTP
@@ -110,3 +110,18 @@ Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准
 张境威已通过工作台建立并确认 Attempt 2 Job `JOB-MWBV2-20260908021122-A501FC`。其资源、字段合同、Draft 与 Plan 均通过，但最终 create executor 仍按 fresh Job 而非 Case 读取下一尝试序号，以 `create_attempt_number_not_next` 在 action claim 前安全停止；`real_platform_write_called=false`，Case 仍只有 Attempt 1 的一次媒体 action。修复让最终 executor 与 readonly runner 共用 `getCaseCreateAttemptState(case_id)`，并按 Case 阻止已有对象或 verified readback；Job 状态继续只负责本 Plan/action 防重。
 
 新增普通 Case 跨 Job fake-transport 回归：Attempt 1 明确失败后 Attempt 2 只调用一次 create 和一次 readback，Case 聚合为 2 个 action、1 个对象、1 个 verified readback；已有 verified 对象后的新 Job 调用数为 0。真实失败 Plan 保持 consumed，部署后仍等待张境威输入“继续执行”建立新的 Attempt 2 Plan。
+
+## 2026-09-08 批准变更：账户条件引导视频
+
+用户根据账户 `1867508089433225` 的白名单表现、手工项目 `7682995388417507371` 和本地官方资料，批准最小引导视频修复。该账户增加 `guide_video_required=true`；每个 fresh Job 的 Node 04 使用已验证小游戏实例调用 `gameplay/list`，非空 `guide_video_id` 去重后恰好一个才写入现有视频资源 metadata。Node 05 为全部必需推广视频发送同一个本 Job 已验证 ID；普通账户完全省略。Node 07 在项目出现后用一次 `oc_project/material/get` 核验每条视频绑定。
+
+本变更不新建表、不把动态 ID 写入游戏或路线默认值，不新增 Node、Gate、Plan/action 类型、确认短语或平台写权限。零候选、多候选、实例不唯一、只读失败或创建后素材未匹配均 fail-closed；实施与测试真实平台创建调用必须为 0。迁移仅允许新增账户布尔列、设置已确认目标账户开关并升级现有嵌套字段合同版本。
+
+## 2026-09-08 引导视频实施结果
+
+- migration `074_account_guide_video_contract.sql` 已应用：基础表仍为 36、View 仍为 7；目标账户开关为 true，普通试用账户为 false。迁移前备份为 `.local/backups/marketing_workbench_v2-20260908T034435Z.dump`。
+- Node 04 已按本 Job 调用 `gameplay/list` 并只接受一个不同的非空引导视频；ID 仅合并进现有视频资源 metadata。实时只读集成确认当前审核通过玩法 1 个、不同引导视频 1 个，平台创建调用 0。
+- Node 05 的目标账户 Draft 两条推广视频均包含同一已验证 ID，字段账本为 94 条；普通账户仍为 92 条且不发送该字段。零候选、多候选和普通账户省略专项测试均通过。
+- Node 07 在项目命中后最多执行一次素材只读核验；绑定一致才完成权威回查，未匹配则保持只读回查 Gate，不重复 create。
+- 执行权限、局域网 runtime policy、对话编排、单次确认及回查回归均通过；本次实现真实平台创建调用为 0，遗留 `test_run` 数据已清理。
+- 当前 Case `CASE-MWBV2-776936E13CC487A466` 仍保持最新 Job `JOB-MWBV2-20260908024347-703DA0`、2 次已消费创建尝试、0 个创建对象、Gate `prepare_corrective_attempt`。部署后由张境威本人输入一次“继续执行”，系统才会创建 fresh Job 并准备 Attempt 3 确认卡。

@@ -218,12 +218,28 @@ export function mockReadyBundle(bundle = {}) {
         };
       }
       if (item.resource_type === "video_asset") {
+        const guideVideoRequired = bundle.account?.guide_video_required === true;
         return {
           ...item,
           visibility_status: "visible",
           readback_status: "readback_verified",
           metadata: {
             ...(item.metadata || {}),
+            ...(guideVideoRequired ? {
+              guide_video_readiness: {
+                status: "passed",
+                required: true,
+                guide_video_id: "guide-video-test",
+                guide_video_id_present: true,
+                approved_gameplay_count: 1,
+                distinct_guide_video_count: 1,
+                request_id_present: true,
+                response_hash: hashValue("guide-video-test"),
+                evidence_ref: "mock:guide-video-readonly",
+                verified_by_job_id: bundle.job?.job_id || "",
+                raw_response_stored: false
+              }
+            } : {}),
             readonly_check: {
               ...(item.metadata?.readonly_check || {}),
               status: "passed",

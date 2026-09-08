@@ -14,6 +14,8 @@ import {
   JSZC_FALLBACK_AGES,
   JSZC_FALLBACK_GENDER,
   JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+  JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
@@ -425,6 +427,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.convertedTimeDurationOmittedByContract === true
     );
   const successProfile = finalManifest.successProfile || {};
+  const guideVideoRequired = finalManifest.guideVideoRequired === true;
+  const expectedFieldShapeHash = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+  const expectedLedgerPathCount = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
   const finalSuccessProfileOk = !usesFinalPayloadHash ||
     (
       finalManifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
@@ -433,9 +442,11 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       successProfile.version === JSZC_SUCCESS_PROFILE_VERSION &&
       successProfile.source === JSZC_SUCCESS_PROFILE_SOURCE &&
       successProfile.fixtureHash === JSZC_SUCCESS_PROFILE_FIXTURE_HASH &&
-      successProfile.goldenFieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
-      Number(successProfile.expectedLedgerPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
-      finalManifest.fieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH &&
+      successProfile.goldenFieldShapeHash === expectedFieldShapeHash &&
+      Number(successProfile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
+      successProfile.guideVideoRequired === guideVideoRequired &&
+      successProfile.guideVideoPolicy === (guideVideoRequired ? "required_unique_current_job_readonly" : "omit") &&
+      finalManifest.fieldShapeHash === expectedFieldShapeHash &&
       successProfile.filterEventPolicy === "omit" &&
       successProfile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
       successProfile.externalUrlMaterialListPolicy === "send" &&
@@ -539,7 +550,8 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     (
       Number(materialReadiness.selectedRequiredVideoCount || 0) > 0 &&
       Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.verifiedVideoCount || 0) &&
-      Number(materialReadiness.selectedRequiredVideoCount || 0) === coverReadyCount
+      Number(materialReadiness.selectedRequiredVideoCount || 0) === coverReadyCount &&
+      Number(materialReadiness.selectedRequiredVideoCount || 0) === Number(materialReadiness.guideVideoReadyCount || 0)
     );
   const contractMapping = finalManifest.contractMapping || {};
   const contractMappingReady = !usesFinalPayloadHash ||
@@ -615,7 +627,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Number(createFieldLedger.blockedPathCount || 0) === 0 &&
       Array.isArray(createFieldLedger.entries) &&
       createFieldLedger.entries.length === Number(createFieldLedger.checkedPathCount || 0) &&
-      Number(createFieldLedger.checkedPathCount || 0) === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT &&
+      Number(createFieldLedger.checkedPathCount || 0) === expectedLedgerPathCount &&
       /^sha256:[a-f0-9]{64}$/.test(clean(createFieldLedger.fieldShapeHash)) &&
       createFieldLedger.fieldShapeHash === finalManifest.fieldShapeHash &&
       createFieldLedger.entries.every((entry) => entry.preCreateStatus === "passed" && entry.rawValueStored === false) &&

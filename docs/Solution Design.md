@@ -209,6 +209,16 @@ fresh Job 使用失败 predecessor 生成确定性恢复引用并由 Case adviso
 
 Case 级尝试状态必须贯穿 readonly 与最终 create executor：两者都以 `getCaseCreateAttemptState(case_id)` 判定下一序号、已有对象、verified readback 和三次上限；当前 Job 的状态只用于当前 Plan/action 的原子 claim 与防重。不得在 fresh Job 的最终写前校验退回按 Job 计数，否则 Attempt 2/3 会被误判为序号不连续。已确认但在 action claim 前因此类本地校验失败的 Plan 保持 consumed，修复后仍通过“继续执行”建立新的 fresh Job；Case 没有新增平台 action 时，下一 Plan 继续使用原 Attempt 序号。
 
+## 已批准设计：账户条件引导视频
+
+`guide_video_id` 是推广视频的官方创建字段；`gameplay/list` 可按账户、小游戏实例和资产类型只读返回审核通过玩法及其引导视频。该能力按广告账户控制，不按游戏或路线设置动态 ID。`advertiser_accounts.guide_video_required` 默认 `false`；当前仅账户 `1867508089433225` 为 `true`。引导视频 ID 不增加专用列，只保存在既有 `account_resources.video_asset.metadata.guide_video_readiness`。
+
+要求引导视频的账户在每个 fresh Job 的 Node 04 使用当前账户已权威验证的唯一 `micro_app_instance` 调用 3.0 `gameplay/list`。返回的非空 `guide_video_id` 去重后恰好一个才通过，并把同一 ID 绑定到本 Job 的全部必需推广视频资源；零个、多值、实例不唯一、凭据或请求失败均在确认前停止。普通账户不调用这项依赖，原 payload 不变。
+
+Node 05 只在账户开关为 true、每条视频都具备本 Job 唯一只读证据时发送 `video_material_list[].guide_video_id`，并将其纳入 allowlist、嵌套合同、字段账本和账户条件 success-profile 形态；普通账户必须省略。Node 07 在项目 ID 与名称命中后附加一次 3.0 `oc_project/material/get`，要求计划中的每条视频都回读到同一引导视频后才把 readback 标记为 verified；未及时可见只保持待回查，不重复 create。
+
+官方依据只使用本地记录：`open.oceanengine.com-3.0/04-资产管理.md` 的 `gameplay/list` 与 `guide_video_id`；`open.oceanengine.com-3.0/09-01-2-巨量营销智擎版-项目管理-创建标准项目.md` 的 `video_material_list[].guide_video_id`；`open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md` 的 `oc_project/material/get`。真实只读校验确认账户当前仅一个不同引导视频，手工项目 `7682995388417507371` 的两条推广视频均回读到该 ID。动态 ID 不进入文档、路线或游戏默认配置。
+
 ## 已批准设计：小程序实例被动就绪状态保留
 
 `micro_app_instance` 的 `waiting_on_event_asset` 与 `waiting_on_event_configs` 是事件链中的被动就绪状态，不是独立资源准备能力。资源结果归一必须保留这两个状态，同时继续声明 `prepare_supported=false`；runner 将其聚合为 `WAITING`，Execution Plan 不生成实例动作或 `resource_prepare_unsupported:micro_app_instance` blocker。实例只有在既有事件资产详情确认 App + instance 绑定后才能进入 verified，禁止猜测实例 ID、人工映射其他实例或新增实例 executor。

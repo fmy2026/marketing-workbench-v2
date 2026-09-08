@@ -54,6 +54,8 @@
     "test:dmp-executor": "node scripts/04-dmp-executor-smoke.mjs",
     "test:dmp-readback": "node scripts/04-dmp-readback-smoke.mjs",
     "test:video-material-executor": "node scripts/04-video-material-executor-smoke.mjs",
+    "test:guide-video-readonly": "node scripts/04-guide-video-readonly-smoke.mjs",
+    "test:guide-video-payload": "node scripts/05-guide-video-payload-smoke.mjs",
     "test:product-image-executor": "node scripts/04-product-image-executor-smoke.mjs",
     "test:event-chain-readonly": "node scripts/04-event-chain-readonly-smoke.mjs",
     "test:micro-app-instance-authority-readonly": "node scripts/04-micro-app-instance-authority-readonly-smoke.mjs",

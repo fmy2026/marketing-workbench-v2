@@ -11,13 +11,36 @@ const PROJECT_ID = "7680763113444425770";
 const PROJECT_NAME = "JSZC_STD_READBACK_SCHEDULE_SMOKE";
 const EXPECTED_SCHEDULE = [0, 3000, 5000, 8000, 10000];
 const EXPECTED_WAIT_WINDOWS = [0, 3000, 2000, 3000, 2000];
+const GUIDE_VIDEO_ID = "guide-video-smoke";
+const VIDEO_IDS = ["video-smoke-1", "video-smoke-2"];
 
-function bundle() {
+function bundle({ guideRequired = false } = {}) {
   return {
     job: {
       job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE",
       advertiser_id: "1871922414575753"
     },
+    account: {
+      guide_video_required: guideRequired
+    },
+    materialPack: {
+      items: VIDEO_IDS.map((videoId, index) => ({
+        item: { item_type: "video_asset", required: true, asset_id: `VIDEO-SMOKE-${index + 1}` },
+        asset: { metadata: { video_id: videoId } }
+      }))
+    },
+    resources: VIDEO_IDS.map((videoId, index) => ({
+      resource_type: "video_asset",
+      source_asset_id: `VIDEO-SMOKE-${index + 1}`,
+      metadata: {
+        guide_video_readiness: {
+          status: "passed",
+          required: true,
+          guide_video_id: GUIDE_VIDEO_ID,
+          verified_by_job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE"
+        }
+      }
+    })),
     draft: {
       project_name: PROJECT_NAME
     },
@@ -38,6 +61,7 @@ function bundle() {
 
 function jsonResponse(payload) {
   return {
+    ok: true,
     status: 200,
     async text() {
       return JSON.stringify(payload);
@@ -45,26 +69,27 @@ function jsonResponse(payload) {
   };
 }
 
-async function runScenario({ matchAt = 0, mismatch = "", transportError = false } = {}) {
+async function runScenario({ matchAt = 0, mismatch = "", transportError = false, guideRequired = false, guideBindingMatch = true } = {}) {
   let now = 0;
   let listCallCount = 0;
+  let materialCallCount = 0;
   const requestTimes = [];
   const waits = [];
   const readbackRecords = [];
   const planTransitions = [];
   const repo = {
     async getLaunchJobBundle() {
-      return bundle();
+      return bundle({ guideRequired });
     },
     async markConfirmedStdProjectCreatePlanWaitingReadback({ jobId, planId }) {
-      assert(jobId === bundle().job.job_id, "waiting_readback_job_binding_changed");
-      assert(planId === bundle().executionPlan.plan_id, "waiting_readback_plan_binding_changed");
+      assert(jobId === bundle({ guideRequired }).job.job_id, "waiting_readback_job_binding_changed");
+      assert(planId === bundle({ guideRequired }).executionPlan.plan_id, "waiting_readback_plan_binding_changed");
       planTransitions.push("waiting_readback");
       return { transitioned: planTransitions.length === 1 };
     },
     async consumeConfirmedStdProjectCreatePlanAfterReadback({ jobId, planId }) {
-      assert(jobId === bundle().job.job_id, "consumed_job_binding_changed");
-      assert(planId === bundle().executionPlan.plan_id, "consumed_plan_binding_changed");
+      assert(jobId === bundle({ guideRequired }).job.job_id, "consumed_job_binding_changed");
+      assert(planId === bundle({ guideRequired }).executionPlan.plan_id, "consumed_plan_binding_changed");
       planTransitions.push("consumed");
       return { consumed: true };
     },
@@ -76,14 +101,27 @@ async function runScenario({ matchAt = 0, mismatch = "", transportError = false 
   };
   const result = await readbackStdProjectOnce({
     repo,
-    jobId: bundle().job.job_id,
+    jobId: bundle({ guideRequired }).job.job_id,
     target: { grantSource: "test_fake_transport" },
     nowFn: () => now,
     sleepImpl: async (delayMs) => {
       waits.push(delayMs);
       now += delayMs;
     },
-    fetchImpl: async () => {
+    fetchImpl: async (requestUrl) => {
+      if (String(requestUrl).includes("/oc_project/material/get/")) {
+        materialCallCount += 1;
+        return jsonResponse({
+          code: 0,
+          request_id: `material-request-${materialCallCount}`,
+          data: {
+            video_material_list: VIDEO_IDS.map((videoId, index) => ({
+              video_id: videoId,
+              guide_video_id: guideBindingMatch || index > 0 ? GUIDE_VIDEO_ID : "different-guide-video"
+            }))
+          }
+        });
+      }
       listCallCount += 1;
       requestTimes.push(now);
       if (transportError) throw new Error("transport_error_for_smoke");
@@ -100,7 +138,7 @@ async function runScenario({ matchAt = 0, mismatch = "", transportError = false 
       });
     }
   });
-  return { result, listCallCount, requestTimes, waits, readbackRecords, planTransitions };
+  return { result, listCallCount, materialCallCount, requestTimes, waits, readbackRecords, planTransitions };
 }
 
 assert(
@@ -148,10 +186,22 @@ assert(nameMismatch.result.status === "project_name_mismatch", "name_mismatch_mu
 assert(nameMismatch.listCallCount === 3, "name_mismatch_must_stop_immediately_after_visible_object");
 assert(nameMismatch.readbackRecords.at(-1)?.readbackStatus === "project_name_mismatch", "name_mismatch_record_missing");
 
+const guideMatched = await runScenario({ matchAt: 1, guideRequired: true });
+assert(guideMatched.result.status === "readback_verified", "guide_video_material_match_must_verify");
+assert(guideMatched.materialCallCount === 1, "guide_video_material_readback_must_call_once");
+assert(guideMatched.result.guideVideoMaterialReadback?.matchedVideoCount === 2, "both_guide_video_bindings_must_match");
+
+const guideMismatch = await runScenario({ matchAt: 1, guideRequired: true, guideBindingMatch: false });
+assert(guideMismatch.result.status === "guide_video_material_pending", "guide_video_material_mismatch_must_remain_pending");
+assert(guideMismatch.materialCallCount === 1, "guide_video_material_mismatch_must_not_retry_read");
+assert(guideMismatch.readbackRecords.at(-1)?.readbackStatus === "guide_video_material_pending", "guide_video_pending_record_missing");
+assert(JSON.stringify(guideMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "guide_video_pending_plan_must_not_be_consumed");
+
 console.log(JSON.stringify({
   status: "passed",
   absoluteScheduleMs: EXPECTED_SCHEDULE,
   maximumListCalls: 5,
+  guideVideoMaterialCallsPerReadback: 1,
   createCalls: 0,
   verifiedLifecycle: fifthMatch.planTransitions,
   mismatchOutcomes: [idMismatch.result.status, nameMismatch.result.status]

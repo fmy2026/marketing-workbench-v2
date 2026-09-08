@@ -133,9 +133,12 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     });
     const projectIdMismatch = readback.status === "project_id_mismatch";
     const projectNameMismatch = readback.status === "project_name_mismatch";
+    const guideVideoMaterialPending = readback.status === "guide_video_material_pending";
     const identityMismatch = projectIdMismatch || projectNameMismatch;
     const recoveredByReadback = readback.status === "readback_verified" && responseUnknown;
-    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && responseUnknown;
+    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" &&
+      responseUnknown &&
+      !guideVideoMaterialPending;
     if (readbackMissAfterUnconfirmedCreate) {
       const planId = latestBundle.executionPlan?.plan_id || "";
       if (planId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function") {
@@ -156,6 +159,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
           ? ["readback_project_id_mismatch"]
           : projectNameMismatch
             ? ["readback_project_name_mismatch"]
+            : guideVideoMaterialPending
+              ? ["guide_video_material_readback_pending"]
         : readbackMissAfterUnconfirmedCreate
           ? ["create_response_unconfirmed_readback_not_found"]
           : ["created_pending_readback"],
@@ -167,6 +172,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
             ? "project_id_mismatch"
             : projectNameMismatch
               ? "project_name_mismatch"
+              : guideVideoMaterialPending
+                ? "guide_video_material_pending"
           : readbackMissAfterUnconfirmedCreate
             ? "create_unconfirmed_readback_not_found"
             : "created_pending_readback",
@@ -185,6 +192,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
             ? "创建响应与回查项目 ID 不一致，已停止且禁止自动重试。"
             : projectNameMismatch
               ? "创建响应与回查项目名称不一致，已停止且禁止自动重试。"
+              : guideVideoMaterialPending
+                ? "项目已出现，等待素材只读确认推广视频均关联本轮引导视频。"
           : readbackMissAfterUnconfirmedCreate
             ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
             : "真实创建已调用，等待只读回查确认。",

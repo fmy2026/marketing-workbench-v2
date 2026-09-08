@@ -1,7 +1,7 @@
 import { hashValue } from "./00-contracts.mjs";
 
 export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-02.jszc-byte-game-incremental-fallback-v2";
-export const JSZC_NESTED_FIELD_CONTRACT_VERSION = "2026-09-02.oe3-std-project-create-nested-fields-v5";
+export const JSZC_NESTED_FIELD_CONTRACT_VERSION = "2026-09-08.oe3-std-project-create-nested-fields-v6";
 export const JSZC_SUCCESS_PROFILE_SOURCE = "jszc_incremental_fallback_screenshot_plus_official_create_contract";
 
 export const JSZC_FALLBACK_BUDGET = 66666;
@@ -82,6 +82,8 @@ export const JSZC_SUCCESS_PROFILE_FIXTURE = Object.freeze({
 export const JSZC_SUCCESS_PROFILE_FIXTURE_HASH = hashValue(JSZC_SUCCESS_PROFILE_FIXTURE);
 export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:47bdf25b99339c610e31e9f54a9a6d4cf8c142b01bebfecb0ff843c4f866f464";
 export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 92;
+export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:5ded53919aea28eeec18bedcd0c1ed3ca1c4857bd95ff77390887f8ca502db65";
+export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 94;
 export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
   videoMaterialList: 2,
   titleMaterialList: 3,
@@ -154,6 +156,13 @@ export function configuredJsZcSuccessProfile(bundle = {}) {
 
 export function evaluateJsZcSuccessProfile(bundle = {}) {
   const configured = configuredJsZcSuccessProfile(bundle);
+  const guideVideoRequired = bundle.account?.guide_video_required === true;
+  const selectedGoldenFieldShapeHash = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
+  const selectedLedgerPathCount = guideVideoRequired
+    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
   const blockers = [
     ...(configured.version === JSZC_SUCCESS_PROFILE_VERSION ? [] : ["jszc_success_profile_version_mismatch"]),
     ...(configured.source === JSZC_SUCCESS_PROFILE_SOURCE ? [] : ["jszc_success_profile_source_mismatch"]),
@@ -173,6 +182,12 @@ export function evaluateJsZcSuccessProfile(bundle = {}) {
   return {
     status: blockers.length ? "blocked" : "passed",
     ...configured,
+    configuredGoldenFieldShapeHash: configured.goldenFieldShapeHash,
+    configuredExpectedLedgerPathCount: configured.expectedLedgerPathCount,
+    goldenFieldShapeHash: selectedGoldenFieldShapeHash,
+    expectedLedgerPathCount: selectedLedgerPathCount,
+    guideVideoRequired,
+    guideVideoPolicy: guideVideoRequired ? "required_unique_current_job_readonly" : "omit",
     blockers,
     rawPayloadStored: false
   };
@@ -186,6 +201,10 @@ export function jszcSuccessProfileManifest(result = {}) {
     fixtureHash: result.fixtureHash || "",
     goldenFieldShapeHash: result.goldenFieldShapeHash || "",
     expectedLedgerPathCount: Number(result.expectedLedgerPathCount || 0),
+    configuredGoldenFieldShapeHash: result.configuredGoldenFieldShapeHash || result.goldenFieldShapeHash || "",
+    configuredExpectedLedgerPathCount: Number(result.configuredExpectedLedgerPathCount || result.expectedLedgerPathCount || 0),
+    guideVideoRequired: result.guideVideoRequired === true,
+    guideVideoPolicy: result.guideVideoPolicy || "omit",
     nestedRuleVersion: result.nestedRuleVersion || "",
     filterEventPolicy: result.filterEventPolicy || "",
     convertedTimeDurationPolicy: result.convertedTimeDurationPolicy || "",

@@ -26,6 +26,8 @@ const ALLOWED_ENDPOINTS = new Set([
   "/open_api/v3.0/event_manager/dbt/get/",
   "file/video/get",
   "file/image/get",
+  "/open_api/v3.0/gameplay/list/",
+  "/open_api/v3.0/oc_project/material/get/",
   "dmp/custom_audience/read",
   "dmp/custom_audience/select",
   "tools/aweme_auth_list",

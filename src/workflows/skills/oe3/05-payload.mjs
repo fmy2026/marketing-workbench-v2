@@ -284,6 +284,7 @@ function titleMaterials(bundle = {}) {
 }
 
 function videoMaterials(bundle = {}) {
+  const guideRequired = bundle.account?.guide_video_required === true;
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -292,6 +293,7 @@ function videoMaterials(bundle = {}) {
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
       const videoCoverId = clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "");
+      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
       const item = {
         image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
         video_id: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id || "")
@@ -299,12 +301,16 @@ function videoMaterials(bundle = {}) {
       if (coverMode === "explicit_cover_verified" && videoCoverId) {
         item.video_cover_id = videoCoverId;
       }
+      if (guideRequired && guideReadiness.status === "passed" && clean(guideReadiness.guide_video_id)) {
+        item.guide_video_id = clean(guideReadiness.guide_video_id);
+      }
       return item;
     })
     .filter((item) => item.video_id);
 }
 
 function requiredVideoMaterialReadiness(bundle = {}) {
+  const guideRequired = bundle.account?.guide_video_required === true;
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   const items = materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -314,16 +320,28 @@ function requiredVideoMaterialReadiness(bundle = {}) {
       const readonlyStatus = clean(resourceItem.metadata?.readonly_check?.status);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
       const coverReady = ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
+      const guideReadiness = resourceItem.metadata?.guide_video_readiness || {};
+      const guideReady = !guideRequired || (
+        guideReadiness.status === "passed" &&
+        guideReadiness.required === true &&
+        Boolean(clean(guideReadiness.guide_video_id)) &&
+        clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id)
+      );
       const ready = sourceAssetId &&
         resourceReady(resourceItem) &&
         ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) &&
         resourceItem.metadata?.readonly_check?.video_id_present === true &&
-        coverReady;
+        coverReady &&
+        guideReady;
       return {
         sourceAssetId,
         videoIdPresent: Boolean(clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id)),
         videoCoverIdPresent: Boolean(clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)),
         coverMode: coverMode || "not_checked",
+        guideVideoRequired: guideRequired,
+        guideVideoReady: guideReady,
+        guideVideoIdPresent: Boolean(clean(guideReadiness.guide_video_id)),
+        guideVideoVerifiedByCurrentJob: clean(guideReadiness.verified_by_job_id) === clean(bundle.job?.job_id),
         readbackStatus: ready ? "readback_verified" : clean(resourceItem.readback_status || "missing"),
         readonlyStatus: ready ? "passed" : clean(readonlyStatus || "not_checked"),
         evidenceRef: clean(resourceItem.metadata?.readonly_check?.evidence_refs?.[0] || resourceItem.metadata?.final_material_readiness?.evidence_ref)
@@ -335,16 +353,20 @@ function requiredVideoMaterialReadiness(bundle = {}) {
     item.readbackStatus === "readback_verified" &&
     ["explicit_cover_verified", "platform_default_cover_allowed"].includes(item.coverMode)
   ).length;
+  const guideVideoReadyCount = items.filter((item) => item.guideVideoReady === true).length;
   return {
     status: selectedRequiredVideoCount > 0 &&
       selectedRequiredVideoCount === verifiedVideoCount &&
-      selectedRequiredVideoCount === coverReadyCount
+      selectedRequiredVideoCount === coverReadyCount &&
+      selectedRequiredVideoCount === guideVideoReadyCount
       ? "passed"
       : "blocked",
     selectedRequiredVideoCount,
     verifiedVideoCount,
     coverVerifiedCount: coverReadyCount,
     coverReadyCount,
+    guideVideoRequired: guideRequired,
+    guideVideoReadyCount,
     items
   };
 }
@@ -470,6 +492,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const selectedRequiredVideoCount = Number(materialReadiness.selectedRequiredVideoCount || 0);
   const verifiedVideoCount = Number(materialReadiness.verifiedVideoCount || 0);
   const coverVerifiedCount = Number(materialReadiness.coverVerifiedCount || 0);
+  const guideVideoRequired = bundle.account?.guide_video_required === true;
+  const guideVideoReadyCount = Number(materialReadiness.guideVideoReadyCount || 0);
   const sellingPoints = payload.project_materials?.product_info?.selling_points;
   const sellingPointsContract = evaluateSellingPointsContract(sellingPoints, {
     blockerPrefix: "product_selling_points"
@@ -500,6 +524,9 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(selectedRequiredVideoCount !== payload.project_materials?.video_material_list?.length ? ["selected_required_video_count_mismatch"] : []),
     ...(selectedRequiredVideoCount !== verifiedVideoCount ? ["required_video_material_readback_incomplete"] : []),
     ...(selectedRequiredVideoCount !== coverVerifiedCount ? ["required_video_cover_readback_incomplete"] : []),
+    ...(guideVideoRequired && selectedRequiredVideoCount !== guideVideoReadyCount ? ["required_guide_video_readback_incomplete"] : []),
+    ...(guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => !clean(item.guide_video_id)) ? ["guide_video_id_missing"] : []),
+    ...(!guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => Object.hasOwn(item, "guide_video_id")) ? ["guide_video_id_must_be_omitted"] : []),
     ...(!payload.project_materials?.title_material_list?.length ? ["title_material_list_missing"] : []),
     ...(!payload.brand_info?.brand_name_id || !payload.brand_info?.cdp_brand_id || !payload.brand_info?.yuntu_category_id ? ["brand_info_integer_fields_missing"] : []),
     ...(Number(payload.budget) === JSZC_FALLBACK_BUDGET ? [] : ["jszc_fallback_budget_mismatch"]),
@@ -634,6 +661,8 @@ function fieldManifest(payload = {}, blockers = [], {
     videoMaterialCount: materials.video_material_list?.length || 0,
     videoIdReadyCount: (materials.video_material_list || []).filter((item) => item.video_id).length,
     videoCoverReadyCount: (materials.video_material_list || []).filter((item) => item.video_cover_id).length,
+    guideVideoRequired: materialReadiness.guideVideoRequired === true,
+    guideVideoReadyCount: (materials.video_material_list || []).filter((item) => clean(item.guide_video_id)).length,
     imageMaterialListCount: Array.isArray(materials.image_material_list) ? materials.image_material_list.length : 0,
     imageMaterialListEmpty: Array.isArray(materials.image_material_list) && materials.image_material_list.length === 0,
     externalUrlMaterialListPolicy,
@@ -691,11 +720,17 @@ function fieldManifest(payload = {}, blockers = [], {
       verifiedVideoCount: materialReadiness.verifiedVideoCount || 0,
       coverVerifiedCount: materialReadiness.coverVerifiedCount || 0,
       coverReadyCount: materialReadiness.coverReadyCount || materialReadiness.coverVerifiedCount || 0,
+      guideVideoRequired: materialReadiness.guideVideoRequired === true,
+      guideVideoReadyCount: Number(materialReadiness.guideVideoReadyCount || 0),
       items: (materialReadiness.items || []).map((item) => ({
         sourceAssetId: item.sourceAssetId,
         videoIdPresent: Boolean(item.videoIdPresent),
         videoCoverIdPresent: Boolean(item.videoCoverIdPresent),
         coverMode: item.coverMode || "",
+        guideVideoRequired: item.guideVideoRequired === true,
+        guideVideoReady: item.guideVideoReady === true,
+        guideVideoIdPresent: item.guideVideoIdPresent === true,
+        guideVideoVerifiedByCurrentJob: item.guideVideoVerifiedByCurrentJob === true,
         readbackStatus: item.readbackStatus || "",
         readonlyStatus: item.readonlyStatus || "",
         evidenceRef: item.evidenceRef || ""

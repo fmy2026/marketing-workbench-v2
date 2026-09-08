@@ -35,6 +35,282 @@ function accountResourceForVideo(bundle = {}, sourceAssetId = "") {
   ) || null;
 }
 
+function guideVideoRequired(bundle = {}) {
+  return bundle.account?.guide_video_required === true;
+}
+
+function verifiedMicroAppInstanceCandidates(bundle = {}) {
+  return [...new Set((bundle.resources || [])
+    .filter((item) => item.resource_type === "micro_app_instance")
+    .filter((item) => item.visibility_status === "visible" && item.readback_status === "readback_verified")
+    .map((item) => clean(item.platform_resource_id))
+    .filter(Boolean))];
+}
+
+function gameplayList(payload = {}) {
+  return [
+    payload?.data?.play_infos,
+    payload?.data?.list,
+    payload?.data?.gameplay_list,
+    payload?.data?.items
+  ].find((item) => Array.isArray(item)) || [];
+}
+
+function summarizeGameplay(payload = {}) {
+  const plays = gameplayList(payload);
+  const guideVideoIds = [...new Set(plays
+    .map((item) => clean(item?.guide_video_id))
+    .filter(Boolean))];
+  return {
+    approvedGameplayCount: plays.length,
+    nonemptyGuideVideoCount: plays.filter((item) => Boolean(clean(item?.guide_video_id))).length,
+    distinctGuideVideoCount: guideVideoIds.length,
+    guideVideoIds
+  };
+}
+
+function cachedGuideVideoReadiness(bundle = {}, requiredItems = []) {
+  if (!guideVideoRequired(bundle)) return null;
+  const states = requiredItems
+    .map((item) => accountResourceForVideo(bundle, item.sourceAssetId)?.metadata?.guide_video_readiness)
+    .filter(Boolean);
+  const ids = [...new Set(states.map((item) => clean(item.guide_video_id)).filter(Boolean))];
+  const currentJob = clean(bundle.job?.job_id);
+  if (states.length !== requiredItems.length || ids.length !== 1) return null;
+  if (!states.every((item) => item.status === "passed" && clean(item.verified_by_job_id) === currentJob)) return null;
+  return {
+    required: true,
+    status: "passed",
+    blockers: [],
+    guideVideoId: ids[0],
+    guideVideoIdPresent: true,
+    approvedGameplayCount: Number(states[0].approved_gameplay_count || 0),
+    distinctGuideVideoCount: 1,
+    requestIdPresent: states[0].request_id_present === true,
+    responseHash: clean(states[0].response_hash),
+    evidenceRef: clean(states[0].evidence_ref),
+    source: "current_job_cached_readonly"
+  };
+}
+
+async function recordGuideVideoEvidence({ repo, bundle, result }) {
+  const artifactId = `EV-${bundle.job.job_id}-GUIDE-VIDEO-READONLY`;
+  await repo.upsertEvidence({
+    artifactId,
+    jobId: bundle.job.job_id,
+    artifactType: "guide_video_readiness",
+    title: "P04 guide video readonly readiness",
+    summary: [
+      `required=${result.required === true}`,
+      `status=${result.status}`,
+      `approved_gameplay_count=${Number(result.approvedGameplayCount || 0)}`,
+      `distinct_guide_video_count=${Number(result.distinctGuideVideoCount || 0)}`,
+      `guide_video_id_present=${result.guideVideoIdPresent === true}`,
+      `request_id_present=${result.requestIdPresent === true}`,
+      `response_hash_present=${Boolean(result.responseHash)}`,
+      `blocker=${result.blockers?.[0] || "none"}`,
+      "response_body_stored=false"
+    ].join("; "),
+    contentHash: hashValue({
+      status: result.status,
+      approvedGameplayCount: Number(result.approvedGameplayCount || 0),
+      distinctGuideVideoCount: Number(result.distinctGuideVideoCount || 0),
+      guideVideoId: clean(result.guideVideoId),
+      responseHash: clean(result.responseHash),
+      blocker: result.blockers?.[0] || ""
+    }),
+    storageRef: `postgres:mwb.evidence_artifacts/${artifactId}`,
+    sourceRef: "oceanengine:/open_api/v3.0/gameplay/list/",
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  });
+  return artifactId;
+}
+
+export async function resolveGuideVideoReadonly({
+  repo,
+  bundle,
+  client = createOceanEngineReadonlyClient(),
+  requiredItems = requiredVideoEntries(bundle),
+  mockReady = false,
+  allowReadonlyDependency = false
+} = {}) {
+  if (!guideVideoRequired(bundle)) {
+    return {
+      required: false,
+      status: "not_required",
+      blockers: [],
+      guideVideoId: "",
+      guideVideoIdPresent: false,
+      approvedGameplayCount: 0,
+      distinctGuideVideoCount: 0,
+      requestIdPresent: false,
+      responseHash: "",
+      evidenceRef: "",
+      source: "account_policy"
+    };
+  }
+
+  const cached = cachedGuideVideoReadiness(bundle, requiredItems);
+  if (cached) return cached;
+
+  if (mockReady) {
+    return {
+      required: true,
+      status: "passed",
+      blockers: [],
+      guideVideoId: "guide-video-test",
+      guideVideoIdPresent: true,
+      approvedGameplayCount: 1,
+      distinctGuideVideoCount: 1,
+      requestIdPresent: true,
+      responseHash: hashValue("guide-video-test"),
+      evidenceRef: "mock:guide-video-readonly",
+      source: "mock_ready"
+    };
+  }
+
+  const permission = readonlyPermissionState({ allowReadonlyDependency });
+  if (!permission.allowed) {
+    return {
+      required: true,
+      status: "blocked",
+      blockers: permission.blockers,
+      guideVideoId: "",
+      guideVideoIdPresent: false,
+      approvedGameplayCount: 0,
+      distinctGuideVideoCount: 0,
+      requestIdPresent: false,
+      responseHash: "",
+      evidenceRef: "",
+      source: "readonly_permission"
+    };
+  }
+
+  const credential = client.credentialState();
+  if (credential.status !== "ready") {
+    return {
+      required: true,
+      status: "blocked",
+      blockers: ["credential_required", ...(credential.blockers || [])],
+      guideVideoId: "",
+      guideVideoIdPresent: false,
+      approvedGameplayCount: 0,
+      distinctGuideVideoCount: 0,
+      requestIdPresent: false,
+      responseHash: "",
+      evidenceRef: "",
+      source: "credential_state"
+    };
+  }
+
+  const instanceIds = verifiedMicroAppInstanceCandidates(bundle);
+  if (instanceIds.length !== 1) {
+    const result = {
+      required: true,
+      status: "blocked",
+      blockers: [instanceIds.length === 0 ? "guide_video_instance_not_verified" : "guide_video_instance_ambiguous"],
+      guideVideoId: "",
+      guideVideoIdPresent: false,
+      approvedGameplayCount: 0,
+      distinctGuideVideoCount: 0,
+      requestIdPresent: false,
+      responseHash: "",
+      source: "verified_micro_app_instance"
+    };
+    result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
+    return result;
+  }
+
+  const probe = await client.get({
+    label: `guide_video_gameplay_${bundle.job.job_id}`,
+    endpoint: "/open_api/v3.0/gameplay/list/",
+    query: {
+      account_id: clean(bundle.job.advertiser_id),
+      account_type: "AD",
+      asset_id: instanceIds[0],
+      asset_type: "BYTE_GAME",
+      page_info: JSON.stringify({ page: 1, page_size: 100 })
+    },
+    summarize: summarizeGameplay
+  });
+  const ids = Array.isArray(probe.summary?.guideVideoIds)
+    ? probe.summary.guideVideoIds.map(clean).filter(Boolean)
+    : [];
+  const blockers = probe.status !== "passed"
+    ? ["guide_video_readonly_failed"]
+    : ids.length === 0
+      ? ["guide_video_candidate_missing"]
+      : ids.length > 1
+        ? ["guide_video_candidate_ambiguous"]
+        : [];
+  const result = {
+    required: true,
+    status: blockers.length ? "blocked" : "passed",
+    blockers,
+    guideVideoId: blockers.length ? "" : ids[0],
+    guideVideoIdPresent: !blockers.length && Boolean(ids[0]),
+    approvedGameplayCount: Number(probe.summary?.approvedGameplayCount || 0),
+    distinctGuideVideoCount: Number(probe.summary?.distinctGuideVideoCount || ids.length),
+    requestIdPresent: probe.requestIdPresent === true,
+    responseHash: clean(probe.responseHash),
+    evidenceRef: "",
+    source: "oceanengine_gameplay_list"
+  };
+  result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
+  return result;
+}
+
+function publicGuideVideoReadiness(result = {}) {
+  return {
+    required: result.required === true,
+    status: clean(result.status || "not_checked"),
+    guideVideoIdPresent: result.guideVideoIdPresent === true,
+    approvedGameplayCount: Number(result.approvedGameplayCount || 0),
+    distinctGuideVideoCount: Number(result.distinctGuideVideoCount || 0),
+    requestIdPresent: result.requestIdPresent === true,
+    responseHashPresent: Boolean(result.responseHash),
+    evidenceRefPresent: Boolean(result.evidenceRef),
+    source: clean(result.source),
+    blockers: Array.isArray(result.blockers) ? result.blockers : []
+  };
+}
+
+async function persistGuideVideoReadiness({ repo, bundle, requiredItems, result }) {
+  if (bundle.job.source_usage === "test_run" || result.status !== "passed") return;
+  for (const item of requiredItems) {
+    const resource = accountResourceForVideo(bundle, item.sourceAssetId) || {};
+    await repo.upsertAccountResourceReadonlyBySourceAsset({
+      routeId: bundle.job.route_id,
+      gameCode: bundle.job.game_code,
+      advertiserId: bundle.job.advertiser_id,
+      resourceType: "video_asset",
+      sourceAssetId: item.sourceAssetId,
+      resourceName: item.resourceName || item.sourceAssetId,
+      visibilityStatus: clean(resource.visibility_status || "needs_confirmation"),
+      readbackStatus: clean(resource.readback_status || "not_checked"),
+      platformResourceId: clean(resource.platform_resource_id || item.sourceAssetId),
+      required: true,
+      metadata: resource.metadata?.readonly_check || {},
+      resourceMetadata: {
+        guide_video_readiness: {
+          status: "passed",
+          required: true,
+          guide_video_id: result.guideVideoId,
+          guide_video_id_present: true,
+          approved_gameplay_count: result.approvedGameplayCount,
+          distinct_guide_video_count: result.distinctGuideVideoCount,
+          request_id_present: result.requestIdPresent,
+          response_hash: result.responseHash,
+          evidence_ref: result.evidenceRef,
+          verified_by_job_id: bundle.job.job_id,
+          verified_at: new Date().toISOString(),
+          raw_response_stored: false
+        }
+      }
+    });
+  }
+}
+
 function materialList(payload = {}) {
   return [
     payload?.data?.list,
@@ -335,6 +611,18 @@ export async function runVideoMaterialReadonlyGate({
     return summaryFromItems({ items: [], source: "material_pack_missing_required_video" });
   }
 
+  const guideVideoReadiness = await resolveGuideVideoReadonly({
+    repo,
+    bundle,
+    client,
+    requiredItems,
+    mockReady,
+    allowReadonlyDependency
+  });
+  if (guideVideoReadiness.status === "passed") {
+    await persistGuideVideoReadiness({ repo, bundle, requiredItems, result: guideVideoReadiness });
+  }
+
   const cachedItems = requiredItems.map((item) => {
     const resource = accountResourceForVideo(bundle, item.sourceAssetId);
     const cachedReady = mockReady || existingVideoReady(resource);
@@ -356,7 +644,30 @@ export async function runVideoMaterialReadonlyGate({
     });
   });
   const cachedSummary = summaryFromItems({ items: cachedItems, source: mockReady ? "mock_ready" : "postgres_readonly_metadata" });
-  if (cachedSummary.status === "passed") return sanitizeForPublic(cachedSummary);
+  if (guideVideoReadiness.status === "blocked") {
+    return sanitizeForPublic({
+      status: "blocked",
+      blockers: guideVideoReadiness.blockers,
+      outputSummary: {
+        ...cachedSummary.outputSummary,
+        ready: false,
+        readonlyStatus: "guide_video_not_ready",
+        guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness),
+        nextAction: "重新只读玩法；仅在唯一审核通过引导视频可确定后继续"
+      },
+      evidenceRefs: [guideVideoReadiness.evidenceRef].filter(Boolean)
+    });
+  }
+  if (cachedSummary.status === "passed") {
+    return sanitizeForPublic({
+      ...cachedSummary,
+      outputSummary: {
+        ...cachedSummary.outputSummary,
+        guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness)
+      },
+      evidenceRefs: [guideVideoReadiness.evidenceRef].filter(Boolean)
+    });
+  }
 
   const permission = readonlyPermissionState({ allowReadonlyDependency });
   if (!permission.allowed) {
@@ -518,9 +829,10 @@ export async function runVideoMaterialReadonlyGate({
     ...result,
     outputSummary: {
       ...result.outputSummary,
+      guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness),
       readbackProbeSummary: readbackProbeSummaryFromItems(checkedItems)
     },
-    evidenceRefs,
+    evidenceRefs: [...evidenceRefs, guideVideoReadiness.evidenceRef].filter(Boolean),
     blockers: result.status === "passed" ? [] : [
       ...new Set(checkedItems
         .filter((item) => item.readbackStatus !== "readback_verified")

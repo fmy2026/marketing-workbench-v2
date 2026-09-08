@@ -96,7 +96,7 @@ Case
 
 运行模式由 runner 决定：`dry_run` 与 `draft_readiness` 不真实写入；`planned_actions` 仅限明确计划动作；`execute_once` 只能消费冻结且已确认的 Plan；`readback_only` 绝不创建。
 
-JSZC 的 Node 03/05 保底链只消费当前 PostgreSQL 路线默认值：CTA 为保留“立即试玩”后追加 4 项，预算/出价/ROI 为 `66666/366/0.16`，定向为男性与五档年龄，投放时段为 336 位半小时排期。Node 05 同时校验合法枚举、顺序、长度、时段摘要、92 条字段账本与至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。DMP、素材、事件资产、小游戏实例、Aweme 授权和触点仍在 Node 04 按账户动态读取，不复制进路线默认值。
+JSZC 的 Node 03/05 保底链只消费当前 PostgreSQL 路线默认值：CTA 为保留“立即试玩”后追加 4 项，预算/出价/ROI 为 `66666/366/0.16`，定向为男性与五档年龄，投放时段为 336 位半小时排期。Node 05 同时校验合法枚举、顺序、长度、时段摘要、普通账户 92 条或引导视频账户 94 条字段账本，以及至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。DMP、素材、事件资产、小游戏实例、Aweme 授权、引导视频和触点仍在 Node 04 按账户动态读取，不复制进路线默认值。
 
 ### Node 02 Monitor 单轨 Bootstrap
 
@@ -128,6 +128,8 @@ Monitor Plan 与后续普通 Plan 共用同一 Job 的单调版本序列，但�
 ```
 
 `micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
+
+账户 `guide_video_required=true` 时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，并保存到现有视频资源 metadata。Node 05 将本 Job 的该 ID 加入每条推广视频，普通账户完全省略。Node 07 项目命中后再调用一次素材只读接口核验绑定；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
 
 事件资产是账户级受控合同，不是通用模板开关：Node 04 在 `event-chain-readonly` 前校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板，并据此把动态 `target_advertiser_id`、`template_ref` 与 `template_hash` 合并进当前账户资源；候选缺失、歧义、来源不受控或模板前提不完整时不得落合同或生成事件资产动作。该脱敏合同可在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 

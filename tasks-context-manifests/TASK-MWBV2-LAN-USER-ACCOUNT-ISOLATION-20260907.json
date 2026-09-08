@@ -2,17 +2,17 @@
   "schema_version": "2026-09-01.task-context-manifest-v1",
   "task_id": "TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907",
   "task_ref": "tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md",
-  "status": "corrective_executor_fixed_waiting_owner_continue",
+  "status": "guide_video_fix_deployed_waiting_owner_continue",
   "created_at": "2026-09-07 CST",
   "updated_at": "2026-09-08 CST",
   "owner_agent": "codex",
   "brief": {
-    "goal": "Keep the private-LAN workbench owner-isolated and connect explicit create failures to a bounded Case-level fresh-Job reprepare flow without automatic platform retry.",
+    "goal": "Keep the private-LAN workbench owner-isolated and add a fail-closed account-conditional guide-video readonly, payload and readback contract without automatic platform retry.",
     "platform_write_allowed": false,
     "platform_readonly_allowed": true,
     "database_write_allowed": true,
     "database_write_scope": [
-      "Task, Manifest, project state, docs, migration 073, Case-level attempt projection, corrective fresh-Job orchestration, LaunchAgent deployment and focused tests"
+      "Task, Manifest, project state, docs, migration 074, account guide-video capability, existing video-resource metadata, conditional payload/readback contract, LaunchAgent deployment and focused tests"
     ],
     "maximum_platform_write_actions": 0
   },
@@ -40,7 +40,11 @@
     "a local-only hidden-input Qiankun credential setup command; credentials may be written only to the gitignored mode-600 credential store and must never appear in argv, logs or tracked files",
     "propagate the authenticated user's exact Qiankun owner key through existing readonly/monitor paths and reconnect monitor_plan_required to the existing bounded readonly monitor bridge",
     "present a consumed explicit create failure as a bounded corrective Gate and allow the authenticated owner to create one idempotent fresh Job at a time for the next Case-level attempt",
-    "reuse original business parameters while regenerating system-derived name/time fields, Draft, payload hash, Plan/hash and confirmation; maximum three create actions per Case"
+    "reuse original business parameters while regenerating system-derived name/time fields, Draft, payload hash, Plan/hash and confirmation; maximum three create actions per Case",
+    "add advertiser_accounts.guide_video_required with default false and enable only the approved target account in migration 074",
+    "resolve exactly one current guide_video_id from gameplay/list in Node 04 and store it only in existing video resource metadata",
+    "send guide_video_id for every required video only when the account capability requires it; retain the original payload for all other accounts",
+    "verify guide-video bindings once through oc_project/material/get after the created project appears"
   ],
   "forbidden_actions": [
     "all real monitor/resource/project writes, confirmations, creates, retries, budget or bid changes",
@@ -56,17 +60,22 @@
     "user detail/admin summary report cardinality and verified-only success semantics",
     "schema, API, workflow, Case, runtime policy, conversation and diff checks",
     "corrective Gate continue creates one idempotent fresh Job, remains platform-readonly, prepares the exact next Case attempt and cannot reuse the consumed Plan",
-    "Case attempts aggregate across Jobs; Attempt 3 failure reaches manual review; owner isolation and single confirmation remain enforced"
+    "Case attempts aggregate across Jobs; Attempt 3 failure reaches manual review; owner isolation and single confirmation remain enforced",
+    "required-account unique, zero, multiple and transport-failure gameplay/list probes stop before confirmation as appropriate",
+    "target guide-video payload contains two verified guide_video_id fields and the normal-account payload contains none",
+    "Node 07 guide-video material readback passes only when every planned video binding matches; no platform create is called by tests",
+    "migration 074 preserves 36 tables, 7 Views and all historical runtime facts"
   ],
   "stop_conditions": [
     "any real platform write other than the separately authorized single OAuth refresh would be required",
     "the change would weaken exact Plan confirmation, single-attempt execution or authoritative readback",
     "account ownership cannot be established by an exact active user owner key",
-    "a fourth Case-level std_project_create action or any automatic confirmation/create would be required"
+    "a fourth Case-level std_project_create action or any automatic confirmation/create would be required",
+    "guide-video resolution is not exactly one distinct nonempty ID for a required account"
   ],
   "result": {
-    "implementation_status": "passed",
-    "migration_applied": "db/073_case_level_corrective_attempts.sql",
+    "implementation_status": "guide_video_fix_deployed_waiting_owner_continue",
+    "migration_applied": "db/074_account_guide_video_contract.sql",
     "database_shape": {
       "base_tables": 36,
       "views": 7,
@@ -81,7 +90,7 @@
     "database_backup": ".local/backups/marketing_workbench_v2-20260907T083112Z.dump",
     "qiankun_credentials": {
       "fengmeiyu": "active",
-      "zhangjingwei": "missing",
+      "zhangjingwei": "active",
       "zhangchaobo": "active"
     },
     "first_peer_case": {
@@ -102,7 +111,7 @@
     "second_peer_case": {
       "case_id": "CASE-MWBV2-776936E13CC487A466",
       "advertiser_id": "1867508089433225",
-      "latest_job_id": "JOB-MWBV2-20260908021122-A501FC",
+      "latest_job_id": "JOB-MWBV2-20260908024347-703DA0",
       "current_gate": "prepare_corrective_attempt",
       "root_blocker": "corrective_attempt_requires_new_payload_version",
       "attempt_1_create_calls": 1,
@@ -115,16 +124,18 @@
       "field_shape_matches_recent_success": true,
       "exact_platform_field_path_available": false,
       "attempt_2_created": true,
-      "attempt_2_platform_write_called": false,
-      "attempt_2_prewrite_blocker": "create_attempt_number_not_next",
-      "next_step": "owner_enters_continue_to_prepare_attempt_2_after_executor_fix"
+      "attempt_2_platform_write_called": true,
+      "attempt_2_api_code": "40000",
+      "attempt_2_object_id_present": false,
+      "guide_video_gap_confirmed_against_manual_project": true,
+      "next_step": "owner_enters_continue_to_prepare_attempt_3_after_guide_video_fix"
     },
     "bounded_corrective_reprepare": {
       "status": "passed_executor_fixed_waiting_owner_continue",
       "case_attempt_scope": true,
       "maximum_create_attempts": 3,
       "fresh_job_idempotent_by_predecessor": true,
-      "next_attempt_no": 2,
+      "next_attempt_no": 3,
       "old_attempt_immutable": true,
       "confirmation_required_for_each_attempt": true,
       "temporary_database_restore_migration_test": "passed",
@@ -143,6 +154,26 @@
       "ordinary_case_attempt_2_fake_readback_calls": 1,
       "create_after_verified_object_fake_calls": 0,
       "real_platform_write_calls_during_fix": 0
+    },
+    "account_conditional_guide_video": {
+      "status": "passed_deployed_waiting_owner_continue",
+      "target_advertiser_id": "1867508089433225",
+      "target_account_required": true,
+      "ordinary_account_required": false,
+      "gameplay_approved_count": 1,
+      "gameplay_distinct_guide_video_count": 1,
+      "target_payload_video_count": 2,
+      "target_ledger_path_count": 94,
+      "ordinary_payload_guide_video_count": 0,
+      "ordinary_ledger_path_count": 92,
+      "node_07_material_read_calls_per_readback": 1,
+      "base_tables": 36,
+      "views": 7,
+      "current_case_create_action_count": 2,
+      "current_case_next_create_attempt_no": 3,
+      "current_case_created_object_count": 0,
+      "real_platform_create_calls_during_fix": 0,
+      "database_backup": ".local/backups/marketing_workbench_v2-20260908T034435Z.dump"
     }
   }
 }
