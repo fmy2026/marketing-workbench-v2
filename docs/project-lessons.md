@@ -22,6 +22,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 场景 | 可复用经验 |
 | --- | --- |
 | 登录用户与乾坤凭据 | 每个用户必须绑定唯一 `qiankun_owner_key` 和本机受控凭据。任何 readonly、Plan 编译、确认前回查及最终 executor 都显式传递当前登录用户的 owner key；不能根据“当前只有一份 active 凭据”推断身份。 |
+| 共享媒体 OAuth | 定时 refresh 的 `transport_error` 只证明刷新请求未完成，不证明尚未过期的旧 access token 已失效。任务仍失败通知并写脱敏审计，但原状态为 `valid` 且过期时间明确在未来时保留可用；过期、缺失、OAuth 拒绝或 refresh token 失效继续阻断。新建 Case 不能绕过共享凭据 Gate。 |
 | 账户归属 | Intake 在 Case/Job 前用 `accountIndex.sso_owner` 精确匹配登录用户；不匹配时零 Case、零 Job、零归属变更。后续 Case、Job、历史、command 和 confirmation 继续校验同一 owner。 |
 | Monitor 缺失 | fresh readiness 得到 `monitor_plan_required` 时，只接入一次既有 monitor readonly bridge并生成确认卡；Monitor ID 为空时草稿保持等待，不能向触点仓储或 payload 构建传空 ID。 |
 | 确认后、平台调用前失败 | confirmation 已记录也不能复用旧 Plan。旧 action 记为失败、Plan 收口为 `consumed`、Job 进入停止态；恢复必须使用同一 Case 的 fresh Job、新 Plan/hash/confirmation/idempotency key。 |

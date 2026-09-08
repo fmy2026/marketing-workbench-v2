@@ -111,6 +111,7 @@ frontend / API
 - 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
 - 事件资产 detail 必须同时匹配当前账户的受控 App 与唯一实例候选；`micro_app_id` / `micro_app_instance_id` 等 allowlist 长数字字段须在 `JSON.parse` 前无损保留为字符串，缺失、失配、歧义或解析失败均 fail-closed。
 - 所有生产平台 HTTP 调用必须经唯一 deadline 封装：普通 JSON 15 秒、文件上传 60 秒；组合已有 `AbortSignal`、超时中止与 timer 清理，不自动重试。读超时只落脱敏 `timeout` 诊断；写超时、异常或响应不明一律先记为结果不明，再只做权威只读回查。事件配置保留 15 秒期限并沿该封装执行；其子 action 幂等键必须绑定已验证 planned action key、当前 Plan ID 与 event type，任一绑定缺失时在 action 占位和平台调用前 fail-closed。全部 event config create action 成功后，唯一允许的最终一致性等待是按本轮起点绝对 `0/1/3/5` 秒执行有界事件链只读回查，命中即停，绝不重试 create；失败、超时或响应不明分支不进入该轮询。partial baseline 仍只由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类。
+- 定时 OAuth refresh 发生 `transport_error` 时仍以非零状态结束并写脱敏审计；只有原 `OCEANENGINE_TOKEN_STATUS=valid`、access token 存在且有明确未来过期时间时，才保留该旧 token 的 `valid` 状态。access token 已过期或缺失、OAuth 拒绝、refresh token 失效或被撤销时继续 fail-closed。该降级规则不授权自动重试或任何业务写入。
 - 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
 - `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。

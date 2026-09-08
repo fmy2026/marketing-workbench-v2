@@ -1,6 +1,6 @@
 # TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907
 
-状态：guide_video_single_fact_deployed_waiting_owner_continue
+状态：oauth_refresh_recovered_waiting_owner_continue
 
 ## 目标
 
@@ -132,3 +132,10 @@ Case `CASE-MWBV2-776936E13CC487A466` 已通过账户归属、Monitor、资源准
 - Node 04 对 2 条或 100 条推广视频均只执行一次 `gameplay/list` 和一次 metadata 写入；同一 Job 的合格事实可直接复用，历史视频 metadata 即使存在也不得成为真值。
 - Node 05 从该唯一事实向本轮全部推广视频分发同一 ID；Node 07 继续用一次 `oc_project/material/get` 核验全部计划视频绑定。
 - 实例不唯一、零候选、多候选、Job 绑定过期或实例 ID 不匹配均在确认前阻断；普通账户的 92 字段 payload 保持不变。
+
+## 2026-09-08 OAuth refresh 瞬时失败恢复
+
+- 每日 refresh 的 `transport_error` 曾把尚未过期的 access token 标为不可用，导致工作台在建立 Attempt 3 fresh Job 前安全停止；新建 Intake 仍会恢复同一 active Case，不能绕过共享凭据 Gate。
+- 刷新失败仍返回非零并写脱敏审计；仅当原状态为 `valid` 且 access token 有明确未来过期时间时保留其 `valid` 状态。过期、缺失、OAuth 拒绝及 refresh token 失效继续阻断。
+- 已按既有 scope 完成一次受控 OAuth refresh，HTTP 200、API code 0，最终 `status=valid`、blockers 为空；未调用任何业务写接口。
+- 当前 Case 仍为 2 次创建、0 个对象、下一次 Attempt 3，等待张境威本人输入“继续执行”。本轮未修改工作台前端布局。

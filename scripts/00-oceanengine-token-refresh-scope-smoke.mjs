@@ -38,6 +38,7 @@ function writeEnv(overrides = {}) {
     OCEANENGINE_REDIRECT_URI: "http://127.0.0.1/callback",
     OCEANENGINE_ACCESS_TOKEN: "test-old-access-token",
     OCEANENGINE_REFRESH_TOKEN: "test-refresh-token",
+    OCEANENGINE_TOKEN_EXPIRES_AT: "",
     OCEANENGINE_TOKEN_STATUS: "valid",
     ...overrides
   };
@@ -47,6 +48,7 @@ function writeEnv(overrides = {}) {
     `OCEANENGINE_REDIRECT_URI=${values.OCEANENGINE_REDIRECT_URI}`,
     `OCEANENGINE_ACCESS_TOKEN=${values.OCEANENGINE_ACCESS_TOKEN}`,
     `OCEANENGINE_REFRESH_TOKEN=${values.OCEANENGINE_REFRESH_TOKEN}`,
+    `OCEANENGINE_TOKEN_EXPIRES_AT=${values.OCEANENGINE_TOKEN_EXPIRES_AT}`,
     `OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=${values.OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT || ""}`,
     `OCEANENGINE_REFRESH_FAILURE_TYPE=${values.OCEANENGINE_REFRESH_FAILURE_TYPE || ""}`,
     `OCEANENGINE_TOKEN_STATUS=${values.OCEANENGINE_TOKEN_STATUS}`
@@ -151,15 +153,33 @@ assert.equal(readFileSync(ENV_PATH, "utf8"), before);
 rmSync(LOCK_PATH, { force: true });
 assertNoSecrets(outcome.result);
 
-writeEnv();
+writeEnv({ OCEANENGINE_TOKEN_EXPIRES_AT: "2099-08-27T05:00:00.000Z" });
 outcome = await refreshOceanEngineToken({
   env: testEnv(),
+  now: () => new Date("2026-08-27T04:00:00.000Z"),
   fetchImpl: async () => { throw Object.assign(new Error("network unavailable"), { code: "ETIMEDOUT" }); }
 });
 assert.equal(outcome.exitCode, 1);
 assert.equal(outcome.result.status, "refresh_failed");
 assert.equal(outcome.result.failureType, "transport_error");
+assert.equal(outcome.result.credentialUsableAfterFailure, true);
+assert.equal(outcome.result.credential?.status, "valid");
+assert.deepEqual(outcome.result.credential?.blockers, []);
+assert.equal(outcome.result.credential?.refreshFailureType, "transport_error");
+assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_TOKEN_STATUS=valid/u);
+assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_REFRESH_FAILURE_TYPE=transport_error/u);
 assertNoSecrets(outcome.result);
+
+writeEnv({ OCEANENGINE_TOKEN_EXPIRES_AT: "2026-08-27T03:59:59.000Z" });
+outcome = await refreshOceanEngineToken({
+  env: testEnv(),
+  now: () => new Date("2026-08-27T04:00:00.000Z"),
+  fetchImpl: async () => { throw Object.assign(new Error("network unavailable"), { code: "ETIMEDOUT" }); }
+});
+assert.equal(outcome.exitCode, 1);
+assert.equal(outcome.result.status, "refresh_failed");
+assert.equal(outcome.result.credentialUsableAfterFailure, false);
+assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_TOKEN_STATUS=refresh_failed/u);
 
 writeEnv();
 outcome = await refreshOceanEngineToken({
@@ -206,7 +226,8 @@ console.log(JSON.stringify({
     "single_official_endpoint",
     "success_atomic_0600_with_refresh_token_expiry",
     "refresh_in_progress_zero_network",
-    "network_failure",
+    "network_failure_preserves_unexpired_valid_access_token",
+    "network_failure_blocks_expired_access_token",
     "oauth_rejected_reauthorize_required",
     "incomplete_response",
     "local_refresh_token_expired"

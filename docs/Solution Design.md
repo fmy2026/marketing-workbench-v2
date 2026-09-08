@@ -25,6 +25,12 @@
 
 Node 服务继续监听 loopback，由内网 HTTPS 反向代理公开固定 origin。既有 Plan-bound 策略扩展为 authenticated LAN：除 active/latest/ready/exact Plan/hash/phrase/一次确认外，额外要求 active session、当前用户为账户 owner、confirmation actor 一致。平台凭据继续由后端受控存储，用户密码不替代乾坤凭据。实施和测试零真实平台写入。
 
+## 2026-09-08 OAuth 刷新瞬时失败降级（已批准）
+
+每日 OAuth refresh 仍只允许既有 automation ID、精确确认变量和单次官方 refresh endpoint。刷新返回 `transport_error` 时，任务必须非零结束并追加脱敏审计；若刷新前的 access token 存在、原状态为 `valid` 且明确尚未过期，只保留该旧 token 的 `valid` 状态，避免一次网络瞬断提前中断全部工作台只读流程。成功刷新必须清空失败类型并原子替换 token。
+
+旧 access token 已过期或没有可信过期时间、原状态非 `valid`、OAuth 明确拒绝、refresh token 过期/撤销时不得降级，继续输出不可用状态并阻止 fresh Job。该规则不重试 refresh、不调用业务 API，也不改变 Node、Gate、Plan、确认或 Case Attempt。
+
 ## 2026-09-06 Event Config 创建后有界回查（已批准）
 
 当前账户的 6 个 baseline event config 创建请求均返回 HTTP 200 / `api_code=0`，但创建后约一秒的单次权威回查只看到 5/6，缺少最后写入的 `purchase_roi_30d`；稍后的独立只读预检已稳定确认 6/6。该结果证明创建和字段映射正确，阻断来自平台最终一致性窗口，而 executor 当前只回查一次。

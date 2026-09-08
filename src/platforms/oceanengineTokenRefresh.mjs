@@ -240,6 +240,10 @@ export async function refreshOceanEngineToken({
     const { envFilePresent, env: credentialEnv } = readOceanEngineEnv({ envPath: resolvedEnvPath, ensure: false });
     const appId = clean(credentialEnv.OCEANENGINE_APP_ID);
     const appSecret = clean(credentialEnv.OCEANENGINE_APP_SECRET);
+    const accessTokenValue = clean(credentialEnv.OCEANENGINE_ACCESS_TOKEN);
+    const accessTokenExpiresAt = clean(credentialEnv.OCEANENGINE_TOKEN_EXPIRES_AT);
+    const accessTokenExpiresMs = accessTokenExpiresAt ? Date.parse(accessTokenExpiresAt) : NaN;
+    const storedTokenStatus = clean(credentialEnv.OCEANENGINE_TOKEN_STATUS);
     const refreshTokenValue = clean(credentialEnv.OCEANENGINE_REFRESH_TOKEN);
     const refreshTokenExpiresAt = clean(credentialEnv.OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT);
     const refreshTokenExpiresMs = refreshTokenExpiresAt ? Date.parse(refreshTokenExpiresAt) : NaN;
@@ -350,12 +354,21 @@ export async function refreshOceanEngineToken({
     const firstAttempt = attempts[0] || {};
     const failureType = firstAttempt.failure || "refresh_failed";
     const status = failureStatusFor(failureType);
+    const failureRecordedAt = now();
+    const preserveUsableAccessToken = failureType === "transport_error" &&
+      storedTokenStatus === "valid" &&
+      Boolean(accessTokenValue) &&
+      Number.isFinite(accessTokenExpiresMs) &&
+      accessTokenExpiresMs > failureRecordedAt.getTime();
     updateOceanEngineEnv(
-      { OCEANENGINE_TOKEN_STATUS: status, OCEANENGINE_REFRESH_FAILURE_TYPE: failureType },
+      {
+        OCEANENGINE_TOKEN_STATUS: preserveUsableAccessToken ? "valid" : status,
+        OCEANENGINE_REFRESH_FAILURE_TYPE: failureType
+      },
       { envPath: resolvedEnvPath, ensure: false }
     );
     appendAuditEvent(auditPath, {
-      recordedAt: now().toISOString(),
+      recordedAt: failureRecordedAt.toISOString(),
       status,
       failureType,
       endpointHost: firstAttempt.endpointHost,
@@ -373,6 +386,7 @@ export async function refreshOceanEngineToken({
         refreshAttempted: true,
         status,
         failureType,
+        credentialUsableAfterFailure: preserveUsableAccessToken,
         attempts,
         credential: redactedCredentialStatus({ envPath: resolvedEnvPath })
       })
