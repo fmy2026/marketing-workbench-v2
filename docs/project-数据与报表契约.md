@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `075` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 的 75 个 migration 文件作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+结构清单沿用 migration `075` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 76 个 migration 文件、编号至 `075`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -196,7 +196,7 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -c "SELECT current_database(), to_regnamespace('mwb') IS NOT NULL AS mwb_schema_exists;"
 ```
 
-[建库文件](../db/001_create_database.sql) 在维护库 `postgres` 执行，后续获批 migration 在目标业务库执行。当前没有统一自动 migration runner；由批准 Task 明确目标库、具体文件、应用前提及回查，用 `psql -X -v ON_ERROR_STOP=1 -d` 指定库并用 `-f` 指定单个文件。历史文件含种子和专项修正，不能把编号清单当作可直接重跑的初始化脚本，也不能仅凭文档基线推断在线库已应用哪些迁移。
+[建库文件](../db/001_create_database.sql) 在维护库 `postgres` 执行，后续获批 migration 在目标业务库执行。当前没有统一自动 migration runner；由批准 Task 明确目标库、具体文件、应用前提及回查，用 `psql -X -v ON_ERROR_STOP=1 -d` 指定库并用 `-f` 指定单个文件。历史上 `015_add_project_name_reservations.sql` 与 `015_p04_video_material_local_assets.sql` 共用编号，二者均保留且不得重命名；后续 migration 必须使用未占用编号。历史文件含种子和专项修正，不能把编号清单当作可直接重跑的初始化脚本，也不能仅凭文档基线推断在线库已应用哪些迁移。
 
 ### 备份与定时执行
 

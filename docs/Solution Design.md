@@ -23,7 +23,7 @@
 | 局域网入口 | 私网 HTTP 仅以显式配置开放受限试用；部署配置与恢复方式集中在运维文档 | [部署说明](../deploy/README.md) |
 | 正式平台写入 | 工作台/API 通过冻结 Plan、精确确认和通用 executor 执行；普通运行不再为每份 Plan 创建仓库 Task | [原生 Plan-bound 任务](../tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md) |
 | 分开确认资源和创建 | 独立 Resource Plan 与 fresh Create Plan，避免资源修正扩大项目创建授权；monitor 缺失时另用 Bootstrap Plan | [两次确认任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md) |
-| 正式入口与脚本隔离 | 业务写入只走主链，历史专项脚本可恢复隔离，SQL migration 历史保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md) |
+| 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |
 | 账户当前状态 | 使用账户 canonical readiness 纠正历史缺失/未就绪投影，保留历史 Skill 证据 | [账户投影任务](../tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md) |
 | 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产、配置与目标绑定顺序核验，部分完成也要有准确 blocker | [逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
@@ -61,7 +61,7 @@
 | OE3 外部给定 3.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
 | OE3 官方 2.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
 | OE3 官方 2.0 copy | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
-| 乾坤接口 | [本地接口资料](.乾坤系统/api-docs-20260827.md) |
+| 乾坤接口 | [当前 API 文档](qiankun-api-docs-20260827.md) |
 
 OE3 按上表顺序查证：3.0 资料不足时才补查 2.0，关键版本冲突转为人工决策。需要的官方具体文件按任务加入读取清单，避免整个知识库成为默认必读。
 

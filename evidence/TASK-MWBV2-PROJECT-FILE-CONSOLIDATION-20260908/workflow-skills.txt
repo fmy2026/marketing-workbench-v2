@@ -1,0 +1,723 @@
+
+> marketing-workbench-v2@0.1.0 smoke:workflow-skills
+> node scripts/00-oe3-workflow-skills-smoke.mjs
+
+{
+  "status": "passed",
+  "dryRun": {
+    "jobId": "JOB-MWBV2-20260908083355-66A6ED",
+    "mode": "dry_run",
+    "jobStatus": "draft_ready",
+    "currentNode": "5",
+    "skillRunCount": 36,
+    "nodeStatuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "blocked",
+      "std_project_draft_builder": "repairable",
+      "std_project_create_executor": "locked",
+      "readback_closer": "waiting"
+    },
+    "createReadiness": {
+      "status": "new_runtime_job_required",
+      "canCreateCurrentJob": false,
+      "retryAllowed": false,
+      "createAttemptNo": 1,
+      "maximumCreateAttempts": 3,
+      "nextCreateAttemptNo": 1,
+      "verificationSeriesId": "",
+      "verificationSeriesTaskRef": "",
+      "verificationSeriesActionCount": 0,
+      "verificationSeriesReadbackVerifiedCount": 0,
+      "nextConfirmationRequired": false,
+      "platformActions": 0,
+      "createdObjects": 0,
+      "brandIndustryStatus": "passed",
+      "eventChainStatus": "passed",
+      "payloadContractStatus": "blocked",
+      "payloadHashStable": true,
+      "duplicateStatus": "readonly_permission_required",
+      "createPreflightStatus": "blocked",
+      "createPreflightSummary": "创建前校验未通过：请修复 4 项字段合同问题。",
+      "createPreflightDiagnostics": [
+        {
+          "check_id": "manifest:required_fields",
+          "field_path": "final_payload_manifest.requiredFieldsPresent",
+          "status": "passed",
+          "expected_type_or_rule": "true",
+          "actual_shape": {
+            "type": "boolean",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:field_blockers",
+          "field_path": "final_payload_manifest.blockers",
+          "status": "blocked",
+          "expected_type_or_rule": "empty_array",
+          "actual_shape": {
+            "type": "array",
+            "present": true,
+            "count": 9
+          },
+          "source": "v2_preflight",
+          "blocker_code": "resource_avatar_not_ready",
+          "repair_hint": "按 manifest blockers 修复资源或字段形态。"
+        },
+        {
+          "check_id": "manifest:advertiser_id_transport",
+          "field_path": "final_payload_manifest.advertiserIdTransportType",
+          "status": "passed",
+          "expected_type_or_rule": "storage:string transport:number safe_integer:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "contract:payload_contract",
+          "field_path": "payload_contract.status",
+          "status": "blocked",
+          "expected_type_or_rule": "passed",
+          "actual_shape": {
+            "type": "string",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "payload_contract_not_passed",
+          "repair_hint": "先修复 payload contract gaps。"
+        },
+        {
+          "check_id": "manifest:backup_landing_page",
+          "field_path": "final_payload_manifest.externalUrlMaterialListPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "omit_by_current_route_contract OR send_with_present_https_target_visible_readback_verified_hash_match",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:audience.filter_event",
+          "field_path": "final_payload_manifest.filterEventPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "hide_if_converted:NO_EXCLUDE filter_event_policy:omit present:false omitted_by_contract:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:audience.converted_time_duration",
+          "field_path": "final_payload_manifest.convertedTimeDurationPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "hide_if_converted:NO_EXCLUDE converted_time_duration_policy:omit_when_no_exclude present:false omitted_by_contract:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:jszc_success_profile",
+          "field_path": "final_payload_manifest.successProfile",
+          "status": "passed",
+          "expected_type_or_rule": "verified_jszc_success_profile:2026-09-02.jszc-byte-game-incremental-fallback-v2",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:business_defaults_source",
+          "field_path": "final_payload_manifest.businessDefaultsPresent",
+          "status": "passed",
+          "expected_type_or_rule": "postgres_route_payload_defaults_present",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:mini_game_instance_field_mapping",
+          "field_path": "final_payload_manifest.contractMapping",
+          "status": "passed",
+          "expected_type_or_rule": "create_candidate:instance_id optimized_goal_query:micro_app_instance_id app:mini_program_id",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:instance_id_create_evidence",
+          "field_path": "final_payload_manifest.instanceIdCreateEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "official_direct_field_name + type + MICRO_GAME_BYTE_GAME_condition + verified_engineering_wire_transport",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:create_wire_body",
+          "field_path": "final_payload_manifest.createWireBodyHash",
+          "status": "passed",
+          "expected_type_or_rule": "hash_present_and_instance_id_strategy:decimal_bigint_json_number",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:aweme_authorization",
+          "field_path": "final_payload_manifest.awemeAuthorization",
+          "status": "blocked",
+          "expected_type_or_rule": "game_route_default_aweme_id_with_current_job_advertiser_authorization_verification",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "aweme_auth_probe_failed",
+          "repair_hint": "先在 Node 4 只读核验目标账户是否有效授权游戏默认 aweme_id；通过后 Node 5 才能生成 aweme_id。"
+        },
+        {
+          "check_id": "manifest:product_selling_points",
+          "field_path": "final_payload_manifest.productSellingPoints",
+          "status": "passed",
+          "expected_type_or_rule": "route_defaults_string_array_count_1_10_unicode_chars_6_9",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:title_materials",
+          "field_path": "final_payload_manifest.titleMaterials",
+          "status": "passed",
+          "expected_type_or_rule": "game_assets_title_material_count_1_30_chars_5_55_source_typed",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:official_field_evidence",
+          "field_path": "final_payload_manifest.officialFieldEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "all_sent_fields_have_official_direct_create_evidence_and_send_policy",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:create_field_contract_delivery_layer_micro",
+          "field_path": "final_payload_manifest.officialFieldEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "delivery_type+layer_roi_switch+schedule_time:official_direct/send;micro_promotion_type:omitted_not_sent",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:nested_field_contract",
+          "field_path": "final_payload_manifest.nestedFieldContract",
+          "status": "blocked",
+          "expected_type_or_rule": "same_module_nested_contract:2026-09-08.oe3-std-project-create-nested-fields-v6",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "nested_product_image_ids_source_not_verified",
+          "repair_hint": "重新生成 Node 5 草稿；所有已发送嵌套路径必须通过同一合同模块的来源、枚举、数量、长度和互斥关系校验。"
+        },
+        {
+          "check_id": "manifest:create_field_ledger",
+          "field_path": "final_payload_manifest.createFieldLedger",
+          "status": "passed",
+          "expected_type_or_rule": "all_sent_and_controlled_omitted_paths_redacted:2026-09-02.oe3-std-project-create-field-ledger-v4",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:final_material_readiness",
+          "field_path": "final_payload_manifest.finalMaterialReadiness",
+          "status": "passed",
+          "expected_type_or_rule": "selected_required_video_count === verified_video_count === cover_ready_count; guide-required accounts also equal guide_video_ready_count",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        }
+      ],
+      "blockers": [
+        "readonly_permission_required",
+        "backup_landing_page_target_not_visible",
+        "backup_landing_page_readback_not_verified",
+        "backup_landing_page_target_transport_contract_unverified",
+        "avatar_not_ready",
+        "product_image_not_ready",
+        "brand_info_not_ready",
+        "backup_landing_page_readonly_not_passed",
+        "backup_landing_page_asset_mismatch",
+        "backup_landing_page_hash_mismatch",
+        "resource_avatar_not_ready",
+        "resource_product_image_not_ready",
+        "resource_brand_info_not_ready",
+        "resource_backup_landing_page_not_ready",
+        "aweme_auth_probe_failed",
+        "aweme_auth_job_scope_mismatch",
+        "credential_required",
+        "aweme_id_missing",
+        "nested_product_image_ids_source_not_verified",
+        "final_payload_blockers",
+        "aweme_auth",
+        "nested_field_contract",
+        "payload_contract_not_passed"
+      ],
+      "uniqueBlocker": "readonly_permission_required",
+      "nextAction": "修复唯一阻断后重跑 dry_run。"
+    },
+    "noRealPlatformWrite": true,
+    "noTokenRefresh": true
+  },
+  "executeMock": {
+    "jobId": "JOB-MWBV2-20260908083405-A0F54A",
+    "mode": "execute_once",
+    "jobStatus": "created",
+    "currentNode": "7",
+    "skillRunCount": 39,
+    "nodeStatuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "passed",
+      "std_project_create_executor": "passed",
+      "readback_closer": "passed"
+    },
+    "createReadiness": {
+      "status": "ready_for_user_create_confirmation",
+      "canCreateCurrentJob": true,
+      "retryAllowed": false,
+      "createAttemptNo": 1,
+      "maximumCreateAttempts": 3,
+      "nextCreateAttemptNo": 1,
+      "verificationSeriesId": "",
+      "verificationSeriesTaskRef": "",
+      "verificationSeriesActionCount": 0,
+      "verificationSeriesReadbackVerifiedCount": 0,
+      "nextConfirmationRequired": true,
+      "platformActions": 0,
+      "createdObjects": 0,
+      "brandIndustryStatus": "mock_passed",
+      "eventChainStatus": "mock_passed",
+      "payloadContractStatus": "passed",
+      "payloadHashStable": true,
+      "duplicateStatus": "platform_not_duplicate",
+      "createPreflightStatus": "passed",
+      "createPreflightSummary": "创建前字段合同校验通过。",
+      "createPreflightDiagnostics": [
+        {
+          "check_id": "manifest:required_fields",
+          "field_path": "final_payload_manifest.requiredFieldsPresent",
+          "status": "passed",
+          "expected_type_or_rule": "true",
+          "actual_shape": {
+            "type": "boolean",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:field_blockers",
+          "field_path": "final_payload_manifest.blockers",
+          "status": "passed",
+          "expected_type_or_rule": "empty_array",
+          "actual_shape": {
+            "type": "array",
+            "present": false,
+            "count": 0
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:advertiser_id_transport",
+          "field_path": "final_payload_manifest.advertiserIdTransportType",
+          "status": "passed",
+          "expected_type_or_rule": "storage:string transport:number safe_integer:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "contract:payload_contract",
+          "field_path": "payload_contract.status",
+          "status": "passed",
+          "expected_type_or_rule": "passed",
+          "actual_shape": {
+            "type": "string",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:backup_landing_page",
+          "field_path": "final_payload_manifest.externalUrlMaterialListPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "omit_by_current_route_contract OR send_with_present_https_target_visible_readback_verified_hash_match",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:audience.filter_event",
+          "field_path": "final_payload_manifest.filterEventPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "hide_if_converted:NO_EXCLUDE filter_event_policy:omit present:false omitted_by_contract:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:audience.converted_time_duration",
+          "field_path": "final_payload_manifest.convertedTimeDurationPolicy",
+          "status": "passed",
+          "expected_type_or_rule": "hide_if_converted:NO_EXCLUDE converted_time_duration_policy:omit_when_no_exclude present:false omitted_by_contract:true",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:jszc_success_profile",
+          "field_path": "final_payload_manifest.successProfile",
+          "status": "passed",
+          "expected_type_or_rule": "verified_jszc_success_profile:2026-09-02.jszc-byte-game-incremental-fallback-v2",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:business_defaults_source",
+          "field_path": "final_payload_manifest.businessDefaultsPresent",
+          "status": "passed",
+          "expected_type_or_rule": "postgres_route_payload_defaults_present",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:mini_game_instance_field_mapping",
+          "field_path": "final_payload_manifest.contractMapping",
+          "status": "passed",
+          "expected_type_or_rule": "create_candidate:instance_id optimized_goal_query:micro_app_instance_id app:mini_program_id",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:instance_id_create_evidence",
+          "field_path": "final_payload_manifest.instanceIdCreateEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "official_direct_field_name + type + MICRO_GAME_BYTE_GAME_condition + verified_engineering_wire_transport",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:create_wire_body",
+          "field_path": "final_payload_manifest.createWireBodyHash",
+          "status": "passed",
+          "expected_type_or_rule": "hash_present_and_instance_id_strategy:decimal_bigint_json_number",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:aweme_authorization",
+          "field_path": "final_payload_manifest.awemeAuthorization",
+          "status": "passed",
+          "expected_type_or_rule": "game_route_default_aweme_id_with_current_job_advertiser_authorization_verification",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:product_selling_points",
+          "field_path": "final_payload_manifest.productSellingPoints",
+          "status": "passed",
+          "expected_type_or_rule": "route_defaults_string_array_count_1_10_unicode_chars_6_9",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:title_materials",
+          "field_path": "final_payload_manifest.titleMaterials",
+          "status": "passed",
+          "expected_type_or_rule": "game_assets_title_material_count_1_30_chars_5_55_source_typed",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:official_field_evidence",
+          "field_path": "final_payload_manifest.officialFieldEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "all_sent_fields_have_official_direct_create_evidence_and_send_policy",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:create_field_contract_delivery_layer_micro",
+          "field_path": "final_payload_manifest.officialFieldEvidence",
+          "status": "passed",
+          "expected_type_or_rule": "delivery_type+layer_roi_switch+schedule_time:official_direct/send;micro_promotion_type:omitted_not_sent",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:nested_field_contract",
+          "field_path": "final_payload_manifest.nestedFieldContract",
+          "status": "passed",
+          "expected_type_or_rule": "same_module_nested_contract:2026-09-08.oe3-std-project-create-nested-fields-v6",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:create_field_ledger",
+          "field_path": "final_payload_manifest.createFieldLedger",
+          "status": "passed",
+          "expected_type_or_rule": "all_sent_and_controlled_omitted_paths_redacted:2026-09-02.oe3-std-project-create-field-ledger-v4",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        },
+        {
+          "check_id": "manifest:final_material_readiness",
+          "field_path": "final_payload_manifest.finalMaterialReadiness",
+          "status": "passed",
+          "expected_type_or_rule": "selected_required_video_count === verified_video_count === cover_ready_count; guide-required accounts also equal guide_video_ready_count",
+          "actual_shape": {
+            "type": "object",
+            "present": true
+          },
+          "source": "v2_preflight",
+          "blocker_code": "",
+          "repair_hint": ""
+        }
+      ],
+      "blockers": [],
+      "uniqueBlocker": "无",
+      "nextAction": "等待单次创建确认任务。"
+    },
+    "noRealPlatformWrite": true,
+    "noTokenRefresh": true
+  },
+  "awemeAuthReadonly": {
+    "jobId": "JOB-MWBV2-20260908083416-C98949",
+    "mode": "aweme_auth_readonly",
+    "jobStatus": "diagnosed",
+    "currentNode": "4",
+    "skillRunCount": 5,
+    "nodeStatuses": {
+      "launch_intake": "passed",
+      "creation_context": "passed",
+      "game_launch_pack": "passed",
+      "account_resource_prepare": "passed",
+      "std_project_draft_builder": "waiting",
+      "std_project_create_executor": "waiting",
+      "readback_closer": "waiting"
+    },
+    "createReadiness": {},
+    "noRealPlatformWrite": true,
+    "noTokenRefresh": true
+  },
+  "registryValidation": {
+    "status": "passed",
+    "nodeCount": 7,
+    "nodeKeys": [
+      "launch_intake",
+      "creation_context",
+      "game_launch_pack",
+      "account_resource_prepare",
+      "std_project_draft_builder",
+      "std_project_create_executor",
+      "readback_closer"
+    ],
+    "unregisteredSkillNodeKeys": [],
+    "nodesWithoutSkills": [],
+    "requiredResourceTypeCount": 8,
+    "node4SkillCount": 24,
+    "node4ResourceSkillCountMatches": true,
+    "node4ChildResourceTypes": [
+      "avatar",
+      "dmp_audience_package",
+      "event_asset",
+      "video_asset",
+      "product_image",
+      "brand_info",
+      "micro_app_instance",
+      "backup_landing_page"
+    ],
+    "node4ChildrenMatchResources": true,
+    "childCount": 34,
+    "childIdsUnique": true,
+    "childTraceable": true,
+    "invalidChildTraces": [],
+    "missingResourceSkills": [],
+    "monitorProvisionClassification": "monitor-provision is a creation-context bootstrap capability; it is not part of automatic ad job real-create execution."
+  },
+  "scheduleValidation": {
+    "status": "passed",
+    "modes": [
+      "dry_run",
+      "draft_readiness",
+      "execute_once",
+      "readback_only",
+      "planned_actions",
+      "aweme_auth_readonly"
+    ],
+    "invalidModes": [],
+    "invalidSkills": [],
+    "duplicateSkills": [],
+    "dependencyOrderViolations": [],
+    "missingDependencies": [],
+    "unregisteredNodeKeys": []
+  },
+  "archiveIsolation": {
+    "status": "passed",
+    "packageEntrypoints": [],
+    "forbiddenImports": [],
+    "liveModuleCount": 156
+  },
+  "cleanupPlanned": 3,
+  "noRealPlatformWrite": true,
+  "noTokenRefresh": true
+}

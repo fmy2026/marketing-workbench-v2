@@ -33,8 +33,7 @@ export const EXPLICIT_ACCOUNT_SCOPE_BLOCKER = "explicit_account_scope_required";
 export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./cycle-policy.mjs";
 export const MONITOR_L3_OVERRIDE_CONFIRM_ENV = "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM";
 export const MONITOR_L3_OVERRIDE_CONFIRM_VALUE = "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR";
-export const QIANKUN_CURRENT_API_DOC_REF = "docs/.参考文档/乾坤系统/api-docs-20260827.md";
-export const QIANKUN_ARCHIVED_API_DOC_20260825_REF = "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md";
+export const QIANKUN_CURRENT_API_DOC_REF = "docs/qiankun-api-docs-20260827.md";
 const MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS = new Set(["package_download_url"]);
 
 
@@ -1793,7 +1792,6 @@ export async function runQiankunAccountIndexReadonlyPreflight({
     target,
     provisionId,
     referenceApiDoc: QIANKUN_CURRENT_API_DOC_REF,
-    archivedApiDoc20260825: QIANKUN_ARCHIVED_API_DOC_20260825_REF,
     credential: {
       status: effectiveCredential.status,
       ownerKeyPresent: Boolean(effectiveOwnerKey),

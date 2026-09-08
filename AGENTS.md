@@ -17,7 +17,7 @@
 3. 有 `active_task` 时，先按指针读取 Task 与 Context Manifest，再按 Manifest 的唯一 `read_order` 读取指定真值，执行 `npm run check:project -- --phase start`。检查不代替实际阅读。
 4. 没有 `active_task` 时，只报告项目生命周期；可以按用户需求只读分析，批准方案后才建立新任务。需要业务下一步时查询 `mwb.workflow_case_summary`。
 
-`docs/.开发方案/`、`.archive/` 与 `scripts/archive/` 只供历史参考或可恢复隔离，不得作为启动必读、任务依据、运行真值或 runtime 依赖；`scripts/archive/` 还禁止 package 入口和直接执行。
+`docs/.参考文档/`、`docs/.开发方案/` 与 `docs/.问题排查/` 保留为本地参考或历史记录；`.archive/` 是唯一项目归档根。这些位置不得作为启动必读、任务依据、运行真值或 runtime 依赖；`.archive/` 还禁止 package 入口和直接执行，当前归档目录只读 `.archive/manifest.json`。
 
 ## 按需读取
 
@@ -26,6 +26,7 @@
 | 方案方法、重要调整与人工决策 | `docs/Solution Design.md` |
 | 当前流程、Node、Gate、Plan 与工作台机制 | `docs/project-现在的逻辑图.md` |
 | 数据库结构、字段、来源、读写责任、报表及数据库运维 | `docs/project-数据与报表契约.md` |
+| 乾坤当前 API 接口依据 | `docs/qiankun-api-docs-20260827.md` |
 | 已验证且可复用的经验 | `docs/project-lessons.md` |
 | 应用部署、网络、启动、凭据录入与非数据库运维 | `deploy/README.md` |
 | 当前任务的范围、允许写入、验证与停止条件 | active Task / Context Manifest |
@@ -37,8 +38,8 @@
 <!-- project-domain-routes:start -->
 | 领域 | 变更路径 | 必读与回写文档 |
 | --- | --- | --- |
-| control | AGENTS.md;project.state.json;package.json;schemas/**;tasks/**;tasks-context-manifests/**;scripts/00-project-contract-check*.mjs | docs/Solution Design.md |
-| workflow | src/workflows/**;src/agents/**;src/platforms/**;src/server/**;frontend/**;docs/project-现在的逻辑图.md | docs/project-现在的逻辑图.md |
+| control | AGENTS.md;project.state.json;package.json;schemas/**;tasks/**;tasks-context-manifests/**;.archive/**;scripts/00-project-contract-check*.mjs | docs/Solution Design.md |
+| workflow | src/workflows/**;src/agents/**;src/platforms/**;src/server/**;frontend/**;docs/project-现在的逻辑图.md;docs/qiankun-api-docs-20260827.md | docs/project-现在的逻辑图.md |
 | data | db/**;src/repositories/**;docs/project-数据与报表契约.md;deploy/backup-postgres.sh;deploy/launchd/com.hys.marketing-workbench-backup.plist.example | docs/project-数据与报表契约.md |
 | deploy | deploy/** | deploy/README.md |
 | security | src/security/**;src/workflows/*Scope.mjs;src/workflows/*Grant.mjs;src/workflows/workbenchRuntimeWritePolicy.mjs;src/platforms/*CredentialStore.mjs;src/platforms/oceanengineTokenRefresh.mjs | docs/project-现在的逻辑图.md;deploy/README.md |
@@ -77,7 +78,7 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 - `mwb.workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制、写回或自行计算。
 - Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链；CLI 只允许 dry-run、readback、状态和明确标注的安全诊断，不得成为旁路写入入口。
-- `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/` 并登记 `manifest.json`。live `src/`、`scripts/` 与 package 均禁止 import 或调用 archive。
+- `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的文件移入 `.archive/` 并登记根 `manifest.json`。live `src/`、`scripts/` 与 package 均禁止 import、调用或执行 archive。
 
 ## 权限与安全
 
@@ -118,3 +119,4 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 - 临时授权在 `temporary_authorizations` 登记 `/guardrails/...` 路径及恢复值；关闭前恢复并验证。专项平台写标志必须关闭、动作授权清空；既有工作台 runtime policy 和定时 OAuth 策略不因关闭开发 Task 被禁用。
 - 两份 Schema 仅约束项目协调文件；`check:project` 使用其明确支持的 JSON Schema 子集，未知关键字报错。它只检查结构、引用、变更范围与证据存在性，不执行 Manifest 中的命令，不连接数据库，不证明证据内容或业务结果真实。`validate:schemas` 保持兼容，仍是抖音授权业务合同 smoke，不是项目文档校验。
 - 历史合同仅用 `npm run check:project -- --audit-history` 诊断，不改状态、不补造证据。重新启用时必须显式升级到当前 Schema；旧任务中的 blocked 不等于当前 active Task。
+- 修改 `src/workflows/skills/oe3/02-monitor/**`、乾坤平台适配器或 monitor CLI 时，当前乾坤 API 文档必须进入 Manifest `read_order`；不存在的旧接口文档路径不得作为证据引用。

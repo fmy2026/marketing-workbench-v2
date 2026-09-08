@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "unchanged": true,
+  "snapshot_sha256": "b1710ecfb189419bcc94f6c2cdbe95b83d46f26be7c551446599220f32134789",
+  "details": {
+    "docs/.参考文档": {
+      "unchanged": true,
+      "before_file_count": 37,
+      "after_file_count": 37
+    },
+    "docs/.开发方案": {
+      "unchanged": true,
+      "before_file_count": 6,
+      "after_file_count": 6
+    },
+    "docs/.问题排查": {
+      "unchanged": true,
+      "before_file_count": 15,
+      "after_file_count": 15
+    }
+  }
+}

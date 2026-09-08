@@ -1,0 +1,14 @@
+
+> marketing-workbench-v2@0.1.0 test:monitor
+> node scripts/02-monitor-smoke.mjs
+
+{
+  "status": "passed",
+  "assertions": [
+    "monitor_bootstrap_plan_has_exactly_one_ensure_monitor",
+    "standard_plan_does_not_mix_monitor_action",
+    "monitor_contract_is_hash_only",
+    "authenticated_owner_key_reaches_monitor_ensure",
+    "blocked_authorization_produces_zero_confirmation_or_platform_writes"
+  ]
+}

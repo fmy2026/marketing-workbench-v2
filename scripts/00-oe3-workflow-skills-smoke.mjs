@@ -29,7 +29,6 @@ async function liveModulePaths(root) {
   for (const entry of await readdir(root, { withFileTypes: true })) {
     const path = join(root, entry.name);
     if (entry.isDirectory()) {
-      if (resolve(path) === resolve(projectRoot, "scripts/archive")) continue;
       found.push(...await liveModulePaths(path));
     } else if (entry.isFile() && entry.name.endsWith(".mjs")) {
       found.push(path);
@@ -41,7 +40,7 @@ async function liveModulePaths(root) {
 async function validateArchiveIsolation() {
   const packageJson = JSON.parse(await readFile(resolve(projectRoot, "package.json"), "utf8"));
   const packageEntrypoints = Object.entries(packageJson.scripts || {})
-    .filter(([, command]) => String(command).includes("scripts/archive"));
+    .filter(([, command]) => String(command).includes(".archive/") || String(command).includes("scripts/archive/"));
   const forbiddenImports = [];
   const modulePaths = [
     ...await liveModulePaths(resolve(projectRoot, "src")),
@@ -49,9 +48,9 @@ async function validateArchiveIsolation() {
   ];
   for (const path of modulePaths) {
     const source = await readFile(path, "utf8");
-    const importSpecifiers = [...source.matchAll(/(?:from\s+|import\s*\()\s*["']([^"']+)["']/g)]
+    const importSpecifiers = [...source.matchAll(/(?:from\s+|import\s*(?:\(\s*)?)["']([^"']+)["']/gu)]
       .map((match) => match[1]);
-    if (importSpecifiers.some((specifier) => /(^|\/)archive(\/|$)/.test(specifier))) {
+    if (importSpecifiers.some((specifier) => /(^|\/)\.?archive(\/|$)/u.test(specifier))) {
       forbiddenImports.push(relative(projectRoot, path));
     }
   }

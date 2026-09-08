@@ -1,0 +1,179 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908",
+  "task_ref": "tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T08:08:40Z",
+  "updated_at": "2026-09-08T08:34:55Z",
+  "base_revision": "b9c7df4e164cdd12f34bb1e868697bb8c7768a48",
+  "baseline_dirty_files": {
+    "docs/.乾坤系统/api-docs-20260827.md": "sha256:ed341fcbb73b9664017549ca8fb533aabafe019f3cddce85aa058071baab9fb7",
+    "docs/qiankun-api-docs-20260827.md": "sha256:a72aec2a6b5add3162deba39a361dfc68d360554e639c203ff8b746c618382f4"
+  },
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "deploy"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "deploy/README.md",
+    "package.json",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "docs/.乾坤系统/**",
+    ".archive/**",
+    "scripts/archive/**",
+    "ops/**",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "scripts/00-oe3-workflow-skills-smoke.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs",
+    "tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.json",
+    "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/**"
+  ],
+  "forbidden_actions": [
+    "修改 docs/.参考文档、docs/.开发方案 或 docs/.问题排查 的任何文件或状态",
+    "修改业务行为、数据库结构、运行事实、平台权限或历史 Task/Manifest",
+    "执行 migration、备份、恢复、真实平台调用或 Git 提交推送"
+  ],
+  "stop_conditions": [
+    "发现归档候选仍被正式运行链依赖",
+    "需要修改指定保留目录或超出批准路径"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "静态归档索引、package 与 runtime 引用检查"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "静态乾坤文档路径与当前引用检查"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "指定保留目录前后 Git tree、工作区清单与内容 hash 比较"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:project-contracts"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run smoke:workflow-skills 及 check:project 三阶段"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "静态归档索引、package 与 runtime 引用检查",
+      "summary": ".archive 索引完整覆盖 11 个归档项；旧归档根和 ops 已退出当前目录，156 个 live module 及 package 均无归档入口。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/structure.json",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/validation.md#archive"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T08:28:59Z"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "静态乾坤文档路径与当前引用检查",
+      "summary": "乾坤 API 文档已统一到当前路径，内容 hash 与原 Git 文件一致，当前代码和文档无旧路径引用。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/qiankun-path-check.json",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/validation.md#qiankun"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T08:28:59Z"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "指定保留目录前后 Git tree、工作区清单与内容 hash 比较",
+      "summary": "三个指定隐藏目录共 58 个文件，前后路径、大小与内容 hash 完全一致；历史 Task/Manifest 继续原位保留。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/preserved-directories.json",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/validation.md#preserved"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T08:28:59Z"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:project-contracts",
+      "summary": "77 个项目合同正反例全部通过，包含归档、旧目录复现、乾坤路径、Task/Manifest 配对和 migration 编号规则。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/project-contracts.txt",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/validation.md#contracts"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T08:34:32Z"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run smoke:workflow-skills 及 check:project 三阶段",
+      "summary": "工作流技能与 monitor 回归、当前文档链接、diff 格式和启动检查通过；关闭前后检查随任务闭环执行。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/workflow-skills.txt",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/monitor.txt",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/link-check.json",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/before-close.json",
+        "evidence/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908/validation.md#regressions"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T08:34:32Z"
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录唯一归档入口和当前乾坤 API 文档依据。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "更新归档边界、历史资料身份和乾坤 API 文档入口。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "修正 migration 数量、编号上限及两个历史 015 的兼容规则。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "当前部署和数据库备份入口未变化；归档的是已失效根级 launchd 配置。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "项目归档、乾坤文档入口和结构防漂移检查已收口，全部验收通过。",
+    "side_effects": "仅移动已批准的历史文件、更新项目合同与文档引用并增加静态检查；未修改业务流程、数据库结构、平台权限或运行事实，未执行迁移和平台调用。",
+    "remaining_risks": [
+      "三个按用户要求原样保留的隐藏文档目录仍含历史资料，只能作为参考或排查材料，不作为当前权威。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-08T08:34:55Z"
+}

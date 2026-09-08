@@ -1,0 +1,48 @@
+{
+  "schema_version": "2026-09-08.project-archive-group-v1",
+  "archive_id": "20260908-project-structure-cleanup",
+  "task_id": "TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908",
+  "archived_at": "2026-09-08T08:08:40Z",
+  "status": "historical_reference_only",
+  "runtime_import_forbidden": true,
+  "package_entry_forbidden": true,
+  "execution_forbidden": true,
+  "files": [
+    {
+      "original_path": "ops/com.hys.marketing-workbench.local-server.plist",
+      "archive_path": ".archive/20260908-project-structure-cleanup/ops/com.hys.marketing-workbench.local-server.plist",
+      "reason": "旧 local-server launchd 配置已被当前 deploy/launchd 模板替代。",
+      "current_replacement": "deploy/launchd/com.hys.marketing-workbench.lan-http.plist.example"
+    },
+    {
+      "original_path": "docs/.乾坤系统/1-2、真实案例-举例.md",
+      "archive_path": ".archive/20260908-project-structure-cleanup/docs/乾坤系统/1-2、真实案例-举例.md",
+      "reason": "历史接口响应示例，不是当前运行或接口合同。",
+      "current_replacement": "docs/qiankun-api-docs-20260827.md"
+    },
+    {
+      "original_path": "docs/.乾坤系统/2、仅供参考-人为辅助解读.txt",
+      "archive_path": ".archive/20260908-project-structure-cleanup/docs/乾坤系统/2、仅供参考-人为辅助解读.txt",
+      "reason": "历史人工解读，不是当前权威规则。",
+      "current_replacement": "当前代码、逻辑图与数据契约"
+    },
+    {
+      "original_path": "docs/.乾坤系统/monitor_create.py",
+      "archive_path": ".archive/20260908-project-structure-cleanup/docs/乾坤系统/monitor_create.py",
+      "reason": "独立旧脚本不属于当前 Node 02 或 Plan-bound 主链。",
+      "current_replacement": "src/workflows/skills/oe3/02-monitor"
+    },
+    {
+      "original_path": "docs/.乾坤系统/乾坤监测序号-核心接口数据字典_20260826.md",
+      "archive_path": ".archive/20260908-project-structure-cleanup/docs/乾坤系统/乾坤监测序号-核心接口数据字典_20260826.md",
+      "reason": "旧字段解释已由当前接口文档和数据契约承接。",
+      "current_replacement": "docs/qiankun-api-docs-20260827.md 与 docs/project-数据与报表契约.md"
+    },
+    {
+      "original_path": "docs/.乾坤系统/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+      "archive_path": ".archive/20260908-project-structure-cleanup/docs/乾坤系统/方案-乾坤与v2通用关系底表逻辑图_20260826.md",
+      "reason": "早期关系图已由当前逻辑图和数据契约承接。",
+      "current_replacement": "docs/project-现在的逻辑图.md 与 docs/project-数据与报表契约.md"
+    }
+  ]
+}

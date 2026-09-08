@@ -29,6 +29,16 @@ function fixture() {
   git("config", "user.email", "fixture@example.invalid");
   for (const ref of ["AGENTS.md", "schemas/project-state.schema.json", "schemas/context-manifest.schema.json"]) write(ref, readFileSync(resolve(source, ref), "utf8"));
   for (const ref of ["docs/Solution Design.md", "docs/project-现在的逻辑图.md", "docs/project-数据与报表契约.md", "deploy/README.md"]) write(ref, "# Current contract\n\n## Evidence\n\nStatic rule.\n");
+  write("docs/qiankun-api-docs-20260827.md", "# Qiankun API\n\nCurrent interface reference.\n");
+  write("package.json", { scripts: {} });
+  write(".archive/manifest.json", {
+    schema_version: "2026-09-08.project-archive-index-v1",
+    runtime_import_forbidden: true,
+    package_entry_forbidden: true,
+    execution_forbidden: true,
+    restore_policy: "New approved task required.",
+    entries: []
+  });
   write("existing.txt", "baseline\n");
   write(".gitignore", "ignored/\n");
   const state = JSON.parse(readFileSync(resolve(source, "project.state.json"), "utf8"));
@@ -102,7 +112,15 @@ try {
   rejects("wrong_anchor_order", (f) => { [f.manifest.read_order[0], f.manifest.read_order[1]] = [f.manifest.read_order[1], f.manifest.read_order[0]]; }, "read_order_anchors_mismatch");
   rejects("legacy_context_cannot_be_required", (f) => { f.write("docs/plan1-previous.md", "# Previous\n"); f.manifest.read_order.push("docs/plan1-previous.md"); }, "historical_required_context");
   rejects("historical_marker_cannot_be_required", (f) => { f.write("docs/old.md", "# Old\n\n文档状态：历史参考\n"); f.manifest.read_order.push("docs/old.md"); }, "historical_required_context");
-  rejects("archive_cannot_be_required", (f) => { f.write(".archive/old.md", "# Old\n"); f.manifest.read_order.push(".archive/old.md"); }, "historical_required_context");
+  rejects("reference_directory_cannot_be_required", (f) => { f.write("docs/.参考文档/old.md", "# Reference\n"); f.manifest.read_order.push("docs/.参考文档/old.md"); }, "historical_required_context");
+  rejects("investigation_directory_cannot_be_required", (f) => { f.write("docs/.问题排查/old.md", "# Investigation\n"); f.manifest.read_order.push("docs/.问题排查/old.md"); }, "historical_required_context");
+  rejects("archive_cannot_be_required", (f) => {
+    f.write(".archive/old.md", "# Old\n");
+    const index = JSON.parse(readFileSync(resolve(f.root, ".archive/manifest.json"), "utf8"));
+    index.entries.push({ path: ".archive/old.md", kind: "archive_artifact", reason: "Historical fixture.", current_replacement: "Current fixture." });
+    f.write(".archive/manifest.json", index);
+    f.manifest.read_order.push(".archive/old.md");
+  }, "historical_required_context");
   rejects("conflicting_context_authority", (f) => { f.manifest.reference_only.push({ ref: contexts[4], reason: "History" }); }, "context_authority_conflict");
   rejects("duplicate_task_status", (f) => { f.write(TASK, f.task + "\n状态：completed\n"); }, "duplicate_task_status");
   rejects("missing_task_goal", (f) => { f.write(TASK, f.task.replace("## 目标\n\nFixture goal.\n\n", "")); }, "task_section_missing");
@@ -117,6 +135,38 @@ try {
   test("schema_does_not_treat_object_key_order_as_unique", () => {
     assert.throws(() => validateSchema([{ a: 1, b: 2 }, { b: 2, a: 1 }], { type: "array", uniqueItems: true }), /schema_uniqueItems/u);
   });
+  rejects("second_archive_root_is_rejected", (f) => { f.write("scripts/archive/old.mjs", "export {};\n"); }, "archive_root_not_unique");
+  rejects("legacy_ops_root_is_rejected", (f) => { f.write("ops/old.plist", "obsolete\n"); }, "legacy_current_root_present:ops");
+  rejects("legacy_qiankun_directory_is_rejected", (f) => { f.write("docs/.乾坤系统/old.md", "obsolete\n"); }, "legacy_current_root_present:docs/.乾坤系统");
+  rejects("unindexed_archive_entry_is_rejected", (f) => { f.write(".archive/unindexed.txt", "history\n"); }, "archive_index_incomplete");
+  rejects("archive_package_entry_is_rejected", (f) => { f.write("package.json", { scripts: { old: "node ./.archive/old.mjs" } }); }, "archive_package_entry_forbidden");
+  rejects("archive_runtime_import_is_rejected", (f) => {
+    const importKeyword = "im" + "port";
+    f.write("src/live.mjs", `${importKeyword} '../.archive/old.mjs';\n`);
+  }, "archive_runtime_import_forbidden");
+  rejects("missing_current_qiankun_doc_is_rejected", (f) => { rmSync(resolve(f.root, "docs/qiankun-api-docs-20260827.md")); }, "current_qiankun_doc_missing");
+  rejects("stale_qiankun_doc_ref_is_rejected", (f) => { f.write("docs/current.md", "See docs/.乾坤系统/api-docs-20260827.md\n"); }, "stale_qiankun_doc_ref");
+  rejects("stale_qiankun_task_context_is_rejected", (f) => {
+    f.manifest.reference_only.push({ ref: "docs/.乾坤系统/api-docs-20260827.md", reason: "Stale fixture." });
+  }, "stale_qiankun_task_ref");
+  rejects("task_without_manifest_is_rejected", (f) => { f.write("tasks/TASK-ORPHAN.md", "# orphan\n"); }, "task_manifest_pair_mismatch");
+  rejects("new_duplicate_migration_number_is_rejected", (f) => {
+    f.write("db/076_first.sql", "SELECT 1;\n");
+    f.write("db/076_second.sql", "SELECT 1;\n");
+  }, "migration_number_duplicate:076");
+  test("historical_015_duplicate_is_allowed", () => {
+    const f = fixture();
+    f.write("db/015_add_project_name_reservations.sql", "SELECT 1;\n");
+    f.write("db/015_p04_video_material_local_assets.sql", "SELECT 1;\n");
+    f.manifest.allowed_writes.push("db/**");
+    f.manifest.read_order.push("docs/project-数据与报表契约.md");
+    f.save();
+    assert.equal(checkProject({ root: f.root }).structure.migration_file_count, 2);
+  });
+  rejects("qiankun_monitor_change_requires_api_context", (f) => {
+    f.manifest.allowed_writes.push("src/workflows/skills/oe3/02-monitor/**");
+    f.manifest.read_order.push("docs/project-现在的逻辑图.md");
+  }, "qiankun_context_missing");
   rejects("untracked_write_outside_scope", (f) => { f.write("outside.txt", "new\n"); }, "write_outside_scope");
   rejects("unstaged_write_outside_scope", (f) => { f.write("existing.txt", "changed\n"); }, "write_outside_scope");
   rejects("staged_write_outside_scope", (f) => { f.write("existing.txt", "changed\n"); f.git("add", "existing.txt"); }, "write_outside_scope");
@@ -207,6 +257,7 @@ try {
     const other = structuredClone(f.manifest);
     other.task_id = "TASK-NEWER"; other.task_ref = "tasks/TASK-NEWER.md";
     other.closed_at = new Date(Date.parse(f.manifest.closed_at) + 1000).toISOString(); other.updated_at = other.closed_at;
+    f.write("tasks/TASK-NEWER.md", f.task.replaceAll(ID, "TASK-NEWER"));
     f.write("tasks-context-manifests/TASK-NEWER.json", other);
   }, "last_closed_pointer_not_latest", "after-close");
   rejects("unrevoked_platform_flag", (f) => { f.state.guardrails.platform_write_allowed = true; }, "temporary_platform_write_not_revoked", "before-close");
@@ -222,18 +273,20 @@ try {
   });
   rejects("another_current_active_task_without_pointer", (f) => {
     const other = structuredClone(f.manifest); other.task_id = "TASK-SECOND"; other.task_ref = "tasks/TASK-SECOND.md";
+    f.write("tasks/TASK-SECOND.md", f.task.replaceAll(ID, "TASK-SECOND"));
     f.write("tasks-context-manifests/TASK-SECOND.json", other);
   }, "unpointed_active_task");
   test("legacy_diagnostics_do_not_rewrite_or_activate_history", () => {
     const f = fixture();
     const ref = "tasks-context-manifests/TASK-OLD.json";
+    f.write("tasks/TASK-OLD.md", "# TASK-OLD\n\nHistorical fixture.\n");
     f.write(ref, { task_id: "TASK-OLD", status: "blocked_old", read_order: ["src/renamed.mjs"] });
     const before = readFileSync(resolve(f.root, ref), "utf8");
     const result = auditHistory(f.root);
     assert.equal(result.legacy_count, 1);
     assert(result.warnings.some((item) => item.code === "legacy_read_path_missing"));
     assert.equal(readFileSync(resolve(f.root, ref), "utf8"), before);
-    f.manifest.allowed_writes.push(ref); f.save();
+    f.manifest.allowed_writes.push(ref, "tasks/TASK-OLD.md"); f.save();
     assert.equal(checkProject({ root: f.root }).status, "passed");
   });
   process.stdout.write(JSON.stringify({ status: "passed", scenarios: passed.length, tests: passed, real_database_access: false, real_platform_access: false }, null, 2) + "\n");

@@ -1,12 +1,18 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync, lstatSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 export const MANIFEST_VERSION = "2026-09-08.task-context-manifest-v2";
+export const ARCHIVE_INDEX_VERSION = "2026-09-08.project-archive-index-v1";
+export const QIANKUN_API_DOC_REF = "docs/qiankun-api-docs-20260827.md";
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TERMINAL = new Set(["completed", "cancelled"]);
+const HISTORICAL_MIGRATION_015 = new Set([
+  "015_add_project_name_reservations.sql",
+  "015_p04_video_material_local_assets.sql"
+]);
 const SCHEMA_KEYWORDS = new Set([
   "$schema", "$id", "description", "type", "const", "enum", "anyOf",
   "required", "properties", "additionalProperties", "items", "minItems",
@@ -127,6 +133,119 @@ export function captureBaseline(root = PROJECT_ROOT) {
   };
 }
 
+function walkFiles(root, ref, extensions = null) {
+  const start = resolve(root, ref);
+  if (!existsSync(start)) return [];
+  const found = [];
+  for (const entry of readdirSync(start, { withFileTypes: true })) {
+    const childRef = `${ref}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...walkFiles(root, childRef, extensions));
+    else if (entry.isFile() && (!extensions || extensions.some((extension) => entry.name.endsWith(extension)))) found.push(childRef);
+  }
+  return found;
+}
+
+function nestedArchiveDirectories(root, ref) {
+  const start = resolve(root, ref);
+  if (!existsSync(start)) return [];
+  const found = [];
+  for (const entry of readdirSync(start, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const childRef = `${ref}/${entry.name}`;
+    if (["archive", ".archive"].includes(entry.name)) found.push(childRef);
+    found.push(...nestedArchiveDirectories(root, childRef));
+  }
+  return found;
+}
+
+function directFiles(root, ref, extension) {
+  const directory = resolve(root, ref);
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
+    .map((entry) => `${ref}/${entry.name}`)
+    .sort();
+}
+
+function containsStaleQiankunDocRef(text) {
+  return text.includes("docs/.乾坤系统/api-docs-20260827.md")
+    || text.includes("docs/.参考文档/乾坤系统/api-docs-20260827.md")
+    || text.includes("api-docs-20260825.md");
+}
+
+export function validateProjectStructure(root = PROJECT_ROOT) {
+  const archiveRoot = resolve(root, ".archive");
+  ensure(existsSync(archiveRoot) && lstatSync(archiveRoot).isDirectory(), "archive_root_missing");
+  const archiveIndex = json(resolve(archiveRoot, "manifest.json"));
+  ensure(archiveIndex.schema_version === ARCHIVE_INDEX_VERSION, "archive_index_version_invalid");
+  ensure(archiveIndex.runtime_import_forbidden === true && archiveIndex.package_entry_forbidden === true && archiveIndex.execution_forbidden === true, "archive_policy_incomplete");
+  ensure(typeof archiveIndex.restore_policy === "string" && archiveIndex.restore_policy.trim(), "archive_restore_policy_missing");
+  ensure(Array.isArray(archiveIndex.entries), "archive_entries_invalid");
+  ensure(archiveIndex.entries.every((entry) => entry && ["archive_group", "archive_artifact"].includes(entry.kind)
+    && typeof entry.reason === "string" && entry.reason.trim()
+    && typeof entry.current_replacement === "string" && entry.current_replacement.trim()), "archive_entry_contract_invalid");
+  const indexed = archiveIndex.entries.map((entry) => entry?.path);
+  ensure(indexed.every((ref) => typeof ref === "string" && /^\.archive\/[^/]+$/u.test(ref)), "archive_entry_path_invalid");
+  ensure(new Set(indexed).size === indexed.length, "archive_entry_duplicate");
+  for (const ref of indexed) ensure(existsSync(resolve(root, ref)), "archive_entry_missing", ref);
+  const actual = readdirSync(archiveRoot, { withFileTypes: true })
+    .filter((entry) => entry.name !== "manifest.json" && !entry.name.startsWith("."))
+    .map((entry) => `.archive/${entry.name}`)
+    .sort();
+  ensure(equal([...indexed].sort(), actual), "archive_index_incomplete");
+
+  for (const ref of ["ops", "docs/.乾坤系统"]) ensure(!existsSync(resolve(root, ref)), "legacy_current_root_present", ref);
+  const duplicateArchiveRoots = ["src", "scripts"].flatMap((ref) => nestedArchiveDirectories(root, ref));
+  ensure(duplicateArchiveRoots.length === 0, "archive_root_not_unique", duplicateArchiveRoots[0] || "");
+  const packageJson = json(resolve(root, "package.json"));
+  const packageArchiveEntries = Object.entries(packageJson.scripts || {})
+    .filter(([, command]) => String(command).includes(".archive/") || String(command).includes("scripts/archive/"));
+  ensure(packageArchiveEntries.length === 0, "archive_package_entry_forbidden", packageArchiveEntries[0]?.[0] || "");
+  const liveModules = ["src", "scripts"].flatMap((ref) => walkFiles(root, ref, [".mjs", ".js"]));
+  for (const ref of liveModules) {
+    const source = readFileSync(resolve(root, ref), "utf8");
+    const imports = [...source.matchAll(/(?:from\s+|import\s*(?:\(\s*)?)["']([^"']+)["']/gu)].map((match) => match[1]);
+    ensure(!imports.some((specifier) => /(^|\/)\.?archive(\/|$)/u.test(specifier)), "archive_runtime_import_forbidden", ref);
+  }
+
+  ensure(existsSync(resolve(root, QIANKUN_API_DOC_REF)), "current_qiankun_doc_missing");
+  const currentTextFiles = [
+    "AGENTS.md", "project.state.json", "package.json",
+    ...directFiles(root, "docs", ".md"),
+    ...["deploy", "frontend", "schemas", "src", "scripts"].flatMap((ref) => walkFiles(root, ref, [".md", ".json", ".mjs", ".js", ".sh", ".html", ".css", ".example"]))
+  ].filter((ref) => !/^scripts\/00-project-contract-check(?:-smoke)?\.mjs$/u.test(ref));
+  const staleQiankunRef = currentTextFiles.find((ref) => {
+    const text = readFileSync(resolve(root, ref), "utf8");
+    return containsStaleQiankunDocRef(text);
+  });
+  ensure(!staleQiankunRef, "stale_qiankun_doc_ref", staleQiankunRef || "");
+
+  const taskIds = new Set(directFiles(root, "tasks", ".md").map((ref) => ref.slice("tasks/".length, -3)));
+  const manifestIds = new Set(directFiles(root, "tasks-context-manifests", ".json").map((ref) => ref.slice("tasks-context-manifests/".length, -5)));
+  ensure(equal([...taskIds].sort(), [...manifestIds].sort()), "task_manifest_pair_mismatch");
+
+  const migrationNames = directFiles(root, "db", ".sql").map((ref) => ref.slice("db/".length));
+  const migrationsByNumber = new Map();
+  for (const name of migrationNames) {
+    const match = name.match(/^(\d{3})_[A-Za-z0-9_]+\.sql$/u);
+    ensure(match, "migration_filename_invalid", name);
+    const names = migrationsByNumber.get(match[1]) || [];
+    names.push(name);
+    migrationsByNumber.set(match[1], names);
+  }
+  for (const [number, names] of migrationsByNumber) {
+    if (names.length < 2) continue;
+    ensure(number === "015" && equal([...names].sort(), [...HISTORICAL_MIGRATION_015].sort()), "migration_number_duplicate", number);
+  }
+  return {
+    archive_entry_count: actual.length,
+    live_module_count: liveModules.length,
+    task_manifest_pair_count: taskIds.size,
+    migration_file_count: migrationNames.length,
+    qiankun_api_doc_ref: QIANKUN_API_DOC_REF
+  };
+}
+
 function headingId(text) {
   return text.replace(/[`*_]/gu, "").toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/gu, "-");
 }
@@ -143,7 +262,7 @@ function fileRef(root, ref, { localOnly = false, authoritative = false } = {}) {
   const real = realpathSync(path), rel = relative(realpathSync(root), real);
   if (!isAbsolute(pathPart)) ensure(!rel.startsWith("../") && !isAbsolute(rel), "reference_escapes_project", ref);
   if (authoritative) {
-    const history = /(^|\/)(\.archive|archive|\.开发方案|开发方案)(\/|$)/u.test(real)
+    const history = /(^|\/)(\.archive|archive|\.参考文档|参考文档|\.开发方案|开发方案|\.问题排查|问题排查)(\/|$)/u.test(real)
       || /(^|\/)docs\/plan[12]-/u.test(real)
       || real.startsWith(resolve(root, "../marketing-workbench") + "/");
     const header = path.endsWith(".md") ? readFileSync(path, "utf8").split("\n").slice(0, 12).join("\n") : "";
@@ -175,6 +294,7 @@ export function readDomainRoutes(root) {
 
 function taskContract(root, manifest) {
   const text = readFileSync(resolve(root, manifest.task_ref), "utf8");
+  ensure(!containsStaleQiankunDocRef(text), "stale_qiankun_task_ref", manifest.task_ref);
   ensure(text.split("\n")[0] === `# ${manifest.task_id}`, "task_title_mismatch");
   ensure(!/^\s*(?:状态|status)\s*[:：]/gimu.test(text), "duplicate_task_status");
   ensure(text.includes(`../tasks-context-manifests/${manifest.task_id}.json`), "task_manifest_link_missing");
@@ -241,6 +361,7 @@ export function auditHistory(root = PROJECT_ROOT) {
 }
 
 export function checkProject({ root = PROJECT_ROOT, phase, outcome = "completed" } = {}) {
+  const structure = validateProjectStructure(root);
   const state = json(resolve(root, "project.state.json"));
   const stateSchema = json(resolve(root, "schemas/project-state.schema.json"));
   const manifestSchema = json(resolve(root, "schemas/context-manifest.schema.json"));
@@ -263,6 +384,12 @@ export function checkProject({ root = PROJECT_ROOT, phase, outcome = "completed"
   ensure(manifest.schema_version === MANIFEST_VERSION, "legacy_task_requires_explicit_upgrade");
   validateSchema(manifest, manifestSchema, manifestRef);
   ensure(manifest.task_id === id && manifest.task_ref === taskRef, "manifest_task_mismatch");
+  const contextRefs = JSON.stringify({
+    read_order: manifest.read_order,
+    reference_only: manifest.reference_only,
+    validation_results: manifest.validation_results
+  });
+  ensure(!containsStaleQiankunDocRef(contextRefs), "stale_qiankun_task_ref", manifestRef);
   const dates = [manifest.created_at, manifest.updated_at].map(Date.parse);
   ensure(dates.every(Number.isFinite) && dates[1] >= dates[0], "manifest_timestamp_invalid");
   ensure(after ? TERMINAL.has(manifest.status) : ["active", "blocked"].includes(manifest.status), "task_phase_status_mismatch");
@@ -288,6 +415,15 @@ export function checkProject({ root = PROJECT_ROOT, phase, outcome = "completed"
   ensure(git(root, ["merge-base", "--is-ancestor", manifest.base_revision, "HEAD"]) === "", "base_revision_not_ancestor");
   const changes = changedPaths(root, manifest.base_revision).filter((ref) => manifest.baseline_dirty_files[ref] !== fingerprint(root, ref));
   for (const ref of changes) ensure(manifest.allowed_writes.some((pattern) => matchesGlob(ref, pattern)), "write_outside_scope", ref);
+  const qiankunPatterns = [
+    "src/workflows/skills/oe3/02-monitor/**",
+    "src/platforms/qiankun*.mjs",
+    "scripts/02-monitor*.mjs",
+    QIANKUN_API_DOC_REF
+  ];
+  if ([...changes, ...manifest.allowed_writes].some((ref) => qiankunPatterns.some((pattern) => ref === pattern || matchesGlob(ref, pattern)))) {
+    ensure(manifest.read_order.some((entry) => entry === QIANKUN_API_DOC_REF || entry.startsWith(`${QIANKUN_API_DOC_REF}#`)), "qiankun_context_missing", QIANKUN_API_DOC_REF);
+  }
   const routes = readDomainRoutes(root), domains = new Set(manifest.domains);
   const baselineStateText = git(root, ["show", `${manifest.base_revision}:project.state.json`]);
   let baselineState;
@@ -319,7 +455,7 @@ export function checkProject({ root = PROJECT_ROOT, phase, outcome = "completed"
     for (const ref of manifest.result.business_evidence_refs) ensure(/^postgres:mwb\.[a-z_]+:[A-Za-z0-9_-]+$/u.test(ref), "business_evidence_ref_invalid");
     restoredAuthorizations(state, manifest);
   }
-  return { status: "passed", phase, task_id: id, task_status: manifest.status, changed_files: changes, domains: [...domains].sort(), acceptance_count: acceptanceIds.length, database_access: false, platform_access: false };
+  return { status: "passed", phase, task_id: id, task_status: manifest.status, changed_files: changes, domains: [...domains].sort(), acceptance_count: acceptanceIds.length, structure, database_access: false, platform_access: false };
 }
 
 function main() {

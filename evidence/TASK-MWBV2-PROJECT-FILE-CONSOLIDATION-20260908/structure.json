@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "archive_entry_count": 11,
+  "live_module_count": 156,
+  "task_manifest_pair_count": 209,
+  "migration_file_count": 76,
+  "qiankun_api_doc_ref": "docs/qiankun-api-docs-20260827.md",
+  "absent_legacy_roots": [
+    "scripts/archive",
+    "ops",
+    "docs/.乾坤系统"
+  ]
+}

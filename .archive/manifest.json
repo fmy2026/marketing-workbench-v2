@@ -1,0 +1,77 @@
+{
+  "schema_version": "2026-09-08.project-archive-index-v1",
+  "updated_at": "2026-09-08T08:08:40Z",
+  "status": "historical_reference_only",
+  "runtime_import_forbidden": true,
+  "package_entry_forbidden": true,
+  "execution_forbidden": true,
+  "restore_policy": "恢复任何归档内容前必须建立新的已批准 Task，并按当前代码、文档和安全合同重新审计。",
+  "entries": [
+    {
+      "path": ".archive/20260824-file-hygiene-cleanup",
+      "kind": "archive_group",
+      "reason": "已完成的一次性清理、诊断和旧适配器。",
+      "current_replacement": "当前工作流、平台适配器与项目合同检查。"
+    },
+    {
+      "path": ".archive/20260824-oe3-pre-skillization",
+      "kind": "archive_group",
+      "reason": "OE3 Skill 化之前的独立入口。",
+      "current_replacement": "src/workflows/skills/oe3 与正式工作台入口。"
+    },
+    {
+      "path": ".archive/20260825-runtime-generalization-cleanup",
+      "kind": "archive_group",
+      "reason": "运行链通用化前的视频素材专项入口。",
+      "current_replacement": "Node 04 资源准备与确认执行器。"
+    },
+    {
+      "path": ".archive/20260830-jszc-ctd-omit-oneoff",
+      "kind": "archive_group",
+      "reason": "JSZC converted_time_duration 单次验证实现。",
+      "current_replacement": "当前 payload 与嵌套字段合同。"
+    },
+    {
+      "path": ".archive/20260830-jszc-oneoff",
+      "kind": "archive_group",
+      "reason": "JSZC 历史创建与取证专项实现。",
+      "current_replacement": "当前 Plan-bound 创建与只读回查链。"
+    },
+    {
+      "path": ".archive/20260901-script-entrypoint-isolation",
+      "kind": "archive_group",
+      "reason": "原 scripts/archive 中已被工作台或通用执行器替代的脚本。",
+      "current_replacement": "工作台/API、通用 confirmed-resource executor 与当前只读链。"
+    },
+    {
+      "path": ".archive/20260908-project-structure-cleanup",
+      "kind": "archive_group",
+      "reason": "已被当前部署和机制文档替代的根目录文件。",
+      "current_replacement": "deploy、当前逻辑图、数据契约与 docs/qiankun-api-docs-20260827.md。"
+    },
+    {
+      "path": ".archive/frontend",
+      "kind": "archive_group",
+      "reason": "旧前端 mock 数据。",
+      "current_replacement": "当前 frontend 与 API Job View。"
+    },
+    {
+      "path": ".archive/工作台逻辑底层",
+      "kind": "archive_group",
+      "reason": "早期工作台逻辑与数据真值说明。",
+      "current_replacement": "docs/project-现在的逻辑图.md 与 docs/project-数据与报表契约.md。"
+    },
+    {
+      "path": ".archive/工作流-7节点-数据真值逻辑图_20260825.html",
+      "kind": "archive_artifact",
+      "reason": "早期静态逻辑图。",
+      "current_replacement": "docs/project-现在的逻辑图.md。"
+    },
+    {
+      "path": ".archive/方案-乾坤与v2报表字段关系图_20260826.html",
+      "kind": "archive_artifact",
+      "reason": "早期乾坤与报表关系图。",
+      "current_replacement": "docs/project-数据与报表契约.md。"
+    }
+  ]
+}

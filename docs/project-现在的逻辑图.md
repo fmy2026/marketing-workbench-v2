@@ -13,7 +13,7 @@
 
 > 项目当前任务只查 `project.state.json`；开发任务交付证据查对应 Task/Manifest。本文不保存任务进度或账户运行状态。
 
-当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
+当前机制只维护本 Markdown 文档，不再同步维护配套 JPG；`docs/.参考文档/`、`docs/.开发方案/` 与 `docs/.问题排查/` 仅作参考或历史记录，不属于当前运行真值。
 
 ## 项目定位与能力承接
 
@@ -55,7 +55,7 @@ frontend / API / CLI / 任务卡 / 工作台对话
 
 网络入口默认只监听 `127.0.0.1:3000`。局域网试用通过显式配置启用受限私网监听；非 HTTPS 只接受 RFC1918 IPv4，且 bind host、public origin 与端口必须完全一致。该网络模式不改变登录、账户 owner、Case/Job、Plan 或业务 Gate；关闭开关即恢复默认 loopback。
 
-`scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
+`.archive/` 是唯一可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离组、原因、当前替代入口与恢复条件只读 `.archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
 
 ```text
 用户登录（首次登录强制改密）
@@ -285,6 +285,7 @@ Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择�
 | Plan/确认/执行约束 | `executionPlan.mjs`、执行 scope、当前 Task/Manifest |
 | 当前 Gate、blocker、下一步 | `mwb.workflow_case_summary` |
 | 数据表、View、报表字段与数据库运维 | [数据与报表契约](project-数据与报表契约.md) |
-| 正式入口与隔离脚本 | 工作台/API、`scripts/archive/manifest.json`；archive 仅供恢复审计 |
+| 正式入口与归档内容 | 工作台/API、`.archive/manifest.json`；archive 仅供恢复审计 |
+| 乾坤接口参数与响应 | [当前乾坤 API 文档](qiankun-api-docs-20260827.md) |
 
 项目文件与普通日志只允许保存脱敏摘要、hash、必要 ID、状态、字段路径和证据引用；禁止保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response。
