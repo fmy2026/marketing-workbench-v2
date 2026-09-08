@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；已验证可复用经验集 |
-| 最后更新时间 | 2026-09-07 17:55 CST |
+| 最后更新时间 | 2026-09-08 CST（数据库说明改为引用，未新增经验） |
 | 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与首个异机真实流程证据 |
 | 重新校验条件 | 新增可复用闭环经验、接口/字段合同变化，或既有经验被当前代码、Schema、官方资料或真实回查否定时 |
 
@@ -12,6 +12,8 @@
 本文件只记录已经由真实证据、机制验证和回归测试支持的可复用经验。它用于定位问题和选择解决思路；账户实时状态、job、计划、平台动作和证据仍以 `project.state.json`、Postgres、active task / manifest 与当前代码为准。
 
 每个新案例均按文末模板追加。案例正文不记录账户 ID、job ID、token、Cookie、raw request/response 或完整 URL。
+
+数据库结构、存储字段、来源与统计定义只查 [数据与报表契约](project-数据与报表契约.md)。以下保留经验、验证方法与历史依据，不维护第二份数据库说明。
 
 官方接口只记录 method、endpoint path、用途与边界；不记录完整请求 URL、token、raw query/body 或 raw response。OE3 合同优先查官方 3.0 知识库，3.0 缺失时再补 2.0 / 2.0 copy，并在经验中标明“当前项目实际使用的接口”和“仅作为后续/受控写入使用的接口”。
 
@@ -58,14 +60,13 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 
 | 项 | 经验结论 |
 | --- | --- |
-| 归属与流转 | `aweme_id` 是游戏/路线级固定默认值，不是目标账户运行时人工选择项；创建 payload 只从 `game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id` 取值。 |
-| 数据库机制 | 路线默认基线保存明文默认号与 hash；账户表 `advertiser_accounts.aweme_authorization` 只保存 Node 4 的脱敏授权核验快照；`v_advertiser_aweme_authorization_readiness` 负责最终 Gate 判断。 |
+| 归属与流转 | 先确定固定默认号，再验证目标账户授权；来源与存储边界查 [固定抖音号数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 官方接口 | Node 4 只使用 `GET /open_api/2/tools/aweme_auth_list/` 核验授权关系；该接口返回 `aweme_id`、`auth_type`、`auth_status`、`share_type`、有效期和 `request_id`。 |
 | 请求形态 | `filtering.auth_type` 必须按官方完整参数形态传 `string[]`，如 `["AWEME_ACCOUNT"]`；固定号主查询传 `aweme_ids`，不传 `auth_status`，因为接口默认仅返回生效授权。 |
 | 通过标准 | 目标默认号命中、`auth_status=AUTHRIZED`、未过期、账户/路线/游戏/default hash/fresh job 均一致，readiness 才可为 `ready=true`。 |
 | 共享授权 | `share_type` 只记录为 `shared_relation_seen=true` 的脱敏证据；共享授权本身不是失败条件。 |
 | 失败分流 | 参数形态错误、凭据/账户范围异常、平台业务失败、网络失败、默认号不可见、授权失效分别记录 blocker；不得笼统只写 `probe_failed`。 |
-| 实时性边界 | 数据库保存的是最近一次 fresh Node 4 只读核验快照，view 是实时投影数据库快照；平台后台授权变化不会自动同步，必须重新跑 Node 4 刷新。 |
+| 实时性边界 | 平台授权发生变化后重新核验，不能仅凭历史通过结果放行；快照与 View 的含义查 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 不适用边界 | `std_project/list` 不能证明 `aweme_id` 授权；`std_project/create` 只消费已通过的 `aweme_id`，不能替代授权核验；旧账户可见不代表目标账户可用。 |
 | 回归校验 | 覆盖主查询命中、共享授权命中、精确查询未命中后的发现查询、参数错误分类、zero platform write audit、payload contract gate。 |
 
@@ -73,16 +74,16 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 
 | 项 | 经验结论 |
 | --- | --- |
-| 合同来源 | 顶层字段和已发送嵌套字段均记录在 `game_route_defaults.raw_defaults.official_create_field_contract`；顶层用 `field_rules`，嵌套路径用 `nested_rules`，不新增第二套表或报表。 |
+| 合同来源 | 查 [创建字段合同的数据来源](project-数据与报表契约.md#配置与资源来源)。 |
 | 官方接口 | 创建字段唯一依据为 `POST /open_api/v3.0/std_project/create/`；`tools/project_material_type/update` 只能作为同素材结构旁证，本流程不调用素材更新接口。 |
 | 已发送与受控省略路径 | 当前 JSZC 路线校验实际发送的 `video_material_list`、`image_material_list`、`title_material_list`、`product_info`、`call_to_action_buttons`、`source`、`anchor_related_type`、`mini_program_info`、`track_url_setting`、`audience`、`brand_info`。`external_url_material_list` 的 send/omit 必须由当次路线 nested contract 决定；已验证成功的受控场景为发送 1 条已回查备用页，不能据此把它推广为所有场景必填。 |
 | 共同 Gate | Node 5、payload contract 与 create preflight 必须复用同一个嵌套字段合同模块；不得在三处各写一套规则。 |
 | 视频素材 | 视频必须来自当前物料包 required `video_asset`，目标账户只读证据通过；竖版视频使用 `CREATIVE_IMAGE_MODE_VIDEO_VERTICAL`；只有显式封面已验证时才发送 `video_cover_id`，否则省略并记录平台默认封面模式。 |
-| 商品与标题 | 标题素材来自 `game_assets.asset_type=title_material` 经物料包关联；商品名来自游戏身份，商品图来自目标账户已核验产品图，卖点来自路线默认值并满足 6-9 字合同。 |
+| 商品与标题 | 按 [素材来源合同](project-数据与报表契约.md#配置与资源来源) 读取；卖点满足 6-9 字合同，产品图必须经目标账户核验。 |
 | 备用网页链接 | 当前 JSZC 为 `MICRO_GAME + BYTE_GAME + mini_program_info.url` 主链路；`external_url_material_list` 是条件字段，必须由路线 nested contract 明确 send/omit。已验证成功的受控场景发送 1 条已回查备用页；这说明该组合可接受，不证明所有 BYTE_GAME 场景都必须发送。 |
 | 图片素材列表 | 当前 JSZC 走视频素材和产品图，普通 `image_material_list` 固定为空数组；非空图片列表必须被 Node 5 / preflight 阻断。 |
 | 小游戏链接 | `MICRO_GAME + BYTE_GAME` 使用受控 `mini_program_info.url`；传 `url` 时禁止同时传 `app_id`、`start_path`、`params`。 |
-| 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 从 `payload_defaults` 读取，不在 Node 5 硬编码第二来源。 |
+| 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 按 [路线参数合同](project-数据与报表契约.md#配置与资源来源) 读取，不在 Node 5 硬编码第二来源。 |
 | 锚点边界 | 当前 JSZC 路线固定 `anchor_related_type=OFF`，不得携带 `anchor_material_list` 或 `component_material_list`；未来启用 `SELECT` 前必须先新增独立只读准备和官方取值证据。 |
 | 审计摘要 | 最终 manifest 只保存 `nestedFieldContract` 的版本、来源、检查路径数、数量/长度范围、枚举结果、封面模式、证据计数和 blocker 数；不保存完整 payload、URL、token、raw request 或 raw response。 |
 | 扩展规则 | 未来新增 create 嵌套字段，必须先补官方合同、路线 `nested_rules`、共享校验模块和正反例测试；未启用条件字段不得为了兼容性而提前发送。 |
@@ -116,7 +117,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 通过标准 | 成员 read 命中、`select_type=1` 可投放、状态 available、未删除且未下线。 |
 | 回查策略 | 全部单包 push 成功后，以 `0s / 3s / 6s` 轮询整组；不把即时不可见误判为失败。 |
 | 失败分流 | 来源不完整、合同/凭据/权限异常时零写入停止；单包失败停止后续包；回查未收敛只记录待回查，不自动重推。 |
-| 验证状态 | 已闭环；目标状态按“package set + 成员 + 目标账户”保存；运行内存保留后续 Gate 所需安全输出，持久化 Skill 记录保持脱敏。 |
+| 验证状态 | 已闭环；注意区分运行内存与持久化证据，目标状态和 Skill 存储规则查 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 案例依据 | 已关闭的 DMP 只读、推送与剩余包闭环任务；`src/workflows/skills/oe3/04-dmp-readonly.mjs`、`src/platforms/oceanengineDmpExecutor.mjs`、`src/workflows/dmpExecutionScope.mjs`；`npm run test:dmp-executor`、`npm run test:dmp-readback`。 |
 
 ## 事件资产（event_asset）
@@ -133,8 +134,8 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 配置核查接口 | 最终配置核查以 `GET /open_api/2/event_manager/event_configs/get/` 为准，必须返回 6/6 baseline 且 track type 命中 `MINI_PROGRAME_API`。`available_events/get` 是“可创建事件列表”，创建完成后 baseline 可能不再出现在 available 列表中；因此创建后的 READY 不能要求 available 仍为 6/6。 |
 | 优化目标核查 | 配置 6/6 后，继续使用 `GET /open_api/v3.0/event_manager/optimized_goal/get/` 验证 `PAY + PURCHASE_ROI_7D`，并使用 `GET /open_api/v3.0/event_manager/dbt/get/` 验证 `PER_AND_SEVEN_PAY_ROI`；这两段通过后才允许关闭事件链。 |
 | 写入边界 | 事件资产创建最多 1 次；事件配置创建最多 6 次；每个动作都必须绑定当前 Job、Plan、confirmation、route、game、advertiser 与模板 hash。创建成功但回查不到、候选歧义、App/instance 不匹配、任一 API 非 0 或权限异常时停止，不自动扩大范围。 |
-| 幂等与审计 | orchestrator 的 internal claim 必须同时绑定 plan id 和 idempotency key；不同 plan/version 不得互相挡住，但同一 plan/action 不得重复消费。Create Plan 在确认前还必须让最终 Draft 精确绑定 Plan ID/hash；缺失绑定必须早于 confirmation/action fail-closed，已确认且零 action 的预写入阻断 Plan 必须 consumed 收口。事件配置 create 子 action 必须使用“已验证 planned action key + 当前 Plan ID + event type”，request hash 只作请求证据，不能充当跨 Job 的全局幂等身份。真实平台动作只记录 endpoint path、method、HTTP/API code、request_id 是否存在、hash 和脱敏 metadata。 |
-| 通过标准 | `event_configs/get` 6/6、`optimized_goal/get` 主/深度目标命中、`dbt/get` 深度优化方式命中；随后 `account_resources.event_asset` 与 `account_resources.micro_app_instance` 均写为 `visible + readback_verified`，Case root blocker 清空事件链相关 blocker。 |
+| 幂等与审计 | orchestrator 的 internal claim 必须同时绑定 plan id 和 idempotency key；不同 plan/version 不得互相挡住，但同一 plan/action 不得重复消费。Create Plan 在确认前还必须让最终 Draft 精确绑定 Plan ID/hash；缺失绑定必须早于 confirmation/action fail-closed，已确认且零 action 的预写入阻断 Plan 必须 consumed 收口。事件配置 create 子 action 必须使用“已验证 planned action key + 当前 Plan ID + event type”，request hash 只作请求证据，不能充当跨 Job 的全局幂等身份。动作审计字段与保存边界查 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
+| 通过标准 | `event_configs/get` 6/6、`optimized_goal/get` 主/深度目标命中、`dbt/get` 深度优化方式命中；事件链 blocker 随核验结果解除，资源状态记录遵循 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 验证状态 | 已闭环；已形成“查找 -> 缺失创建资产 -> 缺失创建 baseline 事件 -> 配置核查 -> 优化目标/DBT 核查 -> READY”的真实可复用经验。 |
 | 不适用边界 | 不把平台 UI 截图、旧账户资产、旧库 event_id、历史目标户候选或 `available_events/get` 创建后为空当作 READY 证据；不在本模块触发标准项目、Promotion、预算、出价、素材、DMP、头像、备用页或 token 刷新。 |
 
@@ -202,7 +203,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 只读判定 | 默认来源页唯一且可用；只接受目标 `share_type=SHARE` 库存精确命中**同一** `site_id`，目标状态可用且本轮来源/目标脱敏 hash 一致。普通库存同 ID 只保留诊断，不可替代共享证明。 |
 | hash 规则 | 目标通过优先比较本轮源户只读返回 hash 与目标户只读返回 hash；历史 DB/构造 hash 只作兜底，不能单独阻断已验证共享。 |
 | 写入边界 | capability 为 `manual_share_only`，`prepare_supported=false`；不复制、不重建、不拼接 URL、不生成 `ensure_resource:backup_landing_page`。`site/handsel` 是转赠复制（会生成目标新站点并清空资产），不是同站点共享，明确排除为 executor。 |
-| 通过标准 | `account_resources.backup_landing_page` 写为 `visible + readback_verified`；evidence 只留状态、ID、hash、request id/response hash 是否存在。 |
+| 通过标准 | 目标账户备用页权威回查通过，资源状态与证据记录遵循 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 失败分流 | 源户缺失/不可用、共享库存未命中、share type 非 `SHARE`、状态不可用或 hash 不一致即 `BLOCKED`，不补写、不猜 URL。来源页缺失时只能另建“来源页创建”专项 Task；必须先具备受控 `name + bricks` 模板、本地素材映射与发布合同，单有图片文件不得调用 `site/create`。 |
 | 验证状态 | 已以真实手动共享后的只读回查闭环：来源默认页可用、目标普通库存未命中、目标共享库存同站点命中且 `AUDIT_ACCEPTED`，来源/目标 hash 一致；全程 0 次平台写入。 |
 | 创建字段边界 | 备用落地页资源可作为路线候选准备事实；`external_url_material_list` 是否发送由 `official_create_field_contract.nested_rules` 决定。已验证成功的受控场景发送 1 条，但该成功事实不应被泛化为所有 JSZC/BYTE_GAME 场景必填。 |

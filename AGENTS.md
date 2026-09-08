@@ -25,9 +25,9 @@
 | --- | --- |
 | 方案方法、重要调整与人工决策 | `docs/Solution Design.md` |
 | 当前流程、Node、Gate、Plan 与工作台机制 | `docs/project-现在的逻辑图.md` |
-| 数据表、View、持久化与报表边界 | `docs/project-数据与报表契约.md` |
+| 数据库结构、字段、来源、读写责任、报表及数据库运维 | `docs/project-数据与报表契约.md` |
 | 已验证且可复用的经验 | `docs/project-lessons.md` |
-| 部署、网络、启动、凭据录入与运维 | `deploy/README.md` |
+| 应用部署、网络、启动、凭据录入与非数据库运维 | `deploy/README.md` |
 | 当前任务的范围、允许写入、验证与停止条件 | active Task / Context Manifest |
 
 ## 文档与变更路由
@@ -39,14 +39,14 @@
 | --- | --- | --- |
 | control | AGENTS.md;project.state.json;package.json;schemas/**;tasks/**;tasks-context-manifests/**;scripts/00-project-contract-check*.mjs | docs/Solution Design.md |
 | workflow | src/workflows/**;src/agents/**;src/platforms/**;src/server/**;frontend/**;docs/project-现在的逻辑图.md | docs/project-现在的逻辑图.md |
-| data | db/**;src/repositories/**;docs/project-数据与报表契约.md | docs/project-数据与报表契约.md |
+| data | db/**;src/repositories/**;docs/project-数据与报表契约.md;deploy/backup-postgres.sh;deploy/launchd/com.hys.marketing-workbench-backup.plist.example | docs/project-数据与报表契约.md |
 | deploy | deploy/** | deploy/README.md |
 | security | src/security/**;src/workflows/*Scope.mjs;src/workflows/*Grant.mjs;src/workflows/workbenchRuntimeWritePolicy.mjs;src/platforms/*CredentialStore.mjs;src/platforms/oceanengineTokenRefresh.mjs | docs/project-现在的逻辑图.md;deploy/README.md |
 <!-- project-domain-routes:end -->
 
-`AGENTS.md` 管启动与闭环；`project.state.json` 只保存项目生命周期、当前任务指针、最近关闭任务引用与全局边界。方案方法和有效决策索引归 Solution Design；流程解释归当前逻辑图；表/View/指标合同归数据与报表契约；环境配置归部署说明。任务执行细节和证据归 Task/Manifest；业务运行事实仍只读 Postgres。
+`AGENTS.md` 管启动与闭环；`project.state.json` 只保存项目生命周期、当前任务指针、最近关闭任务引用与全局边界。方案方法和有效决策索引归 Solution Design；流程解释归当前逻辑图；数据库结构、字段、来源、读写责任、报表口径及连接/迁移/备份说明只在数据与报表契约维护；其他环境配置归部署说明。其他当前文档只引用数据库合同章节，不重复定义。SQL/Schema/代码仍承担实现职责，任务证据和历史记录不作为第二份当前说明；业务运行事实仍只读 Postgres。
 
-早期 `docs/plan1-*`、`docs/plan2-*` 与 `schemas/postgres-minimal-truth.md` 是历史参考，只能放入 `reference_only`，不得进入当前任务必读。新任务从 `tasks/_templates/task.md` 与 `tasks-context-manifests/_templates/context-manifest.json` 建立，不复制历史任务作为模板。
+历史方案只能作为 `reference_only`，不得进入当前任务必读。已删除资料只通过对应 Git 历史追溯，重新启用旧任务时替换为当前合同。新任务从 `tasks/_templates/task.md` 与 `tasks-context-manifests/_templates/context-manifest.json` 建立，不复制历史任务作为模板。
 
 ## 真值
 
@@ -87,7 +87,7 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 - 每份确认 Plan 只能按冻结动作消费一次；失败或修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
 - 创建或写入响应不等于 READY；只有权威只读回查通过才能写入 verified。
 - 动态运行授权只写 Postgres confirmation/action/readback；开发、迁移和专项人工写入必须使用 Task/Manifest 与相应 Guardrail scope。
-- 平台长数字 ID 默认按字符串保存和比较。
+- 数据存储规则查 [数据契约的字段约定](docs/project-数据与报表契约.md#字段与存储约定)。
 - 禁止在项目文件、普通日志、API 或前端保存 token、secret、Cookie、auth_code、密码、完整触点 URL、raw request、raw payload 或 raw response。
 
 ## 任务闭环

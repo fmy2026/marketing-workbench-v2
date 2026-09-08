@@ -1,0 +1,169 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908",
+  "task_ref": "tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T07:31:47.482Z",
+  "updated_at": "2026-09-08T07:43:20.590Z",
+  "base_revision": "ec9a5764202c4e975dde1b5f4817fd3a59738d4e",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "deploy"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-lessons.md",
+    "deploy/README.md",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "deploy/backup-postgres.sh",
+    "deploy/launchd/com.hys.marketing-workbench-backup.plist.example",
+    "db/001_create_database.sql",
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/004_refine_minimal_truth.sql",
+    "db/010_runtime_consistency_cleanup.sql",
+    "db/043_aweme_auto_single_mechanism.sql",
+    "db/048_jszc_nested_create_field_contract.sql",
+    "db/069_jszc_fallback_parameters_incremental.sql",
+    "db/074_account_guide_video_contract.sql"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-lessons.md",
+    "deploy/README.md",
+    "schemas/postgres-minimal-truth.md",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.json",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/**",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/plan2-最理想的逻辑图.md"
+  ],
+  "forbidden_actions": [
+    "修改业务代码、SQL、数据库事实、API、平台权限、历史 Task/Manifest 或未批准的历史资料",
+    "执行迁移、备份、恢复、平台调用"
+  ],
+  "stop_conditions": [
+    "需要改变业务行为或无法依据当前 SQL/代码确认规则",
+    "修改超出允许路径"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "静态核对 SQL/实现及文档去重"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "静态检查 Markdown 链接、旧入口依赖及 Git 原文"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:project-contracts"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "check:project 三阶段；Git 受保护目录差异及 guardrails 比较"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "静态核对 SQL/实现及文档去重",
+      "summary": "字段、唯一来源、连接/迁移/备份说明已核对并集中；重复定义改为章节引用。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/validation.md#documents"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T07:43:09.302Z"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "静态检查 Markdown 链接、旧入口依赖及 Git 原文",
+      "summary": "76 个链接/章节通过；三份获批旧文档已删除，原文 Git SHA-256 可追溯。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/static-audit.json"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T07:43:09.302Z"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:project-contracts",
+      "summary": "62 项回归通过，含 7 项新增数据库运维路由正反例。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/regression.txt"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T07:38:40.596Z"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "check:project 三阶段；Git 受保护目录差异及 guardrails 比较",
+      "summary": "补充授权后的真实 start、before-close、after-close 均通过；历史 Task/Manifest、业务实现、SQL、部署配置和 guardrails 无修改。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/start.json",
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/regression.txt",
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/static-audit.json",
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/before-close.json",
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/after-close.json",
+        "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/validation.md#lifecycle"
+      ],
+      "status": "passed",
+      "verified_at": "2026-09-08T07:43:20.590Z"
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录数据库说明唯一入口的批准选择与理由。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "合并字段与来源，集中数据库运维说明。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "数据库定义改为数据契约章节引用。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "updated",
+      "reason": "数据库运维与验收数据定义改为引用。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "updated",
+      "reason": "整理已有数据库说明，未新增经验。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "数据库说明集中、三份获批旧文档删除与数据库运维领域路由已完成，回归通过。",
+    "side_effects": "仅文档、项目协调记录、历史路径清理和回归；两份外部历史方案删除经用户追加批准纳入范围；未访问数据库或平台，未执行迁移/备份/恢复。",
+    "remaining_risks": [
+      "历史记录中的已删除路径须按对应 Git 版本追溯；本轮未执行在线对账或恢复演练。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-08T07:43:19.711Z"
+}

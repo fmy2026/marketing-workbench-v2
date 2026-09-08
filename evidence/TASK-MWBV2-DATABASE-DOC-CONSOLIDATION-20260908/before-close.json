@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "phase": "before-close",
+  "task_id": "TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908",
+  "task_status": "active",
+  "changed_files": [
+    "AGENTS.md",
+    "deploy/README.md",
+    "docs/Solution Design.md",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/plan2-最理想的逻辑图.md",
+    "docs/project-lessons.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/after-close.json",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/before-close.json",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/regression.txt",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/start.json",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/static-audit.json",
+    "evidence/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908/validation.md",
+    "project.state.json",
+    "schemas/postgres-minimal-truth.md",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "scripts/00-project-contract-check.mjs",
+    "tasks-context-manifests/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.json",
+    "tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md"
+  ],
+  "domains": [
+    "control",
+    "data",
+    "deploy",
+    "workflow"
+  ],
+  "acceptance_count": 4,
+  "database_access": false,
+  "platform_access": false
+}

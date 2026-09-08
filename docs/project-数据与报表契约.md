@@ -2,16 +2,18 @@
 
 | 元信息 | 值 |
 | --- | --- |
-| 文档状态 | 当前有效；静态数据与只读报表契约 |
+| 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-08 CST |
 | 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
-| 适用范围 | v2 的配置、账户、Case、运行证据、外部动作、回查和当前运营状态投影 |
+| 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
-| 重新校验条件 | 表/列/约束/View 改动，新的运行或资源子链落库，或 Case Gate/报表消费逻辑变化时 |
+| 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
 
-结构清单沿用 migration `075` 的已核验基线；本轮仅按 SQL 静态补齐键、时间与统计口径，不声明重新做过在线数据对账。`db/*.sql` 的 75 个 migration 文件作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
+
+结构清单沿用 migration `075` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 的 75 个 migration 文件作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -73,7 +75,29 @@ route_id + game_code
 
 - `workflow_cases` 是业务闭环总控；`runtime_truth` Job 必须显式绑定 `case_id`。
 - `source_usage` 用于区分真实运行、测试和种子来源；`test_run` 必须由 smoke/CLI 清理，不能作为业务报表事实。
-- 所有平台长数字 ID 按字符串存储与比较；摘要 JSON 只保存脱敏状态、hash、必要 ID 和证据引用。
+
+### 字段与存储约定
+
+| 主题 | 当前约定 |
+| --- | --- |
+| 游戏与路线命名 | 游戏标识统一为 `game_code`，新表不用 `game_slug`；`platform_routes` 的营销产品字段为 `marketing_product`，不是 `product` |
+| 平台长数字 ID | `advertiser_id`、`monitor_id`、`object_id` 等列使用 `text`；JSON 和代码按字符串保存、比较，不经 JavaScript Number 截断 |
+| 状态与摘要 | 现有状态列使用 `text`，合法值按各表当前 CHECK/代码合同核对，不能任意新增状态；结构化摘要使用 `jsonb`，只保存脱敏状态、hash、必要 ID 和证据引用 |
+| 平台 App | 唯一来源为 `game_platform_apps`，按 `game_code + platform + app_type` 查询；`games` 仅保存游戏主档，不保存平台 appid |
+
+命名和类型依据 [初始结构](../db/002_create_mwb_minimal_truth.sql)、[App 唯一约束](../db/004_refine_minimal_truth.sql) 与 [游戏 App 字段清理](../db/010_runtime_consistency_cleanup.sql)；当前完整约束需结合后续 migration，不复制整份旧字段清单。
+
+### 配置与资源来源
+
+| 内容 | 唯一来源与读取边界 |
+| --- | --- |
+| 路线默认值与创建字段合同 | `game_route_defaults.raw_defaults`；`payload_defaults` 保存静态发送参数，`official_create_field_contract.field_rules / nested_rules` 保存顶层/嵌套规则，Node 05 与 preflight 共用。JSZC 静态基线为保留“立即试玩”再追加 4 项 CTA、预算/出价/ROI `66666/366/0.16`、男性与五档年龄、336 位半小时排期；这些是 migration `069` 的配置基线，不代替当前查询或授权 |
+| 游戏素材与账户资源 | 标题由 `game_assets.asset_type=title_material` 经物料包关联；商品身份来自 `games`，卖点来自路线默认值，产品图及其他动态资源来自目标账户已核验记录。账户资源、DMP 成员状态、实例、引导视频和触点不复制进路线默认值 |
+| 固定抖音号与授权 | 默认号从 `game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id` 读取；基线保存默认号、hash、适用条件和规则依据，不表示账户已授权。`advertiser_accounts.aweme_authorization` 只保存当前默认号的脱敏只读核验快照，包括 scope、default hash、Job、时间、response hash、证据和 blocker，不保存候选列表或已选 ID。专项 readiness View 投影最近快照；平台变化须重新运行 Node 04 才会更新 |
+| 启动链接与备用页 | `game_route_launch_links` 按 route×game 读取受控深链；平台 App 关联、hash 与协议在 payload 前校验。`landing_page_assets` 保存备用页库存，目标账户可见性读取 `account_resources` 的 `backup_landing_page`；完整 URL 只进入受控字段，普通摘要仅输出 ref/hash/status/存在性 |
+| 资源核验与审计 | `account_resources` 的已核验事件资产、小游戏实例、备用页以 `visibility_status=visible` 与 `readback_status=readback_verified` 表达，写入者见本节表契约；其他资源按自身合同核对。DMP 目标状态按集合成员×目标账户保存。Skill 和平台动作只保存受控证据摘要，外部动作审计包括 endpoint path、method、HTTP/API code、request ID 存在性、hash 与脱敏 metadata，不保存 raw request/response |
+
+来源依据 [固定抖音号合同](../db/043_aweme_auto_single_mechanism.sql)、[创建嵌套字段合同](../db/048_jszc_nested_create_field_contract.sql)、[路线参数修正](../db/069_jszc_fallback_parameters_incremental.sql)、[引导视频合同](../db/074_account_guide_video_contract.sql) 与当前仓储实现。这里只解释数据来源，Node/Gate 行为仍查逻辑图。
 
 ## 3. 只读 View 与报表边界（7 个）
 
@@ -159,3 +183,31 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 | 完成证明 | 开发任务由 Manifest 验收关闭；真实创建成功必须有 Postgres 权威回查证据；两者不得互相替代 |
 
 投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 7 个 View 提供运营就绪状态和人员流程统计。
+
+## 8. 数据库运维
+
+### 连接与迁移
+
+目标数据库为 `marketing_workbench_v2`，业务 schema 为 `mwb`。[仓储](../src/repositories/postgresRepository.mjs) 通过系统 `psql` 执行 SQL，默认库名来自构造参数 `database`；调用使用 `-X -d <database> -v ON_ERROR_STOP=1`，不会读取 psql 启动脚本。实现未设置 host、port 或 user，连接沿用进程环境与本机 PostgreSQL 客户端配置；不在文档记录真实密码或含凭据的连接串。
+
+`MWBV2_DATABASE_NAME` 是下面备份脚本的库名覆盖项，不是应用仓储的环境变量配置入口。核对连接可使用以下只读命令；它不执行 migration：
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -c "SELECT current_database(), to_regnamespace('mwb') IS NOT NULL AS mwb_schema_exists;"
+```
+
+[建库文件](../db/001_create_database.sql) 在维护库 `postgres` 执行，后续获批 migration 在目标业务库执行。当前没有统一自动 migration runner；由批准 Task 明确目标库、具体文件、应用前提及回查，用 `psql -X -v ON_ERROR_STOP=1 -d` 指定库并用 `-f` 指定单个文件。历史文件含种子和专项修正，不能把编号清单当作可直接重跑的初始化脚本，也不能仅凭文档基线推断在线库已应用哪些迁移。
+
+### 备份与定时执行
+
+项目根目录的手工备份入口：
+
+```sh
+npm run db:backup
+```
+
+[备份脚本](../deploy/backup-postgres.sh) 使用 `pg_dump --format=custom --no-owner --no-acl`，随后用 `pg_restore --list` 检查归档可读性。默认库名 `marketing_workbench_v2`，目录 `.local/backups`；`umask 077` 限制新文件权限，文件名带 UTC 时间。可用 `MWBV2_DATABASE_NAME`、`MWBV2_BACKUP_DIR`、`MWBV2_BACKUP_RETENTION_DAYS` 覆盖；保留天数默认 14，必须为非负整数。成功校验后按脚本的 `find -mtime +天数` 清理同库名旧 dump，不是精确到小时的保留期限。
+
+[备份 LaunchAgent 示例](../deploy/launchd/com.hys.marketing-workbench-backup.plist.example) 配置每天本机时间 02:20 执行，日志写入 `.local/logs/backup.stdout.log` 和 `backup.stderr.log`。启用前核对项目路径、日志目录、运行用户连接权限及 `pg_dump/pg_restore` 可执行环境；安装与应用服务使用同一 launchd 管理方式，配置文件本身不证明已启用。
+
+`pg_restore --list` 只验证归档目录可读，不证明恢复成功。恢复需单独任务明确目标库、备份文件及覆盖范围；本合同不提供自动覆盖线上库的恢复命令。

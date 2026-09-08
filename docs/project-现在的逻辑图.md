@@ -76,7 +76,7 @@ frontend / API / CLI / 任务卡 / 工作台对话
 
 归属校验属于 Case/Job 前的工作台访问控制，不是 Workflow Node，也不生成业务 Gate。一个账户只归属一个人员；普通用户只能操作本人账户。管理员可以读取全员流程汇总和管理用户状态/初始密码，但访问 Case、Job、运行和确认时仍必须是账户本人。所有 confirmation 记录真实登录用户，URL 或请求参数中的账户、Case、Job 任一越权均按不可见处理。
 
-账户状态只允许在 `advertiser_accounts` 唯一持久化入口归一：“授权正常”“已授权”“ready”“active”均为 `ready`，其余值保持 fail-closed。`workflow_case_summary` 对最新 Job 读取当前同 scope 账户：账户存在时历史 `account_missing` 不再阻断，账户为 `ready` 时历史 `account_not_ready` 不再阻断；Skill 历史仍在 `?job_id=` 审计视图保留。没有当前账户或状态非 READY 时，原 blocker 与 Gate 不变。
+账户持久化和状态归一查 [账户数据契约](project-数据与报表契约.md#2-基础表契约36-张)。消费 `workflow_case_summary` 时，已由当前账户事实解除的历史 blocker 不再阻断；`?job_id=` 仍保留历史审计，消费端不改写历史结果。
 
 ```text
 Case
@@ -96,7 +96,7 @@ Case
 | 项目文件 | 静态机制、任务范围、全局 Guardrail | 动态账户和平台结果 |
 | `src/` | Node、Skill、Plan、executor、接口与脱敏合同 | 当前业务状态 |
 | `db/*.sql` | Schema、约束、View、投影逻辑 | 外部平台写入 |
-| `mwb` 表 | 配置、运行证据、授权、动作、回查 | 前端下一步推导 |
+| 数据层 | [数据契约](project-数据与报表契约.md#1-六层数据流) | 前端下一步推导 |
 | `workflow_case_summary` | Case 当前 Gate、唯一 root blocker、建议动作 | 历史细节和反向写入 |
 
 ## 2. 三阶段七 Node
@@ -115,7 +115,7 @@ Case
 
 运行模式由 runner 决定：`dry_run` 与 `draft_readiness` 不真实写入；`planned_actions` 仅限明确计划动作；`execute_once` 只能消费冻结且已确认的 Plan；`readback_only` 绝不创建。
 
-JSZC 的 Node 03/05 保底链只消费当前 PostgreSQL 路线默认值：CTA 为保留“立即试玩”后追加 4 项，预算/出价/ROI 为 `66666/366/0.16`，定向为男性与五档年龄，投放时段为 336 位半小时排期。Node 05 同时校验合法枚举、顺序、长度、时段摘要、普通账户 92 条或引导视频账户 94 条字段账本，以及至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。DMP、素材、事件资产、小游戏实例、Aweme 授权、引导视频和触点仍在 Node 04 按账户动态读取，不复制进路线默认值。
+JSZC 的 Node 03/05 按 [配置与资源来源](project-数据与报表契约.md#配置与资源来源) 读取保底参数与账户动态资源。Node 05 校验合法枚举、顺序、长度、时段摘要、普通账户 92 条或引导视频账户 94 条字段账本，以及至少 10 个目标账户 fresh readonly DMP 排除 ID；任一漂移 fail-closed。
 
 ### Node 02 Monitor 单轨 Bootstrap
 
@@ -133,7 +133,7 @@ v_monitor_readiness（唯一状态读取）
 
 `monitor-state-read` 只读 Postgres；`monitor-readonly-reconcile` 是受 Gate 调度的外部只读；`monitor-plan-compile` 纯编译；`monitor-execute-once` 只在已确认的 `monitor_bootstrap` Plan 内执行。通用 runner 不会代替该 Plan 创建 monitor。
 
-Monitor Plan 与后续普通 Plan 共用同一 Job 的单调版本序列，但版本号不代表标准项目创建 attempt：已消费 Monitor V2 后，普通 readonly 编译并在同一轮复用 Resource V3，`create_attempt_no` 仍为 1。若历史 Job 已停在“monitor READY + Monitor Plan consumed + 零标准项目创建 action”，`workflow_case_summary` 只投影 `run_fresh_readiness`，由“继续执行”完成一次同 Job readonly，不得以零 blocker 退回 `review_latest_job`。
+Monitor Plan 与普通 Plan 的版本、创建 attempt 关系查 [Plan 数据合同](project-数据与报表契约.md#2-基础表契约36-张)。若历史 Job 已停在“monitor READY + Monitor Plan consumed + 零标准项目创建 action”，消费 summary 的 `run_fresh_readiness`，由“继续执行”完成一次同 Job readonly，不得以零 blocker 退回 `review_latest_job`。
 
 最新 Case 视图中的 Node 02 子项使用当前账户事实与 `v_monitor_readiness`：账户状态只表示账户可用性，触点引用表示受控触点与回查完整性，monitor 表示 canonical `monitor_ready`。同一 Job 的历史 Skill 结果仅作为 trace；`?job_id=` 继续按历史 Skill 显示，不使用后续 reconcile 覆盖。节点已落账进度仍属于 Job 执行历史，不能由展示层回写。
 
@@ -148,7 +148,7 @@ Monitor Plan 与后续普通 Plan 共用同一 Job 的单调版本序列，但�
 
 `micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
 
-账户 `guide_video_required=true` 时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，并只保存到该 `micro_app_instance` 的 metadata。Node 05 从这条本 Job 单一事实将同一 ID 展开到每条推广视频，普通账户完全省略，视频资源旧 metadata 不参与判断。Node 07 项目命中后再调用一次素材只读接口核验全部绑定；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
+账户要求引导视频时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，存储位置与读取边界查 [账户资源合同](project-数据与报表契约.md#2-基础表契约36-张)。Node 05 将本 Job 已核验的同一 ID 展开到每条推广视频，普通账户完全省略。Node 07 项目命中后再调用一次素材只读接口核验全部绑定；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
 
 事件资产是账户级受控合同，不是通用模板开关：Node 04 在 `event-chain-readonly` 前校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板，并据此把动态 `target_advertiser_id`、`template_ref` 与 `template_hash` 合并进当前账户资源；候选缺失、歧义、来源不受控或模板前提不完整时不得落合同或生成事件资产动作。该脱敏合同可在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
@@ -224,13 +224,13 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 平台明确业务失败 | 不得通过同名对象回查改为成功；Create Plan 直接 `consumed`，Job 为人工修正终态，必须新 Job/Draft/Plan/confirmation |
 | 首次创建 + ID/最新 Draft 名称一致 + 回查 verified | Create Plan 进入 `consumed`；共享 finalizer 强校验最新 runtime Job、确认、成功 action、唯一对象、最新 Draft 与 verified readback 后，将 Job 与 Case 收口为 `completed` 并投影 `first_std_project_create_completed` |
 
-平台长数字 ID 默认按字符串存储与比较；仅官方要求 number token 的字段使用专用无损 wire 编码，禁止经 JavaScript Number 截断。
+平台长数字 ID 的存储与比较查 [字段约定](project-数据与报表契约.md#字段与存储约定)；仅官方要求 number token 的接口字段使用专用无损 wire 编码。
 
 所有生产平台 HTTP 请求只能经过唯一 deadline 封装：普通 JSON 单次 15 秒、文件上传单次 60 秒；封装组合已有 `AbortSignal`、超时中止与 timer 清理，不引入自动重试。读超时落既有只读失败与脱敏 `timeout` 诊断；写超时、异常或响应不明只允许权威只读回查。事件配置保留 15 秒 deadline。每个 create 子 action 的幂等键由已验证 planned action key、当前 Plan ID 与 event type 共同组成；任一绑定缺失时在 action 占位和平台调用前 fail-closed，request hash 仅作请求证据。全部 event config create action 成功后，按本轮起点绝对 `0/1/3/5` 秒执行有界事件链只读回查，命中完整事件链即停；该窗口只吸收平台最终一致性延迟，不重试 create，失败、超时或响应不明分支不进入。partial baseline 只能由共享 `eventConfigBaselineReadiness` 在 `event_configs/get` 与 `available_events/get` 都完成标准化后分类；读取函数不得把 available 自身是否 6/6 当成提前 Gate。分类以“已配置集合 ∪ 当前 available 集合”判断覆盖：已配置事件即使不再 available 也视为满足；只有尚未配置且当前 available 的事件可生成 create candidate，尚未配置且不可用继续 fail-closed。Node 04 复用这一结论，仅保存两端计数作诊断。平台响应不明统一映射为 `confirmed_resource_execution_interrupted`，只允许沿既有“重新只读准备”路径创建 fresh readonly Job。
 
 ## 5. 当前 Case Gate 与工作台
 
-`mwb.workflow_case_summary` 是唯一当前 Gate。`root_blocker_codes` 仅保留一个最高优先级 blocker；`structural_blocker_codes` 保留完整结构性取证集合。
+当前 Gate 统一消费 `mwb.workflow_case_summary`；字段与 blocker 集合含义查 [View 合同](project-数据与报表契约.md#4-workflow_case_summary-合同)，以下仅解释 Gate 的优先级和消费行为。
 
 | 优先级 | 条件 | `current_gate` | 消费端动作 |
 | ---: | --- | --- | --- |
@@ -284,7 +284,7 @@ Intent Resolver 只规范化意图和输入槽位；不计算 Gate、不选择�
 | 资源 prepare 支持与顺序 | `04-resource-action-registry.mjs` |
 | Plan/确认/执行约束 | `executionPlan.mjs`、执行 scope、当前 Task/Manifest |
 | 当前 Gate、blocker、下一步 | `mwb.workflow_case_summary` |
-| 数据表、View 与报表字段 | `docs/project-数据与报表契约.md`、`db/*.sql` |
+| 数据表、View、报表字段与数据库运维 | [数据与报表契约](project-数据与报表契约.md) |
 | 正式入口与隔离脚本 | 工作台/API、`scripts/archive/manifest.json`；archive 仅供恢复审计 |
 
 项目文件与普通日志只允许保存脱敏摘要、hash、必要 ID、状态、字段路径和证据引用；禁止保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response。

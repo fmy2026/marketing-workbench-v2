@@ -148,6 +148,42 @@ try {
   rejects("guardrail_diff_infers_security_context", (f) => { f.state.guardrails.budget_bid_change_allowed = true; }, "domain_context_missing");
   rejects("allowed_write_infers_domain", (f) => { f.manifest.allowed_writes.push("src/repositories/future.mjs"); }, "domain_context_missing");
   rejects("actual_write_infers_domain", (f) => { f.manifest.allowed_writes.push("src/**"); f.write("src/workflows/future.mjs", "// fixture\n"); }, "domain_context_missing");
+  for (const ref of ["deploy/backup-postgres.sh", "deploy/launchd/com.hys.marketing-workbench-backup.plist.example"]) {
+    const dataDoc = "docs/project-数据与报表契约.md";
+    rejects(`database_ops_requires_data_context:${ref}`, (f) => {
+      f.manifest.read_order.push("deploy/README.md");
+      f.manifest.allowed_writes.push(ref);
+    }, "domain_context_missing:docs/project-数据与报表契约.md");
+    rejects(`database_ops_requires_data_documentation_at_close:${ref}`, (f) => {
+      f.manifest.read_order.push(dataDoc);
+      f.manifest.allowed_writes.push(ref);
+      f.write(ref, "fixture database operation configuration\n");
+    }, "documentation_update_missing:docs/project-数据与报表契约.md", "before-close");
+    test(`database_ops_full_context_closes_without_execution:${ref}`, () => {
+      const f = fixture();
+      f.manifest.read_order.push(dataDoc, "deploy/README.md");
+      f.manifest.allowed_writes.push(ref, dataDoc);
+      f.write(ref, "fixture database operation configuration\n");
+      f.save();
+      assert(checkProject({ root: f.root }).domains.includes("data"));
+      f.prepareClose();
+      f.manifest.read_order = [...new Set(f.manifest.read_order)];
+      f.write(dataDoc, "# Current contract\n\nUpdated database operation contract.\n");
+      f.manifest.documentation_updates.push({ ref: dataDoc, status: "updated", reason: "Database operation documentation follows its configuration." });
+      f.save();
+      assert.equal(checkProject({ root: f.root, phase: "before-close" }).status, "passed");
+      f.close();
+      assert.equal(checkProject({ root: f.root, phase: "after-close" }).status, "passed");
+    });
+  }
+  test("application_deploy_does_not_require_database_context", () => {
+    const f = fixture();
+    f.manifest.read_order.push("deploy/README.md");
+    f.manifest.allowed_writes.push("deploy/nginx/application.conf");
+    f.write("deploy/nginx/application.conf", "# Application deployment fixture\n");
+    f.save();
+    assert(!checkProject({ root: f.root }).domains.includes("data"));
+  });
   test("routing_table_is_the_only_domain_map", () => {
     const f = fixture();
     const agent = readFileSync(resolve(f.root, "AGENTS.md"), "utf8").replace("db/**;src/repositories/**", "db/**;new-data/**;src/repositories/**");

@@ -145,7 +145,6 @@ function fileRef(root, ref, { localOnly = false, authoritative = false } = {}) {
   if (authoritative) {
     const history = /(^|\/)(\.archive|archive|\.开发方案|开发方案)(\/|$)/u.test(real)
       || /(^|\/)docs\/plan[12]-/u.test(real)
-      || real.endsWith("/schemas/postgres-minimal-truth.md")
       || real.startsWith(resolve(root, "../marketing-workbench") + "/");
     const header = path.endsWith(".md") ? readFileSync(path, "utf8").split("\n").slice(0, 12).join("\n") : "";
     ensure(!history && !/(?:文档状态|文档性质)[^\n]*(?:历史|已替代|reference_only)/u.test(header), "historical_required_context", ref);

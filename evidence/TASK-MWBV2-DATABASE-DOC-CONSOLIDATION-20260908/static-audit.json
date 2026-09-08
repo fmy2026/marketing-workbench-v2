@@ -1,0 +1,40 @@
+{
+  "status": "passed",
+  "checked_at": "2026-09-08T07:42:40.319Z",
+  "current_documents": [
+    "AGENTS.md",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-lessons.md",
+    "deploy/README.md"
+  ],
+  "markdown_links": 76,
+  "failures": [],
+  "archived_documents": [
+    {
+      "path": "schemas/postgres-minimal-truth.md",
+      "deleted": true,
+      "original_git_revision": "ec9a5764202c4e975dde1b5f4817fd3a59738d4e",
+      "original_sha256": "797622ac5ba64ba6d857f903d25824f89ca50b1fbd0fe050c585f82b96014860"
+    },
+    {
+      "path": "docs/plan1-新项目最高效启动框架_20260823.md",
+      "deleted": true,
+      "original_git_revision": "ec9a5764202c4e975dde1b5f4817fd3a59738d4e",
+      "original_sha256": "7577d5d6f5c1902a42374a97b3fa82821ea27e91284b36eb9bcf811038a5f8db"
+    },
+    {
+      "path": "docs/plan2-最理想的逻辑图.md",
+      "deleted": true,
+      "original_git_revision": "ec9a5764202c4e975dde1b5f4817fd3a59738d4e",
+      "original_sha256": "207b5e659bacf465ac81710640a5df5267afa1354a7374b77ac090dc3f2c64eb"
+    }
+  ],
+  "supplemental_user_authorization": "保留两份历史方案的删除并纳入本次收口",
+  "guardrails_unchanged": true,
+  "protected_changes": [],
+  "whitespace_check": "passed",
+  "database_access": false,
+  "platform_access": false
+}

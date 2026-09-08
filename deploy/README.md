@@ -51,15 +51,9 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 
 若本机已有同名 LaunchAgent，使用 `launchctl bootout` 后再 `bootstrap`。配置变更后用 `launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench` 重启。
 
-## 数据库备份
+## 数据库运维入口
 
-手工备份：
-
-```sh
-npm run db:backup
-```
-
-备份脚本生成 PostgreSQL custom dump，随后用 `pg_restore --list` 校验。默认写入 `.local/backups`，权限由 `umask 077` 限制，保留 14 天。可用 `MWBV2_BACKUP_DIR`、`MWBV2_BACKUP_RETENTION_DAYS` 和 `MWBV2_DATABASE_NAME` 覆盖。每天自动执行可安装 [备份 LaunchAgent](launchd/com.hys.marketing-workbench-backup.plist.example)。
+连接、迁移、备份与定时配置统一查 [数据与报表契约：数据库运维](../docs/project-数据与报表契约.md#8-数据库运维)。本文件只维护应用部署步骤。
 
 ## 三用户验收
 
@@ -67,7 +61,7 @@ npm run db:backup
 2. 三人各提交一句完整 Intake，确认本人广告账户进入原有七 Node；他人账户在 Case/Job 创建前返回归属冲突。
 3. 修改 `case_id`、`job_id`、`advertiser_id` 请求他人数据，确认统一返回不可见。
 4. 管理员查看人员汇总和个人明细，再尝试打开或确认他人 Job，确认仍被拒绝。
-5. 验证确认记录带 `confirmed_by_user_id`，创建成功只在权威回查 verified 后计入报表。
+5. 按 [确认记录合同](../docs/project-数据与报表契约.md#2-基础表契约36-张) 与 [人员指标口径](../docs/project-数据与报表契约.md#6-view-去重与人员指标口径) 核对确认人和报表结果。
 6. 执行 `npm run test:workbench-user-isolation`、`npm run test:workbench-auth-http` 和既有工作流回归。
 
-上线前先执行一次备份，再在每台试用电脑通过最终 HTTPS 域名完成以上浏览器验收。
+上线前按 [数据库备份说明](../docs/project-数据与报表契约.md#备份与定时执行) 完成备份，再在每台试用电脑通过最终 HTTPS 域名完成以上浏览器验收。
