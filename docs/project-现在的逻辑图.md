@@ -4,14 +4,14 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `073_case_level_corrective_attempts.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
 
-> 当前实施 Task 为 `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；它只增加工作台访问控制和只读人员报表，不改变业务 Gate。后续业务下一步仍只读 `workflow_case_summary`。
+> 当前无 active Task；实施 Task `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908` 已完成且未调用真实平台写。后续业务下一步仍只读 `workflow_case_summary`。
 
 当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
 
@@ -218,8 +218,8 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 | 1 | 非 active 且有完整 verified 完成证据 | `first_std_project_create_completed` | 只读完成投影 |
 | 2 | 非 active 且证据不完整 | `review_latest_job` | 只读检查最新 Job；不展示确认、重试或执行入口 |
 | 3 | 已创建对象但未 verified readback | `run_readback_only` | 只读回查 |
-| 4 | 创建次数已达上限且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘 |
-| 5 | 最新 Job 明确失败且 Case 创建次数少于 3 | `prepare_corrective_attempt` | 本人输入“继续执行”，创建唯一 fresh Job 并只读准备下一 Attempt |
+| 4 | 创建次数已达 Case `maximum_create_attempts` 且仍未 verified | `manual_review_after_attempt_limit` | 人工复盘；不展示创建重试 |
+| 5 | 最新 Job 明确失败且 Case 创建次数少于 `maximum_create_attempts` | `prepare_corrective_attempt` | 本人输入“继续执行”，创建唯一 fresh Job 并只读准备下一 Attempt |
 | 6 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | 执行一次 fresh readonly reconcile；唯一 root blocker 直接取 canonical monitor blocker |
 | 7 | confirmed-resource 执行停止、monitor/上下文、资源或 Plan 根阻断 | `resolve_case_blocker` | 按依赖顺序处理唯一 root blocker；终态 `monitor_create_busy_retry_exhausted` 仅可精确“重新只读回查 monitor”；其他 blocker 可精确“重新只读准备” |
 | 8 | 首次创建并已 verified | `first_std_project_create_completed` | Case 完成 |
@@ -244,6 +244,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 正常启动、monitor Plan 成功与 Resource Plan 成功后，唯一有界推进器自动消费 latest active Job 的 `run_monitor_readonly` / `run_fresh_readiness`；fresh readiness 唯一落到 `monitor_plan_required` 时同轮接一次既有 monitor readonly bridge；全程传递登录用户的精确 owner key，不消费写入确认、`run_readback_only`、其他 blocker 或历史 Job
 → 已有正常 Case 若仍停在 `run_monitor_readonly`，一次“继续执行”完成该回查后同样交给推进器继续 readonly；终态专用“重新只读回查 monitor”仍只做一次回查
 → active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 或平台调用前停止的 `blocked_confirmed_monitor_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再由既有有界推进器只读核验；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant/idempotency key
+→ `manual_review_after_attempt_limit` 时“继续执行”只说明状态；只有受控维护端写入最新失败 Job 的脱敏复盘批准 evidence 后，账户本人输入精确“重新只读准备”才以 Case lock 关闭旧 Case 并创建一次 `maximum_create_attempts=1` 的替代 Case/Job；替代 Job 先完整 readonly，不自动确认或创建
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示下一张 Create Plan 确认卡
 ```

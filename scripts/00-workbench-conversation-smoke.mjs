@@ -226,6 +226,111 @@ assert(correctivePlatformCreateCalls === 0, "corrective continue must not call c
 assert(correctiveResponse.interaction.kind === "corrective_attempt_prepared", "corrective response must expose prepared confirmation");
 assert(correctiveResponse.view.jobId === "JOB-CORRECTIVE-FRESH-2", "corrective response did not switch to fresh job");
 
+const exhaustedCaseSummary = {
+  lifecycle_status: "active",
+  current_gate: "manual_review_after_attempt_limit",
+  suggested_next_action: "manual_review_attempt_limit_reached",
+  root_blocker_codes: ["std_project_create_attempt_limit_reached"],
+  latest_job_status: "failed_waiting_manual_review",
+  latest_job_id: "JOB-EXHAUSTED-OLD-3",
+  action_readback_state: { attempts_used: 3, maximum_attempts: 3 }
+};
+const exhaustedBundle = {
+  ...correctiveBundle,
+  job: {
+    ...correctiveBundle.job,
+    job_id: "JOB-EXHAUSTED-OLD-3",
+    case_id: "CASE-EXHAUSTED-3",
+    job_status: "failed_waiting_manual_review"
+  },
+  case: { maximum_create_attempts: 3, metadata: { manual_review: { approved: true } } }
+};
+const exhaustedView = {
+  ...correctiveView,
+  jobId: "JOB-EXHAUSTED-OLD-3",
+  caseId: "CASE-EXHAUSTED-3",
+  caseGate: {
+    currentGate: "manual_review_after_attempt_limit",
+    suggestedNextAction: "manual_review_attempt_limit_reached",
+    rootBlockerCodes: ["std_project_create_attempt_limit_reached"],
+    lifecycleStatus: "active",
+    maximumCreateAttempts: 3,
+    attemptsUsed: 3,
+    manualReviewApproved: true,
+    isLatestCaseJob: true
+  }
+};
+const replacementView = {
+  ...correctiveFreshView,
+  jobId: "JOB-REPLACEMENT-ONE-1",
+  caseId: "CASE-REPLACEMENT-ONE-1",
+  confirmationPreview: {
+    planKind: "std_project_create",
+    confirmationPhrase: "确认创建",
+    planId: "PLAN-REPLACEMENT-ONE-V1",
+    maximumCreateAttempts: 1
+  },
+  caseGate: {
+    currentGate: "await_job_write_authorization",
+    suggestedNextAction: "obtain_single_plan_confirmation",
+    rootBlockerCodes: [],
+    lifecycleStatus: "active",
+    maximumCreateAttempts: 1,
+    attemptsUsed: 0,
+    isLatestCaseJob: true
+  }
+};
+const exhaustedContinue = evaluateGateAction({
+  intent: { intent: "continue_workflow" },
+  caseSummary: exhaustedCaseSummary,
+  isLatestCaseJob: true,
+  manualReviewApproved: true
+});
+assert(exhaustedContinue.effect === "manual_review_required", "exhausted case continue must remain non-writing");
+const exhaustedRecovery = evaluateGateAction({
+  intent: { intent: "request_readonly_recovery" },
+  caseSummary: exhaustedCaseSummary,
+  isLatestCaseJob: true,
+  manualReviewApproved: true
+});
+assert(exhaustedRecovery.effect === "create_approved_replacement_case", "approved exhausted case must use replacement flow");
+let replacementCreateCalls = 0;
+let replacementReadonlyCalls = 0;
+let replacementPlatformCreateCalls = 0;
+const replacementResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return exhaustedBundle; },
+    async getWorkflowCaseSummary() { return exhaustedCaseSummary; }
+  },
+  jobId: "JOB-EXHAUSTED-OLD-3",
+  message: "重新只读准备",
+  currentUser: { user_id: "USR-ZHANGJINGWEI", qiankun_owner_key: "zhangjingwei" },
+  getJobViewFn: async () => exhaustedView,
+  credentialStateFn: () => ({ status: "ready", blockers: [] }),
+  createApprovedReplacementCaseAndJobFn: async (_repo, predecessor, user) => {
+    replacementCreateCalls += 1;
+    assert(predecessor.job_id === "JOB-EXHAUSTED-OLD-3", "replacement predecessor changed");
+    assert(user.user_id === "USR-ZHANGJINGWEI", "replacement owner missing");
+    return { created: true, caseId: "CASE-REPLACEMENT-ONE-1", jobId: "JOB-REPLACEMENT-ONE-1", maximumCreateAttempts: 1 };
+  },
+  runWorkbenchInitialReadonlyFn: async (_repo, freshJobId, options) => {
+    replacementReadonlyCalls += 1;
+    assert(freshJobId === "JOB-REPLACEMENT-ONE-1", "replacement readonly job changed");
+    assert(options.createAttemptNo === 1, "replacement attempt must start at one");
+    assert(options.maximumCreateAttempts === 1, "replacement maximum must be one");
+    return replacementView;
+  },
+  executeConfirmedLaunchFn: async () => {
+    replacementPlatformCreateCalls += 1;
+    return {};
+  }
+});
+assert(replacementCreateCalls === 1, "replacement case must be created once");
+assert(replacementReadonlyCalls === 1, "replacement case must run readonly first");
+assert(replacementPlatformCreateCalls === 0, "replacement recovery must not create a project");
+assert(replacementResponse.interaction.kind === "approved_replacement_prepared", "replacement confirmation state missing");
+assert(replacementResponse.view.caseId === "CASE-REPLACEMENT-ONE-1", "replacement case view not selected");
+
 const ambiguousDecision = evaluateGateAction({
   intent: { intent: "request_confirmation" },
   caseSummary,
@@ -1018,5 +1123,7 @@ console.log(JSON.stringify({
   historyEffect: historicalDecision.effect,
   terminalMonitorEffect: terminalMonitorDecision.effect,
   readonlyRecoveryEffect: recoveryResponse.interaction.kind,
-  correctiveAttemptEffect: correctiveResponse.interaction.kind
+  correctiveAttemptEffect: correctiveResponse.interaction.kind,
+  approvedReplacementEffect: replacementResponse.interaction.kind,
+  replacementPlatformCreateCalls
 }, null, 2));

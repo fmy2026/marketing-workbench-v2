@@ -1,0 +1,85 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908",
+  "task_ref": "tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08 CST",
+  "updated_at": "2026-09-08 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Diagnose exhausted std-project Case attempts and allow one approved, owner-bound replacement Case validation without platform writes during implementation.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": true,
+    "database_write_allowed": true,
+    "database_write_scope": [
+      "Task, Manifest, project state, Solution Design, migration 075, repository, workflow, workbench UI and mock-only tests",
+      "approved manual-review evidence and Case metadata only through the bounded maintenance operation"
+    ],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "db/073_case_level_corrective_attempts.sql",
+    "db/074_account_guide_video_contract.sql",
+    "db/075_case_attempt_limit_replacement_recovery.sql"
+  ],
+  "allowed_writes": [
+    "case maximum-create-attempts schema and current Gate projection",
+    "redacted failure forensics, approved manual-review evidence, atomic replacement Case/Job creation and owner-bound workbench recovery",
+    "focused mock-only smoke tests and documentation"
+  ],
+  "forbidden_actions": [
+    "real monitor/resource/project writes, confirmations, creates or retries",
+    "a fourth create action on the old Case or more than one on a replacement Case",
+    "new Node, business Gate, Plan/action type or confirmation phrase",
+    "raw platform requests, payloads, responses, credentials, sensitive URLs or long identifiers in tracked files or ordinary logs",
+    "administrator impersonation of the Case owner"
+  ],
+  "validation_plan": [
+    "migration preserves existing Case facts and projects maximum attempts from Case truth",
+    "safe error summary preserves only validated request id and redacted bounded diagnosis",
+    "approved replacement transaction is owner-bound and idempotent",
+    "old Case becomes non-executable, replacement runs readonly first and emits at most one create action",
+    "workflow Case, conversation, runtime policy, execution plan and schema smoke tests pass with real platform writes equal to zero"
+  ],
+  "stop_conditions": [
+    "a clear platform diagnosis or approved review evidence is absent",
+    "any path would bypass a fresh Plan/hash/confirmation, owner isolation or verified readback",
+    "the change would persist raw sensitive platform data"
+  ],
+  "result": {
+    "status": "completed_without_platform_write",
+    "migration": "db/075_case_attempt_limit_replacement_recovery.sql",
+    "target_case_preserved": true,
+    "target_case_create_actions": 3,
+    "target_case_maximum_create_attempts": 3,
+    "target_case_created_objects": 0,
+    "target_case_verified_readbacks": 0,
+    "manual_review_approved": false,
+    "replacement_case_created": false,
+    "platform_write_called": false,
+    "validation": [
+      "npm run validate:schemas",
+      "npm run test:workflow-case",
+      "npm run test:case-attempt-limit",
+      "npm run test:case-corrective-create",
+      "npm run test:workbench-conversation",
+      "npm run test:workbench-progress",
+      "npm run test:safe-platform-error-summary",
+      "node --check changed modules",
+      "git diff --check"
+    ],
+    "external_dependency": "平台必须提供 Attempt 3 的明确诊断，才可由受控维护入口写入人工复盘批准证据。"
+  }
+}

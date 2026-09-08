@@ -9,6 +9,16 @@
 
 用途：针对卡点、异常、需求、迁移或重要调整，形成可落地、可验证、可停止的方案。
 
+## 2026-09-08 创建次数耗尽后的诊断与安全重开（已批准并完成实现）
+
+`CASE-MWBV2-776936E13CC487A466` 已有三次真实 `std_project/create`，每次为 HTTP 200 / 业务码 40000 / 无项目 ID，三份 Create Plan 均已 consumed。Attempt 3 已加入当前实例唯一的 `guide_video_id`，但现有持久化只记录 request id 是否存在和分类指纹，无法还原平台提供的精确诊断。平台原因未明确时，不猜参数、不开放第 4 次创建。
+
+后续失败仅保留格式校验 request id，以及 URL、长 ID、凭据样式脱敏并限长的错误摘要；raw request、payload、response 与敏感 URL 一律不保存。工作台在 `std_project_create_attempt_limit_reached` 显示 3/3、未创建、禁止重试和等待人工复盘；“继续执行”只用于未耗尽的纠正 Attempt，不得在该 Gate 触发创建。
+
+人工复盘通过受控维护入口写入最新 Job 的脱敏 evidence 与旧 Case metadata（证据引用、修复版本、批准状态）。只有原账户 owner 在旧 Case 的最新 Job 输入既有精确短语“重新只读准备”时，才原子关闭旧 Case、创建同 scope 的替代 Case 和 fresh Job；管理员不能代运行、代确认或代恢复。替代 Case 固定 `maximum_create_attempts=1`，普通 Case 默认 3；View、runner、Plan 和最终 executor 读取同一 Case 真值。替代 Case 完成完整 readonly 后才生成新的单次确认卡，不继承旧 Draft、Plan、confirmation、action 或 idempotency key。
+
+已应用 migration `075_case_attempt_limit_replacement_recovery.sql`，并完成 schema、Case、attempt-limit、workbench conversation/progress、创建收口与安全错误摘要回归；所有实现期测试均为本地真值写入/模拟，真实平台写为 0。当前目标 Case 未获人工复盘批准，故仍保持原 `3/3` 终态，未创建替代 Case。
+
 ## 2026-09-07 临时私网 HTTP 试用入口（已批准）
 
 首批三人短期试用直接使用 `http://192.168.42.7:3000/`，不申请域名、IP 证书或反向代理。服务通过显式 `WORKBENCH_ALLOW_PRIVATE_LAN_HTTP=true` 开关允许非 HTTPS origin；该例外仅接受 RFC1918 IPv4、精确 Host/Origin 和指定 bind 地址，默认配置仍为 loopback，其他 HTTP origin 启动失败。会话继续使用 HttpOnly + SameSite=Strict，因 HTTP 不带 Secure；该边界只用于公司内网短测。

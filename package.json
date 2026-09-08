@@ -38,6 +38,8 @@
     "test:safe-platform-error-summary": "node scripts/00-safe-platform-error-summary-smoke.mjs",
     "test:execution-grant": "node scripts/00-execution-grant-smoke.mjs",
     "test:case-corrective-create": "node scripts/00-case-corrective-create-smoke.mjs",
+    "test:case-attempt-limit": "node scripts/00-case-attempt-limit-smoke.mjs",
+    "case:approve-manual-review": "node scripts/00-case-manual-review-approval.mjs",
     "test:execution-plan": "node scripts/00-execution-plan-smoke.mjs",
     "test:single-confirmation-orchestrator": "node scripts/05-single-confirmation-orchestrator-smoke.mjs",
     "test:std-project-create-wire-body": "node scripts/06-std-project-create-wire-body-smoke.mjs",

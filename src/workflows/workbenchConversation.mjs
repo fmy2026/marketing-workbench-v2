@@ -3,6 +3,7 @@ import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "./executeConfirm
 import { executeConfirmedResourcePlan } from "./skills/oe3/05-confirmed-resource-orchestrator.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "./gateActionPolicy.mjs";
 import {
+  createApprovedReplacementCaseAndJob,
   createCorrectiveAttemptJob,
   createJob,
   createReadonlyRecoveryJob,
@@ -81,6 +82,7 @@ export async function handleWorkbenchCommand({
   fetchImpl,
   getJobViewFn = getJobView,
   createFreshJobFn = createJob,
+  createApprovedReplacementCaseAndJobFn = createApprovedReplacementCaseAndJob,
   createCorrectiveAttemptJobFn = createCorrectiveAttemptJob,
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
@@ -113,7 +115,8 @@ export async function handleWorkbenchCommand({
     caseSummary,
     isLatestCaseJob: caseSummary?.latest_job_id === jobId,
     confirmationPreview,
-    explicitConfirmation: clean(message) === clean(confirmationPreview?.confirmationPhrase)
+    explicitConfirmation: clean(message) === clean(confirmationPreview?.confirmationPhrase),
+    manualReviewApproved: bundle.case?.metadata?.manual_review?.approved === true
   });
 
   if (interaction.effect === "run_dry_run") {
@@ -181,6 +184,67 @@ export async function handleWorkbenchCommand({
         ...interaction,
         effect: "readonly_recovery_started",
         message: "已创建同一 Case 的 fresh Job 并完成只读准备；旧 Plan、确认和平台动作未被复用。"
+      }
+    });
+  }
+  if (interaction.effect === "create_approved_replacement_case") {
+    const credential = credentialStateFn() || {};
+    if (clean(credential.status) !== "ready") {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "approved_replacement_credential_unavailable",
+          blocker: "credential_required",
+          message: "当前平台只读凭据不可用，未创建替代 Case、未执行平台操作。"
+        }
+      });
+    }
+    const replacement = await createApprovedReplacementCaseAndJobFn(repo, bundle.job, currentUser);
+    if (!clean(replacement?.jobId) || !clean(replacement?.caseId)) {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "approved_replacement_unavailable",
+          blocker: clean(replacement?.blocker) || "manual_review_not_approved_or_attempt_state_ineligible",
+          message: "当前没有可用的已批准复盘证据，或该 Case 已变化；未创建替代 Case、未执行平台操作。"
+        }
+      });
+    }
+    if (replacement.created !== true) {
+      const nextView = await getJobViewFn(repo, replacement.jobId, { projectStatePath });
+      return response({
+        view: nextView,
+        interaction: {
+          ...interaction,
+          effect: "approved_replacement_already_started",
+          confirmationPreview: nextView?.confirmationPreview || null,
+          message: "该复盘对应的一次性验证 Case 已存在，已切换到当前 readonly 进度；不会创建第二个 Case 或项目。"
+        }
+      });
+    }
+    const nextView = await runWorkbenchInitialReadonlyFn(repo, replacement.jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      getJobViewFn,
+      runJobFn,
+      qiankunOwnerKey,
+      createAttemptNo: 1,
+      maximumCreateAttempts: replacement.maximumCreateAttempts
+    });
+    const readyForConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
+      nextView?.confirmationPreview?.planKind === "std_project_create" &&
+      Number(nextView?.caseGate?.maximumCreateAttempts) === 1;
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        effect: readyForConfirmation ? "approved_replacement_prepared" : "approved_replacement_readonly_completed",
+        confirmationPreview: nextView?.confirmationPreview || null,
+        message: readyForConfirmation
+          ? "替代 Case 已完成 readonly，并生成最多调用 1 次的新确认卡；请核对项目名与账户后输入“确认创建”。"
+          : "替代 Case 已完成本轮 readonly；存在 blocker 时必须停止，未创建平台项目。"
       }
     });
   }

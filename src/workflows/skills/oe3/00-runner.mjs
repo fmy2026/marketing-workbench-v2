@@ -1128,7 +1128,7 @@ export async function runOe3WorkflowSkills({
   if (!Number.isInteger(numericAttemptNo) || numericAttemptNo < 1 || numericAttemptNo > 3) {
     throw new Error("invalid_std_project_create_attempt_no");
   }
-  const numericMaximumCreateAttempts = Number(maximumCreateAttempts || 3);
+  let numericMaximumCreateAttempts = Number(maximumCreateAttempts || 3);
   if (!Number.isInteger(numericMaximumCreateAttempts) || numericMaximumCreateAttempts < 1 || numericMaximumCreateAttempts > 3) {
     throw new Error("invalid_std_project_create_maximum_attempts");
   }
@@ -1137,6 +1137,13 @@ export async function runOe3WorkflowSkills({
   }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
+  const caseMaximumCreateAttempts = Number(bundle.case?.maximum_create_attempts || numericMaximumCreateAttempts);
+  if (!Number.isInteger(caseMaximumCreateAttempts) || caseMaximumCreateAttempts < 1 || caseMaximumCreateAttempts > 3) {
+    throw new Error("case_maximum_create_attempts_invalid");
+  }
+  if (bundle.job?.source_usage === "runtime_truth") {
+    numericMaximumCreateAttempts = caseMaximumCreateAttempts;
+  }
   const numericPlanVersion = resolveWorkflowPlanVersion({
     executionPlan: bundle.executionPlan,
     createAttemptNo: numericAttemptNo

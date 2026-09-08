@@ -52,6 +52,12 @@ function correctiveAttemptMessage() {
   return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗且不会重试。输入“继续执行”可创建同一 Case 的 fresh Job，重新只读准备下一 Attempt；真正创建仍需本人核对新确认卡并输入“确认创建”。";
 }
 
+function attemptLimitReviewMessage(manualReviewApproved = false) {
+  return manualReviewApproved
+    ? "该 Case 已用尽创建次数，三次旧 Attempt 均不可重试。复盘已批准；只有账户本人可输入“重新只读准备”建立新的单次验证 Case，随后仍须完成 readonly 并再次输入“确认创建”。"
+    : "该 Case 已用尽创建次数，旧 Plan 已消耗且未创建项目。禁止重试或继续执行；等待人工复盘、明确平台原因和单一修复后，才能由账户本人输入“重新只读准备”。";
+}
+
 export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   const plan = bundle.executionPlan || {};
   const gate = clean(caseSummary?.current_gate);
@@ -105,6 +111,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     actions: actionTypes,
     actionLimits,
     maximumPlatformCalls: Number(scope.maximum_platform_calls || actions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0) || scope.maximum_actions || 1),
+    maximumCreateAttempts: Number(metadata.maximum_create_attempts || scope.maximum_total_attempts || caseSummary?.action_readback_state?.maximum_attempts || 3),
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),
     planHash: clean(plan.plan_hash),
@@ -116,7 +123,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   };
 }
 
-export function evaluateGateAction({ intent = {}, message = "", caseSummary = null, isLatestCaseJob = false, confirmationPreview = null, explicitConfirmation = false } = {}) {
+export function evaluateGateAction({ intent = {}, message = "", caseSummary = null, isLatestCaseJob = false, confirmationPreview = null, explicitConfirmation = false, manualReviewApproved = false } = {}) {
   const currentGate = clean(caseSummary?.current_gate);
   const nextAction = clean(caseSummary?.suggested_next_action);
   const blocker = clean((caseSummary?.root_blocker_codes || [])[0]);
@@ -136,6 +143,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
   if (intent.intent === "request_status") {
     if (currentGate === "prepare_corrective_attempt") {
       return { ...base, effect: "status", message: correctiveAttemptMessage() };
+    }
+    if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
+      return { ...base, effect: "status", message: attemptLimitReviewMessage(manualReviewApproved) };
     }
     const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
     return { ...base, effect: "status", message: blocker ? `当前卡点：${blocker}；下一步：${nextAction || "等待后端更新"}。${hint}` : `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
@@ -166,6 +176,15 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "run_monitor_readonly", message: "将执行一次 fresh readonly monitor 回查，不会创建 monitor。" };
   }
   if (intent.intent === "request_readonly_recovery") {
+    if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
+      return {
+        ...base,
+        effect: "create_approved_replacement_case",
+        message: manualReviewApproved
+          ? "复盘已批准；将关闭旧 Case、建立同账户的一次性验证 Case，并先执行完整 readonly。不会复用旧 Plan、确认或平台动作。"
+          : "当前尚无已批准的人工复盘证据，未创建替代 Case、未执行平台操作。"
+      };
+    }
     if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) {
       return { ...base, effect: "readonly_recovery_unavailable", message: "当前 Case 不满足重新只读准备条件，未执行平台操作。" };
     }
@@ -178,6 +197,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "run_dry_run", message: "将重新执行当前 Job 的只读准备；不会确认或创建平台对象。" };
   }
   if (intent.intent === "continue_workflow") {
+    if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
+      return { ...base, effect: "manual_review_required", message: attemptLimitReviewMessage(manualReviewApproved) };
+    }
     if (currentGate === "prepare_corrective_attempt") {
       return { ...base, effect: "create_fresh_corrective_attempt", message: "将创建同一 Case 的 fresh Job 并重新完成只读准备；不会复用旧 Plan、确认或平台动作，也不会自动创建项目。" };
     }

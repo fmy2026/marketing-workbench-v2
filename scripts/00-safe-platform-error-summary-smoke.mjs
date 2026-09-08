@@ -1,4 +1,4 @@
-import { safePlatformErrorSummary } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
+import { safePersistedRequestId, safePlatformErrorSummary } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -21,6 +21,10 @@ assert(!Object.hasOwn(filterEventInvalid, "request_id"), "complete request id mu
 assert(!JSON.stringify(filterEventInvalid).includes(rawMarker), "raw error text must not be exposed by safe summary");
 assert(!Object.hasOwn(filterEventInvalid, "message"), "raw message field must not be exposed");
 assert(!Object.hasOwn(filterEventInvalid, "response"), "raw response field must not be exposed");
+assert(filterEventInvalid.safe_error_text === "platform_field_validation_rejected;field=audience.filter_event", "safe derived error text missing");
+assert(safePersistedRequestId("oe-request-001") === "oe-request-001", "formatted request id should be retained");
+assert(safePersistedRequestId("1876508089433225") === "", "long numeric id must not be retained as request id");
+assert(safePersistedRequestId(`request-${rawMarker}`) === "", "unsafe request id must be rejected");
 
 const canonicalFilterEventInvalid = safePlatformErrorSummary({
   code: "40000",
@@ -57,7 +61,9 @@ console.log(JSON.stringify({
     "landing_url_preserved",
     "permission_preserved",
     "raw_error_not_exposed",
-    "complete_request_id_not_retained"
+    "complete_request_id_not_retained",
+    "validated_request_id_retained_only_at_action_boundary",
+    "derived_safe_error_text_only"
   ],
   platformCalled: false,
   runtimeTruthWritten: false

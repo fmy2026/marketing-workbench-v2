@@ -122,6 +122,13 @@ try {
   });
   assert(callCount(firstFetch, "/std_project/create/") === 1, "attempt_1_create_call_count_invalid");
   assert(firstResult.executionGrant.createCalled === true, "attempt_1_create_not_recorded");
+  const failedAttemptBundle = await repo.getLaunchJobBundle(first.jobId);
+  assert(failedAttemptBundle.platformAction?.request_id_recorded === true, "formatted_request_id_not_persisted");
+  assert(
+    failedAttemptBundle.platformAction?.error_summary === "platform_rejected_without_safe_detail",
+    "safe_error_summary_not_persisted"
+  );
+  assert(!JSON.stringify(failedAttemptBundle.platformAction || {}).includes("opaque platform condition"), "raw_platform_error_persisted");
 
   const second = await createReadyJob({ caseId: first.caseId, attemptNo: 2 });
   const secondState = await writePlanBoundState(second);
@@ -174,6 +181,8 @@ try {
     caseCreateActionCount: Number(caseState.createActionCount),
     caseCreatedObjectCount: Number(caseState.createdObjectCount),
     caseReadbackVerifiedCount: Number(caseState.readbackVerifiedCount),
+    formattedRequestIdPersisted: failedAttemptBundle.platformAction?.request_id_recorded === true,
+    rawPlatformErrorPersisted: false,
     createAfterVerifiedObjectCalls: callCount(thirdFetch, "/std_project/create/"),
     realPlatformWrites: 0
   }, null, 2));

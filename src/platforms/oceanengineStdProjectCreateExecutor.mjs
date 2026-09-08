@@ -77,6 +77,16 @@ function extractRequestId(payload = {}) {
   return clean(payload.request_id || payload.data?.request_id || "");
 }
 
+export function safePersistedRequestId(value = "") {
+  const requestId = clean(value);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(requestId)) return "";
+  if (/(?:raw|token|secret|cookie|credential|url)/i.test(requestId)) return "";
+  // A bare long number is treated as an account/object identifier, not a
+  // diagnosable request id. Do not persist it in the request-id column.
+  if (/^[0-9]{13,}$/.test(requestId)) return "";
+  return requestId;
+}
+
 function extractStdProjectId(payload = {}) {
   return clean(
     payload.data?.project_id ||
@@ -137,6 +147,17 @@ function safeErrorCategory({ text = "", fieldPath = "", apiCode = "" } = {}) {
   return apiCode ? "unclassified" : "";
 }
 
+function safeDiagnosticErrorText({ errorCategory = "", offendingFieldPath = "" } = {}) {
+  const categoryLabel = {
+    permission_denied: "platform_permission_denied",
+    landing_url_invalid: "platform_landing_link_rejected",
+    invalid_field: "platform_field_validation_rejected",
+    resource_not_eligible: "platform_resource_eligibility_rejected",
+    unclassified: "platform_rejected_without_safe_detail"
+  }[errorCategory] || "platform_response_not_confirmed";
+  return offendingFieldPath ? `${categoryLabel};field=${offendingFieldPath}` : categoryLabel;
+}
+
 export function safePlatformErrorSummary(payload = {}) {
   const apiCode = extractApiCode(payload);
   const messageTexts = collectTextByKey(payload, /^(message|msg)$/i);
@@ -173,6 +194,7 @@ export function safePlatformErrorSummary(payload = {}) {
     request_id_present: Boolean(extractRequestId(payload)),
     error_category: errorCategory,
     offending_field_path: offendingFieldPath,
+    safe_error_text: safeDiagnosticErrorText({ errorCategory, offendingFieldPath }),
     message_present: messageTexts.length > 0,
     error_message_present: errorTexts.length > 0,
     error_keyword_present: keywords.length > 0,
@@ -691,7 +713,9 @@ export async function createStdProjectForTargetOnce({
     payload = {};
   }
   const apiCode = extractApiCode(payload);
-  const requestIdPresent = Boolean(extractRequestId(payload));
+  const requestId = extractRequestId(payload);
+  const requestIdPresent = Boolean(requestId);
+  const persistedRequestId = safePersistedRequestId(requestId);
   const stdProjectId = extractStdProjectId(payload);
   const safeErrorSummary = safePlatformErrorSummary(payload);
   const responseHash = `sha256:${sha256(text)}`;
@@ -713,13 +737,14 @@ export async function createStdProjectForTargetOnce({
     apiCode: apiCode || "unknown",
     requestIdPresent,
     objectIdPresent: Boolean(stdProjectId),
-    errorSummary: passed ? "" : "platform_create_response_not_confirmed",
-    requestId: "",
+    errorSummary: passed ? "" : safeErrorSummary.safe_error_text,
+    requestId: persistedRequestId,
     errorCategory: passed ? "" : safeErrorSummary.error_category,
     offendingFieldPath: passed ? "" : safeErrorSummary.offending_field_path,
     idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
     responseSummary: {
       ...safeErrorSummary,
+      request_id_saved: Boolean(persistedRequestId),
       object_id_present: Boolean(stdProjectId),
       response_hash_present: true
     },
@@ -739,7 +764,7 @@ export async function createStdProjectForTargetOnce({
     jobId: runtimeTarget.jobId,
     artifactType: passed ? "std_project_create_once" : "std_project_create_once_failed",
     title: "std_project create once",
-    summary: `endpoint=std_project/create http=${response.status} api_code=${apiCode || "unknown"} request_id_present=${requestIdPresent} std_project_id_present=${Boolean(stdProjectId)} response_hash_present=true`,
+    summary: `endpoint=std_project/create http=${response.status} api_code=${apiCode || "unknown"} request_id_present=${requestIdPresent} request_id_saved=${Boolean(persistedRequestId)} safe_error=${passed ? "none" : safeErrorSummary.safe_error_text} std_project_id_present=${Boolean(stdProjectId)} response_hash_present=true`,
     contentHash: responseHash,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${CREATE_ENDPOINT}`,

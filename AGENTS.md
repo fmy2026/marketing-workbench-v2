@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `074_account_guide_video_contract.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
 | 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
@@ -58,7 +58,9 @@ Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平�
 
 ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
 
-最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最多 3 次；readonly 与最终 create executor 都必须用同一 Case 聚合状态校验序号、已有对象和 verified readback，Job 级状态仅负责当前 Plan/action 防重。每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；第三次未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
+最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最大值严格读取 `workflow_cases.maximum_create_attempts`（普通 Case 默认 3）；readonly、Plan 与最终 create executor 都必须用同一 Case 聚合状态校验序号、上限、已有对象和 verified readback，Job 级状态仅负责当前 Plan/action 防重。每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；达到 Case 上限且未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
+
+`manual_review_after_attempt_limit` 的“继续执行”只可显示状态，绝不创建或重试。仅在当前 owner 的最新失败 Job、旧 `std_project_create` Plan 已 `consumed`、Case 聚合为零创建对象/verified readback，且受控维护入口已经把格式受限、脱敏的复盘批准 evidence 写入旧 Case metadata 后，本人精确输入“重新只读准备”才能在同一事务关闭旧 Case、创建同 scope 的替代 Case 和 fresh Job。替代 Case 固定 `maximum_create_attempts=1`，不继承旧 Draft、Plan、confirmation、action 或幂等键，先完成完整 readonly；只有新 Plan 通过并由本人输入“确认创建”才允许其唯一一次创建。无明确平台原因或未批准复盘时必须停留在人工复盘，管理员同样不能代操作。
 
 已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
 

@@ -728,6 +728,11 @@ function rootBlockerPresentation(code = "") {
       reason: "当前 Attempt 已被平台明确拒绝，旧 Plan 已消费且不会重试。",
       nextActionLabel: "输入“继续执行”创建 fresh Job，只读核验后生成下一 Attempt 的新确认卡。"
     },
+    std_project_create_attempt_limit_reached: {
+      title: "标准项目创建次数已耗尽",
+      reason: "该 Case 已完成全部允许的单次创建，仍未创建项目；当前禁止重试，等待人工复盘。",
+      nextActionLabel: "复盘批准并部署单一修复后，由账户本人输入“重新只读准备”建立一次替代验证。"
+    },
     event_asset_provision_not_plan_eligible: {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",
@@ -741,7 +746,7 @@ function rootBlockerPresentation(code = "") {
   }) };
 }
 
-function caseGateView(summary = null, jobId = "") {
+function caseGateView(summary = null, jobId = "", workflowCase = {}) {
   const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
   const rootBlockerCode = Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes[0] || "" : "";
   const publicBlockerCode = (value = "") => String(value)
@@ -759,6 +764,13 @@ function caseGateView(summary = null, jobId = "") {
     },
     suggestedNextAction: publicBlockerCode(summary?.suggested_next_action || ""),
     lifecycleStatus: summary?.lifecycle_status || "",
+    attemptsUsed: Number(summary?.action_readback_state?.attempts_used || 0),
+    maximumCreateAttempts: Number(
+      workflowCase?.maximum_create_attempts ||
+      summary?.action_readback_state?.maximum_attempts ||
+      3
+    ),
+    manualReviewApproved: workflowCase?.metadata?.manual_review?.approved === true,
     monitorResolved: summary?.monitor_resolved === true,
     isLatestCaseJob
   };
@@ -851,7 +863,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       evidenceRefs: row.evidence_refs || []
     };
   });
-  const caseGate = caseGateView(caseSummary, bundle.job.job_id);
+  const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {});
   const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
     currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false
   });
@@ -1397,6 +1409,56 @@ export async function createCorrectiveAttemptJob(repo, predecessorJob = {}) {
   };
 }
 
+export async function createApprovedReplacementCaseAndJob(repo, predecessorJob = {}, currentUser = null) {
+  if (!repo || typeof repo.createApprovedReplacementCaseAndJobOnce !== "function") {
+    throw new Error("approved_replacement_repository_unavailable");
+  }
+  const predecessorJobId = String(predecessorJob.job_id || "").trim();
+  const predecessorCaseId = String(predecessorJob.case_id || "").trim();
+  const ownerUserId = String(currentUser?.user_id || currentUser?.userId || "").trim();
+  if (!predecessorJobId || !predecessorCaseId || !ownerUserId) {
+    return {
+      created: false,
+      caseId: "",
+      jobId: "",
+      maximumCreateAttempts: 0,
+      blocker: "replacement_owner_required"
+    };
+  }
+  const replacementCaseKey = `replacement.${predecessorCaseId.toLowerCase()}`;
+  const replacementCaseId = workflowCaseId(replacementCaseKey);
+  const replacementJobId = `JOB-MWBV2-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${hashText(`${predecessorCaseId}:${predecessorJobId}:approved-replacement:${Date.now()}:${randomBytes(4).toString("hex")}`).slice(0, 6).toUpperCase()}`;
+  const sourceRecordRef = `workbench:approved-manual-review-replacement:${predecessorJobId}`;
+  const claimed = await repo.createApprovedReplacementCaseAndJobOnce({
+    replacementCaseId,
+    replacementCaseKey,
+    replacementJobId,
+    predecessorCaseId,
+    predecessorJobId,
+    ownerUserId,
+    sourceRecordRef
+  });
+  const workflowCase = claimed?.replacementCase || null;
+  const job = claimed?.job || null;
+  if (!workflowCase?.case_id || !job?.job_id) {
+    return {
+      created: false,
+      caseId: "",
+      jobId: "",
+      maximumCreateAttempts: Number(claimed?.maximumCreateAttempts || 0),
+      blocker: String(claimed?.blockedReason || "approved_replacement_not_available")
+    };
+  }
+  if (claimed.created === true) await repo.upsertNodeRuns(job.job_id, initialNodeRuns());
+  return {
+    created: claimed.created === true,
+    caseId: workflowCase.case_id,
+    jobId: job.job_id,
+    maximumCreateAttempts: Number(claimed.maximumCreateAttempts || 1),
+    blocker: ""
+  };
+}
+
 export function resolveReadonlyDependencyForRun(options = {}) {
   if (Object.prototype.hasOwnProperty.call(options, "allowReadonlyDependency")) {
     return options.allowReadonlyDependency === true;
@@ -1412,6 +1474,10 @@ export async function runJob(repo, jobId, options = {}) {
     throw error;
   }
   const allowReadonlyDependency = resolveReadonlyDependencyForRun(options);
+  const caseMaximumCreateAttempts = Number(bundle.case?.maximum_create_attempts || 3);
+  if (!Number.isInteger(caseMaximumCreateAttempts) || caseMaximumCreateAttempts < 1 || caseMaximumCreateAttempts > 3) {
+    throw new Error("case_maximum_create_attempts_invalid");
+  }
   const result = await runOe3WorkflowSkills({
     repo,
     jobId,
@@ -1432,7 +1498,7 @@ export async function runJob(repo, jobId, options = {}) {
     createAttemptNo: options.createAttemptNo || 1,
     verificationSeriesId: options.verificationSeriesId || "",
     verificationTaskRef: options.verificationTaskRef || "",
-    maximumCreateAttempts: options.maximumCreateAttempts || 3,
+    maximumCreateAttempts: caseMaximumCreateAttempts,
     singleVariableExperiment: options.singleVariableExperiment || {},
     expectedPlanId: options.expectedPlanId || "",
     expectedPlanHash: options.expectedPlanHash || "",

@@ -122,6 +122,7 @@ import {
       ["项目", preview.projectName || "待生成"],
       ["账户", preview.advertiser || "已脱敏"],
       [callLimitLabel, `${preview.maximumPlatformCalls || 1} 次`],
+      ...(preview.planKind === "std_project_create" ? [["Case 创建上限", `${preview.maximumCreateAttempts || 1} 次`]] : []),
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
       ["Plan", preview.planId || "未生成"],
       ["Hash", preview.planHash || "未生成"]
@@ -162,6 +163,12 @@ import {
   function operationalMessage() {
     if (!job?.caseGate?.currentGate) return "";
     const gate = job.caseGate;
+    if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "manual_review_after_attempt_limit") {
+      const attempts = `${gate.attemptsUsed || 0}/${gate.maximumCreateAttempts || 3}`;
+      return gate.manualReviewApproved
+        ? `创建尝试已耗尽（${attempts}），复盘已批准。请仅输入“重新只读准备”建立一次替代验证；不会自动创建。`
+        : `创建尝试已耗尽（${attempts}），未创建项目且禁止重试。等待人工复盘；当前只能查看状态或刷新进度。`;
+    }
     if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "prepare_corrective_attempt") {
       return "当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt；生成确认卡前不会创建项目。";
     }
@@ -374,6 +381,10 @@ import {
     input.placeholder = activeCaseConversation
       ? job?.caseGate?.currentGate === "first_std_project_create_completed"
         ? "已完成，可输入“查看状态”..."
+        : job?.caseGate?.currentGate === "manual_review_after_attempt_limit"
+          ? job?.caseGate?.manualReviewApproved
+            ? "复盘已批准；输入“重新只读准备”..."
+            : "等待人工复盘；可输入“查看状态”..."
         : job?.caseGate?.currentGate === "prepare_corrective_attempt"
           ? "输入“继续执行”重新准备下一 Attempt，或输入“查看状态”..."
           : "输入“继续执行”或“查看状态”..."
@@ -554,6 +565,10 @@ import {
       })
     }));
     setJobView(result.view || job);
+    if (result.view?.caseId && result.view.caseId !== draftCaseId) {
+      draftCaseId = result.view.caseId;
+      setActiveCaseUrl(result.view.caseId);
+    }
     pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
     if (result.interaction?.message) message("agent", result.interaction.message);
     renderAll();
