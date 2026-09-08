@@ -1,8 +1,11 @@
 # marketing-workbench-v2｜project-最合理的逻辑图
 
+> 文档状态：历史参考 / reference_only；早期目标态方案已由当前合同替代。
+> 不得作为启动必读、当前任务依据或 runtime 真值。当前说明见 [权威入口](./project-现在的逻辑图.md)；下文保留原始历史内容。
+
 > 文档性质：目标态逻辑设计，不替代当前运行真值。
 >
-> 当前实现仍以 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`、Postgres、active Task / Manifest 为准；[project-逻辑图.md](./project-逻辑图.md) 记录当前机制，[project-lessons.md](./project-lessons.md) 记录已验证经验。
+> 当前实现仍以 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`、Postgres、active Task / Manifest 为准；[当前逻辑图](./project-现在的逻辑图.md) 记录当前机制，[project-lessons.md](./project-lessons.md) 记录已验证经验。
 
 ## 1. 校正结论
 

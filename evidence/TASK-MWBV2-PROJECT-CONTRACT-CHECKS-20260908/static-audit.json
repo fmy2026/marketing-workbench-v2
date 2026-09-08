@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "verified_at": "2026-09-08T07:17:58.581375+00:00",
+  "method": "静态 Markdown 路径/章节校验；Git 相对 base_revision 的受保护目录与历史任务差异检查；guardrails 深比较；Node/SQL 合同人工核对",
+  "base_revision": "4b54087bf25b84137af9414fc2d34f331fef1535",
+  "checked_local_links_and_anchors": 43,
+  "missing_links_or_anchors": [],
+  "guardrails_identical": true,
+  "runtime_sql_deploy_changes": [],
+  "existing_task_manifest_changes": [],
+  "schema_files": [
+    "schemas/context-manifest.schema.json",
+    "schemas/project-state.schema.json"
+  ],
+  "gate_priority_tables_in_data_contract": 0,
+  "no_active_task_snapshot_in_logic": true,
+  "sql_review": [
+    "db/002_create_mwb_minimal_truth.sql",
+    "db/004_refine_minimal_truth.sql",
+    "db/009_create_platform_write_records.sql",
+    "db/012_add_launch_skill_runs_and_create_forensics.sql",
+    "db/015_add_project_name_reservations.sql",
+    "db/027_add_launch_execution_plans.sql",
+    "db/029_monitor_provision_cycles.sql",
+    "db/035_add_workflow_cases.sql",
+    "db/043_aweme_auto_single_mechanism.sql",
+    "db/062_monitor_canonical_readiness.sql",
+    "db/067_active_runtime_workflow_case_scope.sql",
+    "db/072_workbench_users_account_isolation.sql"
+  ],
+  "database_access": false,
+  "platform_access": false
+}

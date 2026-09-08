@@ -1,0 +1,178 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908",
+  "task_ref": "tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T07:02:29+00:00",
+  "updated_at": "2026-09-08T07:17:26.467+00:00",
+  "base_revision": "4b54087bf25b84137af9414fc2d34f331fef1535",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "package.json",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "scripts/00-schema-validation-smoke.mjs",
+    "db/072_workbench_users_account_isolation.sql"
+  ],
+  "reference_only": [
+    {
+      "ref": "schemas/postgres-minimal-truth.md",
+      "reason": "历史最小数据契约，只用于标记替代关系；不作为当前结构依据。"
+    },
+    {
+      "ref": "docs/plan1-新项目最高效启动框架_20260823.md",
+      "reason": "历史启动方案，仅保留与标记。"
+    },
+    {
+      "ref": "docs/plan2-最理想的逻辑图.md",
+      "reason": "历史目标方案，已由当前实现替代。"
+    }
+  ],
+  "allowed_writes": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/plan2-最理想的逻辑图.md",
+    "schemas/postgres-minimal-truth.md",
+    "schemas/project-state.schema.json",
+    "schemas/context-manifest.schema.json",
+    "scripts/00-project-contract-check.mjs",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "tasks/_templates/task.md",
+    "tasks-context-manifests/_templates/context-manifest.json",
+    "package.json",
+    "tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/**"
+  ],
+  "forbidden_actions": [
+    "修改业务 runtime、SQL 或数据库事实",
+    "平台调用、授权变更、Git 提交/推送",
+    "批量改写历史 Task/Manifest 状态或补造证据"
+  ],
+  "stop_conditions": [
+    "需求超出本 Task 允许路径或需要业务/权限变更",
+    "发现无法按当前代码与 SQL 确认的业务规则"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "node scripts/00-project-contract-check-smoke.mjs"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "node scripts/00-project-contract-check-smoke.mjs"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "静态 Markdown 链接/章节与 Node/SQL 合同核对"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "Git 受保护目录差异、guardrails 深比较及 --audit-history"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "node scripts/00-project-contract-check-smoke.mjs"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "node scripts/00-project-contract-check-smoke.mjs",
+      "verified_at": "2026-09-08T07:17:02.528+00:00",
+      "summary": "55 项合同正反例通过。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md#schema",
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/regression.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "node scripts/00-project-contract-check-smoke.mjs",
+      "verified_at": "2026-09-08T07:17:02.528+00:00",
+      "summary": "三阶段、Git 各类变更及脏文件指纹回归通过。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md#lifecycle",
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/regression.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "静态 Markdown 链接/章节与 Node/SQL 合同核对",
+      "verified_at": "2026-09-08T07:17:02.528+00:00",
+      "summary": "文档职责、能力承接、数据键/时间/去重/指标已核对，37 个链接/章节有效。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md#documents",
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/static-audit.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "Git 受保护目录差异、guardrails 深比较及 --audit-history",
+      "verified_at": "2026-09-08T07:17:02.528+00:00",
+      "summary": "业务目录、SQL、部署、旧 Task/Manifest 无改动；guardrails 完全一致；206 份历史仅审计。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md#scope",
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/static-audit.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "node scripts/00-project-contract-check-smoke.mjs",
+      "verified_at": "2026-09-08T07:17:02.528+00:00",
+      "summary": "正常关闭、指针残留、最近关闭时间、取消及临时授权回归通过；真实收尾输出在执行后补录。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md#lifecycle",
+        "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/regression.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "有效决策索引与方案方法收口，历史依据保留 Git 引用。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "增加能力输入/输出/承接，移除任务状态快照，保留唯一 Gate 行为解释。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "补齐键、时间、去重和指标口径，删除重复 Gate 表。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已实现新任务控制合同、只读检查器与文档职责收口；验收回归通过。",
+    "side_effects": "仅项目文档、Schema、模板、校验器、测试与验收证据；无平台/数据库访问，guardrails 与开始基线完全一致。",
+    "remaining_risks": [
+      "自动检查不证明需求理解或证据语义正确；旧任务仅诊断，重新启用时须显式升级。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-08T07:17:26.467+00:00"
+}

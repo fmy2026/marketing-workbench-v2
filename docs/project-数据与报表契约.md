@@ -11,7 +11,7 @@
 
 > 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
 
-本次复核确认 `db/*.sql` 共 75 个 migration 文件，均作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+结构清单沿用 migration `075` 的已核验基线；本轮仅按 SQL 静态补齐键、时间与统计口径，不声明重新做过在线数据对账。`db/*.sql` 的 75 个 migration 文件作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`scripts/archive/` 中的隔离脚本不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -82,7 +82,7 @@ route_id + game_code
 | `workflow_case_summary` | 一个 `workflow_case` 的当前状态 | Case、最新 Job/Node/Skill、账户资源/触点、Plan/confirmation/action/object/readback | 当前 Gate、唯一 root blocker、建议动作、节点/资源摘要、动作回查状态 | UI、API、CLI、任务卡、Gate Action Policy | 写回 Case/Job/资源；自行推导 next gate |
 | `v_monitor_readiness` | route×game×advertiser | 最新 monitor cycle、受控触点、脱敏 readonly evidence | `monitor_ready`、readiness status、唯一 actionable blocker、诊断集合和建议动作 | Node 02、Plan、Case summary、API/UI | 直接创建 monitor、把历史诊断当作当前 blocker |
 | `v_monitor_provision_status_report` | 一个 monitor provision cycle | monitor run/attempt、账户、触点、路线默认值 | cycle、attempt、账户/触点、脱敏回查与错误摘要 | Node 02、人工诊断 | 创建 monitor、写回触点或运行状态 |
-| `v_monitor_provision_blocker_report` | 一个 monitor provision blocker | monitor run/attempt | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
+| `v_monitor_provision_blocker_report` | 当前 scope 的一个 actionable blocker | canonical monitor readiness + cycle 状态报表 | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
 | `v_advertiser_aweme_authorization_readiness` | 一个 route×game×advertiser 授权就绪状态 | advertiser account 的脱敏抖音授权关系 | ready、blocker、next action、脱敏探测证据 | Node 04、Node 05 | 替代 fresh readonly 或修改授权 |
 | `v_user_workflow_case_detail` | 一个 `runtime_truth` Case | Case、账户、唯一 summary、owner 用户 | 账户、最新 Job、Gate、root blocker、创建/回查状态；多个 Job 不重复计数 | 个人明细、管理员明细 | 写回流程事实、统计 `test_run` |
 | `v_user_workflow_summary` | 一个工作台用户 | 账户与 Case 明细 | 账户数、Case 数、verified 成功数、进行中、阻断和终态未成功数 | 管理员汇总、个人摘要 | 把平台受理当成功、授予代操作权限 |
@@ -98,42 +98,64 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 始终为零或一个 blocker，供工作台与任务卡展示最小修复方向；当 monitor 为 `needs_readonly` 或 `needs_touchpoint_readback` 时，必须优先使用 `v_monitor_readiness.actionable_blocker_code`，再选择 confirmed-resource 停止、其他 monitor/上下文、Node 4 资源和 Plan fallback。对于最新 Job 的 `context-resolve-account` 历史结果，当前同 scope 账户存在时不再投影 `account_missing`，当前 `auth_status=ready` 时不再投影 `account_not_ready`；账户实际缺失或非 READY 时继续 fail-closed，历史 Skill 记录保留。已确认资源执行超时、异常或响应不明时统一投影 `confirmed_resource_execution_interrupted`；旧 Plan 已收口为 `consumed`，不得再次展示为可确认。非 active Case 的该字段固定为空：完整 verified 完成证据投影完成 Gate，其他非活动 Case 仅允许 `review_latest_job`。`structural_blocker_codes` 保存 Plan 的完整结构性 blocker 集合，供审计和诊断。两者均不构成执行授权。
+`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
 
-| Gate 优先级 | 当前条件 | `current_gate` | `suggested_next_action` |
-| ---: | --- | --- | --- |
-| 1 | 非 active 且完整 verified 完成证据 | `first_std_project_create_completed` | `first_std_project_create_completed` |
-| 2 | 非 active 且完成证据不完整 | `review_latest_job` | `inspect_latest_job` |
-| 3 | 已创建对象但尚未 verified readback | `run_readback_only` | `perform_readback_only` |
-| 4 | 创建次数已达 Case 的 `maximum_create_attempts` 且未 verified | `manual_review_after_attempt_limit` | `manual_review_attempt_limit_reached` |
-| 5 | 最新 Job 为 `failed_waiting_manual_review` 且 Case 创建次数少于 `maximum_create_attempts` | `prepare_corrective_attempt` | 本人“继续执行”创建唯一 fresh Job 并只读准备下一 Attempt |
-| 6 | monitor 为 `needs_readonly` / `needs_touchpoint_readback` | `run_monitor_readonly` | `run_monitor_readonly_reconcile` |
-| 7 | 有唯一 root blocker | `resolve_case_blocker` | `resolve_root_blocker:<code>` |
-| 8 | 任一有界 Attempt 创建对象且 readback verified | `first_std_project_create_completed` | `first_std_project_create_completed` |
-| 9 | 最新 Plan 为 ready | `await_job_write_authorization` | `obtain_single_plan_confirmation` |
-| 10 | monitor READY、最新 Monitor Plan 已 consumed 且零标准项目创建 action | `run_fresh_readiness` | `run_readonly_readiness` |
-| 11 | Job 为 created/running/waiting | `run_fresh_readiness` | `run_readonly_readiness` |
-| 12 | 其他状态 | `review_latest_job` | `inspect_latest_job` |
+## 5. 核心键、时间与去重
 
-## 5. 读写、安全与未建边界
+以下是数据约束说明，不另建业务状态。完整约束由现有 migrations 和运行库定义；变更时先核对实际 Schema，不能据文档猜测数据库已有唯一约束。
+
+| 对象 | 主键 / 业务去重边界 | 时间与历史语义 |
+| --- | --- | --- |
+| 路线 / 游戏 / 默认值 / 平台 App | `route_id` / `game_code`；默认值主键 `id` 且唯一 route×game；App 主键 `id` 且唯一 game×platform×app_type | `created_at` 是建档时间，`updated_at` 是本地记录更新时间；不等于平台核验时间 |
+| 账户 | `advertiser_id` 主键，保留 route/game 与唯一 owner；不能为同一 ID 跨 scope 新造第二份账户真值 | `updated_at` 不代表所有资源重新核验，归属变更只能走受控入口 |
+| 触点 / 账户资源 | `touchpoint_id` / `resource_id` 主键；平台 ID、ref 与 hash 不代替本地主键；不假定同一资源类型只能一行 | readiness 使用当前 scope 的记录和核验证据；有多个候选必须按合同判定，不任意取首条 |
+| Case | `case_id` 主键、`case_key` 唯一；部分唯一索引约束同 route×game×advertiser 最多一个 active runtime Case | Case 可包含多个 Job；`updated_at` 是本地生命周期/元数据变化，不是每个子事件的时间 |
+| Job / Node / Skill | `job_id` / `node_run_id` / `skill_run_id`；Node 唯一 job×node_key，Skill 唯一 job×skill_key×attempt_no | Job 建档/更新时间、Node/Skill 开始/结束时间分别保存；不得把新 readonly 结果改写成历史运行证据 |
+| Draft / 名称预留 | `draft_id` / `reservation_id`；名称预留有 job 唯一及 scope×序号、scope×名称约束 | fresh Job 不继承旧确认；runtime 名称占用保留，测试占用单独清理 |
+| Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation 按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，授权消费留在数据库审计 |
+| Action / 创建对象 | `action_id` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合；外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
+| Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
+| Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
+| 用户 / 会话 / 用户审计 | `user_id` / `session_id` / `audit_event_id`；登录名与 owner key 大小写归一后唯一，会话 token hash 唯一 | 会话到期/撤销与用户变更审计独立；报表读取权限不能推导为账户操作权限 |
+
+SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空值表示尚无对应执行时间，不能填成成功或零耗时。当前 View 是查询时的运营投影，没有按日分桶、币种换算或归因窗口。导出及对账须注明查询时刻与显示时区，禁止把文档更新时间当成数据截至时间。
+
+## 6. View 去重与人员指标口径
+
+| View | 唯一行标识 / 选取方式 | 来源与时间边界 |
+| --- | --- | --- |
+| `workflow_case_summary` | `case_id`；最新 Job 按 updated_at、created_at、job_id 倒序，最新 Plan 按版本倒序；动作/回查按 Case 合同聚合 | Case 当前投影；过程记录按 Job/Skill/Attempt 回溯；不把多 Job 统计成多 Case |
+| `v_monitor_readiness` | route×game×advertiser；cycle 按 cycle_no、updated_at、cycle_id 倒序，触点按 updated_at、touchpoint_id 倒序 | 当前 scope 就绪投影；来源记录时间保留，不能替代 fresh 平台回查 |
+| `v_monitor_provision_status_report` | `cycle_id`，attempt 先按 cycle 聚合再关联 | 每个 cycle 的运行审计；历史 cycle 不等于当前 Gate |
+| `v_monitor_provision_blocker_report` | 每个 scope 最多一个 actionable blocker；来自当前 readiness，关联其 cycle | 有 blocker 才有行；不是全部历史错误的明细表 |
+| `v_advertiser_aweme_authorization_readiness` | 账户 advertiser_id，关联 route×game 默认合同 | 返回 verified_at/expires_at 与 evidence_ref；过期规则按 View/readonly 合同判定 |
+| `v_user_workflow_case_detail` | `case_id`；仅 summary.source_usage=`runtime_truth` | 账户与 owner 关联后的 Case 明细，保留 Case 和最新 Job 的更新时间 |
+| `v_user_workflow_summary` | `user_id`；从所有工作台用户 LEFT JOIN 账户与 Case 聚合 | 无记录计数为 0；不是互斥状态分类，不能把各计数直接相加 |
+
+人员汇总指标只在 migration `072` 的 View 定义，消费者不得另算：
+
+| 字段 | 精确口径 |
+| --- | --- |
+| `advertiser_count` | `advertiser_accounts` 中 owner_user_id 非空、按 owner 分组的账户行数；该子查询没有 source_usage 过滤 |
+| `case_count` | 用户所属 `v_user_workflow_case_detail` 行数，即 runtime Case 数 |
+| `verified_success_count` | Case detail 的 create_verified=true；该标志直接来自 summary 的完成 Gate，不按 HTTP 200 计成功 |
+| `active_case_count` | lifecycle_status=`active` 的 Case 数 |
+| `blocked_case_count` | root_blocker_codes 非空的 Case 数；可与 active_case_count 重叠 |
+| `terminal_unsuccessful_count` | create_verified=false 且 lifecycle_status 非 active 的 Case 数；仍 active 的人工复盘 Case 不纳入此项 |
+
+配置修正、迟到回查或 fresh Job 更新后，当前 View 下次读取会重新投影；历史 Job/证据保持可追溯。这些报表用于流程运营，不提供投放消耗/收入/ROI 指标，也不是冻结的历史日结快照。新增历史统计须另行批准时间、去重和修正规则。
+
+## 7. 变更与安全边界
 
 | 主题 | 合同 |
 | --- | --- |
-| 写入来源 | 仅受控 migration、配置维护、runner、Skill、已确认 executor 和权威回查可写入对应真值表；Resource Plan 成功或本人从 `prepare_corrective_attempt` 继续时可在同一 Case 建立唯一 fresh runtime Job，但不得复制旧 Job 的 Plan/confirmation/action |
-| Case 创建尝试 | migration `073` 将 `workflow_case_summary.action_readback_state`、创建对象与 readback 按同一 Case、同一 `source_usage` 的全部 Job 聚合；migration `075` 将上限改为 `workflow_cases.maximum_create_attempts`（1–3）。下一 Attempt 是已有 `std_project_create` action 最大序号加一，新 Job 不重置次数。耗尽且无 verified 时只允许人工复盘：受控维护入口写入脱敏批准 evidence 后，只有账户本人通过精确“重新只读准备”原子关闭旧 Case、创建同 scope 的单次替代 Case；旧 Case、Draft、Plan、confirmation、action 与幂等键均不复制。 |
-| JSZC 保底与账户资源 | migration `069` 仅逐叶更新 `game_route_defaults` 的 CTA、预算/出价/ROI、性别/年龄、时段和对应合同摘要；fresh Job 才消费新值。DMP 集合/成员及其目标账户 ID、素材、事件资产、实例、授权和触点仍来自各自配置与 fresh readonly，不允许固化到路线默认值或减少既有 10 个 DMP 成员。 |
-| Create Plan/Draft 绑定 | 无最终 Draft 时 Create Plan 不得 ready。ready `std_project_create` Plan 与 `launch_drafts.payload_summary` 的 exact Plan ID/hash、`plan_derivation_status=passed` 必须在同一原子持久化中完成；确认 scope 复核该绑定、`draft_ready` Job 与 Node 04 passed。已确认但零 create action 的创建前阻断 Plan 只可收口为 consumed，confirmation 保留。 |
-| Create 回查与 Case/Job 收口 | create 成功受理后 Plan 为 `waiting_readback`；Node 07 按绝对 `0/3/5/8/10` 秒只读回查，整轮硬截止 25 秒。只有同一 Case 最新 `runtime_truth` Job、已确认 Plan、唯一成功 action/对象、最新 Draft 与 ID/名称一致的 verified readback 同时成立，Plan 才可 `consumed`、Job 与 Case 才可 `completed`。明确业务失败不得由同名回查恢复；超时、异常或响应不明仅可由同一严格回查恢复，否则 Plan consumed + Job 人工修正；收口幂等且不改写历史 Node run。 |
-| HTTP deadline | 所有生产平台请求由内部唯一封装执行：普通 JSON 15 秒、文件上传 60 秒；组合 caller `AbortSignal`、超时中止和 timer 清理，无自动重试。读超时映射只读失败 + 脱敏 `timeout` 诊断，写超时只允许后续权威只读回查。 |
-| 消费顺序 | UI/API/CLI/任务卡先读 `workflow_case_summary`；需要历史细节才按 `case_id` / `job_id` 读取底层表 |
-| 工作台投影 | `job.caseGate` 是 `workflow_case_summary` 的同一后端投影，不是第二套 Gate。右侧只展示注册表驱动的固定 3 阶段 7 Node；左侧对话展示动态 Gate/blocker/下一步与确认卡，底部进度栏保留计数和只读刷新。删除右侧独立 Gate 卡片不删除字段，也不改变节点等待态、确认资格或 API/View 合同。 |
-| 工作台恢复 | 唯一入口根页只读列出 active runtime Case；`?case_id=` 恢复活动 Case 的最新 Job，`?job_id=` 仅历史只读；两参数并存或非法时 fail-closed，不加载其他账户。`resolve_case_blocker` 的精确“重新只读准备”只消费当前 summary：已确认资源 Plan 停止时 Case lock 下创建 fresh Job 后 `dry_run`，其他 blocker 重跑当前 Job 的 `dry_run`；不复制旧 Plan/confirmation/action/grant，不产生平台写入。若 Gate 为 `manual_review_after_attempt_limit`，该短语仅在最新失败 Job 的已批准脱敏复盘 evidence 存在、旧 Create Plan 已 consumed、零对象/verified readback 且当前登录人即 owner 时原子创建单次替代 Case/Job，再完整 readonly；未批准、非本人、历史 Job 或重复请求均不能创建第二个 Case。 |
-| Node 02 展示 | 最新 Case 的账户状态来自当前账户记录；触点与 monitor 来自 `v_monitor_readiness`；历史 Job 仅显示自身 Skill 快照，二者不得互相覆盖 |
-| 事件资产合同 | `account_resources.event_asset.metadata.event_asset_provision` 在同账户 App、唯一受控实例候选、版本化模板与官方创建合同通过后保存，以生成 event asset + baseline configs Plan；event asset detail 的 `micro_app_id` / `micro_app_instance_id` 归一后必须精确匹配 App + instance，allowlist 长数字 ID 在解析前无损保留为字符串；configs、携带 asset_id 的优化目标与 DBT 是后续 READY 回查，不保存完整 URL、raw request/response 或凭证。 |
-| 事件配置中断 | 写请求固定 15 秒超时；子 action 幂等键绑定已验证 planned action key、当前 Plan ID 与 event type，缺失任一绑定时在 action 占位和平台调用前 fail-closed。超时、异常或响应不明记为 `failed_once`，随后只读回查并收口 action、Skill、Job 与已确认 Plan。partial baseline 的唯一分类器是共享 `eventConfigBaselineReadiness`，仅在 configs 与 available 都完成标准化后输出 `status`、blocker 和 candidates；已配置事件即使不再 available 也视为满足，只为尚未配置且当前 available 的事件生成候选；读取函数不得单独要求 available 为 6/6，不得自动重试。 |
-| 敏感数据 | 禁止 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload、raw response；仅保存脱敏摘要、hash、状态、必要 ID 与证据引用 |
-| 用户隔离 | 每个广告账户只有一个 `owner_user_id`；所有账户、Case、Job、历史、刷新和 command 接口同时核对 active 用户、账户 owner 与乾坤 owner key。管理员跨人只读报表，不绕过业务对象隔离。 |
-| 授权 | `project.state.json` 只给全局 Guardrail；正式 runtime 工作台可消费启用的 authenticated-LAN Plan-bound 策略，仍须匹配登录用户本人账户、active Case 最新 Job、ready Plan、精确 confirmation、action grant 与调用上限。动态授权事实只写 Postgres，不为普通运行创建仓库 Task。 |
-| 隔离脚本 | `scripts/archive/` 仅保存可恢复历史文件；禁止 package/runtime import/直接执行，不属于表或 View 的写入来源 |
+| 数据写入责任 | 仅本文件表契约列明的受控配置维护、runner、Skill、确认 executor 与回查写入对应表；报表/View 不反向更新业务真值 |
+| 数据变更任务 | 新增/变更表、列、View 或报表时，同一 Task 登记粒度、主键/自然键、时间语义、来源、写入者、消费者、去重、修正与质量检查；更新本文件相关行并关联 migration 和回归证据 |
+| 模型与投影权威 | SQL/数据库约束定义数据结构，注册表定义 Node，summary 定义当前 Gate；[逻辑图](project-现在的逻辑图.md) 解释流程，不另建可写状态副本 |
+| 元数据边界 | 账户级资源合同、核验时间、Plan/Draft hash、来源和必要关联 ID 保存到既有受控字段；不得把账户动态资源 ID 或历史 Plan 复制进游戏默认配置 |
+| 授权与回查 | 平台授权、安全规则与任务闭环只查 [AGENTS](../AGENTS.md)；Plan 状态变化、资源动作、HTTP deadline 和 Case finalizer 行为只查 [逻辑图](project-现在的逻辑图.md) |
+| 敏感信息 | 普通 JSON/日志仅保存脱敏摘要、hash、状态、必要 ID 与证据引用；触点、落地页和启动深链仅用既有受控存储，禁止复制到报表、前端或 Task |
+| 历史与测试 | `test_run` 与 runtime 真值分离并由测试清理；旧 migration 不删除，旧 Task/Manifest 不补造验收，隔离脚本不是新的表/View 写入来源 |
+| 完成证明 | 开发任务由 Manifest 验收关闭；真实创建成功必须有 Postgres 权威回查证据；两者不得互相替代 |
 
-投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 7 个 View 包含运营流程就绪状态和人员流程统计，不是投放效果报表，也不是自动策略的唯一输入。
+投放效果原始接入、标准投放事实表，以及按日期×游戏×渠道×账户×广告对象汇总的消耗、曝光、点击、转化、收入、ROI 报表目前均未建立。当前 7 个 View 提供运营就绪状态和人员流程统计。

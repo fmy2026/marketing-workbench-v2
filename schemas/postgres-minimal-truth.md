@@ -1,5 +1,8 @@
 # Postgres Minimal Truth
 
+> 文档状态：历史参考 / reference_only；早期最小数据模型已由当前合同替代。
+> 不得作为启动必读、当前任务依据或 runtime 真值。当前说明见 [权威入口](../docs/project-数据与报表契约.md)；下文保留原始历史内容。
+
 目标库：`marketing_workbench_v2`
 
 目标 schema：`mwb`

@@ -4,16 +4,35 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；项目控制合同见 `project.state.json`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
-| 权威来源 | `project.state.json` → 当前 Task/Manifest → 节点注册表与合同 → `db/*.sql` / Postgres `mwb` |
+| 权威来源 | 按 `AGENTS.md` 的对应真值链读取；实现查注册表/代码/SQL，业务事实查 Postgres，本文解释静态机制 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
 
 > 更新时间只证明本文件最后一次静态校验时间；账户、Case、Job、Plan、确认、资源和平台动作的当前事实必须实时读取 Postgres，消费端只读 `mwb.workflow_case_summary`。
 
-> 当前无 active Task；实施 Task `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908` 已完成且未调用真实平台写。后续业务下一步仍只读 `workflow_case_summary`。
+> 项目当前任务只查 `project.state.json`；开发任务交付证据查对应 Task/Manifest。本文不保存任务进度或账户运行状态。
 
 当前机制只维护本 Markdown 文档，不再同步维护或提交配套 JPG；本地 `docs/.开发方案/` 仅作历史回收，不属于 GitHub 与运行真值。
+
+## 项目定位与能力承接
+
+工作台服务本人账户的投放操作者及读取授权汇总的管理员，当前范围为 OceanEngine 3.0 字节小游戏标准项目的准备、确认、创建和权威回查。成功标准是输入能沿既有主链完成，或停在准确、可行动的 blocker；不把界面显示完成或接口受理作为 verified。
+
+下表解释能力边界，不新增 Node、Gate 或另一份注册表。表中状态与下一步以实时 `workflow_case_summary` 为准。
+
+| 能力 | 输入与执行责任 | 输出 / 真值 | 承接方与停止边界 |
+| --- | --- | --- | --- |
+| 身份与 Intake | 当前用户、route/game/advertiser；API 校验唯一 owner，Node 01 规范输入 | 账户归属、Case、fresh Job | Node 02；身份不符在建档前停止 |
+| 上下文与 monitor | Node 02 消费账户、App、触点与 monitor readiness；必要时编译独立 Bootstrap Plan | monitor 只读事实或待确认 Plan | 本人确认后单次 executor + 回查；就绪后按 Gate 继续 |
+| 游戏保底包 | Node 03 读取路线配置、素材包、蓝图与启动链接 | 供账户核验的配置输入 | Node 04；缺少配置只形成 blocker |
+| 账户资源准备 | Node 04 与资源注册表核验来源和目标账户；支持时编译 Resource Plan | readiness、资源 Plan、脱敏证据 | 本人确认后资源 executor + 权威回查；失败停止，成功用 fresh Job 继续 |
+| 创建草稿 | Node 05 消费当前已验证资源、字段合同与查重结果 | Draft 与精确绑定的 Create Plan | 本人确认，Node 06；结构不完整不发布 ready Plan |
+| 标准项目创建 | Node 06 只消费冻结且已确认的 Create Plan | action 与创建对象证据 | Node 07；不准备资源、不自动重试 |
+| 权威回查与收口 | Node 07 及 finalizer 校验对象、名称、Plan 与证据一致 | verified readback、Case/Job/Plan 收口 | 完成投影或人工处理；失败结果按唯一 Gate 承接 |
+| 人员流程报表 | 只读 View 聚合 runtime Case 与账户归属 | 本人明细、管理员汇总 | 只读消费者；粒度、键和指标只定义在数据与报表契约 |
+
+新增或调整能力必须更新本表受影响行及对应合同/回归；表/View 变更同步数据与报表契约。Task/Manifest 记录本次改动的验证，不在静态文档重复任务状态。
 
 ## 1. 真值与唯一主链
 
@@ -34,7 +53,7 @@ frontend / API / CLI / 任务卡 / 工作台对话
 
 正式业务写入只有一条入口：`工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories`。CLI 不属于正式写入面，只保留 `00-oe3-workflow-cli.mjs`、`00-oe3-readonly-readiness-cli.mjs` 的安全 dry-run/readback，Node 02 状态与 readonly reconcile/配置只读同步，以及 Node 03/04、token 和合同诊断。任何 CLI 都不能绕过当前 Plan/hash、confirmation、action grant 或调用上限。
 
-网络入口默认只监听 `127.0.0.1:3000`。当前三人短期试用通过显式开关监听 `192.168.42.7:3000`；非 HTTPS 只接受 RFC1918 IPv4，且 bind host、public origin 与端口必须完全一致。该网络模式不改变登录、账户 owner、Case/Job、Plan 或业务 Gate；关闭开关即恢复默认 loopback。
+网络入口默认只监听 `127.0.0.1:3000`。局域网试用通过显式配置启用受限私网监听；非 HTTPS 只接受 RFC1918 IPv4，且 bind host、public origin 与端口必须完全一致。该网络模式不改变登录、账户 owner、Case/Job、Plan 或业务 Gate；关闭开关即恢复默认 loopback。
 
 `scripts/archive/` 是可恢复隔离区，不是运行目录：禁止 `package.json` 入口、live `src/` / `scripts/` import 和直接执行。隔离文件的原路径、原因、替代入口与恢复条件只读 `scripts/archive/manifest.json`；恢复必须重新建立 Task 并按当前合同复核。
 
@@ -249,7 +268,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示下一张 Create Plan 确认卡
 ```
 
-本机正式运行的授权来源是固定 `workbench_runtime_write_policy` 加当前 Plan-bound confirmation；它只允许 loopback command、active Case 最新 runtime Job、ready Plan、精确 ID/hash/短语和一次消费。仓库 Task scope 只服务开发、迁移或专项人工写入，不再是普通用户从工作台完成首次创建的运行时前置条件。
+正式运行的授权来源是固定 `workbench_runtime_write_policy` 加当前 Plan-bound confirmation；它只允许已配置 origin 的本人 command、active Case 最新 runtime Job、ready Plan、精确 ID/hash/短语和一次消费。仓库 Task scope 只服务开发、迁移或专项人工写入，不再是普通用户从工作台完成首次创建的运行时前置条件。
 
 工作台运行时出现 monitor 缺失或只读回查未确认时，下一步只由当前 active Case 最新 Job 的 Gate 决定：满足合同则编译当前 Case 的 `monitor_bootstrap` Plan 并展示“确认创建 monitor”卡；不满足则显示当前 blocker。普通运行不要求用户建立仓库 Task/Manifest。任何仍把“新建 `monitor_bootstrap` Task/Plan”写成用户操作的旧提示，`Task` 仅是开发或专项人工写入的控制面概念，不能被理解为普通工作台运行前置条件。
 

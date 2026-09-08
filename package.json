@@ -76,6 +76,8 @@
     "check:oe3-landing-page-inventory": "node scripts/03-landing-page-source-target-readonly-inventory.mjs",
     "token:status": "node scripts/00-oceanengine-token-status.mjs",
     "token:refresh": "node scripts/00-oceanengine-token-refresh.mjs",
-    "test:token-refresh-scope": "node scripts/00-oceanengine-token-refresh-scope-smoke.mjs"
+    "test:token-refresh-scope": "node scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+    "check:project": "node scripts/00-project-contract-check.mjs",
+    "test:project-contracts": "node scripts/00-project-contract-check-smoke.mjs"
   }
 }

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project-state.schema.json",
+  "description": "项目协调合同；具体平台授权仍由现有 runtime 校验，不由本 Schema 授权。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "methodology_version",
+    "updated_at",
+    "project",
+    "active_task",
+    "last_closed_task_ref",
+    "guardrails"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2026-09-08.project-control-plane-v4"
+    },
+    "methodology_version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path",
+        "type",
+        "lifecycle"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "paused",
+            "completed",
+            "archived"
+          ]
+        },
+        "capabilities_version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "active_task": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "task_ref",
+            "context_manifest_ref"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^TASK-[A-Z0-9-]+$"
+            },
+            "task_ref": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "context_manifest_ref": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            }
+          }
+        }
+      ]
+    },
+    "last_closed_task_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^tasks/TASK-[A-Z0-9-]+\\.md$"
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "platform_write_allowed",
+        "platform_write_scope",
+        "workbench_runtime_write_policy",
+        "credential_refresh_allowed",
+        "credential_refresh_scope",
+        "budget_bid_change_allowed",
+        "long_term_lesson_write_allowed",
+        "git_history_rewrite_allowed",
+        "external_asset_move_allowed",
+        "real_platform_dependency_allowed",
+        "existing_deletion_handling_allowed",
+        "do_not_start"
+      ],
+      "properties": {
+        "platform_write_allowed": {
+          "type": "boolean"
+        },
+        "platform_write_scope": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "allowed_actions",
+            "maximum_actions"
+          ],
+          "properties": {
+            "allowed_actions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "minItems": 0
+            },
+            "maximum_actions": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "workbench_runtime_write_policy": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "credential_refresh_allowed": {
+          "type": "boolean"
+        },
+        "credential_refresh_scope": {
+          "type": "object"
+        },
+        "budget_bid_change_allowed": {
+          "type": "boolean"
+        },
+        "long_term_lesson_write_allowed": {
+          "type": "boolean"
+        },
+        "git_history_rewrite_allowed": {
+          "type": "boolean"
+        },
+        "external_asset_move_allowed": {
+          "type": "boolean"
+        },
+        "real_platform_dependency_allowed": {
+          "type": "boolean"
+        },
+        "existing_deletion_handling_allowed": {
+          "type": "boolean"
+        },
+        "do_not_start": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

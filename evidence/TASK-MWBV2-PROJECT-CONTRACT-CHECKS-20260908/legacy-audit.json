@@ -1,0 +1,1641 @@
+{
+  "mode": "historical_diagnostics_only",
+  "legacy_count": 206,
+  "statuses": {
+    "completed": 132,
+    "planned_blocked_by_formal_node1_7_certification": 1,
+    "completed_blocked": 4,
+    "oauth_refresh_recovered_waiting_owner_continue": 1,
+    "blocked_external_credential": 1,
+    "blocked_waiting_resource_source_and_brand_confirmation": 1,
+    "completed_blocked_missing_official_avatar_submit_contract": 1,
+    "completed_passed": 1,
+    "completed_blocked_after_single_upload_before_submit": 1,
+    "completed_default_source_verified": 1,
+    "completed_target_share_readback_verified": 1,
+    "blocked_waiting_manual_brand_industry_confirmation": 1,
+    "closed_validated_no_platform_write": 5,
+    "completed_with_platform_create_failure": 1,
+    "blocked": 2,
+    "closed": 7,
+    "closed_readonly_reconciled": 1,
+    "completed_create_failed_waiting_manual_review": 1,
+    "(missing)": 2,
+    "closed_handed_off": 1,
+    "closed_forensic_after_attempt_2_40000": 1,
+    "closed_exhausted_failed_or_unconfirmed": 2,
+    "completed_backup_landing_page_ready": 1,
+    "blocked_after_event_asset_create_post_readback_not_verified": 1,
+    "completed_event_chain_ready": 1,
+    "closed_waiting_external_resource_readiness": 1,
+    "completed_create_failed_landing_url_invalid_no_retry": 1,
+    "completed_readonly_forensic": 1,
+    "closed_created_verified": 1,
+    "completed_blocked_target_not_visible": 1,
+    "completed_blocked_at_gate": 1,
+    "completed_micro_app_instance_ready": 1,
+    "completed_handed_off_to_final_ensure_task": 1,
+    "completed_with_blockers": 10,
+    "paused_by_readonly_foundation_recheck": 1,
+    "completed_server_busy_retry_available": 1,
+    "completed_terminal_failed": 1,
+    "closed_implemented": 1,
+    "closed_success": 2,
+    "completed_node5_preflight_blocked_by_instance_transport": 1,
+    "blocked_waiting_brand_industry_confirmation": 1,
+    "completed_product_image_ready": 1,
+    "paused_pending_rebreakdown": 1,
+    "closed_touchpoint_resolved": 1,
+    "failed_waiting_manual_review": 1,
+    "implementation_ready_waiting_explicit_confirmation": 1,
+    "closed_readback_pending": 1,
+    "closed_readback_verified": 1,
+    "superseded": 1
+  },
+  "warnings": [
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-AGENTS-STARTUP-PROTOCOL-SLIMMING-20260908.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-API-WORKFLOW-CLOSED-LOOP.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/result-mapping.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-ANOMALY-AUTO-READBACK-CLOSE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/execution-grant-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-CREATE-RESULT-STATUS-MAPPING-FIX.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-consistency-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-ACCOUNT-CONTRACT-READONLY-20260831.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readonly-permission.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-EXECUTION-GRANT-P03-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-FRONTEND-CLEAN-VIEW.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-新项目最高效启动框架_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-FRONTEND-CLEAN-VIEW.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-前端页面效果_html_20260823.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-FRONTEND-SHELL.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-新项目最高效启动框架_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-FRONTEND-SHELL.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-前端页面效果_html_20260823.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-FRONTEND-SHELL.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-MICRO-APP-PASSIVE-READINESS-PROJECTION-20260901.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NAMING-AND-AGENTS-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/smoke-api.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-cycle.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-cycle-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-bootstrap-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-CYCLE-REISSUE-AND-LIVE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-planned-action-workflow-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE2-MONITOR-PLANNED-ACTION-INTEGRATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-bootstrap-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-NODE3-4-RESOURCE-ACTION-REGISTRY-AND-SKILL-UNIFICATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/04-micro-app-instance-evidence-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-ACCOUNT-RESOURCE-PREP.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-ACCOUNT-SCOPE-AND-ROOT-BLOCKER-PROJECTION-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-APICODE-40000-FAILURE-REVIEW.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-consistency-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-EVENT-READONLY-GATE-HARDENING.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-consistency-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineAccountResourceAdapter.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/account-resource-diagnose.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/account-resource-readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-BRAND-INFO-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/payload-contract-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CANONICAL-WORKFLOW-GATE-HARDENING-20260830.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/project-最合理的逻辑图.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREATE-DIAGNOSTICS-AND-FIELD-CONTRACT-HARDENING.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREATE-DIAGNOSTICS-AND-FIELD-CONTRACT-HARDENING.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREATE-RUNTIME-FIELDS-AND-RECORDING.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-readback-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREDENTIALS-AND-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREDENTIALS-AND-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/readonly-oceanengine-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREDENTIALS-AND-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/smoke-api.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-CREDENTIALS-AND-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/payload-contract-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/launch-pack.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/resource-verifiers.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DEFAULT-BACKUP-LANDING-RESOLVE-AND-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/execution-grant-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DMP-PUSH-ONCE-READBACK-1871922346964041.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DMP-PUSH-SCOPE-EXECUTE-READBACK-1871922346964041.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DMP-REISSUE-BATCH10-PUSH-READBACK-1871922346964041.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-DMP-REMAINING9-PUSH-READBACK-1871922346964041.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FINAL-READINESS-AND-BRAND-INDUSTRY-REPAIR.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-brand-event-readonly-gate-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/launch-execute-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-JOB-SINGLE-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/video-material-readiness.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/duplicate-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-DRAFT-AFTER-VIDEO-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-readiness-pack.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-brand-industry-readonly-repair.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/smoke-api.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-RUNTIME-JOB-PRECREATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/payload-contract-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-confirmed-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FRESH-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-readiness-pack.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-FULL-CHAIN-READONLY-READINESS-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-INSTANCE-ID-CREATE-EVIDENCE-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/official-create-field-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-INSTANCE-ID-CREATE-EVIDENCE-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-INSTANCE-ID-CREATE-EVIDENCE-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-INSTANCE-ID-LOSSLESS-WIRE-AND-CREATE-READY-1871922346964041.json",
+      "code": "legacy_status_missing"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-ATTEMPT3-FILTER-EVENT-OMIT-20260830.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/06-create-verification-series-prepare.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/06-create-verification-series-prepare.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-JSZC-REAL-CREATE-VERIFICATION-SERIES-20260829.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/07-create-field-ledger-attest.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-2P0-SITE-READONLY-RESOLVE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-landing-page-source-target-readonly-inventory.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/OE3-std-project-create字段来源复盘_JOB-MWBV2-20260825041227-12D2B5_20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/launch-pack.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/resource-verifiers.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-ASSET-RESOLUTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-SOURCE-TARGET-READONLY-INVENTORY.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-landing-page-source-target-readonly-inventory.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-LANDING-PAGE-UI-CONFIRMATION-PASS.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-landing-page-source-target-readonly-inventory.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MICRO-APP-INSTANCE-AUTHORITY-READONLY-1871922414575753-20260831.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MICRO-APP-INSTANCE-READONLY-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/04-micro-app-instance-readiness.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MICRO-APP-INSTANCE-READONLY-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/04-micro-app-instance-evidence-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MINI-GAME-LAUNCH-LINK-AND-FRESH-CREATE-1871922346964041.json",
+      "code": "legacy_status_missing"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MINI-GAME-LAUNCH-LINK-AND-FRESH-CREATE-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/06-launch-execute-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-BUSY-RETRY-ENSURE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-bootstrap-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CALLBACK-CONTRACT-AND-NEW-ACCOUNT-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CALLBACK-CONTRACT-AND-NEW-ACCOUNT-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/投放序列号/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/投放序列号/1-2、真实案例-举例.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/context.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-CREATE-ONCE-WORKFLOW-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FINAL-ENSURE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-FIRST-CREATE-RUNTIME-UNIFICATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/投放序列号/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/context.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-PROVISION-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/投放序列号/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/context.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-READONLY-RECONCILE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-SECOND-CREATE-MANUAL-L3-CONFIRM.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-SECOND-CREATE-MANUAL-L3-CONFIRM.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-SECOND-FINAL-EXECUTE-RESULT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-MONITOR-SECOND-FINAL-EXECUTE-RESULT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-OAUTH-TOKEN-REFRESH-DIAGNOSIS-20260901.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P03-CREATE-40000-ROOT-CAUSE-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/execution-grant-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-ADVERTISER-ID-TRANSPORT-TYPE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-EXECUTION-GRANT-GUARDRAIL-ALIGNMENT.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/execution-grant-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/payload-contract-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-workflow-skills-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-FINAL-MATERIAL-AND-CONTRACT-READINESS.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-consistency-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/dmp-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-POST-REFRESH-READONLY-RERUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/duplicate-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-READONLY-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-READONLY-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/dmp-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-READONLY-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/duplicate-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-BIND-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/video-material-readiness.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/video-material-readiness.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-P04-VIDEO-MATERIAL-PREPARE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-GAPZERO-MANUAL-BRAND-CONFIRMATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/account-resource-readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineAccountResourceAdapter.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/account-resource-prepare-product-image-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRECREATE-RESOURCE-FINALIZE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/account-resource-readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRODUCT-IMAGE-SOURCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineAccountResourceAdapter.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-PRODUCT-IMAGE-TARGET-UPLOAD-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/04-product-image-ensure-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-CATE-VEST-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/乾坤监测序号-核心接口数据字典_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-L3-MEDIA-RETRY-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-LEVEL3-MEDIA-RESOURCE-READONLY-VALIDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CANDIDATE-DISCOVERY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/乾坤监测序号-核心接口数据字典_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-CATALOG-AND-CHANGEMEDIA-500-ESCALATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MEDIA-TAXONOMY-CORRECTION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-CORE-API-DICTIONARY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/投放序列号/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-READONLY-FOUNDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-MONITOR-TECH-COMBINATION-READONLY.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-PACKAGE-BASE-INFO-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2通用关系底表逻辑图_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/乾坤监测序号-核心接口数据字典_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-SESSION-RECOVERY-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-RECOVERY-READONLY-RECONCILE-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/api-docs-20260827.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-RECOVERY-READONLY-RECONCILE-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-RECOVERY-READONLY-RECONCILE-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-TOKEN-REVALIDATION-RELATION-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/qiankun-option-relation-sync.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-QIANKUN-VEST-PACKAGE-READONLY-SYNC.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-乾坤与v2报表字段关系图_20260826.html"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-READONLY-GATES.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-READONLY-GATES.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-reference-contract-readonly-reconciliation.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-REFERENCE-CONTRACT-READONLY-RECONCILIATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/execution-grant-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/context.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/launch-pack.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/resource-verifiers.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/dmp-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-RUNTIME-UNIFICATION-AND-DMP-READONLY-GATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-SINGLE-CONFIRM-WORKFLOW-BACKEND-20260830.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/project-最合理的逻辑图.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE-EXECUTE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-readback-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-STD-PROJECT-CREATE-ONCE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/std-project-readback-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-THREE-PAYLOAD-COMPARISON.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-preflight-diagnostics.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/resource-verifiers.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-USER-CONFIRMED-DEFAULT-LANDING-FRESH-JOB-READY.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-MATERIAL-BIND-ONCE-READBACK-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/04-video-material-ensure-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-VIDEO-MATERIAL-DELAYED-READBACK-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/04-video-material-readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-WORKFLOW-SKILLIZATION-AND-SCRIPT-CONSOLIDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-OE3-WORKFLOW-SKILLIZATION-AND-SCRIPT-CONSOLIDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanengineStdProjectPayloadContract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH-REFINE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-新项目最高效启动框架_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH-REFINE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-新项目最高效启动框架_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-POSTGRES-MINIMAL-TRUTH.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-PREWRITE-READONLY-ADAPTER.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-PREWRITE-READONLY-ADAPTER.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/platforms/oceanenginePlaceholder.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-ACCOUNT-NAME-PREFLIGHT-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-ACCOUNT-NAME-PREFLIGHT-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-READONLY-PREFLIGHT-AND-DOC-VERSION-UPDATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/api-docs-20260827.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-READONLY-PREFLIGHT-AND-DOC-VERSION-UPDATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/.archive/api-docs-20260825.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-READONLY-PREFLIGHT-AND-DOC-VERSION-UPDATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-ACCOUNTINDEX-READONLY-PREFLIGHT-AND-DOC-VERSION-UPDATE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/api-docs-20260827.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-cycle.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-CYCLE01-ATTEMPT02-FINAL-CREATE-1871922414575753.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/api-docs-20260827.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/乾坤监测序号-核心接口数据字典_20260826.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-cycle.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-FIRST-CREATE-1871922434025472.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-PACKAGE-DOWNLOAD-URL-EMPTY-FIELD.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-planned-action-workflow-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-TOUCHPOINT-URL-SYNC-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/.参考文档/乾坤系统/api-docs-20260827.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-TOUCHPOINT-URL-SYNC-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/02-monitor-provision.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-QIANKUN-MONITOR-TOUCHPOINT-URL-SYNC-1871922346964041.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/02-monitor-provision-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/dmp-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/duplicate-readonly.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/contracts.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-workflow-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-READONLY-RECONCILIATION-FRESH-RUNTIME-DRY-RUN.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-test-data-purge.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-RUNTIME-ENTRYPOINTS-AND-AGENTS-CONSOLIDATION.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/oe3-workflow-cli.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-RUNTIME-GENERALIZATION-AND-ATOMIC-RESERVATIONS.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/payload-contract.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-RUNTIME-TEST-DATA-PURGE-AND-PSEQUENCE-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-RUNTIME-TEST-DATA-PURGE-AND-PSEQUENCE-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/runtime-consistency-check.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/create-once.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/readback.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STD-PROJECT-CREATE-EXECUTOR-PREFLIGHT.json",
+      "code": "legacy_read_path_missing",
+      "path": "src/workflows/skills/oe3/runner.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/smoke-api.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/readonly-oceanengine-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-STRUCTURE-CONSISTENCY-AND-RUNTIME-CLEANUP.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/payload-contract-smoke.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-WORKBENCH-MINIMAL-DYNAMIC-VIEW-AFTER-CREATE-FAILURE.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/方案-投放创建Agent开发方案_20260823.md"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-WORKBENCH-MINIMAL-DYNAMIC-VIEW-AFTER-CREATE-FAILURE.json",
+      "code": "legacy_read_path_missing",
+      "path": "scripts/smoke-api.mjs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830.json",
+      "code": "legacy_status_text_differs"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-WORKFLOW-CASE-ROOT-BLOCKER-PROJECTION-20260830.json",
+      "code": "legacy_read_path_missing",
+      "path": "docs/project-现状数据与报表契约.md"
+    }
+  ],
+  "business_outcome_inferred": false
+}

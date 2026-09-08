@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-manifest.schema.json",
+  "description": "只对新合同和显式重新启用的 Task 生效；业务状态不属于任务状态。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "task_ref",
+    "status",
+    "created_at",
+    "updated_at",
+    "base_revision",
+    "baseline_dirty_files",
+    "domains",
+    "read_order",
+    "reference_only",
+    "allowed_writes",
+    "forbidden_actions",
+    "stop_conditions",
+    "open_gaps",
+    "validation_plan",
+    "validation_results",
+    "documentation_updates",
+    "temporary_authorizations",
+    "result",
+    "closed_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2026-09-08.task-context-manifest-v2"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[A-Z0-9-]+$"
+    },
+    "task_ref": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "status": {
+      "enum": [
+        "planned",
+        "active",
+        "blocked",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "base_revision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "baseline_dirty_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(sha256:[a-f0-9]{64}|deleted)$"
+      }
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "control",
+          "workflow",
+          "data",
+          "deploy",
+          "security"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "read_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "minItems": 4,
+      "uniqueItems": true
+    },
+    "reference_only": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref",
+          "reason"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "minItems": 0
+    },
+    "allowed_writes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "open_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "minItems": 0
+    },
+    "validation_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "acceptance_id",
+          "command"
+        ],
+        "properties": {
+          "acceptance_id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]+$"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "validation_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "acceptance_id",
+          "status",
+          "command",
+          "verified_at",
+          "summary",
+          "evidence_refs"
+        ],
+        "properties": {
+          "acceptance_id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]+$"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "not_run"
+            ]
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "verified_at": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      },
+      "minItems": 0
+    },
+    "documentation_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref",
+          "status",
+          "reason"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "status": {
+            "enum": [
+              "updated",
+              "not_needed"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "minItems": 0
+    },
+    "temporary_authorizations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "restore_value"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^/guardrails/"
+          },
+          "restore_value": {}
+        }
+      },
+      "minItems": 0
+    },
+    "result": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "side_effects",
+        "remaining_risks",
+        "business_evidence_refs"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "side_effects": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "remaining_risks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "minItems": 0
+        },
+        "business_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "minItems": 0
+        }
+      }
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "关闭时写入的 ISO 时间；active/planned/blocked 必须为 null，终态必须有时间。"
+    }
+  }
+}

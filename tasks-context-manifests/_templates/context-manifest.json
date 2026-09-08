@@ -1,0 +1,45 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "__TASK_ID__",
+  "task_ref": "tasks/__TASK_ID__.md",
+  "status": "planned",
+  "created_at": "__ISO_TIMESTAMP__",
+  "updated_at": "__ISO_TIMESTAMP__",
+  "base_revision": "__BASE_REVISION__",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/__TASK_ID__.md",
+    "tasks-context-manifests/__TASK_ID__.json",
+    "docs/Solution Design.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/__TASK_ID__.md",
+    "tasks-context-manifests/__TASK_ID__.json",
+    "project.state.json",
+    "evidence/__TASK_ID__/**"
+  ],
+  "forbidden_actions": [
+    "未获授权的外部平台写入与范围外修改"
+  ],
+  "stop_conditions": [
+    "超出批准范围或缺少完成所需证据"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "__ACTUAL_CHECK_COMMAND_OR_METHOD__"
+    }
+  ],
+  "validation_results": [],
+  "documentation_updates": [],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

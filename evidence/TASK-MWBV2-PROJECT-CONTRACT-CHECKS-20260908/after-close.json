@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "phase": "after-close",
+  "task_id": "TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908",
+  "task_status": "completed",
+  "changed_files": [
+    "AGENTS.md",
+    "docs/Solution Design.md",
+    "docs/plan1-新项目最高效启动框架_20260823.md",
+    "docs/plan2-最理想的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/after-close.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/before-close.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/legacy-audit.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/regression.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/static-audit.json",
+    "evidence/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908/validation.md",
+    "package.json",
+    "project.state.json",
+    "schemas/context-manifest.schema.json",
+    "schemas/postgres-minimal-truth.md",
+    "schemas/project-state.schema.json",
+    "scripts/00-project-contract-check-smoke.mjs",
+    "scripts/00-project-contract-check.mjs",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.json",
+    "tasks-context-manifests/_templates/context-manifest.json",
+    "tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md",
+    "tasks/_templates/task.md"
+  ],
+  "domains": [
+    "control",
+    "data",
+    "workflow"
+  ],
+  "acceptance_count": 5,
+  "database_access": false,
+  "platform_access": false
+}
