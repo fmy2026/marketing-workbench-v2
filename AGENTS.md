@@ -4,10 +4,11 @@
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
 | 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908`；`project.state.json.schema_version=2026-09-01.project-control-plane-v3`；最新 migration `075_case_attempt_limit_replacement_recovery.sql` |
-| 重新校验条件 | 项目控制面、运行主链、权限 Gate、Case/Job 入口或真值来源变化时 |
+| 重新校验条件 | 启动顺序、真值来源、文档职责、运行主链、权限边界或任务闭环变化时 |
 
-定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环规则。动态业务事实只看 Postgres。
+定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环协议。本文不承担工作台说明、流程状态机、数据字典或变更记录；动态业务事实只看 Postgres。
+
+每条长期规则只设一个权威位置，其他文档只引用。功能细节变化不默认更新本文；只有上述启动协议边界变化时才同步修改。
 
 ## 启动
 
@@ -18,55 +19,16 @@
 
 `docs/.开发方案/`、`.archive/` 与 `scripts/archive/` 只供历史参考或可恢复隔离，不得作为启动必读、任务依据、运行真值或 runtime 依赖；`scripts/archive/` 还禁止 package 入口和直接执行。
 
-以下情况按需读取：
+## 按需读取
 
-| 场景 | 文档 |
+| 场景 | 权威位置 |
 | --- | --- |
-| 方案、接口、平台读写、资源、授权、回查、数据库或报表调整 | `docs/Solution Design.md` |
-| 项目流程、Node、Plan、Gate、工作台机制 | `docs/project-现在的逻辑图.md` |
-| 数据表、View、报表与读写边界 | `docs/project-数据与报表契约.md` |
+| 方案方法、重要调整与人工决策 | `docs/Solution Design.md` |
+| 当前流程、Node、Gate、Plan 与工作台机制 | `docs/project-现在的逻辑图.md` |
+| 数据表、View、持久化与报表边界 | `docs/project-数据与报表契约.md` |
 | 已验证且可复用的经验 | `docs/project-lessons.md` |
-
-## 工作台
-
-```text
-工作台默认本机入口：http://127.0.0.1:3000/；当前三人短期试用经显式私网开关使用 `http://192.168.42.7:3000/`。长期局域网入口仍使用 `WORKBENCH_PUBLIC_ORIGIN` 指向内网 HTTPS。登录后根页只列本人活动 Case，`?case_id=` 恢复本人最新进度，`?job_id=` 只读本人历史。
-```
-
-```text
-用户消息
-→ 登录用户与强制改密
-→ allowlist Intent Resolver
-→ Intake 三项完成后的乾坤 accountIndex 只读归属校验
-→ 账户、Case、Job 的 owner_user_id 访问控制
-→ Gate Action Policy（只读 workflow_case_summary）
-→ 状态说明 / safe readonly / Plan 确认卡
-→ 既有 Plan-bound executor
-```
-
-全新 `runtime_truth` 账户创建 Case 前，允许唯一的乾坤 `accountIndex` 只读预检：仅精确命中一条且 owner、agent、媒体主体齐全时写入 `advertiser_accounts` 和脱敏 `evidence_artifacts`；零匹配、多匹配、凭据异常或已有账户 scope 冲突时不得创建 Case/Job。首次工作台启动先读取 active Case 最新 Job 的唯一 Gate：`run_monitor_readonly` 时自动执行一次 fresh monitor readonly reconcile；只有 canonical `monitor_ready=true`，才在同一 Job 自动执行一次 `dry_run`。无 monitor 且合同完整时只编译并保存一份 ready `monitor_bootstrap` Plan，直接返回“确认创建 monitor”卡片；该 Plan 的确认与权威回查成功后仍由同一有界推进器继续 readonly。每轮最多一次 reconcile 和一次 dry-run，到达确认 Gate、真实 blocker、完成态或 Gate 无变化立即停止，确认前不得调用创建接口。
-
-工作台用户以乾坤拼音账号登录，初始密码仅用于首次登录且必须立即修改；会话只保存随机 token 的 SHA-256。一个广告账户只能绑定一个 active `workbench_users`，每次新 Intake 都在创建 Case/Job 前用当前用户的乾坤 owner key 执行 `accountIndex` 精确校验。普通用户只能读取、启动、运行和确认本人账户；管理员可以管理用户并读取全员报表，但同样不得代操作他人账户。任何账户、Case、Job、历史或 command 访问都必须同时匹配用户、账户 owner 和当前 `qiankun_owner_key`；归属冲突只写脱敏审计，不自动转移。
-
-同一 Job 的 `plan_version` 与 `create_attempt_no` 必须分离：已消费 Monitor Plan V2 后，下一份普通 Resource Plan 使用并在同一轮复用 V3，标准项目创建 attempt 仍为 1。active latest Job 在 monitor READY、最新 Monitor Plan 已消费且零标准项目创建 action 时，由唯一 View 投影 `run_fresh_readiness`，不得以零 blocker 落入 `review_latest_job`。Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步脱敏的账户级 event asset provision 合同；前提不完整时不得落合同或生成 action。
-
-`advertiser_accounts.auth_status` 的唯一持久化入口必须将“授权正常”“已授权”“ready”“active”归一为 `ready`；其他状态继续 fail-closed。`workflow_case_summary` 只将当前同 scope 账户事实用于当前 Gate：账户存在时历史 `account_missing` 不再是 root blocker，账户为 `ready` 时历史 `account_not_ready` 不再是 root blocker；历史 Skill 记录仅供审计，当前账户确实缺失或非 READY 时仍阻断。
-
-Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
-
-右侧 Workflow 面板只展示由唯一节点注册表驱动的固定 3 阶段 7 Node、子节点详情与运行状态，不设置独立 Case Gate 卡片。动态 `currentGate`、唯一 blocker 与 `suggestedNextAction` 继续来自同一 `job.caseGate` / `workflow_case_summary`，由左侧对话和底部进度/刷新栏投影；删除重复展示不得删除 Gate 数据或其对确认卡、节点等待态和输入状态的控制。
-
-ready 的普通 `resource_prepare` Plan 使用精确短语“确认准备资源”进入既有 confirmed-resource orchestrator；全部动作和权威回查通过后，在同一 Case 创建 fresh runtime Job。下一份确认 Plan 只能包含一次 `std_project_create`。
-
-最新 runtime Job 的标准项目创建被平台明确拒绝且已收口为 `failed_waiting_manual_review` 时，`prepare_corrective_attempt` 允许账户本人输入“继续执行”原子创建同一 Case 的唯一 fresh Job，并只运行完整 readonly。创建次数按 Case 的全部 runtime Job 聚合，fresh Job 的 `create_attempt_no` 为已有 action 数加一，最大值严格读取 `workflow_cases.maximum_create_attempts`（普通 Case 默认 3）；readonly、Plan 与最终 create executor 都必须用同一 Case 聚合状态校验序号、上限、已有对象和 verified readback，Job 级状态仅负责当前 Plan/action 防重。每次都必须使用新项目名、Draft、payload hash、Plan/hash 和本人确认。重复指令只返回同一恢复 Job，已通过的 DMP 仅回查、不重推；达到 Case 上限且未 verified 后进入 `manual_review_after_attempt_limit`。该入口不自动确认、不自动创建，也不复用旧 action、confirmation 或幂等键。
-
-`manual_review_after_attempt_limit` 的“继续执行”只可显示状态，绝不创建或重试。仅在当前 owner 的最新失败 Job、旧 `std_project_create` Plan 已 `consumed`、Case 聚合为零创建对象/verified readback，且受控维护入口已经把格式受限、脱敏的复盘批准 evidence 写入旧 Case metadata 后，本人精确输入“重新只读准备”才能在同一事务关闭旧 Case、创建同 scope 的替代 Case 和 fresh Job。替代 Case 固定 `maximum_create_attempts=1`，不继承旧 Draft、Plan、confirmation、action 或幂等键，先完成完整 readonly；只有新 Plan 通过并由本人输入“确认创建”才允许其唯一一次创建。无明确平台原因或未批准复盘时必须停留在人工复盘，管理员同样不能代操作。
-
-已确认资源 Plan 的任一动作失败、超时、异常或响应不明时，必须完成 action、Skill、Job 与 Plan 的终态收口：旧 Plan 进入 `consumed`，Job 进入 `blocked_confirmed_resource_plan`，禁止重试。工作台只允许精确“重新只读准备”在同一 Case 创建 fresh runtime Job 并重新只读核验；不得复用旧 confirmation、action grant 或 idempotency key。
-
-已确认 Monitor Plan 在平台调用前被 owner、合同或本地前置校验阻断时，同样必须把旧 Plan 收口为 `consumed`，Job 进入 `blocked_confirmed_monitor_plan`，并且保持 `create_called=false`。恢复只允许精确“重新只读准备”创建同一 Case 的 fresh runtime Job 和新 Plan/hash/confirmation；最终 monitor ensure 与全部 readonly 路径必须传递当前登录用户的精确 `qiankun_owner_key`。monitor ID 缺失时草稿构建保持等待，不得向仓储传空 ID。
-
-工作台可在 `workbench_runtime_write_policy` 明确启用时消费 runtime Plan-bound 确认；该策略只适用于配置的 origin、已登录且与账户 owner 完全一致的用户、active Case 的最新 `runtime_truth` Job、ready Plan、精确 Plan/hash 与精确确认短语。非 HTTPS 只允许显式启用且 bind host/origin/port 完全一致的 RFC1918 IPv4；默认仍为 loopback，长期入口使用 HTTPS。运行时用户不创建仓库 Task/Manifest；动态授权事实只写 Postgres confirmation/action/readback。开发、迁移和专项人工写入仍必须使用 Task/Manifest 与原有 `platform_write_allowed` scope。
+| 部署、网络、启动、凭据录入与运维 | `deploy/README.md` |
+| 当前任务的范围、允许写入、验证与停止条件 | active Task / Context Manifest |
 
 ## 真值
 
@@ -89,52 +51,26 @@ mwb.workflow_case_summary
 → suggested_next_action
 ```
 
-Markdown 只保存规则、方案、任务合同和经验；不保存动态账户、Case、Job、Plan、Node、Skill、资源或平台动作状态。
+Markdown 只保存规则、方案、任务合同和经验；不保存动态账户、Case、Job、Plan、Node、Skill、资源或平台动作状态。发生冲突时，按对应真值链提出最小修正。
 
-发生冲突时，按对应真值链提出最小修正。
-
-## 运行机制
-
-```text
-frontend / API
-→ launchWorkflow
-→ workflow-node-registry
-→ runner
-→ Node 01–07 Skills
-→ platforms / repositories
-→ Postgres
-→ mwb.workflow_case_summary
-→ UI / API / CLI / 任务卡 / 工作台对话
-```
+## 最小运行约束
 
 - 3 阶段 7 Node 的唯一来源是 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。
-- Node 02 monitor 的唯一公开入口是 `src/workflows/skills/oe3/02-monitor/index.mjs`；CLI 只允许状态、readonly reconcile 和配置只读同步。monitor 写入必须消费 `monitor_bootstrap` Plan，不能由 CLI 或环境变量直接授权。
-- 正常工作台启动、monitor Plan 确认成功与 Resource Plan 成功后，只允许 `runWorkbenchInitialReadonly` 消费当前 active Case 最新 Job 的 `run_monitor_readonly` / `run_fresh_readiness` Gate，自动执行有界 readonly 推进；`run_fresh_readiness` 完成后若唯一根阻断恰为 `monitor_plan_required`，同轮只允许接入一次既有 monitor readonly bridge 以保存可确认 Plan。所有路径必须传递当前已登录用户的精确 `qiankun_owner_key`；不得自动消费写入确认、`run_readback_only`、其他 blocker 或历史 Job。
-- 对 `monitor_create_busy_retry_exhausted` 的终态 Case，工作台只接受精确“重新只读回查 monitor”触发一次 fresh readonly reconcile；该动作不改变 Gate 真值，也不授权创建或重试。回查后进入 `run_monitor_readonly` 时，“继续执行”仍只能执行 fresh readonly reconcile；只有 canonical `monitor_ready=true` 才能离开 monitor Gate，历史 Node 02 blocker 不得覆盖 READY 结果。
-- 事件资产 detail 必须同时匹配当前账户的受控 App 与唯一实例候选；`micro_app_id` / `micro_app_instance_id` 等 allowlist 长数字字段须在 `JSON.parse` 前无损保留为字符串，缺失、失配、歧义或解析失败均 fail-closed。
-- 所有生产平台 HTTP 调用必须经唯一 deadline 封装：普通 JSON 15 秒、文件上传 60 秒；组合已有 `AbortSignal`、超时中止与 timer 清理，不自动重试。读超时只落脱敏 `timeout` 诊断；写超时、异常或响应不明一律先记为结果不明，再只做权威只读回查。事件配置保留 15 秒期限并沿该封装执行；其子 action 幂等键必须绑定已验证 planned action key、当前 Plan ID 与 event type，任一绑定缺失时在 action 占位和平台调用前 fail-closed。全部 event config create action 成功后，唯一允许的最终一致性等待是按本轮起点绝对 `0/1/3/5` 秒执行有界事件链只读回查，命中即停，绝不重试 create；失败、超时或响应不明分支不进入该轮询。partial baseline 仍只由共享 `eventConfigBaselineReadiness` 在同时取得已配置与当前 available 的标准化结果后分类。
-- 定时 OAuth refresh 发生 `transport_error` 时仍以非零状态结束并写脱敏审计；只有原 `OCEANENGINE_TOKEN_STATUS=valid`、access token 存在且有明确未来过期时间时，才保留该旧 token 的 `valid` 状态。access token 已过期或缺失、OAuth 拒绝、refresh token 失效或被撤销时继续 fail-closed。该降级规则不授权自动重试或任何业务写入。
-- 新 Skill 必须先在 `00-contracts.mjs` 声明 `nodeKey`，再由注册表校验。
-- `00-` 负责跨节点编排、公共合同、CLI 和 smoke；`01-07-` 负责对应 Node。
-- 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链。保留 CLI 仅限 dry-run、readback、状态或明确标注的安全诊断，不得成为旁路写入入口。
-- `std_project_create` 成功受理后，Create Plan 必须 `ready → waiting_readback → consumed`；Node 07 按本轮起点的绝对 `0/3/5/8/10` 秒只读回查，整轮硬截止 25 秒，命中即停止。只有项目 ID 与最新 Draft 名称均一致的 verified 结果才能把 Plan 置为 `consumed`，并由共享强校验将 Job 与 active runtime Case 收口为 `completed`。平台明确业务失败直接收口为 `consumed` + 人工修正，禁止同名回查恢复；超时、异常或响应不明仅可由上述严格回查恢复，否则同样收口且不得再次创建。
-- `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/`，登记 `manifest.json` 并删除 package 入口。live `src/`、`scripts/` 与 package 均禁止 import/调用 archive。
-- `workflow_cases` 是业务闭环总控；新 `runtime_truth` Job 必须显式带 `case_id`。
-- `oceanengine_3_byte_mini_game × JSZC` 的 fresh Job 只从当前 `game_route_defaults` 取得 CTA、预算/出价/ROI、性别/年龄与 336 位时段保底值；Node 05 必须校验 success profile、字段账本、时段摘要与至少 10 个 fresh readonly DMP 排除 ID。账户动态资源 ID 不得固化进路线默认值。
-- `advertiser_accounts.guide_video_required=true` 的账户必须在每个 fresh Job 的 Node 04 使用当前已验证小游戏实例调用 `gameplay/list`；非空 `guide_video_id` 去重后必须恰好一个，并只写入唯一 `account_resources.micro_app_instance.metadata.guide_video_readiness`，同时绑定当前 Job 与实例 ID。Node 05 从该单一事实为每条推广视频发送同一 ID，禁止读取视频资源上的旧同名 metadata；其他账户必须省略。Node 07 在项目出现后额外用一次 `oc_project/material/get` 核验全部计划视频的绑定，不重试创建。
-- `workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制或自行计算。非 active Case 只允许 `review_latest_job`，除非已具备完整 verified 完成证据并投影 `first_std_project_create_completed`；两类都不得暴露确认、重试或执行入口。
+- `mwb.workflow_case_summary` 是当前 Gate、唯一 root blocker 和下一步的只读投影；消费端不得复制、写回或自行计算。
+- Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
+- 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链；CLI 只允许 dry-run、readback、状态和明确标注的安全诊断，不得成为旁路写入入口。
+- `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的脚本移入 `scripts/archive/` 并登记 `manifest.json`。live `src/`、`scripts/` 与 package 均禁止 import 或调用 archive。
 
 ## 权限与安全
 
-- Node 结果写 `launch_node_runs`；Skill 结果写 `launch_skill_runs`。
-- `project.state.json.guardrails` 只提供全局边界；真实写入必须匹配当前 Job、Execution Plan、confirmation、action grant 和调用上限，并且只能由 active Task scope 或启用的 authenticated-LAN Plan-bound 工作台策略二选一授权。
+- `project.state.json.guardrails` 只提供全局边界。真实平台写入还必须精确匹配当前 Job、冻结 Plan、confirmation、action grant 与调用上限，并且只能由 active Task scope 或已启用的工作台 runtime policy 之一授权。
+- 工作台用户只能读取、启动、运行和确认本人账户；管理员可以管理用户和读取授权报表，但不得代操作他人账户。
 - 只有 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其他缺失资源只形成 blocker。
-- 每份确认 Plan 只能按冻结动作执行一次；修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
-- 缺少最终 Draft 时 `std_project_create` Plan 只能保持非 ready 诊断状态。ready Plan 必须在同一原子持久化中完成当前 Draft 的精确 Plan ID/hash 绑定并写入 `plan_derivation_status=passed`，且最新 Job 为 `draft_ready`、Node 04 为 `passed` 后才可确认；任一条件不满足时不得写入 confirmation 或 action。已确认 Create Plan 在创建前 fail-closed 且零 `std_project_create` action 时，必须收口为 `consumed` 并将 Job 置于既有人工修正终态，旧 confirmation 保留且不得重用。
-- 创建响应不等于 READY；只有权威只读回查通过才能写入 verified。
-- `runtime_truth` 是真实用户轮次；`test_run` 必须由 smoke/CLI 清理；`seed_source` 仅用于初始化。
+- 每份确认 Plan 只能按冻结动作消费一次；失败或修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
+- 创建或写入响应不等于 READY；只有权威只读回查通过才能写入 verified。
+- 动态运行授权只写 Postgres confirmation/action/readback；开发、迁移和专项人工写入必须使用 Task/Manifest 与相应 Guardrail scope。
 - 平台长数字 ID 默认按字符串保存和比较。
-- 禁止在项目文件、普通日志、API 或前端保存 token、secret、Cookie、auth_code、完整触点 URL、raw request、raw payload 或 raw response。
+- 禁止在项目文件、普通日志、API 或前端保存 token、secret、Cookie、auth_code、密码、完整触点 URL、raw request、raw payload 或 raw response。
 
 ## 任务闭环
 
@@ -150,4 +86,4 @@ frontend / API
 → 必要时写入 project-lessons
 ```
 
-重要方案批准后才能创建 Task；执行只推进当前 Task。任务关闭后，业务下一步始终重新读取 `workflow_case_summary`。
+重要方案批准后才能创建 Task；执行只推进当前 Task。任务关闭后，业务下一步始终重新读取 `mwb.workflow_case_summary`。只有形成真实、已验证且跨任务可复用的结论时，才更新 `docs/project-lessons.md`。

@@ -1,0 +1,66 @@
+{
+  "schema_version": "2026-09-01.task-context-manifest-v1",
+  "task_id": "TASK-MWBV2-AGENTS-STARTUP-PROTOCOL-SLIMMING-20260908",
+  "task_ref": "tasks/TASK-MWBV2-AGENTS-STARTUP-PROTOCOL-SLIMMING-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08 14:44 CST",
+  "updated_at": "2026-09-08 14:46 CST",
+  "owner_agent": "codex",
+  "brief": {
+    "goal": "Slim AGENTS.md into a stable startup protocol and route implementation details to their existing canonical documents.",
+    "platform_write_allowed": false,
+    "platform_readonly_allowed": false,
+    "database_write_allowed": false,
+    "database_write_scope": [],
+    "maximum_platform_write_actions": 0
+  },
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENTS-STARTUP-PROTOCOL-SLIMMING-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENTS-STARTUP-PROTOCOL-SLIMMING-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "deploy/README.md"
+  ],
+  "allowed_writes": [
+    "AGENTS.md startup-protocol consolidation",
+    "this Task and Context Manifest",
+    "project.state.json active-task lifecycle"
+  ],
+  "forbidden_actions": [
+    "runtime code, schema, view, API or business-fact changes",
+    "real platform reads, writes, confirmations, creates, retries or OAuth refresh",
+    "copying dynamic Case, Job, Plan, account or user state into long-term Markdown",
+    "credentials, sensitive URLs or raw platform request/payload/response in tracked files"
+  ],
+  "validation_plan": [
+    "AGENTS.md contains only startup, routing, truth, architecture invariants, safety and task closure",
+    "removed details remain discoverable in their canonical logic, data, lessons or deployment document",
+    "all referenced paths exist and project/task JSON parses",
+    "sensitive and dynamic-detail scans plus git diff --check pass"
+  ],
+  "stop_conditions": [
+    "a removed rule lacks a canonical destination",
+    "the change would alter runtime behavior or business truth",
+    "the change would expose sensitive or dynamic runtime data"
+  ],
+  "result": {
+    "status": "completed_without_runtime_or_platform_changes",
+    "agents_line_count_before": 153,
+    "agents_line_count_after": 89,
+    "runtime_code_changed": false,
+    "schema_or_database_changed": false,
+    "platform_read_called": false,
+    "platform_write_called": false,
+    "validation": [
+      "jq empty project.state.json and Task Context Manifest",
+      "canonical destination coverage scan",
+      "removed dynamic and implementation-detail scan against AGENTS.md",
+      "referenced path existence check",
+      "git diff --check"
+    ]
+  }
+}
