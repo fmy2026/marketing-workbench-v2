@@ -7,7 +7,7 @@ import {
 } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 import { parseOceanEngineStdProjectResponse } from "../src/platforms/oceanengineStdProjectResponse.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
-import { CREATE_FIELD_LEDGER_VERSION } from "../src/workflows/skills/oe3/05-create-field-ledger.mjs";
+import { CREATE_FIELD_LEDGER_VERSION, evaluateCreateFieldLedger } from "../src/workflows/skills/oe3/05-create-field-ledger.mjs";
 import { SELLING_POINTS_CONTRACT } from "../src/workflows/skills/oe3/05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "../src/workflows/skills/oe3/05-title-materials-contract.mjs";
 import { NESTED_FIELD_CONTRACT } from "../src/workflows/skills/oe3/05-nested-field-contract.mjs";
@@ -84,6 +84,8 @@ function passedCurrentRouteManifest() {
       fixtureHash: JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
       goldenFieldShapeHash: JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
       expectedLedgerPathCount: JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
+      guideVideoRequired: false,
+      guideVideoPolicy: "omit",
       filterEventPolicy: "omit",
       convertedTimeDurationPolicy: "omit_when_no_exclude",
       externalUrlMaterialListPolicy: "send",
@@ -211,7 +213,7 @@ function basePayload(instanceId = "7434750138926546994") {
       action_track_url: ["https://example.invalid/mwbv2/callback"]
     },
     aigc_dynamic_creative_switch: "OFF",
-    is_comment_disable: "OFF"
+    is_comment_disable: "ON"
   };
 }
 
@@ -229,6 +231,13 @@ assert(!wire.body.includes('"instance_id":"7434750138926546994"'));
 assert(!wire.body.includes("7.434750138926547e+18"));
 assert(wire.body.includes(`"schedule_time":"${JSZC_FALLBACK_SCHEDULE_TIME}"`));
 assert.match(wire.requestHash, /^sha256:[a-f0-9]{64}$/);
+
+const commentsEnabledLedger = evaluateCreateFieldLedger(basePayload());
+assert.equal(commentsEnabledLedger.entries.find((entry) => entry.path === "is_comment_disable")?.preCreateStatus, "passed");
+const commentsDisabledPayload = basePayload();
+commentsDisabledPayload.is_comment_disable = "OFF";
+const commentsDisabledLedger = evaluateCreateFieldLedger(commentsDisabledPayload);
+assert.equal(commentsDisabledLedger.entries.find((entry) => entry.path === "is_comment_disable")?.preCreateStatus, "blocked");
 
 const int64Wire = buildStdProjectCreateWireBody(basePayload(INT64_MAX_DECIMAL));
 assert.equal(int64Wire.status, "passed");

@@ -57,7 +57,7 @@
 | 准备 | 02 `creation_context` | 账户、触点、monitor、平台 App → 创建上下文 | monitor 只能由独立 `monitor_bootstrap` Plan 创建，不混入项目创建 |
 | 准备 | 03 `game_launch_pack` | 主档、默认值、物料、备用页、资源蓝图 → 游戏保底包 | 不从历史账户复制动态资源 ID |
 | 就绪 | 04 `account_resource_prepare` | 目标账户 fresh readonly、资源蓝图 → `account_ready_report`、资源 Plan 输入 | 未确认前零平台写入 |
-| 就绪 | 05 `std_project_draft_builder` | 已验证资源、字段合同、查重 → Draft、payload hash、创建就绪 | 不创建项目 |
+| 就绪 | 05 `std_project_draft_builder` | 已验证资源、字段合同、未删除同名与语义标的/竞价策略查重 → Draft、payload hash、创建就绪 | 不创建项目；列表字段或分页不完整时 fail-closed |
 | 创建执行 | 06 `std_project_create_executor` | 已确认 Create Plan → 创建动作与对象记录 | 一份 Create Plan 仅一次 `std_project/create` |
 | 创建执行 | 07 `readback_closer` | 创建对象、Draft → verified readback 与证据 | 不以补发 create 修复回查问题 |
 
@@ -112,7 +112,7 @@
         = 唯一允许的平台写入
 ```
 
-确认前会重新执行所需 fresh readonly；任一资源、调用量、hash 或授权漂移都会停止当前 Plan。写入后必须原子记录动作，并以权威只读回查决定 READY、verified、waiting readback 或 blocker。HTTP deadline、幂等键、事件配置顺序、字段编码和最终一致性窗口是执行合同，分别查 `executionPlan.mjs`、资源执行器与数据契约，不在本总览重复。
+确认前会重新执行所需 fresh readonly；任一资源、调用量、hash、授权或标准项目重复状态漂移都会停止当前 Plan。Node 05 的重复判定始终排除 `PROJECT_STATUS_DELETE`，并同时检查名称与路线合同指定的语义标的字段；任一列表分页、状态过滤或比较字段不可靠均不得确认创建。写入后必须原子记录动作，并以权威只读回查决定 READY、verified、waiting readback 或 blocker。HTTP deadline、幂等键、事件配置顺序、字段编码和最终一致性窗口是执行合同，分别查 `executionPlan.mjs`、资源执行器与数据契约，不在本总览重复。
 
 ## 5. 当前 Case Gate 与工作台
 

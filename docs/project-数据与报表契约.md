@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `077_account_guide_only_correction.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `078_semantic_duplicate_comment_defaults.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `077` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 78 个 migration 文件、编号至 `077`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+结构清单沿用 migration `078` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 79 个 migration 文件、编号至 `078`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -91,7 +91,7 @@ route_id + game_code
 
 | 内容 | 唯一来源与读取边界 |
 | --- | --- |
-| 路线默认值与创建字段合同 | `game_route_defaults.raw_defaults`；`payload_defaults` 保存静态发送参数，`official_create_field_contract.field_rules / nested_rules` 保存顶层/嵌套规则，Node 05 与 preflight 共用。JSZC 静态基线为保留“立即试玩”再追加 4 项 CTA、预算/出价/ROI `66666/366/0.16`、男性与五档年龄、336 位半小时排期；这些是 migration `069` 的配置基线，不代替当前查询或授权 |
+| 路线默认值与创建字段合同 | `game_route_defaults.raw_defaults`；`payload_defaults` 保存静态发送参数，`official_create_field_contract.field_rules / nested_rules` 保存顶层/嵌套规则，Node 05 与 preflight 共用。`duplicate_semantic_contract` 保存未删除语义查重的字段集合与状态过滤。JSZC 静态基线为保留“立即试玩”再追加 4 项 CTA、预算/出价/ROI `66666/366/0.16`、男性与五档年龄、336 位半小时排期，以及评论管理启用 `is_comment_disable=ON`；这些是 migration `069`、`078` 的配置基线，不代替当前查询或授权 |
 | 游戏素材与账户资源 | 标题由 `game_assets.asset_type=title_material` 经物料包关联；商品身份来自 `games`，卖点来自路线默认值，产品图及其他动态资源来自目标账户已核验记录。账户资源、DMP 成员状态、实例、引导视频和触点不复制进路线默认值 |
 | 固定抖音号与授权 | 默认号从 `game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id` 读取；基线保存默认号、hash、适用条件和规则依据，不表示账户已授权。`advertiser_accounts.aweme_authorization` 只保存当前默认号的脱敏只读核验快照，包括 scope、default hash、Job、时间、response hash、证据和 blocker，不保存候选列表或已选 ID。专项 readiness View 投影最近快照；平台变化须重新运行 Node 04 才会更新 |
 | 启动链接与备用页 | `game_route_launch_links` 按 route×game 读取受控深链；平台 App 关联、hash 与协议在 payload 前校验。`landing_page_assets` 保存备用页库存，目标账户可见性读取 `account_resources` 的 `backup_landing_page`；完整 URL 只进入受控字段，普通摘要仅输出 ref/hash/status/存在性 |

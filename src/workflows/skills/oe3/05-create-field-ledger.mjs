@@ -38,7 +38,7 @@ const ENUM_RULES = Object.freeze({
   "track_url_setting.send_type": ["SERVER_SEND"],
   aigc_dynamic_creative_switch: ["OFF"],
   layer_roi_switch: ["OFF"],
-  is_comment_disable: ["OFF"]
+  is_comment_disable: ["ON"]
 });
 
 function canonicalJson(value) {

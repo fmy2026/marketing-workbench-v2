@@ -1,8 +1,8 @@
 import { hashValue } from "./00-contracts.mjs";
 
-export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-02.jszc-byte-game-incremental-fallback-v2";
+export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-09.jszc-byte-game-comment-management-enabled-v3";
 export const JSZC_NESTED_FIELD_CONTRACT_VERSION = "2026-09-08.oe3-std-project-create-nested-fields-v6";
-export const JSZC_SUCCESS_PROFILE_SOURCE = "jszc_incremental_fallback_screenshot_plus_official_create_contract";
+export const JSZC_SUCCESS_PROFILE_SOURCE = "jszc_incremental_fallback_plus_official_comment_management_contract";
 
 export const JSZC_FALLBACK_BUDGET = 66666;
 export const JSZC_FALLBACK_BID = 366;
@@ -59,7 +59,8 @@ export const JSZC_SUCCESS_PROFILE_FIXTURE = Object.freeze({
     scheduleType: "SCHEDULE_FROM_NOW",
     scheduleTimeLength: 336,
     scheduleTimeDigest: JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
-    minimumDmpExclusions: 10
+    minimumDmpExclusions: 10,
+    commentManagement: "ON"
   }),
   requiredSendShapes: Object.freeze([
     Object.freeze({ path: "project_materials.external_url_material_list", valueType: "array", itemCount: 1 }),
@@ -80,11 +81,11 @@ export const JSZC_SUCCESS_PROFILE_FIXTURE = Object.freeze({
 });
 
 export const JSZC_SUCCESS_PROFILE_FIXTURE_HASH = hashValue(JSZC_SUCCESS_PROFILE_FIXTURE);
-export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:47bdf25b99339c610e31e9f54a9a6d4cf8c142b01bebfecb0ff843c4f866f464";
+export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:e2fd4ac63467eeda4b72064ea751a23bedf71b927e3c4e462ae5a7e4cbd1a844";
 export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 92;
-export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:5ded53919aea28eeec18bedcd0c1ed3ca1c4857bd95ff77390887f8ca502db65";
+export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:98ee03c08b3252ad83a8f66a3cc6d64c4a609cc643240b0de06d541fef1207fe";
 export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 94;
-export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:647fab958e4eb4e0f6fe6773db2a4a968791c0bc07d3f075259c344a10004247";
+export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:9a1f104f75a724c214b36e6c8b4cf6334b195d10932f0c295eec86c5f02d4d2f";
 export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 96;
 export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
   videoMaterialList: 2,

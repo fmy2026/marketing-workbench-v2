@@ -120,7 +120,7 @@ function bundle() {
         },
         payload_defaults: {
           project: { ad_type: "ALL", landing_type: "MICRO_GAME", marketing_goal: "VIDEO_AND_IMAGE", native_type: "AWEME", delivery_mode: "MANUAL" },
-          strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM", layer_roi_switch: "OFF", aigc_dynamic_creative_switch: "OFF", is_comment_disable: "OFF" },
+          strategy: { delivery_type: "NORMAL", delivery_medium: "BYTE_GAME", micro_promotion_type: "BYTE_GAME", bid_type: "NO_BID", budget_mode: "BUDGET_MODE_DAY", pricing: "PRICING_OCPM", audience_type: "CUSTOM", layer_roi_switch: "OFF", aigc_dynamic_creative_switch: "OFF", is_comment_disable: "ON" },
           track_url_setting: { send_type: "SERVER_SEND" },
           schedule: { schedule_type: "SCHEDULE_FROM_NOW", schedule_time: JSZC_FALLBACK_SCHEDULE_TIME },
           targeting: { district: "CITY", gender: JSZC_FALLBACK_GENDER, age: [...JSZC_FALLBACK_AGES], converted_time_duration: "SIX_MONTH", hide_if_converted: "NO_EXCLUDE", interest_action_mode: "CUSTOM" },

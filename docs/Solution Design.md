@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `077`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
+| 校验基线 | 当前代码、SQL migrations 至 `078`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -37,6 +37,7 @@
 | Intake 启动只读恢复桥接 | 本人重新规范化三项 Intake 并点击“启动流程”是一次显式只读恢复授权：仅已批准替代 Case 的最新 Job 被 Gate Policy 判定为已停止 confirmed resource/monitor Plan 时，工作台提交既有“重新只读准备”命令，创建或复用同一 Case 的 fresh Job。该桥接不重放旧 Plan、不确认、不创建平台对象，也不依赖任何个体 ID | [本次批准任务](../tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md)、[当前逻辑](project-现在的逻辑图.md) |
 | Plan / Draft 发布绑定 | Plan 版本与创建 Attempt 分离；最终 Draft 与 Plan ID/hash 原子绑定，避免消费陈旧授权 | [Plan 合同](../src/workflows/executionPlan.mjs)、[数据契约](project-数据与报表契约.md) |
 | 游戏默认值与账户资源 | 路线保底参数逐叶修正；DMP、素材、实例、引导视频和触点仍从各自真值读取，避免复制账户动态值 | [数据契约](project-数据与报表契约.md)、migrations `069`、`074` |
+| 标准项目语义查重与评论管理 | Node 05 以路线合同同时执行未删除同名与语义标的/竞价策略查重；语义字段或分页无法可靠核验即 fail-closed。评论管理默认启用，由路线默认值 `is_comment_disable=ON` 与字段账本共同保护；不引入账户专用逻辑 | [本次批准任务](../tasks/TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909.md)、migration `078`、[当前逻辑](project-现在的逻辑图.md) |
 | OAuth 瞬时失败 | 网络刷新失败非零退出；仅原 access token 可信且未过期时保留其可用状态，不自动重试 | [刷新实现](../src/platforms/oceanengineTokenRefresh.mjs)、[部署说明](../deploy/README.md) |
 
 ## 何时使用

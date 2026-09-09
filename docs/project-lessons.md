@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；已验证可复用经验集 |
-| 最后更新时间 | 2026-09-08 CST（数据库说明改为引用，未新增经验） |
+| 最后更新时间 | 2026-09-09 CST（标准项目语义查重与评论管理启用经验） |
 | 校验基线 | Git 当前 HEAD + `TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907`；当前逻辑图、数据报表契约、7 Node 注册表与首个异机真实流程证据 |
 | 重新校验条件 | 新增可复用闭环经验、接口/字段合同变化，或既有经验被当前代码、Schema、官方资料或真实回查否定时 |
 
@@ -83,10 +83,22 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 备用网页链接 | 当前 JSZC 为 `MICRO_GAME + BYTE_GAME + mini_program_info.url` 主链路；`external_url_material_list` 是条件字段，必须由路线 nested contract 明确 send/omit。已验证成功的受控场景发送 1 条已回查备用页；这说明该组合可接受，不证明所有 BYTE_GAME 场景都必须发送。 |
 | 图片素材列表 | 当前 JSZC 走视频素材和产品图，普通 `image_material_list` 固定为空数组；非空图片列表必须被 Node 5 / preflight 阻断。 |
 | 小游戏链接 | `MICRO_GAME + BYTE_GAME` 使用受控 `mini_program_info.url`；传 `url` 时禁止同时传 `app_id`、`start_path`、`params`。 |
-| 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 按 [路线参数合同](project-数据与报表契约.md#配置与资源来源) 读取，不在 Node 5 硬编码第二来源。 |
+| 静态开关 | `layer_roi_switch`、`aigc_dynamic_creative_switch`、`is_comment_disable` 与 `track_url_setting.send_type` 按 [路线参数合同](project-数据与报表契约.md#配置与资源来源) 读取，不在 Node 5 硬编码第二来源。当前 JSZC 的评论管理启用值为 `is_comment_disable=ON`；缺失或其他值必须由字段账本/preflight 阻断。 |
 | 锚点边界 | 当前 JSZC 路线固定 `anchor_related_type=OFF`，不得携带 `anchor_material_list` 或 `component_material_list`；未来启用 `SELECT` 前必须先新增独立只读准备和官方取值证据。 |
 | 审计摘要 | 最终 manifest 只保存 `nestedFieldContract` 的版本、来源、检查路径数、数量/长度范围、枚举结果、封面模式、证据计数和 blocker 数；不保存完整 payload、URL、token、raw request 或 raw response。 |
 | 扩展规则 | 未来新增 create 嵌套字段，必须先补官方合同、路线 `nested_rules`、共享校验模块和正反例测试；未启用条件字段不得为了兼容性而提前发送。 |
+
+## 标准项目语义查重与评论管理（2026-09-09）
+
+| 项 | 经验结论 |
+| --- | --- |
+| 问题表现 | 平台可将名称不同、小游戏实例不同的项目视为同一标的与竞价策略组合；仅按项目名称查重会漏过该冲突。 |
+| 判定路径 | Node 05 先查询未删除同名项目，再以路线 `duplicate_semantic_contract` 比对 `asset_id`、投放身份、营销目标、优化目标、深度优化方式与竞价策略。`instance_id`、名称、预算、素材、受众和排期不作为语义标的字段。 |
+| 删除边界 | 使用官方列表 `status_first=ALL_EXCEPT_DELETE`；已删除项目不阻断，但每次 Create Plan 和确认前仍必须重新只读核验。 |
+| 安全边界 | 列表分页超过受控上限、状态过滤失败，或任一候选缺少合同字段时 fail-closed；同名或语义命中都只形成 blocker，零 create。 |
+| 评论管理 | 官方创建字段中 `is_comment_disable=ON` 表示评论管理启用。该值由路线默认值读取，并由字段账本和 preflight 共同约束；不得用账户 ID 例外或界面默认推断替代。 |
+| 回查标准 | 创建响应成功不等于完成；仍须对象 ID、项目名称与素材/引导视频绑定的权威只读回查 verified 后收口 Case。 |
+| 案例依据 | 已验证的单次创建与回查闭环、官方 `std_project/list` / `std_project/create` 合同、migration `078` 与语义查重 smoke。 |
 
 ## 头像（avatar）
 
@@ -262,7 +274,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 品牌 | 当前账户可投品牌及行业关系通过只读核验，发送三个整数品牌/行业 ID 与脱敏品牌名称。 | 历史品牌候选。 |
 | 视频、标题、产品图 | 目标账户回查通过；本成功形态为 2 条竖版视频、3 条标题、1 张产品图、3 条卖点。封面未获得显式可用证据时省略，由平台默认。 | 物料户可见、未回查封面、把产品图当普通图片或头像。 |
 | 小游戏主链、备用页与监测 | 小游戏只发送受控 `mini_program_info.url`；备用页、监测链接均为目标账户可见、已回查且 hash 一致的受控链接。 | 拼接 URL、历史 URL、只比较旧数据库 hash。 |
-| 审计与执行 | 同名查重、字段账本、payload/wire hash、单变量 diff、凭据、确认/action/readback 计数都通过，才允许原子 claim 的一次 create。 | 只看 HTTP `200`、自动重试或跳过 list 回查。 |
+| 审计与执行 | 未删除同名与语义标的/竞价策略查重、字段账本、payload/wire hash、单变量 diff、凭据、确认/action/readback 计数都通过，才允许原子 claim 的一次 create。 | 只看 HTTP `200`、自动重试或跳过 list 回查。 |
 
 ### 最终成功的字段参数与发送形态
 
@@ -272,7 +284,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | --- | --- |
 | 顶层投放类型 | `ad_type=ALL`；`native_type=AWEME`；`landing_type=MICRO_GAME`；`marketing_goal=VIDEO_AND_IMAGE`；`delivery_mode=PROCEDURAL`；`delivery_type=NORMAL`；`delivery_medium=BYTE_GAME`。 |
 | 优化与出价 | `external_action=AD_CONVERT_TYPE_PAY`；`deep_external_action=AD_CONVERT_TYPE_PURCHASE_ROI_7D`；`deep_bid_type=PER_AND_SEVEN_PAY_ROI`；`bid_type=CUSTOM`；`pricing=PRICING_OCPM`；`budget_mode=BUDGET_MODE_DAY`；`budget=88888`；`cpa_bid=488`；`roi_goal=0.088`。 |
-| 排期与静态开关 | `schedule_type=SCHEDULE_FROM_NOW`；`layer_roi_switch=OFF`；`aigc_dynamic_creative_switch=OFF`；`is_comment_disable=OFF`。`SCHEDULE_FROM_NOW` 具有真实投放风险，必须在每次 create 前单独展示并人工确认。 |
+| 排期与静态开关 | `schedule_type=SCHEDULE_FROM_NOW`；`layer_roi_switch=OFF`；`aigc_dynamic_creative_switch=OFF`。历史成功样本的评论管理值不再作为默认；现行路线字段账本固定 `is_comment_disable=ON`（评论管理启用）。`SCHEDULE_FROM_NOW` 具有真实投放风险，必须在每次 create 前单独展示并人工确认。 |
 | 账户绑定字段 | 发送 `advertiser_id`、`aweme_id`、`asset_id`、`instance_id`；其具体值只从当前账户的已核验数据库记录读取，不能从 lessons、历史请求或 Markdown 复制。 |
 | 受众 | `audience_type=CUSTOM`；`district=NONE`；`gender=GENDER_UNLIMITED`；`age=[]`；`interest_action_mode=UNLIMITED`；`hide_if_converted=NO_EXCLUDE`；`retargeting_tags_exclude` 为当轮核验通过的 10 个整数 DMP ID。 |
 | 受众必须省略 | `audience.filter_event` 必须完全缺失（不可为 `[]`、`null` 或 `[PAY]`）；`audience.converted_time_duration` 必须完全缺失（不可恢复路线默认值 `SIX_MONTH`、空串或 `null`）。这是本成功组合最关键的字段规则。 |
@@ -291,7 +303,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 ```text
 当前账户/授权/资源只读回查
   -> 路线合同与字段账本（特别检查两个 audience 省略字段）
-  -> 同名查重 + payload/wire hash 稳定
+  -> 未删除同名与语义标的/竞价策略查重 + payload/wire hash 稳定
   -> 精确展示预算、出价、ROI、排期与唯一差异
   -> 人工确认
   -> 原子 claim 的一次 create
