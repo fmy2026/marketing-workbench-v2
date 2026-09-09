@@ -11,7 +11,7 @@ import {
   runQiankunAccountIndexReadonlyPreflight
 } from "./skills/oe3/02-monitor/index.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
-import { buildConfirmationPreview } from "./gateActionPolicy.mjs";
+import { buildConfirmationPreview, requiresFreshReadonlyRecovery } from "./gateActionPolicy.mjs";
 import {
   compileAndSaveMonitorBootstrapExecutionPlan,
   PLAN_KIND_MONITOR_BOOTSTRAP,
@@ -1076,6 +1076,10 @@ async function resolveApprovedReplacementForIntake(repo, workflowCase = null, cu
       approvedReplacementCase: true,
       replacementJobId: latestJobId,
       requiresInitialReadonly: latestBundle?.job?.job_status === "created",
+      requiresReadonlyRecovery: requiresFreshReadonlyRecovery({
+        caseSummary: summary,
+        isLatestCaseJob: Boolean(latestJobId)
+      }),
       workbenchUrl: workbenchCaseUrl(workflowCase.case_id)
     };
   }
@@ -1125,6 +1129,7 @@ async function resolveApprovedReplacementForIntake(repo, workflowCase = null, cu
     replacementCreated: replacement.created === true,
     replacementJobId: replacement.jobId,
     requiresInitialReadonly: replacement.created === true || replacementBundle?.job?.job_status === "created",
+    requiresReadonlyRecovery: false,
     workbenchUrl: workbenchCaseUrl(replacement.caseId)
   };
 }

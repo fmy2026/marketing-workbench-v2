@@ -42,6 +42,11 @@ function canRecoverReadonlyBlocker({ caseSummary = null, isLatestCaseJob = false
     !canReconcileTerminalMonitor({ caseSummary, isLatestCaseJob });
 }
 
+export function requiresFreshReadonlyRecovery({ caseSummary = null, isLatestCaseJob = false } = {}) {
+  return canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob }) &&
+    ["blocked_confirmed_resource_plan", "blocked_confirmed_monitor_plan"].includes(clean(caseSummary?.latest_job_status));
+}
+
 function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = {}) {
   return canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })
     ? "可输入“重新只读准备”重新核验；不会确认或创建平台对象。"
@@ -188,7 +193,7 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) {
       return { ...base, effect: "readonly_recovery_unavailable", message: "当前 Case 不满足重新只读准备条件，未执行平台操作。" };
     }
-    if (["blocked_confirmed_resource_plan", "blocked_confirmed_monitor_plan"].includes(clean(caseSummary?.latest_job_status))) {
+    if (requiresFreshReadonlyRecovery({ caseSummary, isLatestCaseJob })) {
       return { ...base, effect: "create_fresh_readonly_recovery_job", message: "将创建同一 Case 的 fresh Job 并执行只读准备；不会复用旧 Plan、确认或平台动作。" };
     }
     if (blocker === "monitor_plan_required") {

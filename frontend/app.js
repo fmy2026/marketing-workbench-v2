@@ -505,7 +505,8 @@ import {
         reusedActiveCase: workflowCase.reusedActiveCase === true,
         approvedReplacementCase: workflowCase.approvedReplacementCase === true,
         replacementJobId: String(workflowCase.replacementJobId || "").trim(),
-        requiresInitialReadonly: workflowCase.requiresInitialReadonly === true
+        requiresInitialReadonly: workflowCase.requiresInitialReadonly === true,
+        requiresReadonlyRecovery: workflowCase.requiresReadonlyRecovery === true
       };
     } catch (error) {
       if (error.message === "workflow_case_key_already_exists" && error.details?.caseId) {
@@ -527,6 +528,10 @@ import {
         if (selectedCase.requiresInitialReadonly) {
           message("agent", "已建立唯一的一次性替代 Case 与 fresh Job，开始重新核验视频、封面和引导视频。");
           await runWorkflow(selectedCase.replacementJobId);
+        }
+        if (selectedCase.requiresReadonlyRecovery) {
+          message("agent", "三项输入已确认；将通过既有恢复链路建立或复用 fresh Job，仅重新执行 readonly 核验，不确认或创建平台对象。");
+          await submitJobCommand("重新只读准备");
         }
         await refreshProgress();
         return;

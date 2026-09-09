@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908`；项目控制合同见 `project.state.json`；最新 migration `076_account_video_cover_revalidation.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909`；项目控制合同见 `project.state.json`；最新 migration `076_account_video_cover_revalidation.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | 按 `AGENTS.md` 的对应真值链读取；实现查注册表/代码/SQL，业务事实查 Postgres，本文解释静态机制 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -266,6 +266,7 @@ plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 att
 → 已有正常 Case 若仍停在 `run_monitor_readonly`，一次“继续执行”完成该回查后同样交给推进器继续 readonly；终态专用“重新只读回查 monitor”仍只做一次回查
 → active Case 最新 Job 为 `resolve_case_blocker` 时，精确“重新只读准备”只执行恢复性 readonly：`blocked_confirmed_resource_plan` 或平台调用前停止的 `blocked_confirmed_monitor_plan` 先以 Case lock 创建同一 Case 的 fresh runtime Job，再由既有有界推进器只读核验；其他 blocker 只重跑当前 Job 的 `dry_run`；不复用旧 Plan/confirmation/action/grant/idempotency key
 → `manual_review_after_attempt_limit` 时“继续执行”只说明状态；只有受控维护端写入最新失败 Job 的脱敏复盘批准 evidence 后，账户本人可输入精确“重新只读准备”，或重新输入同一推广路线、游戏标识和账户 ID 并点击“启动流程”，以 Case lock 关闭旧 Case 并创建唯一一次 `maximum_create_attempts=1` 的替代 Case/Job；替代资格只依据 owner、Case/Gate、批准 evidence、零创建对象和零 verified readback，不识别任何个体 ID；替代 Job 先完整 readonly，不自动确认或创建
+→ 已批准替代 Case 的最新 Job 若由 Gate Policy 判定为已停止 confirmed resource/monitor Plan，本人重新规范化三项 Intake 后点击“启动流程”会桥接到同一精确“重新只读准备”命令；仅创建或复用同一 Case 的 fresh readonly Job，不直接运行旧 Job，不重放旧 Plan，不确认或创建平台对象。其他状态不自动恢复
 → 仅精确“确认准备资源”“确认创建”或“确认创建 monitor”且 plan_id + plan_hash 未漂移时，才进入对应既有 Plan-bound executor
 → Resource Plan 成功后自动切换到同一 Case 的 fresh Job；重新只读准备后只展示下一张 Create Plan 确认卡
 ```

@@ -83,6 +83,8 @@ const replacementCase = {
 };
 let selectedActiveCase = exhaustedCase;
 let replacementCreateCalls = 0;
+let replacementJobStatus = "created";
+let replacementBlocker = "credential_required";
 const replacementRepo = {
   async getCoreContext() { return { account: {} }; },
   async getAdvertiserAccount() {
@@ -103,14 +105,21 @@ const replacementRepo = {
           current_gate: "manual_review_after_attempt_limit",
           root_blocker_codes: ["std_project_create_attempt_limit_reached"]
         }
-      : { latest_job_id: "JOB-MWBV2-ADDRESS-REPLACEMENT-1" };
+      : {
+          lifecycle_status: "active",
+          current_gate: "resolve_case_blocker",
+          root_blocker_codes: [replacementBlocker],
+          latest_job_id: "JOB-MWBV2-ADDRESS-REPLACEMENT-1",
+          latest_job_status: replacementJobStatus,
+          monitor_resolved: replacementBlocker !== "monitor_create_busy_retry_exhausted"
+        };
   },
   async getLaunchJobBundle(jobId) {
     return {
       job: {
         job_id: jobId,
         case_id: jobId.includes("REPLACEMENT") ? replacementCase.case_id : exhaustedCase.case_id,
-        job_status: jobId.includes("REPLACEMENT") ? "created" : "failed_waiting_manual_review"
+        job_status: jobId.includes("REPLACEMENT") ? replacementJobStatus : "failed_waiting_manual_review"
       }
     };
   },
@@ -153,6 +162,7 @@ const replacementStarted = await createWorkflowCase(replacementRepo, {
 assert(replacementStarted.case_id === replacementCase.case_id, "approved_intake_did_not_select_replacement_case");
 assert(replacementStarted.replacementJobId === "JOB-MWBV2-ADDRESS-REPLACEMENT-1", "approved_intake_replacement_job_missing");
 assert(replacementStarted.requiresInitialReadonly === true, "approved_intake_must_request_readonly_only");
+assert(replacementStarted.requiresReadonlyRecovery === false, "initial_replacement_must_not_request_recovery");
 const replacementRepeated = await createWorkflowCase(replacementRepo, {
   case_key: "workbench.address-smoke.approved-replacement.repeat",
   route_id: exhaustedCase.route_id,
@@ -163,9 +173,56 @@ const replacementRepeated = await createWorkflowCase(replacementRepo, {
 assert(replacementRepeated.case_id === replacementCase.case_id, "repeated_intake_did_not_return_same_replacement_case");
 assert(replacementCreateCalls === 1, "repeated_intake_created_second_replacement_case");
 
+replacementJobStatus = "blocked_confirmed_resource_plan";
+const resourceRecovery = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement.resource-recovery",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(resourceRecovery.case_id === replacementCase.case_id, "resource_recovery_case_changed");
+assert(resourceRecovery.requiresInitialReadonly === false, "stopped_resource_plan_must_not_run_old_job");
+assert(resourceRecovery.requiresReadonlyRecovery === true, "stopped_resource_plan_must_request_fresh_readonly_recovery");
+
+replacementJobStatus = "blocked_confirmed_monitor_plan";
+replacementBlocker = "monitor_plan_required";
+const monitorRecovery = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement.monitor-recovery",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(monitorRecovery.requiresReadonlyRecovery === true, "stopped_monitor_plan_must_request_fresh_readonly_recovery");
+
+replacementJobStatus = "blocked";
+replacementBlocker = "backup_landing_page_target_not_visible";
+const ordinaryBlocker = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement.ordinary-blocker",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(ordinaryBlocker.requiresReadonlyRecovery === false, "ordinary_blocker_must_not_create_fresh_recovery_job");
+
+replacementJobStatus = "blocked_confirmed_monitor_plan";
+replacementBlocker = "monitor_create_busy_retry_exhausted";
+const terminalMonitor = await createWorkflowCase(replacementRepo, {
+  case_key: "workbench.address-smoke.approved-replacement.terminal-monitor",
+  route_id: exhaustedCase.route_id,
+  game_code: exhaustedCase.game_code,
+  advertiser_id: exhaustedCase.advertiser_id,
+  source_usage: "runtime_truth"
+}, replacementOptions);
+assert(terminalMonitor.requiresReadonlyRecovery === false, "terminal_monitor_must_keep_its_dedicated_readonly_path");
+assert(replacementCreateCalls === 1, "recovery_intake_created_second_replacement_case");
+
 const clientSource = await readFile(new URL("../frontend/app.js", import.meta.url), "utf8");
 assert(!/localStorage|sessionStorage/.test(clientSource), "active_account_browser_persistence_present");
-assert(clientSource.includes("approvedReplacementCase") && clientSource.includes("requiresInitialReadonly"), "replacement_start_frontend_bridge_missing");
+assert(clientSource.includes("approvedReplacementCase") && clientSource.includes("requiresInitialReadonly") && clientSource.includes("requiresReadonlyRecovery"), "replacement_start_frontend_bridge_missing");
+assert(clientSource.includes('submitJobCommand("重新只读准备")'), "recovery_bridge_must_use_existing_readonly_command");
 
 console.log(JSON.stringify({
   status: "passed",

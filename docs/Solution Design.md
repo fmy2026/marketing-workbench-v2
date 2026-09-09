@@ -33,6 +33,7 @@
 | 尝试次数与安全重开 | Case 跨 Job 计数，耗尽先人工诊断；获批后由本人建立单次替代 Case，不复制旧授权 | [次数与恢复任务](../tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md) |
 | 个体事实数据化、运行机制能力化 | 账户差异只作为 Postgres 的通用 capability（例如 `video_cover_required`）参与既有合同；耗尽重开只依据 owner、Case/Gate、批准 evidence、零创建对象和零 verified readback。runtime 不以内嵌账户/Case/Job/user ID 作为默认目标或分支；同类问题扩展既有能力并验证开/关正反例 | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md)、[启动协议](../AGENTS.md)、[当前逻辑](project-现在的逻辑图.md) |
 | 账户视频封面单次复验 | 账户 `1867508089433225` 由本人重输既有三项后，工作台原子建立唯一、最多创建一次的替代 Case；fresh Job 逐条核验视频、显式封面和唯一引导视频，创建与回查均绑定三者，不改变其他投放配置。migration `076` 是已执行的事实修正，不构成 runtime 特例 | [本次批准任务](../tasks/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.md)、migration `076`、[当前逻辑](project-现在的逻辑图.md) |
+| Intake 启动只读恢复桥接 | 本人重新规范化三项 Intake 并点击“启动流程”是一次显式只读恢复授权：仅已批准替代 Case 的最新 Job 被 Gate Policy 判定为已停止 confirmed resource/monitor Plan 时，工作台提交既有“重新只读准备”命令，创建或复用同一 Case 的 fresh Job。该桥接不重放旧 Plan、不确认、不创建平台对象，也不依赖任何个体 ID | [本次批准任务](../tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md)、[当前逻辑](project-现在的逻辑图.md) |
 | Plan / Draft 发布绑定 | Plan 版本与创建 Attempt 分离；最终 Draft 与 Plan ID/hash 原子绑定，避免消费陈旧授权 | [Plan 合同](../src/workflows/executionPlan.mjs)、[数据契约](project-数据与报表契约.md) |
 | 游戏默认值与账户资源 | 路线保底参数逐叶修正；DMP、素材、实例、引导视频和触点仍从各自真值读取，避免复制账户动态值 | [数据契约](project-数据与报表契约.md)、migrations `069`、`074` |
 | OAuth 瞬时失败 | 网络刷新失败非零退出；仅原 access token 可信且未过期时保留其可用状态，不自动重试 | [刷新实现](../src/platforms/oceanengineTokenRefresh.mjs)、[部署说明](../deploy/README.md) |

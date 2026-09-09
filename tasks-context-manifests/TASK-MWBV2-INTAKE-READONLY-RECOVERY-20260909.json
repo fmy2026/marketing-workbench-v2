@@ -1,0 +1,141 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909",
+  "task_ref": "tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md",
+  "status": "completed",
+  "created_at": "2026-09-09T01:50:43Z",
+  "updated_at": "2026-09-09T01:56:29Z",
+  "base_revision": "dc4da777b91f04d626d6bfdef8dd52ce928dd47c",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/app.js",
+    "scripts/00-workbench-address-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/app.js",
+    "scripts/00-workbench-address-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "evidence/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909/**"
+  ],
+  "forbidden_actions": [
+    "真实平台写入、OAuth 刷新或外部资产操作",
+    "修改现有 Case、Job、Plan、action、readback 或账户能力动态事实",
+    "新增账户、Case、Job 或用户 ID 特例、默认值或条件分支",
+    "新增 Node、Gate、Plan/action 类型、确认短语或写入入口"
+  ],
+  "stop_conditions": [
+    "修复需要改变已消费 Plan、创建平台对象或修改业务动态事实",
+    "无法由既有 Gate Policy 唯一判定只读恢复资格",
+    "自动验证需要真实平台写入或恢复路径可绕过确认"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:workbench-address"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:workbench-address && npm run test:workbench-conversation"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:workbench-conversation && npm run test:case-attempt-limit && npm run test:resource-action-registry && npm run test:single-confirmation-orchestrator"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run check:project -- --phase before-close && git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:workbench-address",
+      "verified_at": "2026-09-09T01:53:26Z",
+      "summary": "已批准替代 Case 的 created、资源停止、monitor 停止、普通 blocker 与终态 monitor 均按预期返回启动 disposition；重复 Intake 只保留一个替代 Case，平台创建次数为 0。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909/validation.md#ac-01"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:workbench-address && npm run test:workbench-conversation",
+      "verified_at": "2026-09-09T01:53:26Z",
+      "summary": "前端桥接使用既有重新只读准备命令；会话链创建 fresh readonly Job，不直接运行旧 Job、确认或创建平台对象。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909/validation.md#ac-02"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation && npm run test:case-attempt-limit && npm run test:resource-action-registry && npm run test:single-confirmation-orchestrator",
+      "verified_at": "2026-09-09T01:53:26Z",
+      "summary": "同 Case recovery、Case 尝试上限、资源调用量与单次确认回归均通过；各 smoke 的真实平台写入为 0。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909/validation.md#ac-03"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "git diff --check",
+      "verified_at": "2026-09-09T01:53:26Z",
+      "summary": "变更格式检查通过；关闭前项目合同检查将保持当前 Task 指针执行。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909/validation.md#ac-04"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记 Intake 只能桥接既有 Gate 驱动 readonly recovery 的通用决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明已批准替代 Case 的 Intake 启动与 fresh readonly 恢复边界。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "仅按既有 LaunchAgent 配置重启本机服务加载代码，未改动部署、网络、凭据或运行策略。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "工作台 Intake 已可将已批准替代 Case 的已停止 confirmed resource/monitor Plan 桥接至既有重新只读准备命令；恢复创建或复用同一 Case 的 fresh readonly Job，不重放旧 Plan。",
+    "side_effects": "仅执行本地/测试 smoke；未修改业务动态事实，未调用 OAuth 或真实平台写入，测试报告平台创建/写入均为 0。",
+    "remaining_risks": [
+      "部署后的 fresh readonly 仍可能因真实账户资源或凭据产生 blocker；该 blocker 必须保持在工作台中处理，任何项目创建仍需新的冻结 Plan 和账户本人精确确认。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T01:56:29Z"
+}
