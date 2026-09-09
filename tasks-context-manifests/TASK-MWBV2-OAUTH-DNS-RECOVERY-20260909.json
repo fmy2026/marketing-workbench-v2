@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
   "status": "blocked",
   "created_at": "2026-09-09T06:40:54Z",
-  "updated_at": "2026-09-09T06:52:17Z",
+  "updated_at": "2026-09-09T07:08:30Z",
   "base_revision": "9022dec44287e4339307c40d061a861005a38a72",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md": "sha256:18742e30da7aca773385d6fe45e43c16f6f91b0f1fb61caa904574026624f65c",
@@ -20,6 +20,8 @@
     "project.state.json",
     "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
     "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
+    "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "deploy/README.md",
@@ -37,7 +39,10 @@
     "project.state.json",
     "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
     "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
+    "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
     "evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+    "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
     "frontend/app.js",
     "frontend/workbench-progress.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
@@ -61,9 +66,10 @@
   "validation_plan": [
     {"acceptance_id": "AC-01", "command": "node DNS lookup preflight for api.oceanengine.com, then MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID=oceanengine-v2-token-refresh MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN npm run token:refresh"},
     {"acceptance_id": "AC-02", "command": "npm run token:status and read the final redacted token-refresh audit event"},
-    {"acceptance_id": "AC-03", "command": "账户本人在工作台对 JOB-MWBV2-20260909061610-9E1B4F 输入“重新只读准备”，再只读验证 Plan/action count"},
+    {"acceptance_id": "AC-03", "command": "账户本人在工作台对 JOB-MWBV2-20260909065933-5F511C 输入“重新只读准备”，再只读验证 Plan/action count"},
     {"acceptance_id": "AC-04", "command": "读取 mwb.workflow_case_summary、backup landing-page skill 摘要；恢复临时授权并运行项目闭环检查"},
-    {"acceptance_id": "AC-05", "command": "npm run test:workbench-progress && npm run test:workbench-conversation；静态核验目标 blocker 文案不含 resolve_root_blocker:，且既有恢复仅调用 dry_run"}
+    {"acceptance_id": "AC-05", "command": "npm run test:workbench-progress && npm run test:workbench-conversation；静态核验目标 blocker 文案不含 resolve_root_blocker:，且既有恢复仅调用 dry_run"},
+    {"acceptance_id": "AC-06", "command": "重启 PID 26727 的 node src/server/index.mjs 服务并确认新进程；运行 npm run test:payload-contract、npm run test:workbench-conversation、npm run db:contract-check；账户本人对最新 Job 输入“重新只读准备”后只读核验 Node 5、confirmation、platform_actions、created_objects"}
   ],
   "validation_results": [
     {

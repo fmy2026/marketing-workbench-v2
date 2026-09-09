@@ -27,3 +27,12 @@ Recorded at: 2026-09-09T06:50:32Z
 - For the generic `site_get_target_shared_blocked` root blocker on the latest Job, the workbench now presents a user-facing shared-site readonly-check message and the `重新只读准备` input hint; it does not show the `resolve_root_blocker:` action code.
 - `npm run test:workbench-progress` passed, including the exact copy, input hint and no-internal-code assertions.
 - `npm run test:workbench-conversation` passed. Its existing ordinary readonly-recovery test confirms the command retains the current Job and invokes only `dry_run`; its platform create count remains `0`.
+
+## Node 5 stale-service recovery
+
+Recorded at: 2026-09-09T07:07:02Z
+
+- The old workbench server that had loaded an outdated JSZC success-profile contract was stopped; the replacement `node src/server/index.mjs` process started at 15:07:02 CST from Git HEAD `797fea7`.
+- `npm run test:payload-contract`, `npm run test:workbench-conversation`, and `npm run db:contract-check` passed. The database contract reports the current JSZC profile as passed with no blockers and no real platform write.
+- Before the target-account owner retries `JOB-MWBV2-20260909065933-5F511C`, its confirmation, platform-action and created-object counts are each `0`.
+- The browser session belongs to a different user, so no delegated workbench command was sent. The target-account owner must enter `重新只读准备` before Node 5 can be re-evaluated.

@@ -4,7 +4,7 @@
 
 ## 目标
 
-在 DNS 预检通过后，为当前 OAuth 凭据执行一次新授权的 refresh，并确认 access token 恢复有效；仅在成功后由账户本人执行当前 Job 的只读重检。经用户于 2026-09-09 明确批准，补充最小工作台引导修正，使共享站点只读阻断能准确引导账户本人触发该重检。
+在 DNS 预检通过后，为当前 OAuth 凭据执行一次新授权的 refresh，并确认 access token 恢复有效；仅在成功后由账户本人执行当前 Job 的只读重检。经用户于 2026-09-09 明确批准，补充最小工作台引导修正，使共享站点只读阻断能准确引导账户本人触发该重检；并在确认工作台服务仍加载旧合同后，重启同一服务并对当前 Job 做一次只读重检。
 
 ## 批准方案
 
@@ -12,7 +12,7 @@
 
 ## 范围
 
-仅允许：不携带凭据的 DNS 预检、一次 OAuth refresh、脱敏 token/audit 读取、账户本人在工作台执行“重新只读准备”、Case 只读验证、`site_get_target_shared_blocked` 的通用前端文案/输入引导与 smoke 覆盖，以及本 Task 闭环。
+仅允许：不携带凭据的 DNS 预检、一次 OAuth refresh、脱敏 token/audit 读取、账户本人在工作台执行“重新只读准备”、Case 只读验证、`site_get_target_shared_blocked` 的通用前端文案/输入引导与 smoke 覆盖、从当前 Git HEAD 重启已确认的本地工作台服务，以及本 Task 闭环。
 
 ## 非目标
 
@@ -25,6 +25,7 @@
 - AC-03: 账户本人执行“重新只读准备”，且未产生 confirmation、资源写入或项目创建。
 - AC-04: Case 投影不再将凭据过期或本次共享站点调用失败作为 blocker；临时授权恢复并通过项目闭环检查。
 - AC-05: 最新 Job 的 `site_get_target_shared_blocked` 展示为用户可理解的只读恢复引导，不泄露 Gate/action/blocker 内部码；输入框提示“重新只读准备”，既有恢复命令的只读边界不变。
+- AC-06: 旧工作台服务从当前 Git HEAD 重启；当前 Job 的 Node 5 不再因旧进程 success-profile 合同产生版本、来源、fixture 或字段形状 mismatch，且本次重检不新增 confirmation、平台动作或创建对象。
 
 ## 停止条件
 
