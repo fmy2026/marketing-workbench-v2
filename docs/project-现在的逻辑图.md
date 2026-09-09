@@ -78,7 +78,7 @@
 
 当前 OE3 资源能力由 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 定义：可受控准备的是 `avatar`、`dmp_audience_package`、`event_asset`、`video_asset`、`product_image`；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时只形成 blocker。`micro_app_instance` 的等待状态与事件链、逐资源证据、动作顺序和调用量只查该注册表及其引用合同。
 
-视频引导与显式封面是独立的账户 capability：`guide_video_required=true` 时，当前 Job 必须从已核验小游戏实例只读解析唯一 `guide_video_id`，并将同一 ID 写入每条 required video；`video_cover_required=true` 时才额外要求每条视频有当前 Job 已核验的 `video_cover_id`。仅引导视频组合允许省略封面字段并使用平台默认封面；两项均未启用时省略引导视频字段。动态 ID 只保存在 Postgres 当前资源/Job 事实中，不能进入路线默认值或账户特例代码。
+视频引导与显式封面是独立 capability。JSZC 的 route policy 要求每个 fresh Job 在唯一已核验小游戏实例上调用一次 `gameplay/list`：唯一非空 `guide_video_id` 时将同一 ID 写入每条 required video；成功空列表时省略；多个不同 ID 或 probe 失败时停止。`guide_video_required=true` 是兼容性强制要求，空列表仍必须阻断；`video_cover_required=true` 才额外要求每条视频有当前 Job 已核验的 `video_cover_id`。动态 ID 只保存在 `micro_app_instance.metadata.guide_video_readiness` 的当前 Job 事实中，不能进入路线默认值、账户特例代码或视频行。`auth_status=ready` 判断授权就绪；`platform_status` 只作诊断，不参与此分支。
 
 ### 3.2 当前 Case Gate
 

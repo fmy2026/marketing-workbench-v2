@@ -11,7 +11,20 @@ export function latestCaseJobId(caseView = {}) {
 export function readonlyRecoveryGuidance(caseGate = {}) {
   const gate = String(caseGate?.currentGate || "").trim();
   const blocker = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
-  if (gate !== "resolve_case_blocker" || blocker !== "site_get_target_shared_blocked") return null;
+  if (gate !== "resolve_case_blocker") return null;
+  if (blocker === "guide_video_capability_probe_failed") {
+    return {
+      message: "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。",
+      placeholder: "输入“重新只读准备”重新核验，或输入“查看状态”..."
+    };
+  }
+  if (blocker === "guide_video_candidate_ambiguous") {
+    return {
+      message: "当前阻断：检测到多个引导视频，需先确定唯一玩法。",
+      placeholder: "输入“查看状态”..."
+    };
+  }
+  if (blocker !== "site_get_target_shared_blocked") return null;
   return {
     message: "当前阻断：目标账户共享站点只读核验未完成。下一步：输入“重新只读准备”重新核验；不会确认或创建平台对象。",
     placeholder: "输入“重新只读准备”重新核验，或输入“查看状态”..."

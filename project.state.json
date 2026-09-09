@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-09T06:42:29Z",
+  "updated_at": "2026-09-09T07:41:02Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,10 +10,11 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "id": "TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909",
-    "task_ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json"
+    "id": "TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909",
+    "task_ref": "tasks/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.json"
   },
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {
@@ -118,6 +119,5 @@
       "maximum_platform_calls": 6,
       "retry_allowed": false
     }
-  },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md"
+  }
 }

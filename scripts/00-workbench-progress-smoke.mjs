@@ -108,6 +108,8 @@ assert(targetSharedGuidance?.message === "当前阻断：目标账户共享站�
 assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重新核验，或输入“查看状态”...", "target_shared_readonly_guidance_placeholder_mismatch");
 assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] }) === null, "unrelated_blocker_must_keep_existing_guidance");
+assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");
+assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_candidate_ambiguous"] })?.message === "当前阻断：检测到多个引导视频，需先确定唯一玩法。", "guide_video_ambiguous_guidance_message_mismatch");
 
 const [htmlSource, clientSource, styleSource] = await Promise.all([
   readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),

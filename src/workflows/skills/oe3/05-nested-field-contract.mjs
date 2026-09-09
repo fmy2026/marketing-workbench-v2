@@ -126,8 +126,8 @@ function addCheck(checks, {
 }
 
 function requiredVideoEntries(bundle = {}) {
-  const guideRequired = bundle.account?.guide_video_required === true;
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
+  const guideRequired = guideReadiness.required === true;
   const entries = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return entries
     .filter((entry) => clean(entry?.item?.item_type) === "video_asset" && entry?.item?.required === true)
@@ -599,7 +599,7 @@ export function evaluateNestedFieldContract({
     },
     videoCoverMode: coverModes.length ? coverModes.join("+") : "not_checked",
     videoEvidenceRefCount: requiredVideos.filter((item) => item.evidenceRefPresent).length,
-    guideVideoRequired: bundle.account?.guide_video_required === true,
+    guideVideoRequired: canonicalGuideVideoReadiness(bundle).required === true,
     guideVideoReadyCount: requiredVideos.filter((item) => item.guideVideoReady === true).length,
     materialReadinessStatus: clean(materialReadiness.status || "not_checked"),
     backupLandingPageReady: backupLandingPage.ready === true,

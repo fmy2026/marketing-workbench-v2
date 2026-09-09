@@ -713,6 +713,16 @@ function rootBlockerPresentation(code = "") {
       reason: "当前只读校验无法继续；若已有已确认资源 Plan，旧 Plan 不可重试。",
       nextActionLabel: "凭据恢复后输入“重新只读准备”，以 fresh Job 重新核验；不会确认或创建平台对象。"
     },
+    guide_video_capability_probe_failed: {
+      title: "无法确认本账户的引导视频能力",
+      reason: "当前 Job 的引导视频只读核验未获得可用结果。",
+      nextActionLabel: "重新只读核验；不会确认或创建平台对象。"
+    },
+    guide_video_candidate_ambiguous: {
+      title: "检测到多个引导视频",
+      reason: "当前小游戏实例返回多个不同的引导视频，不能安全选择其中一个。",
+      nextActionLabel: "先确定唯一玩法后重新只读核验；不会确认或创建平台对象。"
+    },
     confirmed_resource_execution_interrupted: {
       title: "资源执行中断，等待只读恢复",
       reason: "已确认资源 Plan 在平台响应未明确时停止；旧 Plan 已消费且禁止重试。",
@@ -898,7 +908,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     ...summaryFieldsView(bundle, execution),
     { label: "创建就绪", value: createReadiness.statusLabel || createReadiness.status, visible: true },
     { label: "当前 Gate", value: caseGate.currentGate || "未投影", visible: true },
-    { label: "唯一阻断", value: caseGate.rootBlockerCodes[0] || "无", visible: true },
+    { label: "唯一阻断", value: caseGate.rootBlocker?.title || "无", visible: true },
     { label: "下一步", value: headline.nextAction, visible: true }
   ];
 

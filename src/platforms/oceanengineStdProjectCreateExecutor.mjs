@@ -256,7 +256,7 @@ function targetFromBundle(bundle = {}) {
 }
 
 function expectedGuideVideoBindings(bundle = {}) {
-  const guideRequired = bundle.account?.guide_video_required === true;
+  const guideRequired = canonicalGuideVideoReadiness(bundle).required === true;
   const coverRequired = bundle.account?.video_cover_required === true;
   if (!guideRequired && !coverRequired) {
     return { required: false, status: "not_required", guideVideoId: "", videoIds: [], bindings: [] };
@@ -978,7 +978,7 @@ export async function readbackStdProjectOnce({
         remainingMs: absoluteDeadlineMs - (nowFn() - readbackStartedAt)
       })
     : {
-        status: bundle.account?.guide_video_required === true || bundle.account?.video_cover_required === true ? "project_not_found" : "not_required",
+        status: canonicalGuideVideoReadiness(bundle).required === true || bundle.account?.video_cover_required === true ? "project_not_found" : "not_required",
         called: false,
         evidenceRef: ""
       };

@@ -452,7 +452,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       successProfile.goldenFieldShapeHash === expectedFieldShapeHash &&
       Number(successProfile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
       successProfile.guideVideoRequired === guideVideoRequired &&
-      successProfile.guideVideoPolicy === (guideVideoRequired ? "required_unique_current_job_readonly" : "omit") &&
+      successProfile.guideVideoPolicy === (guideVideoRequired ? "fresh_gameplay_readonly" : "omit") &&
       successProfile.videoCoverRequired === videoCoverRequired &&
       successProfile.videoCoverPolicy === (videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default") &&
       finalManifest.fieldShapeHash === expectedFieldShapeHash &&

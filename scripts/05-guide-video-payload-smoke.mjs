@@ -74,7 +74,22 @@ try {
   // The persisted bundle is a normal test fixture. Capability-on behavior below is
   // constructed in memory so runtime correctness never depends on a production account.
   const ordinary = await createTestJob("1871922175825993", "ordinary");
-  const ordinaryManifest = ordinary.draft?.payload_summary?.final_payload_manifest || {};
+  const ordinaryNoGuideBundle = structuredClone(ordinary);
+  delete ordinaryNoGuideBundle.defaults.raw_defaults.official_create_field_contract.nested_rules.groups["project_materials.video_material_list"].guide_video_policy;
+  const ordinaryInstance = ordinaryNoGuideBundle.resources.find((item) => item.resource_type === "micro_app_instance");
+  ordinaryInstance.metadata = {
+    ...(ordinaryInstance.metadata || {}),
+    guide_video_readiness: {
+      status: "not_required",
+      required: false,
+      guide_video_id_present: false,
+      verified_by_job_id: ordinaryNoGuideBundle.job.job_id,
+      verified_instance_id: ordinaryInstance.platform_resource_id,
+      raw_response_stored: false
+    }
+  };
+  const ordinaryNoGuideBuild = buildFixturePayload(ordinaryNoGuideBundle);
+  const ordinaryManifest = ordinaryNoGuideBuild.requestFieldManifest || {};
   const ordinaryLedger = ordinaryManifest.createFieldLedger || {};
   const ordinaryGuideEntries = (ordinaryLedger.entries || []).filter((entry) => entry.path.includes("guide_video_id"));
   assert(ordinary.account?.guide_video_required !== true, "ordinary_account_guide_video_policy_unexpectedly_enabled");
@@ -174,7 +189,7 @@ try {
   const guideOnlyFixture = structuredClone(ordinary);
   guideOnlyFixture.account = {
     ...(guideOnlyFixture.account || {}),
-    guide_video_required: true,
+    guide_video_required: false,
     video_cover_required: false
   };
   const guideOnlyMockBundle = mockReadyBundle(guideOnlyFixture);
@@ -213,7 +228,7 @@ try {
   const guideOnlyLedger = guideOnlyManifest.createFieldLedger || {};
   const guideOnlyCanonicalGuide = canonicalGuideVideoReadiness(guideOnlyMockBundle);
   const guideOnlyVideos = guideOnlyBuild.payload.project_materials.video_material_list || [];
-  assert(guideOnlyMockBundle.account?.guide_video_required === true, "guide_only_fixture_guide_video_policy_not_enabled");
+  assert(guideOnlyMockBundle.account?.guide_video_required !== true, "guide_only_fixture_must_use_auto_detect_not_account_force");
   assert(guideOnlyMockBundle.account?.video_cover_required !== true, "guide_only_fixture_must_not_require_explicit_cover");
   assert(guideOnlyCanonicalGuide.status === "passed", "guide_only_canonical_guide_video_must_be_ready");
   assert(guideOnlyManifest.guideVideoRequired === true, "guide_only_manifest_guide_video_flag_missing");

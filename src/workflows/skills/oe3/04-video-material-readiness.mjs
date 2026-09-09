@@ -4,6 +4,7 @@ import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 import {
   canonicalGuideVideoReadiness,
   clean,
+  guideVideoCapabilityPolicy,
   verifiedMicroAppInstanceResources
 } from "./04-resource-verifiers.mjs";
 
@@ -39,10 +40,6 @@ function accountResourceForVideo(bundle = {}, sourceAssetId = "") {
   ) || null;
 }
 
-function guideVideoRequired(bundle = {}) {
-  return bundle.account?.guide_video_required === true;
-}
-
 function videoCoverRequired(bundle = {}) {
   return bundle.account?.video_cover_required === true;
 }
@@ -70,16 +67,15 @@ function summarizeGameplay(payload = {}) {
 }
 
 function cachedGuideVideoReadiness(bundle = {}) {
-  if (!guideVideoRequired(bundle)) return null;
   const canonical = canonicalGuideVideoReadiness(bundle);
-  if (canonical.status !== "passed") return null;
+  if (!canonical.readiness?.verified_by_job_id) return null;
   const state = canonical.readiness || {};
   return {
-    required: true,
-    status: "passed",
-    blockers: [],
+    required: canonical.required === true,
+    status: canonical.status,
+    blockers: canonical.blockers || [],
     guideVideoId: canonical.guideVideoId,
-    guideVideoIdPresent: true,
+    guideVideoIdPresent: Boolean(canonical.guideVideoId),
     approvedGameplayCount: Number(state.approved_gameplay_count || 0),
     distinctGuideVideoCount: 1,
     requestIdPresent: state.request_id_present === true,
@@ -131,7 +127,8 @@ export async function resolveGuideVideoReadonly({
   mockReady = false,
   allowReadonlyDependency = false
 } = {}) {
-  if (!guideVideoRequired(bundle)) {
+  const policy = guideVideoCapabilityPolicy(bundle);
+  if (!policy.probeRequired) {
     return {
       required: false,
       status: "not_required",
@@ -151,7 +148,7 @@ export async function resolveGuideVideoReadonly({
   const instanceIds = [...new Set(instanceResources.map((item) => clean(item.platform_resource_id)))];
   if (instanceResources.length !== 1 || instanceIds.length !== 1) {
     const result = {
-      required: true,
+      required: policy.forcedByAccount,
       status: "blocked",
       blockers: [instanceResources.length === 0 ? "guide_video_instance_not_verified" : "guide_video_instance_ambiguous"],
       guideVideoId: "",
@@ -175,6 +172,9 @@ export async function resolveGuideVideoReadonly({
 
   if (mockReady) {
     return {
+      // A mock-ready probe represents the same single non-empty result as the
+      // production readonly gameplay/list branch.  Requirement is determined
+      // by that result, not by the legacy account override.
       required: true,
       status: "passed",
       blockers: [],
@@ -194,7 +194,7 @@ export async function resolveGuideVideoReadonly({
   const permission = readonlyPermissionState({ allowReadonlyDependency });
   if (!permission.allowed) {
     return {
-      required: true,
+      required: policy.forcedByAccount,
       status: "blocked",
       blockers: permission.blockers,
       guideVideoId: "",
@@ -213,7 +213,7 @@ export async function resolveGuideVideoReadonly({
     return {
       required: true,
       status: "blocked",
-      blockers: ["credential_required", ...(credential.blockers || [])],
+      blockers: ["guide_video_capability_probe_failed"],
       guideVideoId: "",
       guideVideoIdPresent: false,
       approvedGameplayCount: 0,
@@ -241,18 +241,18 @@ export async function resolveGuideVideoReadonly({
     ? probe.summary.guideVideoIds.map(clean).filter(Boolean)
     : [];
   const blockers = probe.status !== "passed"
-    ? ["guide_video_readonly_failed"]
-    : ids.length === 0
+    ? ["guide_video_capability_probe_failed"]
+    : ids.length === 0 && policy.forcedByAccount
       ? ["guide_video_candidate_missing"]
       : ids.length > 1
         ? ["guide_video_candidate_ambiguous"]
         : [];
   const result = {
-    required: true,
-    status: blockers.length ? "blocked" : "passed",
+    required: ids.length === 1,
+    status: blockers.length ? "blocked" : (ids.length === 0 ? "not_required" : "passed"),
     blockers,
-    guideVideoId: blockers.length ? "" : ids[0],
-    guideVideoIdPresent: !blockers.length && Boolean(ids[0]),
+    guideVideoId: blockers.length || ids.length !== 1 ? "" : ids[0],
+    guideVideoIdPresent: !blockers.length && ids.length === 1 && Boolean(ids[0]),
     approvedGameplayCount: Number(probe.summary?.approvedGameplayCount || 0),
     distinctGuideVideoCount: Number(probe.summary?.distinctGuideVideoCount || ids.length),
     requestIdPresent: probe.requestIdPresent === true,
@@ -260,7 +260,7 @@ export async function resolveGuideVideoReadonly({
     evidenceRef: "",
     verifiedInstanceId,
     instanceResource,
-    source: "oceanengine_gameplay_list"
+    source: "fresh_gameplay_readonly"
   };
   result.evidenceRef = await recordGuideVideoEvidence({ repo, bundle, result });
   return result;
@@ -277,36 +277,33 @@ function publicGuideVideoReadiness(result = {}) {
     responseHashPresent: Boolean(result.responseHash),
     evidenceRefPresent: Boolean(result.evidenceRef),
     source: clean(result.source),
+    guideVideoCapabilitySource: clean(result.source),
+    verifiedByCurrentJob: Boolean(clean(result.verifiedInstanceId)),
     blockers: Array.isArray(result.blockers) ? result.blockers : []
   };
 }
 
 async function persistGuideVideoReadiness({ repo, bundle, result }) {
-  if (bundle.job.source_usage === "test_run" || result.status !== "passed") return;
+  if ((bundle.job.source_usage === "test_run" && result.source !== "mock_ready") || !result.instanceResource || result.source === "current_job_cached_readonly") return;
   const resource = result.instanceResource || {};
-  await repo.upsertAccountResourceReadonlyBySourceAsset({
+  await repo.mergeAccountResourceMetadataByPlatformResource({
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
     advertiserId: bundle.job.advertiser_id,
     resourceType: "micro_app_instance",
-    sourceAssetId: clean(resource.source_asset_id),
-    resourceName: clean(resource.resource_name || resource.source_asset_id),
-    visibilityStatus: clean(resource.visibility_status || "visible"),
-    readbackStatus: clean(resource.readback_status || "readback_verified"),
     platformResourceId: result.verifiedInstanceId,
-    required: resource.required !== false,
-    metadata: resource.metadata?.readonly_check || {},
     resourceMetadata: {
       guide_video_readiness: {
-        status: "passed",
-        required: true,
+        status: result.status,
+        required: result.required === true,
         guide_video_id: result.guideVideoId,
-        guide_video_id_present: true,
+        guide_video_id_present: result.guideVideoIdPresent === true,
         approved_gameplay_count: result.approvedGameplayCount,
         distinct_guide_video_count: result.distinctGuideVideoCount,
         request_id_present: result.requestIdPresent,
         response_hash: result.responseHash,
         evidence_ref: result.evidenceRef,
+        blocker: clean(result.blockers?.[0]),
         verified_by_job_id: bundle.job.job_id,
         verified_instance_id: result.verifiedInstanceId,
         verified_at: new Date().toISOString(),
@@ -637,7 +634,7 @@ export async function runVideoMaterialReadonlyGate({
     mockReady,
     allowReadonlyDependency
   });
-  if (guideVideoReadiness.status === "passed" && guideVideoReadiness.source !== "current_job_cached_readonly") {
+  if (guideVideoReadiness.source !== "current_job_cached_readonly") {
     await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
   }
 

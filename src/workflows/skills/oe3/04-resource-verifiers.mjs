@@ -33,12 +33,19 @@ export function verifiedMicroAppInstanceResources(bundle = {}) {
   return (bundle.resources || [])
     .filter((item) => item.resource_type === "micro_app_instance")
     .filter((item) => item.visibility_status === "visible" && item.readback_status === "readback_verified")
-    .filter((item) => clean(item.source_asset_id) && clean(item.platform_resource_id));
+    .filter((item) => clean(item.platform_resource_id));
+}
+
+export function guideVideoCapabilityPolicy(bundle = {}) {
+  const configured = clean(bundle.defaults?.raw_defaults?.official_create_field_contract?.nested_rules?.groups?.["project_materials.video_material_list"]?.guide_video_policy);
+  const forcedByAccount = bundle.account?.guide_video_required === true;
+  const freshReadonlyAutoDetect = configured === "fresh_readonly_auto_detect_with_account_force_required";
+  return { configured, forcedByAccount, freshReadonlyAutoDetect, probeRequired: forcedByAccount || freshReadonlyAutoDetect, source: freshReadonlyAutoDetect ? "fresh_gameplay_readonly" : (forcedByAccount ? "account_force_required" : "not_required") };
 }
 
 export function canonicalGuideVideoReadiness(bundle = {}) {
-  const required = bundle.account?.guide_video_required === true;
-  if (!required) {
+  const policy = guideVideoCapabilityPolicy(bundle);
+  if (!policy.probeRequired) {
     return {
       required: false,
       status: "not_required",
@@ -68,19 +75,21 @@ export function canonicalGuideVideoReadiness(bundle = {}) {
   const instanceId = instanceIds[0];
   const readiness = instanceResource.metadata?.guide_video_readiness || {};
   const guideVideoId = clean(readiness.guide_video_id);
-  const currentJobVerified = readiness.status === "passed" &&
-    readiness.required === true &&
-    Boolean(guideVideoId) &&
+  const currentJobBound =
     clean(readiness.verified_by_job_id) === clean(bundle.job?.job_id) &&
     clean(readiness.verified_instance_id) === instanceId;
+  const currentJobVerified = readiness.status === "passed" && readiness.required === true && Boolean(guideVideoId) && currentJobBound;
+  const currentJobNotRequired = readiness.status === "not_required" && readiness.required === false && currentJobBound;
+  const currentJobBlocked = readiness.status === "blocked" && currentJobBound;
   return {
-    required: true,
-    status: currentJobVerified ? "passed" : "blocked",
-    blockers: currentJobVerified ? [] : ["guide_video_current_job_readonly_missing"],
+    required: currentJobVerified,
+    status: currentJobVerified ? "passed" : (currentJobNotRequired ? "not_required" : "blocked"),
+    blockers: currentJobVerified || currentJobNotRequired ? [] : [currentJobBlocked ? clean(readiness.blocker || "guide_video_capability_probe_failed") : "guide_video_current_job_readonly_missing"],
     guideVideoId: currentJobVerified ? guideVideoId : "",
     instanceId,
     instanceResource,
-    readiness
+    readiness,
+    policy
   };
 }
 
@@ -316,7 +325,7 @@ export function mockReadyBundle(bundle = {}) {
       }
       if (["event_asset", "micro_app_instance"].includes(item.resource_type)) {
         const platformResourceId = item.platform_resource_id || (item.resource_type === "event_asset" ? "800000000001" : "700000000001");
-        const guideVideoRequired = bundle.account?.guide_video_required === true && item.resource_type === "micro_app_instance";
+        const guideVideoRequired = guideVideoCapabilityPolicy(bundle).probeRequired && item.resource_type === "micro_app_instance";
         return {
           ...item,
           platform_resource_id: platformResourceId,

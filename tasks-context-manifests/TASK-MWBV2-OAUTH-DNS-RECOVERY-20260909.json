@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909",
   "task_ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
-  "status": "blocked",
+  "status": "cancelled",
   "created_at": "2026-09-09T06:40:54Z",
-  "updated_at": "2026-09-09T07:08:30Z",
+  "updated_at": "2026-09-09T07:41:02Z",
   "base_revision": "9022dec44287e4339307c40d061a861005a38a72",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md": "sha256:18742e30da7aca773385d6fe45e43c16f6f91b0f1fb61caa904574026624f65c",
@@ -24,6 +24,7 @@
     "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
+    "docs/qiankun-api-docs-20260827.md",
     "deploy/README.md",
     "src/platforms/oceanengineCredentialStore.mjs",
     "src/platforms/oceanengineTokenRefresh.mjs",
@@ -41,6 +42,8 @@
     "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
     "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
     "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json",
     "evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
     "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
     "frontend/app.js",
@@ -81,6 +84,30 @@
       "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
     },
     {
+      "acceptance_id": "AC-03",
+      "status": "not_run",
+      "command": "账户本人在工作台对 JOB-MWBV2-20260909065933-5F511C 输入“重新只读准备”，再只读验证 Plan/action count",
+      "verified_at": "2026-09-09T07:41:02Z",
+      "summary": "取消：当前 Case 已进入后续 Node 04–05 capability 合同问题；该验证由替代 Task 以 fresh Job 承接，未代替账户所有者执行任何工作台命令。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "not_run",
+      "command": "读取 mwb.workflow_case_summary、backup landing-page skill 摘要；恢复临时授权并运行项目闭环检查",
+      "verified_at": "2026-09-09T07:41:02Z",
+      "summary": "取消：OAuth 临时授权已恢复到原定时策略；当前 Case 的后续 root blocker 不属于共享站点恢复范围，将由替代 Task 按新合同重新读取。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-06",
+      "status": "not_run",
+      "command": "重启 PID 26727 的 node src/server/index.mjs 服务并确认新进程；运行 npm run test:payload-contract、npm run test:workbench-conversation、npm run db:contract-check；账户本人对最新 Job 输入“重新只读准备”后只读核验 Node 5、confirmation、platform_actions、created_objects",
+      "verified_at": "2026-09-09T07:41:02Z",
+      "summary": "取消：服务重启和合同 smoke 已完成，但 Node 05 后续差异已确认为引导视频 capability 来源问题；替代 Task 将从当前 Git 合同重启服务后，以账户本人 fresh readonly 验收。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    },
+    {
       "acceptance_id": "AC-02",
       "status": "passed",
       "command": "npm run token:status and read the final redacted token-refresh audit event",
@@ -112,12 +139,25 @@
       "ref": "deploy/README.md",
       "status": "not_needed",
       "reason": "No deployment, networking, credential-entry or operational procedure changed."
+    },
+    {
+      "ref": "docs/qiankun-api-docs-20260827.md",
+      "status": "not_needed",
+      "reason": "The cancelled task did not change a Qiankun adapter or API contract."
     }
   ],
   "temporary_authorizations": [
     {"path": "/guardrails/credential_refresh_scope/granted_by", "restore_value": "user_confirmed_oauth_refresh_recovery"},
     {"path": "/guardrails/credential_refresh_scope/granted_at", "restore_value": "2026-08-28 CST"}
   ],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "OAuth token recovery and readonly user guidance completed; the remaining Case issue is superseded by the separately approved generic guide-video capability mechanism.",
+    "side_effects": "One authorized OAuth refresh succeeded; no platform business write, confirmation, action grant or created object was added by this Task.",
+    "remaining_risks": [
+      "The account owner must perform the next workbench readonly command under the replacement Task.",
+      "The replacement Task must not infer guide-video capability from a historical account flag."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T07:41:02Z"
 }

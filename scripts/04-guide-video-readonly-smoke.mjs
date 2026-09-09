@@ -6,7 +6,7 @@ function assert(condition, message) {
 
 const GUIDE_VIDEO_ID = "guide-video-smoke";
 
-function bundle({ required = true, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false } = {}) {
+function bundle({ required = true, autoDetect = false, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, instanceSourceAsset = "APP-1" } = {}) {
   const jobId = "JOB-GUIDE-VIDEO-READONLY-SMOKE";
   const videos = Array.from({ length: videoCount }, (_, index) => `VIDEO-${index + 1}`);
   return {
@@ -20,6 +20,17 @@ function bundle({ required = true, coverRequired = false, videoCount = 2, staleV
     account: { guide_video_required: required, video_cover_required: coverRequired },
     defaults: {
       raw_defaults: {
+        ...(autoDetect ? {
+          official_create_field_contract: {
+            nested_rules: {
+              groups: {
+                "project_materials.video_material_list": {
+                  guide_video_policy: "fresh_readonly_auto_detect_with_account_force_required"
+                }
+              }
+            }
+          }
+        } : {}),
         material_source_account: {
           advertiser_id: "8990000000000700",
           account_role: "material_source",
@@ -43,7 +54,7 @@ function bundle({ required = true, coverRequired = false, videoCount = 2, staleV
     resources: [
       {
         resource_type: "micro_app_instance",
-        source_asset_id: "APP-1",
+        source_asset_id: instanceSourceAsset,
         platform_resource_id: "7434750138926546994",
         visibility_status: "visible",
         readback_status: "readback_verified",
@@ -147,17 +158,18 @@ function clientFor(guideVideoIds, { missingTargetCover = "" } = {}) {
   };
 }
 
-async function run(guideVideoIds, { required = true, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, missingTargetCover = "" } = {}) {
+async function run(guideVideoIds, { required = true, autoDetect = false, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, instanceSourceAsset = "APP-1", missingTargetCover = "" } = {}) {
   const resourceWrites = [];
   const evidenceWrites = [];
   const repo = {
     async upsertEvidence(value) { evidenceWrites.push(value); },
-    async upsertAccountResourceReadonlyBySourceAsset(value) { resourceWrites.push(value); }
+    async mergeAccountResourceMetadataByPlatformResource(value) { resourceWrites.push(value); },
+    async upsertAccountResourceReadonlyBySourceAsset() {}
   };
   const client = clientFor(guideVideoIds, { missingTargetCover });
   const result = await runVideoMaterialReadonlyGate({
     repo,
-    bundle: bundle({ required, coverRequired, videoCount, staleVideoGuide, canonicalGuide }),
+    bundle: bundle({ required, autoDetect, coverRequired, videoCount, staleVideoGuide, canonicalGuide, instanceSourceAsset }),
     client,
     allowReadonlyDependency: true
   });
@@ -180,6 +192,10 @@ assert(unique.result.outputSummary.finalMaterialReadiness.items.every((item) =>
   item.coverMode === "platform_default_cover_allowed" && item.coverVerifiedByCurrentJob === false
 ), "guide_only_account_must_allow_default_cover_without_current_job_cover_readback");
 
+const platformIdentityOnly = await run([GUIDE_VIDEO_ID], { required: false, autoDetect: true, instanceSourceAsset: "" });
+assert(platformIdentityOnly.result.status === "passed", "verified_platform_instance_id_must_not_require_internal_source_asset_id");
+assert(platformIdentityOnly.resourceWrites[0]?.platformResourceId === "7434750138926546994", "guide_video_readiness_must_persist_by_verified_platform_instance_id");
+
 const hundred = await run([GUIDE_VIDEO_ID], { videoCount: 100, staleVideoGuide: true });
 assert(hundred.result.status === "passed", "hundred_video_case_must_resolve_one_guide_video");
 assert(hundred.client.calls.length === 1, "hundred_video_case_must_query_gameplay_once");
@@ -194,12 +210,27 @@ assert(cached.resourceWrites.length === 0, "same_job_canonical_guide_must_not_re
 const missing = await run([]);
 assert(missing.result.status === "blocked", "zero_guide_video_candidates_must_block");
 assert(missing.result.blockers.includes("guide_video_candidate_missing"), "missing_candidate_blocker_not_exposed");
-assert(missing.resourceWrites.length === 0, "missing_candidate_must_not_write_video_readiness");
+assert(missing.resourceWrites.length === 1, "missing_candidate_must_persist_current_job_readiness");
 
 const ambiguous = await run([GUIDE_VIDEO_ID, "guide-video-smoke-2"]);
 assert(ambiguous.result.status === "blocked", "multiple_distinct_guide_video_candidates_must_block");
 assert(ambiguous.result.blockers.includes("guide_video_candidate_ambiguous"), "ambiguous_candidate_blocker_not_exposed");
-assert(ambiguous.resourceWrites.length === 0, "ambiguous_candidate_must_not_write_video_readiness");
+assert(ambiguous.resourceWrites.length === 1, "ambiguous_candidate_must_persist_current_job_readiness");
+
+const autoUnique = await run([GUIDE_VIDEO_ID], { required: false, autoDetect: true });
+assert(autoUnique.result.status === "passed", "auto_detect_unique_candidate_must_pass");
+assert(autoUnique.client.calls.length === 1, "auto_detect_must_query_gameplay_once");
+assert(autoUnique.result.outputSummary.guideVideoReadiness?.required === true, "auto_detect_unique_candidate_must_require_guide_video");
+assert(autoUnique.resourceWrites[0]?.resourceMetadata?.guide_video_readiness?.verified_by_job_id === bundle({ required: false, autoDetect: true }).job.job_id, "auto_detect_readiness_must_bind_current_job");
+
+const autoEmpty = await run([], { required: false, autoDetect: true });
+assert(autoEmpty.result.status === "passed", "auto_detect_empty_list_must_allow_omit");
+assert(autoEmpty.result.outputSummary.guideVideoReadiness?.status === "not_required", "auto_detect_empty_list_must_be_not_required");
+assert(autoEmpty.resourceWrites[0]?.resourceMetadata?.guide_video_readiness?.required === false, "auto_detect_empty_list_must_persist_not_required");
+
+const forcedEmpty = await run([], { required: true, autoDetect: true });
+assert(forcedEmpty.result.status === "blocked", "account_force_required_must_not_downgrade_empty_list");
+assert(forcedEmpty.result.blockers.includes("guide_video_candidate_missing"), "account_force_required_empty_list_blocker_missing");
 
 const ordinary = await run([], { required: false });
 assert(ordinary.result.status === "passed", "ordinary_account_cached_video_readiness_must_remain_passed");
@@ -229,6 +260,7 @@ console.log(JSON.stringify({
   missingBlocker: missing.result.blockers[0],
   ambiguousBlocker: ambiguous.result.blockers[0],
   ordinaryGameplayCalls: ordinary.client.calls.length,
+  autoDetectEmptyStatus: autoEmpty.result.outputSummary.guideVideoReadiness?.status || "",
   guideOnlyDefaultCoverMode: unique.result.outputSummary.finalMaterialReadiness.items[0]?.coverMode || "",
   explicitCoverReadonlyCalls: explicitCovers.client.calls.length,
   missingCoverStatus: missingCover.result.status,

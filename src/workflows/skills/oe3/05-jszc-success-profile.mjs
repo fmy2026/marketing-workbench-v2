@@ -1,4 +1,5 @@
 import { hashValue } from "./00-contracts.mjs";
+import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
 
 export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-09.jszc-byte-game-comment-management-enabled-v3";
 export const JSZC_NESTED_FIELD_CONTRACT_VERSION = "2026-09-08.oe3-std-project-create-nested-fields-v6";
@@ -159,7 +160,7 @@ export function configuredJsZcSuccessProfile(bundle = {}) {
 
 export function evaluateJsZcSuccessProfile(bundle = {}) {
   const configured = configuredJsZcSuccessProfile(bundle);
-  const guideVideoRequired = bundle.account?.guide_video_required === true;
+  const guideVideoRequired = canonicalGuideVideoReadiness(bundle).required === true;
   const videoCoverRequired = bundle.account?.video_cover_required === true;
   const selectedGoldenFieldShapeHash = videoCoverRequired
     ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
@@ -195,7 +196,7 @@ export function evaluateJsZcSuccessProfile(bundle = {}) {
     goldenFieldShapeHash: selectedGoldenFieldShapeHash,
     expectedLedgerPathCount: selectedLedgerPathCount,
     guideVideoRequired,
-    guideVideoPolicy: guideVideoRequired ? "required_unique_current_job_readonly" : "omit",
+    guideVideoPolicy: guideVideoRequired ? "fresh_gameplay_readonly" : "omit",
     videoCoverRequired,
     videoCoverPolicy: videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default",
     blockers,

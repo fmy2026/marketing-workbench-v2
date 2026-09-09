@@ -852,7 +852,7 @@ function checkJsZcSuccessProfile(manifest = {}) {
     profile.goldenFieldShapeHash === expectedShapeHash &&
     Number(profile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
     profile.guideVideoRequired === guideVideoRequired &&
-    profile.guideVideoPolicy === (guideVideoRequired ? "required_unique_current_job_readonly" : "omit") &&
+    profile.guideVideoPolicy === (guideVideoRequired ? "fresh_gameplay_readonly" : "omit") &&
     manifest.fieldShapeHash === expectedShapeHash &&
     profile.filterEventPolicy === "omit" &&
     profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&

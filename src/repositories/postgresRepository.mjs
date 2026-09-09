@@ -4148,6 +4148,24 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async mergeAccountResourceMetadataByPlatformResource({ routeId, gameCode, advertiserId, resourceType, platformResourceId, resourceMetadata }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("resource_type", resourceType);
+    assertId("platform_resource_id", platformResourceId, /^[0-9A-Za-z_:\-/.]+$/);
+    await runPsql(`
+      UPDATE mwb.account_resources
+      SET metadata = metadata || ${sqlJson(resourceMetadata || {})},
+          updated_at = now()
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND resource_type = ${sqlLiteral(resourceType)}
+        AND platform_resource_id = ${sqlLiteral(platformResourceId)};
+    `, this.database);
+  }
+
   async bootstrapAccountResourcesFromBlueprints({ routeId, gameCode, advertiserId }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);

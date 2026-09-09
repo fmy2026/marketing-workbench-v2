@@ -285,8 +285,8 @@ function titleMaterials(bundle = {}) {
 }
 
 function videoMaterials(bundle = {}) {
-  const guideRequired = bundle.account?.guide_video_required === true;
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
+  const guideRequired = guideReadiness.required === true;
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -311,9 +311,9 @@ function videoMaterials(bundle = {}) {
 }
 
 function requiredVideoMaterialReadiness(bundle = {}) {
-  const guideRequired = bundle.account?.guide_video_required === true;
   const coverRequired = bundle.account?.video_cover_required === true;
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
+  const guideRequired = guideReadiness.required === true;
   const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   const items = materialItems
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
@@ -498,7 +498,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const selectedRequiredVideoCount = Number(materialReadiness.selectedRequiredVideoCount || 0);
   const verifiedVideoCount = Number(materialReadiness.verifiedVideoCount || 0);
   const coverVerifiedCount = Number(materialReadiness.coverVerifiedCount || 0);
-  const guideVideoRequired = bundle.account?.guide_video_required === true;
+  const guideVideoRequired = canonicalGuideVideoReadiness(bundle).required === true;
   const videoCoverRequired = bundle.account?.video_cover_required === true;
   const guideVideoReadyCount = Number(materialReadiness.guideVideoReadyCount || 0);
   const sellingPoints = payload.project_materials?.product_info?.selling_points;
