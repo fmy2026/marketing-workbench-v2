@@ -2,7 +2,9 @@ import {
   ACTION_STD_PROJECT_CREATE,
   buildEventConfigsExecutionPlanFromBundle,
   buildSingleResourceExecutionPlanFromBundle,
-  buildExecutionPlanFromBundle
+  buildExecutionPlanFromBundle,
+  compileAndSaveExecutionPlan,
+  resolveFreshResourceActionCallLimits
 } from "../src/workflows/executionPlan.mjs";
 import {
   EVENT_CONFIG_BASELINE_EVENTS,
@@ -205,6 +207,97 @@ assert(videoAction.module_ref === "src/platforms/oceanengineVideoMaterialExecuto
 assert(Boolean(videoAction.idempotency_key), "video_action_idempotency_key_missing");
 assert(!actionTypes(videoMissingPlan).includes(ACTION_STD_PROJECT_CREATE), "resource_plan_must_not_include_std_project_create");
 assert(videoMissingPlan.metadata.execution_scope.maximum_create_calls === 0, "resource_only_plan_create_calls_must_be_zero");
+
+function freshVideoBundle({ requiredVideoCount, missingVideoCount }) {
+  const items = Array.from({ length: requiredVideoCount }, (_, index) => {
+    const sourceAssetId = `VIDEO-ASSET-${index + 1}`;
+    return {
+      item: { item_type: "video_asset", required: true, asset_id: sourceAssetId },
+      asset: { asset_id: sourceAssetId, metadata: { video_id: `7000000000000${index + 1}` } }
+    };
+  });
+  return {
+    job: {
+      job_id: "JOB-SMOKE-FRESH-VIDEO-CALL-LIMIT",
+      route_id: "oceanengine_3_byte_mini_game",
+      game_code: "JSZC",
+      advertiser_id: "8990000000000001"
+    },
+    defaults: { raw_defaults: { material_source_account: { advertiser_id: "8990000000000002" } } },
+    materialPack: { items },
+    resources: items.map((entry, index) => ({
+      resource_type: "video_asset",
+      source_asset_id: entry.item.asset_id,
+      metadata: {
+        readonly_check: {
+          plan_status: index < missingVideoCount ? "source_ready_target_missing" : "source_ready_target_ready"
+        }
+      }
+    }))
+  };
+}
+
+const zeroVideoCallLimits = await resolveFreshResourceActionCallLimits({
+  bundle: freshVideoBundle({ requiredVideoCount: 2, missingVideoCount: 0 }),
+  actionTypes: ["ensure_resource:video_asset"]
+});
+assert(zeroVideoCallLimits["ensure_resource:video_asset"] === 0, "fresh_ready_video_must_resolve_to_zero_calls");
+const oneVideoCallLimits = await resolveFreshResourceActionCallLimits({
+  bundle: freshVideoBundle({ requiredVideoCount: 2, missingVideoCount: 1 }),
+  actionTypes: ["ensure_resource:video_asset"]
+});
+assert(oneVideoCallLimits["ensure_resource:video_asset"] === 1, "fresh_single_video_bind_must_resolve_to_one_call");
+const manyVideoCallLimits = await resolveFreshResourceActionCallLimits({
+  bundle: freshVideoBundle({ requiredVideoCount: 51, missingVideoCount: 51 }),
+  actionTypes: ["ensure_resource:video_asset"]
+});
+assert(manyVideoCallLimits["ensure_resource:video_asset"] === 2, "fresh_multi_batch_video_bind_must_resolve_exact_call_count");
+
+const zeroVideoActionPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "video_asset")
+), { actionCallLimits: zeroVideoCallLimits });
+assert(!actionTypes(zeroVideoActionPlan).includes("ensure_resource:video_asset"), "zero_call_video_action_must_not_be_planned");
+assert(zeroVideoActionPlan.metadata.resource_states.find((item) => item.resource_type === "video_asset")?.state === "READY", "zero_call_video_resource_must_be_ready");
+const oneVideoActionPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "video_asset")
+), { actionCallLimits: oneVideoCallLimits });
+assert(oneVideoActionPlan.metadata.execution_scope.maximum_platform_calls === 1, "single_video_plan_total_call_limit_wrong");
+assert(oneVideoActionPlan.plannedActions.find((item) => item.action_type === "ensure_resource:video_asset")?.maximum_platform_calls === 1, "single_video_action_call_limit_wrong");
+const manyVideoActionPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "video_asset")
+), { actionCallLimits: manyVideoCallLimits });
+assert(manyVideoActionPlan.metadata.execution_scope.maximum_platform_calls === 2, "multi_video_plan_total_call_limit_wrong");
+assert(manyVideoActionPlan.plannedActions.find((item) => item.action_type === "ensure_resource:video_asset")?.maximum_platform_calls === 2, "multi_video_action_call_limit_wrong");
+
+let compiledFreshVideoPlan = null;
+const compiledFreshZeroVideoBundle = freshVideoBundle({ requiredVideoCount: 2, missingVideoCount: 0 });
+const compiledZeroVideo = await compileAndSaveExecutionPlan({
+  repo: {
+    async getLaunchConfirmationForPlan() { return null; },
+    async getDmpPackagePushPlans() { return []; },
+    async upsertLaunchExecutionPlan(plan) { compiledFreshVideoPlan = plan; },
+    async getLaunchExecutionPlan() { return compiledFreshVideoPlan; }
+  },
+  bundleOverride: {
+    ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "video_asset")),
+    draft: null,
+    defaults: compiledFreshZeroVideoBundle.defaults,
+    materialPack: compiledFreshZeroVideoBundle.materialPack,
+    resources: [
+      ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "video_asset")).resources,
+      ...compiledFreshZeroVideoBundle.resources
+    ]
+  },
+  planningIntent: {}
+});
+assert(!actionTypes(compiledZeroVideo.plan).includes("ensure_resource:video_asset"), "compiler_must_drop_fresh_zero_call_video_action");
+assert(
+  compiledZeroVideo.plan.metadata.execution_scope.maximum_platform_calls === compiledZeroVideo.plan.plannedActions.reduce(
+    (sum, action) => sum + Number(action.maximum_platform_calls || 0),
+    0
+  ),
+  "compiler_must_recompute_total_after_zero_call_video_action"
+);
 
 const avatarMissingPlan = buildExecutionPlanFromBundle(bundleWithResources(
   allReadyResources.filter((item) => item.resource_type !== "avatar")

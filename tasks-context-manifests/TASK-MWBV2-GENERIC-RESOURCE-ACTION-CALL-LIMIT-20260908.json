@@ -1,0 +1,149 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908",
+  "task_ref": "tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md",
+  "status": "completed",
+  "created_at": "2026-09-08T10:56:54Z",
+  "updated_at": "2026-09-09T01:39:47Z",
+  "base_revision": "188f870ee010ea7e249ad12a210d41ee27b90866",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "deploy/README.md",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "src/workflows/plannedActionGrant.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md",
+    "tasks-context-manifests/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "scripts/05-single-confirmation-orchestrator-smoke.mjs",
+    "evidence/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908/**"
+  ],
+  "forbidden_actions": [
+    "真实平台写入、OAuth 刷新或外部资产操作",
+    "修改现有 Case、Job、Plan、action、readback 或账户能力动态事实",
+    "新增账户、Case、Job 或用户 ID 特例、默认值或条件分支",
+    "新增 Node、Gate、Plan/action 类型或确认短语"
+  ],
+  "stop_conditions": [
+    "修复需要改变已消费 Plan、创建平台对象或修改账户/Case 动态事实",
+    "fresh readonly 无法区分无需写入与缺失资源",
+    "无法在确认前阻断调用量漂移，或自动验证需真实平台写入"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:execution-plan && npm run test:resource-action-registry"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:single-confirmation-orchestrator"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run check:project -- --phase before-close && git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:execution-plan && npm run test:resource-action-registry",
+      "verified_at": "2026-09-09T01:38:56Z",
+      "summary": "执行 Plan 与资源动作回归通过；fresh 视频 readonly 的 0/1/N 调用量、零调用量去除写动作及 Plan 总量重算均已覆盖，真实平台写入为 0。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908/validation.md#ac-01"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:single-confirmation-orchestrator",
+      "verified_at": "2026-09-09T01:38:56Z",
+      "summary": "fresh 调用量漂移在 confirmation claim 前 fail-closed；测试确认写入计数为 0，未触发平台写入。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908/validation.md#ac-02"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload",
+      "verified_at": "2026-09-09T01:38:56Z",
+      "summary": "引导视频、显式封面和 payload/readback 合同回归通过；两个 smoke 均报告平台创建调用为 0。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908/validation.md#ac-03"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "git diff --check",
+      "verified_at": "2026-09-09T01:38:56Z",
+      "summary": "变更格式检查通过；关闭前项目合同检查将在当前指针仍存在时执行。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908/validation.md#ac-04"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记通用资源动作精确调用量与确认前漂移阻断决策"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明 fresh readonly、Plan 冻结与确认前调用量比较"
+    },
+    {
+      "ref": "docs/qiankun-api-docs-20260827.md",
+      "status": "not_needed",
+      "reason": "本任务不修改乾坤平台适配器或 API 调用；调用量合同仅消费既有 readonly 结果。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "本任务不修改部署、网络、凭据或运行策略。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "资源准备 Plan 已改为由 fresh readonly 的精确调用量驱动：视频绑定为零时不生成写动作，正整数同时冻结在 action、grant 和 Plan 总量；确认前漂移在 claim 前停止。",
+    "side_effects": "仅本地 smoke 的 test_run 数据创建后清理；未修改业务动态事实，真实平台写入、OAuth 刷新和平台创建均为 0。",
+    "remaining_risks": [
+      "已消费的历史 Plan 保持不可变；账户本人必须通过既有重新只读准备生成 fresh Job/Plan 后再按工作台确认卡操作。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T01:39:47Z"
+}

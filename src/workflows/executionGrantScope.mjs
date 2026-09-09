@@ -6,6 +6,7 @@ import {
   ACTION_STD_PROJECT_CREATE,
   PLAN_KIND_MONITOR_BOOTSTRAP,
   PLAN_KIND_RESOURCE_PREPARE,
+  resolveFreshResourceActionCallLimits,
   validateExecutionPlanActionScope
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
@@ -59,6 +60,15 @@ function optionalPlanScopeBlockers(scope = {}, plan = null) {
     blockers.push(...actionScope.blockers);
   }
   return blockers;
+}
+
+function actionMaximumPlatformCalls(action = {}) {
+  return Number(action.maximum_platform_calls ?? action.maximumPlatformCalls ?? 0);
+}
+
+function actionGrantMaximumPlatformCalls(scope = {}, actionType = "") {
+  const grant = scope.action_grants?.[actionType] || scope.actionGrants?.[actionType] || {};
+  return Number(grant.maximum_platform_calls ?? grant.maximumPlatformCalls ?? 0);
 }
 
 export async function validateWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
@@ -242,6 +252,26 @@ export async function validateResourcePlanConfirmationScope({
     plan,
     allowedActions: scope.allowed_actions || []
   });
+  const plannedMaximumPlatformCalls = actions.reduce(
+    (sum, action) => sum + actionMaximumPlatformCalls(action),
+    0
+  );
+  const frozenActionCallLimitBlockers = actions.flatMap((action) => {
+    const actionType = action.action_type || "";
+    const actionLimit = actionMaximumPlatformCalls(action);
+    const grantLimit = actionGrantMaximumPlatformCalls(scope, actionType);
+    return [
+      ...(Number.isInteger(actionLimit) && actionLimit > 0 ? [] : [`execution_plan_action_call_limit_invalid:${actionType}`]),
+      ...(grantLimit === actionLimit ? [] : [`execution_plan_action_grant_limit_mismatch:${actionType}`])
+    ];
+  });
+  const freshActionCallLimits = await resolveFreshResourceActionCallLimits({ bundle, actionTypes });
+  const freshActionCallLimitDrift = Object.entries(freshActionCallLimits).flatMap(([actionType, currentLimit]) => {
+    const action = actions.find((item) => item.action_type === actionType);
+    return action && actionMaximumPlatformCalls(action) === Number(currentLimit)
+      ? []
+      : [`resource_action_call_limit_drifted:${actionType}`];
+  });
   const blockers = [
     ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
@@ -255,6 +285,9 @@ export async function validateResourcePlanConfirmationScope({
     ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
     ...(actionScope.status === "passed" ? [] : actionScope.blockers),
     ...(Number(scope.maximum_actions) === actions.length && actions.length > 0 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(Number(scope.maximum_platform_calls) === plannedMaximumPlatformCalls ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
+    ...frozenActionCallLimitBlockers,
+    ...freshActionCallLimitDrift,
     ...(actionTypes.every((actionType) => FORMAL_CONFIRMED_ACTION_ORDER.includes(actionType)) ? [] : ["confirmed_resource_action_not_in_registry"]),
     ...(actionTypes.includes(ACTION_STD_PROJECT_CREATE) ? ["std_project_create_not_allowed_in_resource_execution"] : []),
     ...(Number(scope.maximum_create_calls || 0) === 0 ? [] : ["execution_plan_create_call_limit_invalid"]),

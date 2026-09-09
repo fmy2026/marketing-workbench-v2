@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
-| 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `076`；通用运行机制任务 `TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908` |
+| 最后更新时间 | 2026-09-09 CST |
+| 校验基线 | 当前代码、SQL migrations 至 `076`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -27,6 +27,7 @@
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |
 | 账户当前状态 | 使用账户 canonical readiness 纠正历史缺失/未就绪投影，保留历史 Skill 证据 | [账户投影任务](../tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md) |
 | 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产、配置与目标绑定顺序核验，部分完成也要有准确 blocker | [逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
+| 资源动作精确调用量 | 资源 executor 的 fresh readonly 结果是该动作唯一调用量来源：0 表示已满足、不生成写动作；正整数同时冻结在 planned action、action grant 与 Plan 总调用量。确认前重新计算；任一数量或授权不一致均在 confirmation claim 前 fail-closed，必须走 fresh Job/Plan，不能改写旧 Plan | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md)、[当前逻辑](project-现在的逻辑图.md) |
 | 事件配置最终一致性 | 所有写入成功后采用有界只读回查窗口吸收可见性延迟，失败不重试创建 | [回查窗口任务](../tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md) |
 | 平台响应与完成判定 | 受理不等于 verified；统一错误分类、HTTP deadline 和严格 finalizer，避免误成功或悬挂 | [终态任务](../tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md)、[回查收口任务](../tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md) |
 | 尝试次数与安全重开 | Case 跨 Job 计数，耗尽先人工诊断；获批后由本人建立单次替代 Case，不复制旧授权 | [次数与恢复任务](../tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md) |

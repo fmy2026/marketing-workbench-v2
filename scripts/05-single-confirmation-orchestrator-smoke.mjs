@@ -25,11 +25,6 @@ const resourceActions = [
   "ensure_resource:video_asset",
   "ensure_resource:product_image"
 ];
-const actions = resourceActions.map((actionType) => ({
-  action_type: actionType,
-  status: "planned",
-  idempotency_key: `IDEMP-${actionType}`
-}));
 const actionGrants = {
   "ensure_resource:event_asset": { maximum_platform_calls: 1, retry_allowed: false },
   "ensure_event_configs:baseline": { maximum_platform_calls: 6, retry_allowed: false },
@@ -38,6 +33,12 @@ const actionGrants = {
   "ensure_resource:video_asset": { maximum_platform_calls: 1, retry_allowed: false },
   "ensure_resource:product_image": { maximum_platform_calls: 1, retry_allowed: false }
 };
+const actions = resourceActions.map((actionType) => ({
+  action_type: actionType,
+  status: "planned",
+  idempotency_key: `IDEMP-${actionType}`,
+  maximum_platform_calls: actionGrants[actionType].maximum_platform_calls
+}));
 const plan = {
   plan_id: planId,
   plan_hash: planHash,
@@ -58,6 +59,7 @@ const plan = {
       target_plan_hash: planHash,
       allowed_actions: actions.map((action) => action.action_type),
       maximum_actions: actions.length,
+      maximum_platform_calls: resourceActions.reduce((sum, actionType) => sum + actionGrants[actionType].maximum_platform_calls, 0),
       maximum_create_calls: 0,
       action_grants: actionGrants,
       retry_allowed: false
@@ -246,6 +248,42 @@ try {
     projectStatePath: statePath
   });
   assert(confirmable.status === "passed", `ready_plan_not_confirmable:${confirmable.blockers.join(",")}`);
+
+  const freshVideoReadyBundle = {
+    ...bundle,
+    defaults: { raw_defaults: { material_source_account: { advertiser_id: "1871922434025473" } } },
+    materialPack: {
+      items: ["1", "2"].map((suffix) => ({
+        item: { item_type: "video_asset", required: true, asset_id: `VIDEO-DRIFT-${suffix}` },
+        asset: { asset_id: `VIDEO-DRIFT-${suffix}`, metadata: { video_id: `7000000000000${suffix}` } }
+      }))
+    },
+    resources: ["1", "2"].map((suffix) => ({
+      resource_type: "video_asset",
+      source_asset_id: `VIDEO-DRIFT-${suffix}`,
+      metadata: { readonly_check: { plan_status: "source_ready_target_ready" } }
+    }))
+  };
+  let driftConfirmationWrites = 0;
+  const driftRepo = {
+    ...repo,
+    async getLaunchJobBundle() { return freshVideoReadyBundle; },
+    async getLaunchConfirmationForPlan() { return null; },
+    async claimLaunchExecutionPlanConfirmation() {
+      driftConfirmationWrites += 1;
+      return { claimed: true };
+    }
+  };
+  const freshCallLimitDrift = await executeConfirmedResourcePlan({
+    repo: driftRepo,
+    jobId,
+    expectedPlanId: planId,
+    expectedPlanHash: planHash,
+    projectStatePath: statePath
+  });
+  assert(freshCallLimitDrift.status === "blocked", "fresh_resource_call_limit_drift_not_blocked");
+  assert(freshCallLimitDrift.blockers.includes("resource_action_call_limit_drifted:ensure_resource:video_asset"), "fresh_resource_call_limit_drift_blocker_missing");
+  assert(driftConfirmationWrites === 0, "fresh_resource_call_limit_drift_recorded_confirmation");
 
   const order = [];
   const executorOverrides = Object.fromEntries(resourceActions.map((actionType) => [actionType, async ({ runtimeContext }) => {

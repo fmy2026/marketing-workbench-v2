@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制说明 |
-| 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908`；项目控制合同见 `project.state.json`；最新 migration `076_account_video_cover_revalidation.sql` |
+| 最后更新时间 | 2026-09-09 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908`；项目控制合同见 `project.state.json`；最新 migration `076_account_video_cover_revalidation.sql` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与回查机制 |
 | 权威来源 | 按 `AGENTS.md` 的对应真值链读取；实现查注册表/代码/SQL，业务事实查 Postgres，本文解释静态机制 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Execution Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -148,7 +148,7 @@ Monitor Plan 与普通 Plan 的版本、创建 attempt 关系查 [Plan 数据合
 
 `micro_app_instance` 例外地允许输出 `waiting_on_event_asset` / `waiting_on_event_configs`：这两个状态在统一归一、Node 04 聚合和 Plan 编译中始终保持 `WAITING`，不生成独立准备动作，也不得降级为 `resource_prepare_unsupported`。其 READY 只来自事件资产详情与后续事件链权威回查。
 
-由账户通用能力字段（例如 `guide_video_required`、`video_cover_required`）要求引导视频或显式视频封面时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，存储位置与读取边界查 [账户资源合同](project-数据与报表契约.md#2-基础表契约36-张)。要求显式视频封面时，Node 04 还必须在本 Job 逐条只读确认两条视频及各自封面，历史缓存、平台默认封面或任一不可见结果均不能进入确认。Node 05 将每条视频的 `video_id`、`image_mode`、`video_cover_id` 与本 Job 唯一 `guide_video_id` 一并发送。Node 07 项目命中后再调用一次素材只读接口，逐条按 `video_id + video_cover_id + guide_video_id` 核验；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。
+由账户通用能力字段（例如 `guide_video_required`、`video_cover_required`）要求引导视频或显式视频封面时，Node 04 在每个 fresh Job 用已验证的唯一小游戏实例调用 `gameplay/list`；非空引导视频 ID 去重后必须恰好一个，存储位置与读取边界查 [账户资源合同](project-数据与报表契约.md#2-基础表契约36-张)。要求显式视频封面时，Node 04 还必须在本 Job 逐条只读确认两条视频及各自封面，历史缓存、平台默认封面或任一不可见结果均不能进入确认。Node 05 将每条视频的 `video_id`、`image_mode`、`video_cover_id` 与本 Job 唯一 `guide_video_id` 一并发送。Node 07 项目命中后再调用一次素材只读接口，逐条按 `video_id + video_cover_id + guide_video_id` 核验；失败或未及时可见只保持 blocker/readback pending，不新增动作或重试创建。视频绑定 executor 的 fresh readonly 同时给出批次数：0 表示全部目标可见，通用 Plan 编译器将视频资源置为 READY、不生成写动作；正整数必须逐字冻结为该 action、其 grant 和 Plan 总调用量。
 
 事件资产是账户级受控合同，不是通用模板开关：Node 04 在 `event-chain-readonly` 前校验当前账户、当前小游戏 App、唯一且来源受控的实例候选和版本化创建模板，并据此把动态 `target_advertiser_id`、`template_ref` 与 `template_hash` 合并进当前账户资源；候选缺失、歧义、来源不受控或模板前提不完整时不得落合同或生成事件资产动作。该脱敏合同可在同一未确认 `resource_prepare` Plan 中连续冻结 `ensure_resource:event_asset` 与 `ensure_event_configs:baseline`。资产创建或发现后，必须用 detail 同时确认 App + instance 绑定，才可标记目标实例已核验并把真实 asset ID 仅传给本次 configs 执行；configs 6/6 后才调用带 asset_id 的 `optimized_goal/get` 和 `dbt/get`。不带 asset_id 的实例 optimized-goal 调用只可选诊断和审计，不能生成 Plan 或改变 Gate/READY 真值。
 
@@ -209,6 +209,8 @@ launch_confirmations 的同一 plan_id + plan_hash 确认
               +
 plannedActionGrant / executionGrantScope 的动作、次数、目标 Job 与 attempt 校验
 ```
+
+资源 Plan 的确认前还会以 fresh readonly 重新计算每个可执行资源动作的调用量，并比较 planned action、action grant 和 Plan 总量；0 调用量不允许遗留为待确认写动作。任一漂移在 confirmation claim 前停止，旧 Plan 保持不可改写，恢复只走既有 fresh Job/Plan 路径。
 
 `plan_kind` 只允许 `monitor_bootstrap`、`resource_prepare`、`std_project_create`、`readiness_blocked`。`monitor_bootstrap` 的 Draft/payload 为空、最大平台调用为 1、`retry_allowed=false`，且不得混入资源或广告项目动作。
 

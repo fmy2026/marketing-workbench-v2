@@ -187,7 +187,9 @@ function resourceVerifierStates(bundle = {}) {
 }
 
 function actionGrantDefaults(actionType, actionCallLimits = {}) {
-  const maximumPlatformCalls = Number(actionCallLimits[actionType] || ({
+  const configuredLimit = Object.hasOwn(actionCallLimits, actionType)
+    ? actionCallLimits[actionType]
+    : ({
     "ensure_resource:avatar": 2,
     "ensure_resource:dmp_audience_package": 10,
     [EVENT_ASSET_PROVISION_ACTION]: 1,
@@ -195,7 +197,8 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
     "ensure_resource:video_asset": 1,
     "ensure_resource:product_image": 1,
     [ACTION_STD_PROJECT_CREATE]: 1
-  })[actionType] || 1);
+  })[actionType] || 1;
+  const maximumPlatformCalls = Number(configuredLimit);
   const officialContracts = {
     "ensure_resource:dmp_audience_package": {
       source_ref: "official:oceanengine:dmp/custom_audience/push_v2",
@@ -242,6 +245,30 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
     retry_allowed: false,
     ...(officialContracts[actionType] ? { official_contract: officialContracts[actionType] } : {})
   };
+}
+
+// A resource action may only receive a dynamic zero when its own fresh
+// readonly contract has proved that no platform write remains. The compiler
+// treats this as a generic READY override; it never turns a missing or
+// unverified resource into a zero-call action.
+export async function resolveFreshResourceActionCallLimits({ bundle, actionTypes = [] } = {}) {
+  const requested = new Set(actionTypes || []);
+  const actionCallLimits = {};
+  if (!requested.has("ensure_resource:video_asset")) return actionCallLimits;
+
+  const { buildVideoMaterialPreparePlan } = await import("../platforms/oceanengineVideoMaterialExecutor.mjs");
+  const materialPlan = buildVideoMaterialPreparePlan({ bundle });
+  const selectedRequiredVideoCount = Number(materialPlan.selectedRequiredVideoCount || 0);
+  const readyCount = Number(materialPlan.readyCount || 0);
+  const bindActionCount = Number(materialPlan.bindActionCount || 0);
+  const bindBatchCount = Number(materialPlan.bindBatchCount || 0);
+  const uploadActionCount = Number(materialPlan.uploadActionCount || 0);
+  const allRequiredVideosAccountedFor = selectedRequiredVideoCount > 0 &&
+    readyCount + bindActionCount === selectedRequiredVideoCount;
+  if (uploadActionCount === 0 && allRequiredVideosAccountedFor && bindBatchCount >= 0) {
+    actionCallLimits["ensure_resource:video_asset"] = bindBatchCount;
+  }
+  return actionCallLimits;
 }
 
 function redactedSuccessProfileSummary(bundle = {}) {
@@ -604,6 +631,10 @@ function compilePlannedActions(bundle = {}, {
       blockers.push(blocker);
       continue;
     }
+    if (Object.hasOwn(actionCallLimits, actionType) && Number(actionCallLimits[actionType]) === 0) {
+      resourceStates.push({ resource_type: resourceType, state: "READY", action_type: "", blocker: "" });
+      continue;
+    }
     const grant = actionGrantDefaults(actionType, actionCallLimits);
     actions.push({
       action_type: actionType,
@@ -719,6 +750,10 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
     resourceStates
   }));
   const hasCreateAction = plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
+  const maximumPlatformCalls = plannedActions.reduce(
+    (sum, action) => sum + Number(action.maximum_platform_calls || 0),
+    0
+  );
   if (hasCreateAction && !draftReady(bundle) && !blockerCodes.includes("draft_not_ready_for_std_project_create")) {
     blockerCodes.push("draft_not_ready_for_std_project_create");
   }
@@ -769,9 +804,12 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
         allowed_actions: plannedActions.map((action) => action.action_type),
         allowed_plan_actions: plannedActions.map((action) => action.action_type),
         maximum_actions: plannedActions.length,
+        maximum_platform_calls: maximumPlatformCalls,
         action_grants: Object.fromEntries(plannedActions.map((action) => [
           action.action_type,
-          actionGrantDefaults(action.action_type, actionCallLimits)
+          actionGrantDefaults(action.action_type, {
+            [action.action_type]: Number(action.maximum_platform_calls || 0)
+          })
         ])),
         maximum_create_calls: hasCreateAction ? 1 : 0,
         retry_allowed: false
@@ -1321,6 +1359,9 @@ export async function compileAndSaveExecutionPlan({
   const dmpPushPlans = typeof repo.getDmpPackagePushPlans === "function"
     ? await repo.getDmpPackagePushPlans(bundle.job.job_id)
     : [];
+  const baseActionCallLimits = {
+    "ensure_resource:dmp_audience_package": Math.max(1, Number(dmpPushPlans?.length || 0))
+  };
   const preliminary = buildExecutionPlanFromBundle(bundle, {
     planVersion,
     createAttemptNo,
@@ -1329,31 +1370,44 @@ export async function compileAndSaveExecutionPlan({
     maximumCreateAttempts,
     singleVariableExperiment,
     planningIntent: planningIntent || {},
-    actionCallLimits: {
-      "ensure_resource:dmp_audience_package": Math.max(1, Number(dmpPushPlans?.length || 0))
-    }
+    actionCallLimits: baseActionCallLimits
   });
-  let effectivePlanningIntent = planningIntent || preliminary.metadata?.planning_intent || {};
-  if (
-    preliminary.planStatus === "ready" &&
-    preliminary.plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE) &&
-    !effectivePlanningIntent.project_name
-  ) {
-    const { reserveStdProjectPlanningIntent } = await import("./skills/oe3/05-payload-contract.mjs");
-    effectivePlanningIntent = await reserveStdProjectPlanningIntent({ repo, bundle, attemptNo: createAttemptNo });
-  }
-  const plan = buildExecutionPlanFromBundle(bundle, {
+  const freshActionCallLimits = await resolveFreshResourceActionCallLimits({
+    bundle,
+    actionTypes: preliminary.plannedActions.map((action) => action.action_type)
+  });
+  const actionCallLimits = { ...baseActionCallLimits, ...freshActionCallLimits };
+  let plan = buildExecutionPlanFromBundle(bundle, {
     planVersion,
     createAttemptNo,
     verificationSeriesId,
     verificationTaskRef,
     maximumCreateAttempts,
     singleVariableExperiment,
-    planningIntent: effectivePlanningIntent,
-    actionCallLimits: {
-      "ensure_resource:dmp_audience_package": Math.max(1, Number(dmpPushPlans?.length || 0))
-    }
+    planningIntent: planningIntent || {},
+    actionCallLimits
   });
+  let effectivePlanningIntent = planningIntent || plan.metadata?.planning_intent || {};
+  if (
+    plan.planStatus === "ready" &&
+    plan.plannedActions.some((action) => action.action_type === ACTION_STD_PROJECT_CREATE) &&
+    !effectivePlanningIntent.project_name
+  ) {
+    const { reserveStdProjectPlanningIntent } = await import("./skills/oe3/05-payload-contract.mjs");
+    effectivePlanningIntent = await reserveStdProjectPlanningIntent({ repo, bundle, attemptNo: createAttemptNo });
+  }
+  if (effectivePlanningIntent !== (planningIntent || plan.metadata?.planning_intent || {})) {
+    plan = buildExecutionPlanFromBundle(bundle, {
+      planVersion,
+      createAttemptNo,
+      verificationSeriesId,
+      verificationTaskRef,
+      maximumCreateAttempts,
+      singleVariableExperiment,
+      planningIntent: effectivePlanningIntent,
+      actionCallLimits
+    });
+  }
   if (expectedPlanId && plan.planId !== expectedPlanId) {
     throw new Error("confirmed_plan_id_drift");
   }
