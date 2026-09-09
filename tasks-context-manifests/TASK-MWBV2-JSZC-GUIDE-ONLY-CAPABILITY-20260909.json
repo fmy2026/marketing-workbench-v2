@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909",
   "task_ref": "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md",
-  "status": "blocked",
+  "status": "completed",
   "created_at": "2026-09-09T02:42:19Z",
-  "updated_at": "2026-09-09T02:54:05Z",
+  "updated_at": "2026-09-09T03:42:11Z",
   "base_revision": "e815e059bf4b902510ec1492d2a5c944b43df629",
   "baseline_dirty_files": {},
   "domains": [
@@ -57,11 +57,7 @@
     "只读准备无法证明唯一当前 Job 引导视频",
     "真实创建失败或回查不一致；保留证据并停止，不自动重试"
   ],
-  "open_gaps": [
-    "当前 Case 的旧只读结果仍投影 video_material_not_ready；账户所有者须登录工作台并执行一次“重新只读准备”，再核验新的 Create Plan。",
-    "真实平台创建需账户所有者在工作台完成精确“确认创建”；本开发任务不得代为确认。",
-    "project-lessons 仅在真实创建和权威回查成功后更新。"
-  ],
+  "open_gaps": [],
   "validation_plan": [
     {
       "acceptance_id": "AC-01",
@@ -145,6 +141,16 @@
     }
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "guide-only capability 修正、回归覆盖和当前合同均已验收；首次真实创建被平台语义重复规则拒绝，未创建标准项目。",
+    "side_effects": "077 前向迁移仅修正获批账户的 video_cover_required capability；业务恢复不复用本任务的旧 Plan、confirmation、action 或 idempotency key。",
+    "remaining_risks": [
+      "删除项目的平台注册表释放可能存在最终一致性延迟，后续替代 Case 必须再次执行实时只读查重。",
+      "真实创建仍仅能由账户所有者在工作台对 fresh Plan 完成精确确认。"
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.platform_actions:ACTION-JOB-MWBV2-20260909015848-418CC9-STD-PROJECT-CREATE-A01"
+    ]
+  },
+  "closed_at": "2026-09-09T03:42:11Z"
 }
