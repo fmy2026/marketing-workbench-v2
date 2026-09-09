@@ -1,0 +1,107 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909",
+  "task_ref": "tasks/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.md",
+  "status": "completed",
+  "created_at": "2026-09-09T04:20:00Z",
+  "updated_at": "2026-09-09T04:23:00Z",
+  "base_revision": "7e76558616570e89fa19fefdbd070a80926d0d67",
+  "baseline_dirty_files": {
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json": "sha256:fd3d1f2edb2d8814cc6d4a94b16cd723a9450706a306b4a2f179680c18d1d550",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md": "sha256:d89970911472a3d2ca1904504822045ddd3f2523349d6f1735982075f70f3812"
+  },
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "db/078_semantic_duplicate_comment_defaults.sql"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.json",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md"
+  ],
+  "forbidden_actions": [
+    "修改应用代码、数据库 Schema、migration 或路线配置",
+    "修改 Case、Job、Plan、confirmation、action、资源或回查事实",
+    "调用真实平台接口、刷新凭据或保存敏感信息"
+  ],
+  "stop_conditions": [
+    "需要文档范围外修改才能消除差异",
+    "当前代码或只读数据库不能可靠确认核心事实",
+    "需要平台写入或动态业务事实写入"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "rg -n 'migrations 至 `078`|六种运行模式|078_semantic_duplicate_comment_defaults|TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909' docs/project-现在的逻辑图.md docs/project-数据与报表契约.md docs/project-lessons.md"},
+    {"acceptance_id": "AC-02", "command": "npm run check:project -- --phase before-close && npm run test:project-contracts && git diff --check"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "rg -n 'migrations 至 `078`|六种运行模式|078_semantic_duplicate_comment_defaults|TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909' docs/project-现在的逻辑图.md docs/project-数据与报表契约.md docs/project-lessons.md",
+      "verified_at": "2026-09-09T04:22:00Z",
+      "summary": "三份文档已分别同步 migration 078、六种 runner 模式、路线默认值来源与最近机制任务基线。",
+      "evidence_refs": [
+        "docs/project-现在的逻辑图.md",
+        "docs/project-数据与报表契约.md",
+        "docs/project-lessons.md",
+        "src/workflows/skills/oe3/00-runner.mjs",
+        "db/078_semantic_duplicate_comment_defaults.sql"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:project-contracts && git diff --check",
+      "verified_at": "2026-09-09T04:22:00Z",
+      "summary": "80 项项目合同回归通过，文档 diff 无空白错误；本 Task 未改动代码、数据库或平台。",
+      "evidence_refs": [
+        "scripts/00-project-contract-check-smoke.mjs",
+        "tasks/TASK-MWBV2-CORE-DOCS-CONSISTENCY-20260909.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "本次未改变方案方法或有效决策，只同步其引用的机制文档基线。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "同步 migration 078 基线，并按当前 runner 修正为六种运行模式。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "在路线默认值来源索引中补入 migration 078。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "updated",
+      "reason": "将经验文档校验基线切换至最新语义查重与评论管理机制任务。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已完成三份核心文档与当前 runner、migration 078 及已验证 Postgres 配置的一致性同步。",
+    "side_effects": "仅修改文档和本 Task 闭环文件；未修改代码、数据库、动态业务事实或平台。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T04:23:00Z"
+}

@@ -97,7 +97,7 @@ route_id + game_code
 | 启动链接与备用页 | `game_route_launch_links` 按 route×game 读取受控深链；平台 App 关联、hash 与协议在 payload 前校验。`landing_page_assets` 保存备用页库存，目标账户可见性读取 `account_resources` 的 `backup_landing_page`；完整 URL 只进入受控字段，普通摘要仅输出 ref/hash/status/存在性 |
 | 资源核验与审计 | `account_resources` 的已核验事件资产、小游戏实例、备用页以 `visibility_status=visible` 与 `readback_status=readback_verified` 表达，写入者见本节表契约；其他资源按自身合同核对。DMP 目标状态按集合成员×目标账户保存。Skill 和平台动作只保存受控证据摘要，外部动作审计包括 endpoint path、method、HTTP/API code、request ID 存在性、hash 与脱敏 metadata，不保存 raw request/response |
 
-来源依据 [固定抖音号合同](../db/043_aweme_auto_single_mechanism.sql)、[创建嵌套字段合同](../db/048_jszc_nested_create_field_contract.sql)、[路线参数修正](../db/069_jszc_fallback_parameters_incremental.sql)、[引导视频合同](../db/074_account_guide_video_contract.sql)、[仅引导视频能力校正](../db/077_account_guide_only_correction.sql) 与当前仓储实现。这里只解释数据来源，Node/Gate 行为仍查逻辑图。
+来源依据 [固定抖音号合同](../db/043_aweme_auto_single_mechanism.sql)、[创建嵌套字段合同](../db/048_jszc_nested_create_field_contract.sql)、[路线参数修正](../db/069_jszc_fallback_parameters_incremental.sql)、[引导视频合同](../db/074_account_guide_video_contract.sql)、[仅引导视频能力校正](../db/077_account_guide_only_correction.sql)、[语义查重与评论管理默认值](../db/078_semantic_duplicate_comment_defaults.sql) 与当前仓储实现。这里只解释数据来源，Node/Gate 行为仍查逻辑图。
 
 ## 3. 只读 View 与报表边界（7 个）
 

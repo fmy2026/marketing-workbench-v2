@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `077`、Node 注册表与数据契约 |
+| 校验基线 | 当前代码、Schema migrations 至 `078`、Node 注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 权威来源 | 实现查注册表/代码/SQL，业务事实查 Postgres；本文只解释静态机制与消费者边界 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -61,7 +61,7 @@
 | 创建执行 | 06 `std_project_create_executor` | 已确认 Create Plan → 创建动作与对象记录 | 一份 Create Plan 仅一次 `std_project/create` |
 | 创建执行 | 07 `readback_closer` | 创建对象、Draft → verified readback 与证据 | 不以补发 create 修复回查问题 |
 
-运行模式也只有四类：`dry_run` 与 `draft_readiness` 不写平台；`planned_actions` 只编译明确计划动作；`execute_once` 只能消费已确认 Plan；`readback_only` 绝不创建。
+运行模式共有六类：`dry_run` 与 `draft_readiness` 不写平台；`planned_actions` 只编译明确计划动作；`execute_once` 只能消费已确认 Plan；`readback_only` 绝不创建；`aweme_auth_readonly` 仅运行至 Node 04 的抖音号授权只读核验，不生成 Draft 或 Plan。
 
 ## 3. 状态维度：资源就绪与 Case Gate
 
