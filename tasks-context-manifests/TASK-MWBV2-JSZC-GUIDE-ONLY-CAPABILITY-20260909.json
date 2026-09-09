@@ -1,0 +1,150 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909",
+  "task_ref": "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md",
+  "status": "blocked",
+  "created_at": "2026-09-09T02:42:19Z",
+  "updated_at": "2026-09-09T02:54:05Z",
+  "base_revision": "e815e059bf4b902510ec1492d2a5c944b43df629",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "db/074_account_guide_video_contract.sql",
+    "db/076_account_video_cover_revalidation.sql",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "scripts/04-guide-video-readonly-smoke.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json",
+    "db/077_account_guide_only_correction.sql",
+    "scripts/04-guide-video-readonly-smoke.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "evidence/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909/**"
+  ],
+  "forbidden_actions": [
+    "修改现有 Case、Job、Plan、confirmation、action、created object 或 readback 历史",
+    "新增账户 ID 的 live src、frontend 或 package.json 运行时分支",
+    "未经账户所有者精确确认执行真实平台创建或任何自动重试",
+    "OAuth 刷新、外部素材操作、预算或出价修改",
+    "在项目文件、普通日志、API 或前端保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "账户、route、game 或当前 capability 前置条件与批准方案不一致",
+    "修正需要改变 Node、Gate、Plan/action、写入入口或扩大平台写权限",
+    "只读准备无法证明唯一当前 Job 引导视频",
+    "真实创建失败或回查不一致；保留证据并停止，不自动重试"
+  ],
+  "open_gaps": [
+    "当前 Case 的旧只读结果仍投影 video_material_not_ready；账户所有者须登录工作台并执行一次“重新只读准备”，再核验新的 Create Plan。",
+    "真实平台创建需账户所有者在工作台完成精确“确认创建”；本开发任务不得代为确认。",
+    "project-lessons 仅在真实创建和权威回查成功后更新。"
+  ],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "迁移静态前置条件核对；应用后以受限 Postgres 查询核验目标账户 guide_video_required=true、video_cover_required=false"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run test:std-project-readback"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "人工对照 Solution Design、当前逻辑图和数据与报表契约；rg 确认账户 ID 未进入 live src、frontend 或 package.json"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run db:contract-check && npm run test:project-contracts && npm run check:project -- --phase start && git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "受限 Postgres 预检、应用 db/077_account_guide_only_correction.sql，并以只读查询核验 capability 与唯一小游戏实例",
+      "verified_at": "2026-09-09T02:54:05Z",
+      "summary": "迁移前精确 scope 命中一行且 guide=true、cover=true；077 仅更新一行。迁移后目标账户为 guide=true、cover=false，已验证小游戏实例数量为 1；未调用平台。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909/validation.md#ac-01"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run test:std-project-readback && npm run test:payload-contract && npm run smoke:workflow-skills",
+      "verified_at": "2026-09-09T02:54:05Z",
+      "summary": "guide-only 组合验证唯一引导视频、两条视频均发送同一 guide_video_id、0 条 video_cover_id、94 条字段账本路径，并在 Node 07 只校验视频与引导视频绑定；全部 smoke 明确 0 次真实平台写入。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909/validation.md#ac-02"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "人工对照 docs/Solution Design.md、docs/project-现在的逻辑图.md、docs/project-数据与报表契约.md；rg -n 1867508089433225 src frontend package.json",
+      "verified_at": "2026-09-09T02:54:05Z",
+      "summary": "当前文档将 guide 与 cover 表达为正交 capability；账户标识只留在获批 migration、Task 和证据边界。live src、frontend 和 package.json 未命中该账户 ID。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909/validation.md#ac-03"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run db:contract-check && npm run test:project-contracts && npm run check:project -- --phase start && git diff --check",
+      "verified_at": "2026-09-09T02:54:05Z",
+      "summary": "数据合同、80 个项目合同场景、当前 Task start 检查和 diff 格式检查均通过；项目检查确认 78 个 migration 文件，且无平台访问。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909/validation.md#ac-04"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "以 guide-only 的通用 capability 决策取代已被证据推翻的显式封面判断。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "更新 077 基线，并明确 guide video 与 explicit cover 是正交账户能力。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "更新 077 数据修正基线及两个账户能力的独立读写/消费合同。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "not_needed",
+      "reason": "尚未完成真实平台创建和权威回查，不能将该账户结果写为长期成功经验。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

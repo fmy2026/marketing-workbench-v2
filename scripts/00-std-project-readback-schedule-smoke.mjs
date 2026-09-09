@@ -218,11 +218,23 @@ assert(guideMatched.result.guideVideoMaterialReadback?.matchedVideoCount === 2, 
 assert(guideMatched.result.guideVideoMaterialReadback?.matchedCoverCount === 2, "both_video_cover_bindings_must_match");
 assert(guideMatched.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 2, "both_guide_video_bindings_must_match");
 
+const guideOnlyMatched = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: false, coverBindingMatch: false });
+assert(guideOnlyMatched.result.status === "readback_verified", "guide_only_material_match_must_verify_with_platform_default_cover");
+assert(guideOnlyMatched.materialCallCount === 1, "guide_only_material_readback_must_call_once");
+assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedVideoCount === 2, "guide_only_all_video_bindings_must_match");
+assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 2, "guide_only_all_guide_video_bindings_must_match");
+assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedCoverCount === 2, "guide_only_cover_must_not_be_required_for_match");
+
 const guideMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true, guideBindingMatch: false });
 assert(guideMismatch.result.status === "guide_video_material_pending", "guide_video_material_mismatch_must_remain_pending");
 assert(guideMismatch.materialCallCount === 1, "guide_video_material_mismatch_must_not_retry_read");
 assert(guideMismatch.readbackRecords.at(-1)?.readbackStatus === "guide_video_material_pending", "guide_video_pending_record_missing");
 assert(JSON.stringify(guideMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "guide_video_pending_plan_must_not_be_consumed");
+
+const guideOnlyMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: false, guideBindingMatch: false });
+assert(guideOnlyMismatch.result.status === "guide_video_material_pending", "guide_only_video_material_mismatch_must_remain_pending");
+assert(guideOnlyMismatch.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 1, "guide_only_guide_video_mismatch_count_must_be_visible");
+assert(JSON.stringify(guideOnlyMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "guide_only_pending_plan_must_not_be_consumed");
 
 const coverMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true, coverBindingMatch: false });
 assert(coverMismatch.result.status === "guide_video_material_pending", "video_cover_material_mismatch_must_remain_pending");
@@ -238,5 +250,5 @@ console.log(JSON.stringify({
   guideVideoMaterialCallsPerReadback: 1,
   createCalls: 0,
   verifiedLifecycle: fifthMatch.planTransitions,
-  mismatchOutcomes: [idMismatch.result.status, nameMismatch.result.status, guideMismatch.result.status, coverMismatch.result.status]
+  mismatchOutcomes: [idMismatch.result.status, nameMismatch.result.status, guideMismatch.result.status, guideOnlyMismatch.result.status, coverMismatch.result.status]
 }, null, 2));

@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-08 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `076_account_video_cover_revalidation.sql` |
+| 最后更新时间 | 2026-09-09 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `077_account_guide_only_correction.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `076` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 77 个 migration 文件、编号至 `076`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+结构清单沿用 migration `077` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 78 个 migration 文件、编号至 `077`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -47,8 +47,8 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
 |  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
-| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、唯一 `owner_user_id`、受控触点；新 Intake 在 Case/Job 前用当前用户 owner key 执行乾坤 `accountIndex` 精确只读预检，禁止跨 scope 覆盖和自动转移。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed。`guide_video_required` 是默认 false 的账户能力开关，不保存动态引导视频 ID；`video_cover_required` 是默认 false 的显式封面能力开关，为 true 时要求当前 Job 逐视频核验并发送封面 ID | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | 访问控制、Node 02、Node 04–05、专项 View |
-|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定。要求引导视频的账户把本 Job `gameplay/list` 唯一结果只保存在唯一 `micro_app_instance.metadata.guide_video_readiness`；视频行不复制。要求显式封面的账户在视频资源 readonly metadata 中记录 `verified_by_job_id`，仅当前 Job 的视频与封面回查可被 Node 05 消费 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
+| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、唯一 `owner_user_id`、受控触点；新 Intake 在 Case/Job 前用当前用户 owner key 执行乾坤 `accountIndex` 精确只读预检，禁止跨 scope 覆盖和自动转移。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed。`guide_video_required` 是默认 false 的账户能力开关，不保存动态引导视频 ID；为 true 时要求每条 required video 使用同一当前 Job 唯一引导视频。`video_cover_required` 是独立、默认 false 的显式封面能力开关，只有为 true 时才要求当前 Job 逐视频核验并发送封面 ID；`guide=true, cover=false` 使用平台默认封面 | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | 访问控制、Node 02、Node 04–05、专项 View |
+|  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。小游戏实例候选只保存受控来源与脱敏诊断，目标账户已核验标记只能来自 event asset detail 的 App + instance 绑定。要求引导视频的账户把本 Job `gameplay/list` 唯一结果只保存在唯一 `micro_app_instance.metadata.guide_video_readiness`；视频行不复制。要求显式封面的账户才在视频资源 readonly metadata 中以 `verified_by_job_id` 证明封面；仅引导视频账户只消费视频可见性与唯一引导视频事实 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
 | L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；保存 `owner_user_id`、`created_by_user_id` 与 `maximum_create_attempts`（普通 Case 默认 3，获批替代 Case 固定 1）；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口、受控替代事务 | Case summary、UI、API、CLI |
 | L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
@@ -97,7 +97,7 @@ route_id + game_code
 | 启动链接与备用页 | `game_route_launch_links` 按 route×game 读取受控深链；平台 App 关联、hash 与协议在 payload 前校验。`landing_page_assets` 保存备用页库存，目标账户可见性读取 `account_resources` 的 `backup_landing_page`；完整 URL 只进入受控字段，普通摘要仅输出 ref/hash/status/存在性 |
 | 资源核验与审计 | `account_resources` 的已核验事件资产、小游戏实例、备用页以 `visibility_status=visible` 与 `readback_status=readback_verified` 表达，写入者见本节表契约；其他资源按自身合同核对。DMP 目标状态按集合成员×目标账户保存。Skill 和平台动作只保存受控证据摘要，外部动作审计包括 endpoint path、method、HTTP/API code、request ID 存在性、hash 与脱敏 metadata，不保存 raw request/response |
 
-来源依据 [固定抖音号合同](../db/043_aweme_auto_single_mechanism.sql)、[创建嵌套字段合同](../db/048_jszc_nested_create_field_contract.sql)、[路线参数修正](../db/069_jszc_fallback_parameters_incremental.sql)、[引导视频合同](../db/074_account_guide_video_contract.sql) 与当前仓储实现。这里只解释数据来源，Node/Gate 行为仍查逻辑图。
+来源依据 [固定抖音号合同](../db/043_aweme_auto_single_mechanism.sql)、[创建嵌套字段合同](../db/048_jszc_nested_create_field_contract.sql)、[路线参数修正](../db/069_jszc_fallback_parameters_incremental.sql)、[引导视频合同](../db/074_account_guide_video_contract.sql)、[仅引导视频能力校正](../db/077_account_guide_only_correction.sql) 与当前仓储实现。这里只解释数据来源，Node/Gate 行为仍查逻辑图。
 
 ## 3. 只读 View 与报表边界（7 个）
 

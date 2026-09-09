@@ -172,6 +172,13 @@ assert(unique.resourceWrites[0].resourceType === "micro_app_instance", "guide_vi
 assert(unique.resourceWrites[0].resourceMetadata?.guide_video_readiness?.guide_video_id === GUIDE_VIDEO_ID, "canonical_resource_must_store_unique_guide_video_id");
 assert(unique.resourceWrites[0].resourceMetadata?.guide_video_readiness?.verified_by_job_id === bundle().job.job_id, "guide_video_readiness_must_bind_to_current_job");
 assert(unique.resourceWrites[0].resourceMetadata?.guide_video_readiness?.verified_instance_id === "7434750138926546994", "guide_video_readiness_must_bind_to_verified_instance");
+assert(unique.result.outputSummary.videoCoverRequired === false, "guide_only_account_must_not_require_explicit_video_cover");
+assert(unique.result.outputSummary.guideVideoReadiness?.required === true, "guide_only_account_must_require_canonical_guide_video");
+assert(unique.result.outputSummary.guideVideoReadiness?.status === "passed", "guide_only_canonical_guide_video_must_pass");
+assert(unique.result.outputSummary.guideVideoReadiness?.distinctGuideVideoCount === 1, "guide_only_canonical_guide_video_must_be_unique");
+assert(unique.result.outputSummary.finalMaterialReadiness.items.every((item) =>
+  item.coverMode === "platform_default_cover_allowed" && item.coverVerifiedByCurrentJob === false
+), "guide_only_account_must_allow_default_cover_without_current_job_cover_readback");
 
 const hundred = await run([GUIDE_VIDEO_ID], { videoCount: 100, staleVideoGuide: true });
 assert(hundred.result.status === "passed", "hundred_video_case_must_resolve_one_guide_video");
@@ -222,6 +229,7 @@ console.log(JSON.stringify({
   missingBlocker: missing.result.blockers[0],
   ambiguousBlocker: ambiguous.result.blockers[0],
   ordinaryGameplayCalls: ordinary.client.calls.length,
+  guideOnlyDefaultCoverMode: unique.result.outputSummary.finalMaterialReadiness.items[0]?.coverMode || "",
   explicitCoverReadonlyCalls: explicitCovers.client.calls.length,
   missingCoverStatus: missingCover.result.status,
   platformCreateCalls: 0

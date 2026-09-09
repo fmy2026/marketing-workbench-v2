@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `076`、Node 注册表与数据契约 |
+| 校验基线 | 当前代码、Schema migrations 至 `077`、Node 注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 权威来源 | 实现查注册表/代码/SQL，业务事实查 Postgres；本文只解释静态机制与消费者边界 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -76,6 +76,8 @@
 | `BLOCKED` | 只读失败、多候选、来源/合同/执行器缺失或回查失败 | 形成唯一 root blocker，零平台写入 |
 
 当前 OE3 资源能力由 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 定义：可受控准备的是 `avatar`、`dmp_audience_package`、`event_asset`、`video_asset`、`product_image`；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时只形成 blocker。`micro_app_instance` 的等待状态与事件链、逐资源证据、动作顺序和调用量只查该注册表及其引用合同。
+
+视频引导与显式封面是独立的账户 capability：`guide_video_required=true` 时，当前 Job 必须从已核验小游戏实例只读解析唯一 `guide_video_id`，并将同一 ID 写入每条 required video；`video_cover_required=true` 时才额外要求每条视频有当前 Job 已核验的 `video_cover_id`。仅引导视频组合允许省略封面字段并使用平台默认封面；两项均未启用时省略引导视频字段。动态 ID 只保存在 Postgres 当前资源/Job 事实中，不能进入路线默认值或账户特例代码。
 
 ### 3.2 当前 Case Gate
 

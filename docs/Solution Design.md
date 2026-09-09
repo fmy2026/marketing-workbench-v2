@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `076`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
+| 校验基线 | 当前代码、SQL migrations 至 `077`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -33,7 +33,7 @@
 | 平台响应与完成判定 | 受理不等于 verified；统一错误分类、HTTP deadline 和严格 finalizer，避免误成功或悬挂 | [终态任务](../tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md)、[回查收口任务](../tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md) |
 | 尝试次数与安全重开 | Case 跨 Job 计数，耗尽先人工诊断；获批后由本人建立单次替代 Case，不复制旧授权 | [次数与恢复任务](../tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md) |
 | 个体事实数据化、运行机制能力化 | 账户差异只作为 Postgres 的通用 capability（例如 `video_cover_required`）参与既有合同；耗尽重开只依据 owner、Case/Gate、批准 evidence、零创建对象和零 verified readback。runtime 不以内嵌账户/Case/Job/user ID 作为默认目标或分支；同类问题扩展既有能力并验证开/关正反例 | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md)、[启动协议](../AGENTS.md)、[当前逻辑](project-现在的逻辑图.md) |
-| 账户视频封面单次复验 | 账户 `1867508089433225` 由本人重输既有三项后，工作台原子建立唯一、最多创建一次的替代 Case；fresh Job 逐条核验视频、显式封面和唯一引导视频，创建与回查均绑定三者，不改变其他投放配置。migration `076` 是已执行的事实修正，不构成 runtime 特例 | [本次批准任务](../tasks/TASK-MWBV2-ACCOUNT-VIDEO-COVER-REVALIDATION-20260908.md)、migration `076`、[当前逻辑](project-现在的逻辑图.md) |
+| 账户仅引导视频能力校正 | 获批账户的已验证差异仅为当前 Job 唯一引导视频必须复用到每条 required video；显式封面不是该账户要求。migration `077` 以前向数据修正撤销 `076` 的封面能力判断，保留 `guide_video_required=true` 与平台默认封面。两项仍是独立的通用 capability，runtime 不含账户特例 | [本次批准任务](../tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md)、migrations `074`、`076`、`077`、[当前逻辑](project-现在的逻辑图.md) |
 | Intake 启动只读恢复桥接 | 本人重新规范化三项 Intake 并点击“启动流程”是一次显式只读恢复授权：仅已批准替代 Case 的最新 Job 被 Gate Policy 判定为已停止 confirmed resource/monitor Plan 时，工作台提交既有“重新只读准备”命令，创建或复用同一 Case 的 fresh Job。该桥接不重放旧 Plan、不确认、不创建平台对象，也不依赖任何个体 ID | [本次批准任务](../tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md)、[当前逻辑](project-现在的逻辑图.md) |
 | Plan / Draft 发布绑定 | Plan 版本与创建 Attempt 分离；最终 Draft 与 Plan ID/hash 原子绑定，避免消费陈旧授权 | [Plan 合同](../src/workflows/executionPlan.mjs)、[数据契约](project-数据与报表契约.md) |
 | 游戏默认值与账户资源 | 路线保底参数逐叶修正；DMP、素材、实例、引导视频和触点仍从各自真值读取，避免复制账户动态值 | [数据契约](project-数据与报表契约.md)、migrations `069`、`074` |

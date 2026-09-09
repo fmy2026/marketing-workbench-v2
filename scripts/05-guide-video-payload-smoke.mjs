@@ -8,6 +8,8 @@ import {
 import { hashValue } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";
 import {
+  JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
@@ -20,6 +22,33 @@ function assert(condition, message) {
 
 const repo = new PostgresRepository();
 const jobs = [];
+const fixtureBackupLandingUrl = "https://example.invalid/mwbv2/mock-backup-landing-page";
+
+function buildFixturePayload(bundle) {
+  const fixtureMiniProgramLaunchUrl = `sslocal://microgame?app_id=${bundle.platformApp?.app_id || "tt0000000000000000"}`;
+  return buildOe3StdProjectPayload({
+    bundle,
+    touchpointUrl: "https://example.invalid/mwbv2/mock-touchpoint",
+    backupLandingPageUrl: {
+      landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",
+      site_id: "7624750304608649243",
+      status: "active",
+      landing_url: fixtureBackupLandingUrl,
+      url_hash: hashValue(fixtureBackupLandingUrl).replace(/^sha256:/, ""),
+      resource_visibility_status: "visible",
+      resource_readback_status: "readback_verified",
+      resource_readonly_status: "passed"
+    },
+    miniProgramLaunchLink: {
+      link_ref: "GRLL-JSZC-OE3-BYTE-MINI-GAME-MOCK",
+      platform_app_id: bundle.platformApp?.id || "GPA-JSZC-OE-BYTE-MINI-GAME",
+      app_id: bundle.platformApp?.app_id || "tt0000000000000000",
+      status: "active",
+      launch_url: fixtureMiniProgramLaunchUrl,
+      url_hash: hashValue(fixtureMiniProgramLaunchUrl).replace(/^sha256:/, "")
+    }
+  });
+}
 
 async function createTestJob(advertiserId, label) {
   const created = await createJob(repo, {
@@ -108,30 +137,7 @@ try {
       }
     }
   ];
-  const fixtureBackupLandingUrl = "https://example.invalid/mwbv2/mock-backup-landing-page";
-  const fixtureMiniProgramLaunchUrl = `sslocal://microgame?app_id=${requiredMockBundle.platformApp?.app_id || "tt0000000000000000"}`;
-  const requiredBuild = buildOe3StdProjectPayload({
-    bundle: requiredMockBundle,
-    touchpointUrl: "https://example.invalid/mwbv2/mock-touchpoint",
-    backupLandingPageUrl: {
-      landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",
-      site_id: "7624750304608649243",
-      status: "active",
-      landing_url: fixtureBackupLandingUrl,
-      url_hash: hashValue(fixtureBackupLandingUrl).replace(/^sha256:/, ""),
-      resource_visibility_status: "visible",
-      resource_readback_status: "readback_verified",
-      resource_readonly_status: "passed"
-    },
-    miniProgramLaunchLink: {
-      link_ref: "GRLL-JSZC-OE3-BYTE-MINI-GAME-MOCK",
-      platform_app_id: requiredMockBundle.platformApp?.id || "GPA-JSZC-OE-BYTE-MINI-GAME",
-      app_id: requiredMockBundle.platformApp?.app_id || "tt0000000000000000",
-      status: "active",
-      launch_url: fixtureMiniProgramLaunchUrl,
-      url_hash: hashValue(fixtureMiniProgramLaunchUrl).replace(/^sha256:/, "")
-    }
-  });
+  const requiredBuild = buildFixturePayload(requiredMockBundle);
   const requiredManifest = requiredBuild.requestFieldManifest || {};
   const requiredLedger = requiredManifest.createFieldLedger || {};
   const guideEntries = (requiredLedger.entries || []).filter((entry) =>
@@ -164,6 +170,63 @@ try {
   const canonicalGuide = canonicalGuideVideoReadiness(requiredMockBundle);
   assert(canonicalGuide.status === "passed", "guide_video_fact_must_come_from_current_micro_app_instance");
   assert(requiredMockBundle.resources.filter((item) => item.resource_type === "video_asset").every((item) => !item.metadata?.guide_video_readiness), "video_rows_must_not_store_guide_video_fact");
+
+  const guideOnlyFixture = structuredClone(ordinary);
+  guideOnlyFixture.account = {
+    ...(guideOnlyFixture.account || {}),
+    guide_video_required: true,
+    video_cover_required: false
+  };
+  const guideOnlyMockBundle = mockReadyBundle(guideOnlyFixture);
+  const guideOnlyMicroAppTemplate = guideOnlyMockBundle.resources.find((item) => item.resource_type === "micro_app_instance");
+  assert(guideOnlyMicroAppTemplate, "guide_only_fixture_micro_app_instance_missing");
+  const guideOnlyInstanceId = "700000000002";
+  guideOnlyMockBundle.resources = [
+    ...guideOnlyMockBundle.resources.filter((item) => item.resource_type !== "micro_app_instance"),
+    {
+      ...guideOnlyMicroAppTemplate,
+      source_asset_id: guideOnlyMicroAppTemplate.source_asset_id || "MIA-GUIDE-ONLY-FIXTURE",
+      platform_resource_id: guideOnlyInstanceId,
+      visibility_status: "visible",
+      readback_status: "readback_verified",
+      metadata: {
+        ...(guideOnlyMicroAppTemplate.metadata || {}),
+        guide_video_readiness: {
+          status: "passed",
+          required: true,
+          guide_video_id: "guide-video-test",
+          guide_video_id_present: true,
+          verified_by_job_id: guideOnlyMockBundle.job.job_id,
+          verified_instance_id: guideOnlyInstanceId,
+          raw_response_stored: false
+        },
+        readonly_check: {
+          ...(guideOnlyMicroAppTemplate.metadata?.readonly_check || {}),
+          status: "passed",
+          mock: true
+        }
+      }
+    }
+  ];
+  const guideOnlyBuild = buildFixturePayload(guideOnlyMockBundle);
+  const guideOnlyManifest = guideOnlyBuild.requestFieldManifest || {};
+  const guideOnlyLedger = guideOnlyManifest.createFieldLedger || {};
+  const guideOnlyCanonicalGuide = canonicalGuideVideoReadiness(guideOnlyMockBundle);
+  const guideOnlyVideos = guideOnlyBuild.payload.project_materials.video_material_list || [];
+  assert(guideOnlyMockBundle.account?.guide_video_required === true, "guide_only_fixture_guide_video_policy_not_enabled");
+  assert(guideOnlyMockBundle.account?.video_cover_required !== true, "guide_only_fixture_must_not_require_explicit_cover");
+  assert(guideOnlyCanonicalGuide.status === "passed", "guide_only_canonical_guide_video_must_be_ready");
+  assert(guideOnlyManifest.guideVideoRequired === true, "guide_only_manifest_guide_video_flag_missing");
+  assert(guideOnlyManifest.videoCoverRequired === false, "guide_only_manifest_video_cover_flag_must_be_false");
+  assert(guideOnlyLedger.checkedPathCount === JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT, `guide_only_ledger_path_count_mismatch:${guideOnlyLedger.checkedPathCount}:guide_fields=${guideOnlyVideos.filter((item) => item.guide_video_id).length}:cover_fields=${guideOnlyVideos.filter((item) => item.video_cover_id).length}`);
+  assert(guideOnlyLedger.fieldShapeHash === JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH, `guide_only_ledger_shape_hash_mismatch:${guideOnlyLedger.fieldShapeHash}`);
+  assert(guideOnlyVideos.length === 2, "guide_only_required_video_count_mismatch");
+  assert(guideOnlyVideos.every((item) => item.guide_video_id === guideOnlyCanonicalGuide.guideVideoId), "guide_only_videos_must_share_one_canonical_guide_video");
+  assert(guideOnlyVideos.every((item) => !Object.hasOwn(item, "video_cover_id")), "guide_only_payload_must_omit_explicit_video_cover_id");
+  assert(guideOnlyManifest.finalMaterialReadiness.items.every((item) =>
+    item.coverMode === "platform_default_cover_allowed" && item.videoCoverVerifiedByCurrentJob === false
+  ), "guide_only_manifest_must_allow_platform_default_cover");
+  assert(guideOnlyBuild.blockers.length === 0, `guide_only_payload_blocked:${guideOnlyBuild.blockers.join(",")}`);
 
   const staleVideoBundle = structuredClone(requiredMockBundle);
   staleVideoBundle.resources
@@ -218,6 +281,9 @@ try {
     requiredGuideVideoFieldCount: guideEntries.length,
     requiredVideoCoverFieldCount: coverEntries.length,
     requiredLedgerPathCount: requiredLedger.checkedPathCount,
+    guideOnlyGuideVideoFieldCount: guideOnlyVideos.filter((item) => item.guide_video_id).length,
+    guideOnlyVideoCoverFieldCount: guideOnlyVideos.filter((item) => Object.hasOwn(item, "video_cover_id")).length,
+    guideOnlyLedgerPathCount: guideOnlyLedger.checkedPathCount,
     canonicalGuideResourceType: canonicalGuide.instanceResource?.resource_type || "",
     hundredVideoGuideFieldCount: hundredVideoBuild.payload.project_materials.video_material_list.filter((item) => item.guide_video_id).length,
     staleVideoMetadataIgnored: true,
