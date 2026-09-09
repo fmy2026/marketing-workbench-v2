@@ -8,8 +8,8 @@
   "base_revision": "cce0d5ebf15107818f4c6de560dd9d630d54d606",
   "baseline_dirty_files": {
     "project.state.json": "sha256:91c0bae53f554b541cb769206696a7e342b04980a3c6c72a2ae87e522a1ddc76",
-    "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json": "sha256:aa52277dd415584f3547f996bbb4d49f3065ec47e7a1cf88bb7ef04186c6d631",
-    "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md": "sha256:b1cc689548b9bce231e1e63f3f82d05e86d5568c498ef6fcd4f6d3778bd87bf2"
+    "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json": "sha256:c8b1169d00a242061b6ffab3886765f7aa4c1c3831c04c95a7fa10925ac95ccc",
+    "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md": "sha256:aee787f5d36abec680db3750f01e1cb7271a674aa71792f9814ec8dceeb7103d"
   },
   "domains": ["control", "workflow", "data"],
   "read_order": [
@@ -42,11 +42,16 @@
     "scripts/00-std-project-readback-schedule-smoke.mjs",
     "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy/06-巨量营销升级版.md"
   ],
-  "reference_only": [],
+  "reference_only": [
+    {"ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md", "reason": "已关闭的 OAuth 恢复 Task 仅用于解释本 Task 启动时保留的基线文件。"},
+    {"ref": "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json", "reason": "已关闭的 OAuth 恢复 Manifest 仅用于解释本 Task 启动时保留的基线文件。"}
+  ],
   "allowed_writes": [
     "project.state.json",
     "tasks/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.md",
     "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.json",
+    "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
     "evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/**",
     "db/079_jszc_guide_video_auto_detect.sql",
     "src/workflows/skills/oe3/04-resource-verifiers.mjs",
@@ -86,11 +91,48 @@
     {"acceptance_id": "AC-01", "command": "npm run test:guide-video-readonly"},
     {"acceptance_id": "AC-02", "command": "npm run test:guide-video-payload && npm run test:payload-contract && npm run test:std-project-readback && npm run test:std-project-create-wire-body"},
     {"acceptance_id": "AC-03", "command": "npm run db:contract-check && rg -n '1867508116186632|1867508089433225' src frontend package.json"},
-    {"acceptance_id": "AC-04", "command": "npm run db:backup && npm run db:migrate && npm run test:workbench-conversation && npm run check:project -- --phase start && git diff --check; restart workbench service from current Git revision"},
+    {"acceptance_id": "AC-04", "command": "npm run db:backup && psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/079_jszc_guide_video_auto_detect.sql && npm run test:workbench-conversation && npm run check:project -- --phase start && git diff --check; restart workbench service from current Git revision"},
     {"acceptance_id": "AC-05", "command": "账户所有者在 CASE-MWBV2-FF06CC07F45EE8F4CC 输入一次‘继续执行’，随后只读查询 mwb.workflow_case_summary、latest Job/Plan/action/object counts"}
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:guide-video-readonly",
+      "verified_at": "2026-09-09T08:11:06Z",
+      "summary": "唯一、空、歧义、probe 失败、账户强制开启与内部 source_asset_id 缺失场景均通过；唯一实例只调用一次 gameplay/list，且没有平台创建调用。",
+      "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-01"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:guide-video-payload && npm run test:payload-contract && npm run test:std-project-readback && npm run test:std-project-create-wire-body",
+      "verified_at": "2026-09-09T08:11:06Z",
+      "summary": "92/94 字段账本、canonical readiness、payload 合同和 Node 07 回查一致通过；is_comment_disable 维持 ON，未发生平台创建。",
+      "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-02"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run db:contract-check && rg -n '1867508116186632|1867508089433225' src frontend package.json",
+      "verified_at": "2026-09-09T08:11:06Z",
+      "summary": "数据库合同通过，live runtime 未出现账户专用 ID 分支；当前文档已表达 capability 来源、兼容强制与 platform_status 诊断边界。",
+      "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-03"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run db:backup && psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/079_jszc_guide_video_auto_detect.sql && npm run test:workbench-conversation && npm run check:project -- --phase start && git diff --check; launchctl kickstart -k gui/501/com.hys.marketing-workbench.local-server",
+      "verified_at": "2026-09-09T08:11:06Z",
+      "summary": "备份、幂等 migration、会话 smoke、项目检查和格式检查通过；服务已从提交 e70ece2 重启。开发过程未新增平台对象、确认或真实平台写入。",
+      "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-04"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录 JSZC fresh readonly 引导视频自动识别决策。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "说明 Node 04 到 Node 05 的 canonical capability 链与 fail-closed 行为。"},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "登记 route policy、账户兼容强制与当前 Job metadata 保存边界。"}
+  ],
   "temporary_authorizations": [],
   "result": null,
   "closed_at": null
