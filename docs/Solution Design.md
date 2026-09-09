@@ -38,7 +38,7 @@
 | Plan / Draft 发布绑定 | Plan 版本与创建 Attempt 分离；最终 Draft 与 Plan ID/hash 原子绑定，避免消费陈旧授权 | [Plan 合同](../src/workflows/executionPlan.mjs)、[数据契约](project-数据与报表契约.md) |
 | 游戏默认值与账户资源 | 路线保底参数逐叶修正；DMP、素材、实例、引导视频和触点仍从各自真值读取，避免复制账户动态值 | [数据契约](project-数据与报表契约.md)、migrations `069`、`074` |
 | 标准项目语义查重与评论管理 | Node 05 以路线合同同时执行未删除同名与语义标的/竞价策略查重；语义字段或分页无法可靠核验即 fail-closed。评论管理默认启用，由路线默认值 `is_comment_disable=ON` 与字段账本共同保护；不引入账户专用逻辑 | [本次批准任务](../tasks/TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909.md)、migration `078`、[当前逻辑](project-现在的逻辑图.md) |
-| OAuth 瞬时失败 | 网络刷新失败非零退出；仅原 access token 可信且未过期时保留其可用状态，不自动重试 | [刷新实现](../src/platforms/oceanengineTokenRefresh.mjs)、[部署说明](../deploy/README.md) |
+| OAuth 每日刷新与瞬时失败 | 唯一 Codex cron 每天 12:01（Asia/Shanghai）执行一次受控 OAuth 刷新；成功和失败均写脱敏 audit。传输失败按 DNS、代理/连接、TLS、超时或未知分类并非零退出，不自动重试；仅原 access token 可信且未过期时保留其可用状态 | [本次批准任务](../tasks/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.md)、[刷新实现](../src/platforms/oceanengineTokenRefresh.mjs)、[部署说明](../deploy/README.md) |
 
 ## 何时使用
 

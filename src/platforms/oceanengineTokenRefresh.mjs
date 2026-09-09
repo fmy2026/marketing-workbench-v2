@@ -35,8 +35,22 @@ function responseHash(text = "") {
   return createHash("sha256").update(String(text)).digest("hex");
 }
 
-function safeTransportError(error) {
-  return clean(error?.code || error?.name || "transport_error");
+function transportFailureClass(error) {
+  const values = [
+    error?.code,
+    error?.cause?.code,
+    error?.name,
+    error?.cause?.name,
+    error?.message,
+    error?.cause?.message
+  ].map((value) => clean(value).toLowerCase()).filter(Boolean);
+  const joined = values.join(" ");
+  if (/abort|timeout|timedout|etimedout|und_err_connect_timeout/u.test(joined)) return "timeout";
+  if (/enotfound|eai_again|getaddrinfo|dns/u.test(joined)) return "dns";
+  if (/proxy/u.test(joined)) return "proxy_connection";
+  if (/cert|tls|ssl|secure.?connection/u.test(joined)) return "tls";
+  if (/econnrefused|econnreset|ehostunreach|enetunreach|epipe|connect/u.test(joined)) return "connection";
+  return "unknown_transport";
 }
 
 async function postRefresh(url, body, fetchImpl) {
@@ -121,7 +135,7 @@ function appendAuditEvent(auditPath, event = {}) {
     apiCode: event.apiCode,
     requestIdPresent: Boolean(event.requestIdPresent),
     responseHash: event.responseHash,
-    transportError: event.transportError
+    transportFailureClass: event.transportFailureClass
   };
   appendFileSync(auditPath, `${JSON.stringify(safeEvent)}\n`, { encoding: "utf8", mode: 0o600 });
   chmodSync(auditPath, 0o600);
@@ -325,6 +339,19 @@ export async function refreshOceanEngineToken({
           { envPath: resolvedEnvPath, ensure: false }
         );
 
+        appendAuditEvent(auditPath, {
+          recordedAt: obtainedAt.toISOString(),
+          status: "valid",
+          failureType: "",
+          endpointHost: response.endpointHost,
+          endpointPath: response.endpointPath,
+          httpStatus: response.httpStatus,
+          apiCode,
+          requestIdPresent: response.requestIdPresent,
+          responseHash: response.responseHash,
+          transportFailureClass: ""
+        });
+
         return {
           exitCode: 0,
           result: baseResult({
@@ -347,7 +374,7 @@ export async function refreshOceanEngineToken({
         endpointHost: new URL(REFRESH_URL).hostname,
         endpointPath: new URL(REFRESH_URL).pathname,
         failure: "transport_error",
-        transportError: safeTransportError(error)
+        transportFailureClass: transportFailureClass(error)
       });
     }
 
@@ -377,7 +404,7 @@ export async function refreshOceanEngineToken({
       apiCode: firstAttempt.apiCode,
       requestIdPresent: firstAttempt.requestIdPresent,
       responseHash: firstAttempt.responseHash,
-      transportError: firstAttempt.transportError
+      transportFailureClass: firstAttempt.transportFailureClass
     });
     return {
       exitCode: 1,

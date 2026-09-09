@@ -46,6 +46,7 @@
 - 未确认前只读或编译 Plan；资源准备与标准项目创建始终是两份独立 Plan，monitor 是 Node 02 的独立 bootstrap。
 - 每份确认 Plan 只消费冻结动作一次；失败、漂移或修正必须使用 fresh Job/Plan/confirmation，禁止自动重试。
 - 平台受理或界面显示不等于 verified；只有权威只读回查通过，才能把资源或创建对象标为 verified。
+- OAuth 凭据刷新不属于业务 Plan：仅授权的 `oceanengine-v2-token-refresh` cron 可在每天 12:01（Asia/Shanghai）执行一次刷新。它不调用业务 API；成功或失败仅写入受控凭据和脱敏 audit，失败不自动重试。
 
 ## 2. 流程模块：三阶段七 Node
 

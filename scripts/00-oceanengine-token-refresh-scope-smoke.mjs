@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node
 import os from "node:os";
 import path from "node:path";
 import { refreshOceanEngineToken } from "../src/platforms/oceanengineTokenRefresh.mjs";
+import { SCHEDULED_TOKEN_REFRESH_DAILY_AT } from "../src/platforms/oceanengineCredentialStore.mjs";
 
 const TEMP_DIR = mkdtempSync(path.join(os.tmpdir(), "mwbv2-token-refresh-smoke-"));
 const ENV_PATH = path.join(TEMP_DIR, "oceanengine.env");
@@ -15,7 +16,7 @@ const OFFICIAL_REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refres
 
 process.on("exit", () => rmSync(TEMP_DIR, { recursive: true, force: true }));
 
-function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "scheduled_daily_oauth_refresh_only" } = {}) {
+function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "scheduled_daily_oauth_refresh_only", dailyAt = SCHEDULED_TOKEN_REFRESH_DAILY_AT } = {}) {
   writeFileSync(STATE_PATH, JSON.stringify({
     guardrails: {
       credential_refresh_allowed: enabled,
@@ -23,7 +24,7 @@ function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "sche
         mode,
         authorized_automation_id: automationId,
         timezone: "Asia/Shanghai",
-        daily_at: "12:00",
+        daily_at: dailyAt,
         confirm_variable: "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
         allowed_actions: ["oceanengine_oauth_refresh_token"]
       }
@@ -94,6 +95,14 @@ assert.equal(outcome.exitCode, 2);
 assert.equal(fetchCalls, 0);
 assert.equal(readFileSync(ENV_PATH, "utf8"), before);
 
+writeState({ dailyAt: "12:00" });
+before = readFileSync(ENV_PATH, "utf8");
+outcome = await refreshOceanEngineToken({ env: testEnv(), fetchImpl: async () => { fetchCalls += 1; } });
+assert.equal(outcome.exitCode, 2);
+assert.equal(outcome.result.status, "scheduled_scope_required");
+assert.equal(fetchCalls, 0);
+assert.equal(readFileSync(ENV_PATH, "utf8"), before);
+
 writeState();
 before = readFileSync(ENV_PATH, "utf8");
 outcome = await refreshOceanEngineToken({
@@ -133,6 +142,9 @@ assert.equal(fetchCalls, 1);
 assert.deepEqual(requestedUrls, [OFFICIAL_REFRESH_URL]);
 assert.equal(statSync(ENV_PATH).mode & 0o777, 0o600);
 assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=2026-08-28T04:00:00.000Z/u);
+const successAudit = JSON.parse(readFileSync(AUDIT_PATH, "utf8").trim().split(/\n/u).at(-1));
+assert.equal(successAudit.status, "valid");
+assert.equal(successAudit.transportFailureClass, "");
 assertNoSecrets(outcome.result);
 
 writeEnv();
@@ -162,6 +174,7 @@ outcome = await refreshOceanEngineToken({
 assert.equal(outcome.exitCode, 1);
 assert.equal(outcome.result.status, "refresh_failed");
 assert.equal(outcome.result.failureType, "transport_error");
+assert.equal(outcome.result.attempts?.[0]?.transportFailureClass, "timeout");
 assert.equal(outcome.result.credentialUsableAfterFailure, true);
 assert.equal(outcome.result.credential?.status, "valid");
 assert.deepEqual(outcome.result.credential?.blockers, []);
@@ -180,6 +193,25 @@ assert.equal(outcome.exitCode, 1);
 assert.equal(outcome.result.status, "refresh_failed");
 assert.equal(outcome.result.credentialUsableAfterFailure, false);
 assert.match(readFileSync(ENV_PATH, "utf8"), /OCEANENGINE_TOKEN_STATUS=refresh_failed/u);
+
+for (const [code, expected] of [
+  ["ENOTFOUND", "dns"],
+  ["ECONNREFUSED", "connection"],
+  ["ERR_PROXY_CONNECTION_FAILED", "proxy_connection"],
+  ["ERR_TLS_CERT_ALTNAME_INVALID", "tls"],
+  ["EUNKNOWN", "unknown_transport"]
+]) {
+  writeEnv();
+  outcome = await refreshOceanEngineToken({
+    env: testEnv(),
+    fetchImpl: async () => { throw Object.assign(new Error("transport failure"), { code }); }
+  });
+  assert.equal(outcome.exitCode, 1);
+  assert.equal(outcome.result.failureType, "transport_error");
+  assert.equal(outcome.result.attempts?.length, 1);
+  assert.equal(outcome.result.attempts?.[0]?.transportFailureClass, expected);
+}
+assert.equal(readFileSync(AUDIT_PATH, "utf8").includes("transportError"), false);
 
 writeEnv();
 outcome = await refreshOceanEngineToken({
@@ -222,12 +254,14 @@ console.log(JSON.stringify({
   cases: [
     "scope_closed",
     "automation_mismatch",
+    "schedule_mismatch",
     "confirmation_missing",
     "single_official_endpoint",
     "success_atomic_0600_with_refresh_token_expiry",
     "refresh_in_progress_zero_network",
     "network_failure_preserves_unexpired_valid_access_token",
     "network_failure_blocks_expired_access_token",
+    "safe_transport_failure_classification",
     "oauth_rejected_reauthorize_required",
     "incomplete_response",
     "local_refresh_token_expired"

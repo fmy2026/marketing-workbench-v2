@@ -12,6 +12,7 @@ export const TOKEN_REFRESH_AUTOMATION_ENV = "MWBV2_OE_TOKEN_REFRESH_AUTOMATION_I
 export const PROJECT_STATE_PATH_ENV = "MWBV2_PROJECT_STATE_PATH";
 export const SCHEDULED_TOKEN_REFRESH_SCOPE_MODE = "scheduled_daily_oauth_refresh_only";
 export const SCHEDULED_TOKEN_REFRESH_ACTION = "oceanengine_oauth_refresh_token";
+export const SCHEDULED_TOKEN_REFRESH_DAILY_AT = "12:01";
 
 export const OCEANENGINE_TOKEN_STATUSES = new Set([
   "missing",
@@ -329,7 +330,7 @@ export function scheduledTokenRefreshScopeStatus({ env = process.env, projectSta
   if (!clean(scope.authorized_automation_id) || automationId !== clean(scope.authorized_automation_id)) {
     blockers.push("credential_refresh_automation_id_mismatch");
   }
-  if (scope.timezone !== "Asia/Shanghai" || scope.daily_at !== "12:00") {
+  if (scope.timezone !== "Asia/Shanghai" || scope.daily_at !== SCHEDULED_TOKEN_REFRESH_DAILY_AT) {
     blockers.push("credential_refresh_schedule_mismatch");
   }
   if (scope.confirm_variable !== `${TOKEN_REFRESH_CONFIRM_ENV}=${TOKEN_REFRESH_CONFIRM_VALUE}`) {

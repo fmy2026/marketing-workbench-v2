@@ -51,6 +51,12 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 
 若本机已有同名 LaunchAgent，使用 `launchctl bootout` 后再 `bootstrap`。配置变更后用 `launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench` 重启。
 
+## 巨量 OAuth token 每日刷新
+
+唯一调度入口是 Codex cron `oceanengine-v2-token-refresh`，每天 `12:01`（Asia/Shanghai）执行。它仅以固定 automation ID 与确认变量运行一次 `npm run token:refresh`；刷新成功后才运行 `npm run token:status` 输出脱敏状态。该任务不得调用业务 API、创建投放对象或修改仓库文件。
+
+刷新使用本机受控的 `.local/oceanengine.env`、文件锁和原子更新；成功与失败都会追加脱敏 audit。传输失败会归类为 DNS、代理/连接、TLS、超时或未知错误并以非零状态结束，以触发失败通知；不会自动重试、不会使用 curl 回退。日常排查只读取 `npm run token:status` 与 audit 的脱敏字段，禁止输出或复制 token、secret、auth code、Cookie、请求体或响应体。
+
 ## 数据库运维入口
 
 连接、迁移、备份与定时配置统一查 [数据与报表契约：数据库运维](../docs/project-数据与报表契约.md#8-数据库运维)。本文件只维护应用部署步骤。

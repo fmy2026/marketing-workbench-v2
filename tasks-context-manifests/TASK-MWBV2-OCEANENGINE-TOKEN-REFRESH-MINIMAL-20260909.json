@@ -1,0 +1,117 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909",
+  "task_ref": "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.md",
+  "status": "completed",
+  "created_at": "2026-09-09T04:35:00Z",
+  "updated_at": "2026-09-09T04:40:00Z",
+  "base_revision": "def8f6b3b002b92c58933d5c110a7a41f62bc157",
+  "baseline_dirty_files": {
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json": "sha256:fd3d1f2edb2d8814cc6d4a94b16cd723a9450706a306b4a2f179680c18d1d550",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md": "sha256:d89970911472a3d2ca1904504822045ddd3f2523349d6f1735982075f70f3812"
+  },
+  "domains": ["control", "workflow", "deploy", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "scripts/00-oceanengine-token-refresh-scope-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.json",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md"
+  ],
+  "forbidden_actions": [
+    "立即执行 OAuth token 刷新或业务平台调用",
+    "修改凭据内容、数据库、Case、Job、Plan、资源或业务对象",
+    "输出或保存 token、secret、auth code、Cookie、原始请求、原始响应或原始异常",
+    "新增重试、curl 回退、LaunchAgent、公开 API 或数据库 Schema"
+  ],
+  "stop_conditions": [
+    "需要批准范围外的平台调用或凭据改写",
+    "需要重试、curl 回退、LaunchAgent 或数据库变更",
+    "无法在不泄露敏感信息的前提下确认测试结果"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:token-refresh-scope"},
+    {"acceptance_id": "AC-02", "command": "npm run test:token-refresh-scope"},
+    {"acceptance_id": "AC-03", "command": "npm run check:project -- --phase before-close && npm run test:project-contracts && git diff --check"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:token-refresh-scope",
+      "verified_at": "2026-09-09T04:39:00Z",
+      "summary": "关闭 scope、automation ID、每日时间和确认变量不匹配时均零 OAuth 请求；12:01 合同为唯一通过时间。",
+      "evidence_refs": [
+        "src/platforms/oceanengineCredentialStore.mjs",
+        "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+        "project.state.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:token-refresh-scope && npm run test:platform-http-deadline",
+      "verified_at": "2026-09-09T04:39:00Z",
+      "summary": "成功 audit 与 DNS、连接、代理、TLS、超时和未知传输失败分类均通过 mock；每个场景至多一次 OAuth 请求且无敏感输出。",
+      "evidence_refs": [
+        "src/platforms/oceanengineTokenRefresh.mjs",
+        "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+        "scripts/00-platform-http-deadline-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:project-contracts && git diff --check",
+      "verified_at": "2026-09-09T04:39:00Z",
+      "summary": "80 项项目合同回归与 diff 检查通过；本 Task 未执行真实 OAuth 刷新或业务平台调用。",
+      "evidence_refs": [
+        "scripts/00-project-contract-check-smoke.mjs",
+        "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-REFRESH-MINIMAL-20260909.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记唯一每日 OAuth 刷新、成功 audit 和单次失败分类决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明 OAuth 刷新的 12:01 边界及其与业务 Plan 的隔离。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "updated",
+      "reason": "记录 Codex cron、单命令执行、audit 和故障处置方式。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已将唯一 OAuth cron 收口至 12:01，并实现成功 audit 与安全传输失败分类。",
+    "side_effects": "更新了项目 guardrail、刷新代码、自动化 cron 配置、测试与文档；未执行真实刷新或业务平台调用。",
+    "remaining_risks": ["下一个 12:01 Asia/Shanghai 调度窗口尚待验证真实 OAuth 刷新传输分类。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T04:40:00Z"
+}
