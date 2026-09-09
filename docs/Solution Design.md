@@ -18,6 +18,7 @@
 | 项目协作合同 | 保留既有文档骨架，以两份 Schema、单一 Manifest 状态/读取清单及只读检查防止任务记录漂移；先约束新任务 | [本次批准任务](../tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md)、[启动协议](../AGENTS.md) |
 | 数据库文档唯一入口 | 结构、口径与数据库运维说明全部集中；旧说明及后续获批删除的早期方案由 Git 保留历史，避免重复规则漂移 | [批准任务](../tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md)、[数据契约](project-数据与报表契约.md) |
 | 3 阶段 7 Node | 节点只从注册表定义，Skill 与 runner 承接固定流程，减少消费者各自解释 | [节点统一任务](../tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md)、[逻辑图](project-现在的逻辑图.md) |
+| 当前逻辑图分层 | 当前逻辑图先解释总机制、Node 模块、资源/Gate 状态、Plan 协议和工作台消费边界；路线字段账本、接口参数、时间窗口和异常分支只链接唯一合同，避免把静态总览写成实现流水 | [本次批准任务](../tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.md)、[逻辑图](project-现在的逻辑图.md) |
 | Case 与单一 Gate | Case 管持续目标、Job 管一次运行；消费者统一读 summary，避免历史 blocker 冒充当前阻断 | [Case Gate 任务](../tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md)、[数据契约](project-数据与报表契约.md) |
 | 用户与账户归属 | 本人执行/确认，管理员管理用户及只读报表；账户发现前验证唯一 owner | [账户隔离任务](../tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md) |
 | 局域网入口 | 私网 HTTP 仅以显式配置开放受限试用；部署配置与恢复方式集中在运维文档 | [部署说明](../deploy/README.md) |

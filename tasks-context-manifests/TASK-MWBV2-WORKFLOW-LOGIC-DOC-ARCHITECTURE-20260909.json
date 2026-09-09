@@ -1,0 +1,121 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.md",
+  "status": "completed",
+  "created_at": "2026-09-09T02:12:16Z",
+  "updated_at": "2026-09-09T02:17:30Z",
+  "base_revision": "7285d480c4f49cbe0aa3e14bc262a1952e7666f4",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "docs/project-数据与报表契约.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909/**"
+  ],
+  "forbidden_actions": [
+    "真实平台写入、OAuth 刷新或外部资产操作",
+    "修改现有 Case、Job、Plan、action、readback 或账户能力动态事实",
+    "修改 Node、Gate、Plan/action 类型、确认短语、写入入口或平台调用逻辑",
+    "在项目文件保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "简化需要改变既有 Node、Gate、Plan、资源能力或运行时安全边界",
+    "现行权威实现、数据契约与文档无法确定相同的静态机制",
+    "验证需要连接业务数据库、调用真实平台或扩大文件修改范围"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "人工核对 docs/project-现在的逻辑图.md 的五层结构、唯一真值链和正式写入链"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "对照 00-workflow-node-registry.mjs、04-resource-action-registry.mjs、executionPlan.mjs、gateActionPolicy.mjs 与数据契约进行静态核对"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "人工核对 docs/project-现在的逻辑图.md 的五层结构、唯一真值链和正式写入链",
+      "verified_at": "2026-09-09T02:16:32Z",
+      "summary": "文档已按总机制、Node 模块、状态、Plan、工作台和权威引用分层；唯一真值、正式写入链与回查收口均位于主阅读路径。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909/validation.md#ac-01"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "对照 00-workflow-node-registry.mjs、04-resource-action-registry.mjs、executionPlan.mjs、gateActionPolicy.mjs 与数据契约进行静态核对",
+      "verified_at": "2026-09-09T02:16:32Z",
+      "summary": "注册表静态导入确认 7 Node、5 个可准备资源、3 个不可自动准备资源及 4 个 Plan kind；主文档正确呈现 3 类可确认 Plan，并把具体执行细节指向唯一合同。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909/validation.md#ac-02"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "git diff --check",
+      "verified_at": "2026-09-09T02:17:11Z",
+      "summary": "Solution Design 已登记分层决策，Markdown 格式检查与关闭前项目合同检查均通过；检查确认 3 项验收完整且无数据库或平台访问。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909/validation.md#ac-03"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "重构为总机制优先、模块与状态维度分层的静态机制说明。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记已批准的当前逻辑图分层与细节下沉决策。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "不改变数据库结构、字段、来源、读写责任、View 或报表口径。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "当前逻辑图已重构为总机制优先的分层说明，并将路线专属字段、接口、时间窗口和异常分支下沉至唯一合同引用。",
+    "side_effects": "仅修改静态 Markdown、任务合同和验证证据；未连接业务数据库，未调用 OAuth、真实平台或外部资产操作。",
+    "remaining_risks": [
+      "运行代码、Schema 或 Gate 优先级后续变化时，必须按文档的重新校验条件同步核对本总览与其权威引用。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T02:17:30Z"
+}

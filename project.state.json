@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-09T01:56:29Z",
+  "updated_at": "2026-09-09T02:17:30Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -115,5 +115,5 @@
       "retry_allowed": false
     }
   },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-INTAKE-READONLY-RECOVERY-20260909.md"
+  "last_closed_task_ref": "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-ARCHITECTURE-20260909.md"
 }
