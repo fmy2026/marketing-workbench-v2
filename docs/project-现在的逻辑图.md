@@ -129,6 +129,7 @@
 
 - 根页保持 idle，只读列出 active runtime Case；`?case_id=` 恢复该 Case 的最新 Job，`?job_id=` 只读查看历史 Job。无效、越权或冲突的 scope fail-closed，不回退到其他账户。
 - Node 面板固定投影 3 阶段 7 Node；动态 Gate、唯一 blocker 和下一步只来自 `workflow_case_summary`。对话、前端、API、CLI 和任务卡不得保存 raw transcript、写回状态或自行计算下一步。
+- 工作台仅将通用 blocker 映射为用户可执行文案；例如目标账户共享站点只读核验未完成时，显示“重新只读准备”的只读恢复提示，不展示 Gate、blocker 或 action 内部码。
 - “继续执行”只能触发当前 Gate 允许的只读流程；只有精确“确认准备资源”“确认创建”或“确认创建 monitor”且 Plan ID/hash 未漂移，才能消费对应 Plan。
 - 已停止的资源或 monitor Plan 只能通过 Gate Policy 允许的 fresh readonly 恢复，不复用旧 Plan、confirmation、action grant 或 idempotency key；所有特殊恢复分支以 [Gate Action Policy](../src/workflows/gateActionPolicy.mjs) 为准。
 

@@ -8,6 +8,16 @@ export function latestCaseJobId(caseView = {}) {
   return String(caseView?.summary?.latest_job_id || "").trim();
 }
 
+export function readonlyRecoveryGuidance(caseGate = {}) {
+  const gate = String(caseGate?.currentGate || "").trim();
+  const blocker = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
+  if (gate !== "resolve_case_blocker" || blocker !== "site_get_target_shared_blocked") return null;
+  return {
+    message: "当前阻断：目标账户共享站点只读核验未完成。下一步：输入“重新只读准备”重新核验；不会确认或创建平台对象。",
+    placeholder: "输入“重新只读准备”重新核验，或输入“查看状态”..."
+  };
+}
+
 export function progressPresentation({
   nodes = [],
   caseGate = {},

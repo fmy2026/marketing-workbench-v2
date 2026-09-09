@@ -1,0 +1,104 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909",
+  "task_ref": "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+  "status": "cancelled",
+  "created_at": "2026-09-09T06:35:04Z",
+  "updated_at": "2026-09-09T06:40:35Z",
+  "base_revision": "9022dec44287e4339307c40d061a861005a38a72",
+  "baseline_dirty_files": {
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json": "sha256:fd3d1f2edb2d8814cc6d4a94b16cd723a9450706a306b4a2f179680c18d1d550",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md": "sha256:d89970911472a3d2ca1904504822045ddd3f2523349d6f1735982075f70f3812"
+  },
+  "domains": ["control", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "src/workflows/gateActionPolicy.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json",
+    "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md",
+    ".local/oceanengine.env",
+    ".local/oceanengine-token-refresh-audit.jsonl"
+  ],
+  "forbidden_actions": [
+    "第二次 OAuth refresh、自动重试或 curl 回退",
+    "业务平台 API 调用、资源准备、落地页创建或共享、标准项目创建",
+    "Plan confirmation、action grant 或预算出价修改",
+    "输出或保存 token、secret、auth code、Cookie、原始请求、原始响应或完整 URL"
+  ],
+  "stop_conditions": [
+    "OAuth refresh 非零退出或脱敏状态未恢复",
+    "需要第二次调用或任何业务平台写入",
+    "需要修改代码、数据库、View、API、UI 或定时自动化",
+    "无法在不泄露敏感信息的前提下取得验收证据"
+  ],
+  "open_gaps": ["oauth_refresh_transport_dns"],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID=oceanengine-v2-token-refresh MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN npm run token:refresh && npm run token:status"},
+    {"acceptance_id": "AC-02", "command": "账户本人在工作台对 JOB-MWBV2-20260909061610-9E1B4F 输入“重新只读准备”，再只读查询最新 Job/Plan/Action 记录"},
+    {"acceptance_id": "AC-03", "command": "读取 mwb.workflow_case_summary 与 backup-landing-page-material-inventory 脱敏摘要"},
+    {"acceptance_id": "AC-04", "command": "npm run check:project -- --phase before-close && git diff --check && npm run check:project -- --phase after-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "failed",
+      "command": "MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID=oceanengine-v2-token-refresh MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN npm run token:refresh && npm run token:status",
+      "verified_at": "2026-09-09T06:36:22Z",
+      "summary": "The single allowed OAuth request failed before an API response with transport_error classified as dns; no retry was made.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "not_run",
+      "command": "账户本人在工作台对 JOB-MWBV2-20260909061610-9E1B4F 输入“重新只读准备”，再只读查询最新 Job/Plan/Action 记录",
+      "verified_at": "2026-09-09T06:40:15Z",
+      "summary": "Not run because the prerequisite token refresh failed and the Task stop condition prohibited a retry or workflow recovery.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "not_run",
+      "command": "读取 mwb.workflow_case_summary 与 backup-landing-page-material-inventory 脱敏摘要",
+      "verified_at": "2026-09-09T06:40:15Z",
+      "summary": "Not run after the failed refresh because no readonly recovery was authorized by the stopped Task.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "恢复 /guardrails/credential_refresh_scope/granted_by 与 /guardrails/credential_refresh_scope/granted_at",
+      "verified_at": "2026-09-09T06:40:15Z",
+      "summary": "The temporary Task attribution was restored before cancellation; no business write scope was enabled.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "not_needed", "reason": "The Task ended after a DNS-classified transport failure and made no durable design or policy change."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "not_needed", "reason": "No workflow or Gate behavior changed."},
+    {"ref": "deploy/README.md", "status": "not_needed", "reason": "No deployment, network, credential-storage, or scheduled automation configuration changed."}
+  ],
+  "temporary_authorizations": [
+    {"path": "/guardrails/credential_refresh_scope/granted_by", "restore_value": "user_confirmed_oauth_refresh_recovery"},
+    {"path": "/guardrails/credential_refresh_scope/granted_at", "restore_value": "2026-08-28 CST"}
+  ],
+  "result": {
+    "summary": "The one authorized OAuth refresh was attempted once and stopped on a DNS-classified transport failure.",
+    "side_effects": "Only the protected credential status and redacted audit were updated; no business API, resource, Plan confirmation, or project creation ran.",
+    "remaining_risks": ["The access token remains expired until a newly authorized refresh succeeds."],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-09T06:40:35Z"
+}

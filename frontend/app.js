@@ -6,6 +6,7 @@ import {
   latestCaseJobId,
   progressPresentation,
   progressRefreshLabel,
+  readonlyRecoveryGuidance,
   PROGRESS_REFRESH_INTERVAL_MS
 } from "./workbench-progress.mjs";
 
@@ -172,6 +173,8 @@ import {
     if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "prepare_corrective_attempt") {
       return "当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt；生成确认卡前不会创建项目。";
     }
+    const readonlyRecovery = readonlyRecoveryGuidance(gate);
+    if (job.isLatestCaseJob && !viewOnly && readonlyRecovery) return readonlyRecovery.message;
     const blockerTitle = gate.rootBlockerCodes?.[0]
       ? (gate.rootBlocker?.title || gate.rootBlockerCodes[0])
       : "";
@@ -377,6 +380,7 @@ import {
     progressButton.disabled = !job?.jobId || busy || progressRefreshing;
     const activeCaseConversation = job?.isLatestCaseJob === true && !viewOnly;
     const input = document.getElementById("chatInput");
+    const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
     input.disabled = viewOnly || busy || Boolean(job && !activeCaseConversation);
     input.placeholder = activeCaseConversation
       ? job?.caseGate?.currentGate === "first_std_project_create_completed"
@@ -387,6 +391,8 @@ import {
             : "等待人工复盘；可输入“查看状态”..."
         : job?.caseGate?.currentGate === "prepare_corrective_attempt"
           ? "输入“继续执行”重新准备下一 Attempt，或输入“查看状态”..."
+          : readonlyRecovery
+            ? readonlyRecovery.placeholder
           : "输入“继续执行”或“查看状态”..."
       : "输入投放需求...";
     document.querySelector(".send-button").disabled = input.disabled;

@@ -1,0 +1,117 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909",
+  "task_ref": "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+  "status": "blocked",
+  "created_at": "2026-09-09T06:40:54Z",
+  "updated_at": "2026-09-09T06:52:17Z",
+  "base_revision": "9022dec44287e4339307c40d061a861005a38a72",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md": "sha256:18742e30da7aca773385d6fe45e43c16f6f91b0f1fb61caa904574026624f65c",
+    "project.state.json": "sha256:56124d1d58d0408ba5e8b0594e0a2e80ef25827a773302ecba6a96e49fa359e1",
+    "tasks-context-manifests/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.json": "sha256:209c308c9585dc2280c5deee861b7525135cb87bb60532f9a337679609c46581",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.json": "sha256:fd3d1f2edb2d8814cc6d4a94b16cd723a9450706a306b4a2f179680c18d1d550",
+    "tasks/TASK-MWBV2-CASE-FF06-OAUTH-RECOVERY-20260909.md": "sha256:e166f9f2efebcf94757f6f53e9b1150c334be84202a99b9ee6ba86641d41d4c5",
+    "tasks/TASK-MWBV2-JSZC-GUIDE-ONLY-CAPABILITY-20260909.md": "sha256:d89970911472a3d2ca1904504822045ddd3f2523349d6f1735982075f70f3812"
+  },
+  "domains": ["control", "security", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0/05-Oauth2.0授权.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+    "tasks-context-manifests/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.json",
+    "evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/project-现在的逻辑图.md",
+    ".local/oceanengine.env",
+    ".local/oceanengine-token-refresh-audit.jsonl"
+  ],
+  "forbidden_actions": [
+    "第二次 OAuth refresh、自动重试、curl 回退、代理绕过或网络配置修改",
+    "业务平台 API 调用、资源准备、落地页创建或共享、标准项目创建",
+    "Plan confirmation、action grant、预算或出价修改",
+    "修改 Case、Job、Plan、Gate、数据库、API 或平台写入链；为个体账户、Case、Job 或用户新增逻辑",
+    "输出或保存 token、secret、auth code、Cookie、原始请求、原始响应或完整 URL"
+  ],
+  "stop_conditions": [
+    "DNS 预检失败、OAuth refresh 非零退出或 token 状态未恢复",
+    "需要第二次调用、网络配置修改或任何业务平台写入",
+    "无法在不泄露敏感信息的前提下取得验收证据"
+  ],
+  "open_gaps": ["target_account_owner_readonly_recovery_required"],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "node DNS lookup preflight for api.oceanengine.com, then MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID=oceanengine-v2-token-refresh MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN npm run token:refresh"},
+    {"acceptance_id": "AC-02", "command": "npm run token:status and read the final redacted token-refresh audit event"},
+    {"acceptance_id": "AC-03", "command": "账户本人在工作台对 JOB-MWBV2-20260909061610-9E1B4F 输入“重新只读准备”，再只读验证 Plan/action count"},
+    {"acceptance_id": "AC-04", "command": "读取 mwb.workflow_case_summary、backup landing-page skill 摘要；恢复临时授权并运行项目闭环检查"},
+    {"acceptance_id": "AC-05", "command": "npm run test:workbench-progress && npm run test:workbench-conversation；静态核验目标 blocker 文案不含 resolve_root_blocker:，且既有恢复仅调用 dry_run"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "node DNS lookup preflight for api.oceanengine.com, then MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID=oceanengine-v2-token-refresh MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN npm run token:refresh",
+      "verified_at": "2026-09-09T06:42:29Z",
+      "summary": "DNS preflight passed; the completed host-network OAuth request returned HTTP 200 and API code 0. The sandboxed preliminary process failed before any HTTP response was received.",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run token:status and read the final redacted token-refresh audit event",
+      "verified_at": "2026-09-09T06:42:29Z",
+      "summary": "The redacted credential status is valid, all expiry fields are present and future-dated, and the final audit contains a successful OAuth response summary.",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-conversation；静态核验目标 blocker 文案不含 resolve_root_blocker:，且既有恢复仅调用 dry_run",
+      "verified_at": "2026-09-09T06:52:17Z",
+      "summary": "The target shared-site blocker renders the approved readonly recovery copy and placeholder without an internal action code. The progress and conversation smokes passed; ordinary recovery remains dry-run only with zero platform creates.",
+      "evidence_refs": ["evidence/TASK-MWBV2-OAUTH-DNS-RECOVERY-20260909.md"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "The approved decision and implementation boundary remain unchanged; this is a presentation-only use of the existing readonly recovery path."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "Documented the user-facing mapping from the shared-site readonly blocker to the approved recovery guidance without internal codes."
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "No deployment, networking, credential-entry or operational procedure changed."
+    }
+  ],
+  "temporary_authorizations": [
+    {"path": "/guardrails/credential_refresh_scope/granted_by", "restore_value": "user_confirmed_oauth_refresh_recovery"},
+    {"path": "/guardrails/credential_refresh_scope/granted_at", "restore_value": "2026-08-28 CST"}
+  ],
+  "result": null,
+  "closed_at": null
+}

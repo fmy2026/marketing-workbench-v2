@@ -3,6 +3,7 @@ import {
   latestCaseJobId,
   progressPresentation,
   progressRefreshLabel,
+  readonlyRecoveryGuidance,
   PROGRESS_REFRESH_INTERVAL_MS
 } from "../frontend/workbench-progress.mjs";
 
@@ -99,6 +100,14 @@ assert(progressRefreshLabel({ hasJob: true, viewOnly: true }) === "刷新历史"
 assert(progressRefreshLabel({ hasJob: true, refreshing: true }) === "同步中…", "refreshing_label_mismatch");
 assert(progressRefreshLabel({ hasJob: true, failed: true }) === "刷新失败，重试", "refresh_failure_label_mismatch");
 assert(latestCaseJobId({ summary: { latest_job_id: "JOB-FRESH-2" } }) === "JOB-FRESH-2", "latest_case_job_missing");
+const targetSharedGuidance = readonlyRecoveryGuidance({
+  currentGate: "resolve_case_blocker",
+  rootBlockerCodes: ["site_get_target_shared_blocked"]
+});
+assert(targetSharedGuidance?.message === "当前阻断：目标账户共享站点只读核验未完成。下一步：输入“重新只读准备”重新核验；不会确认或创建平台对象。", "target_shared_readonly_guidance_message_mismatch");
+assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重新核验，或输入“查看状态”...", "target_shared_readonly_guidance_placeholder_mismatch");
+assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
+assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] }) === null, "unrelated_blocker_must_keep_existing_guidance");
 
 const [htmlSource, clientSource, styleSource] = await Promise.all([
   readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),
@@ -118,6 +127,8 @@ assert(clientSource.includes("已完成，无需继续执行"), "completed_gate_
 assert(clientSource.includes("已完成，可输入“查看状态”"), "completed_gate_input_copy_missing");
 assert(clientSource.includes("当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt"), "corrective_gate_operational_copy_missing");
 assert(clientSource.includes("输入“继续执行”重新准备下一 Attempt，或输入“查看状态”"), "corrective_gate_input_copy_missing");
+assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
+assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 
 console.log(JSON.stringify({
   status: "passed",
