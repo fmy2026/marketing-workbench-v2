@@ -794,6 +794,10 @@ import {
   }
 
   function showError(error) {
+    if (error?.status >= 500 || error?.message === "internal_error") {
+      message("agent", "本次处理未完成，请刷新后重试；未执行新的确认或创建动作。");
+      return;
+    }
     const owner = error.details?.ownerDisplayName ? `；账户归属人：${error.details.ownerDisplayName}` : "";
     message("agent", `唯一阻断：${error.message}${owner}`);
   }

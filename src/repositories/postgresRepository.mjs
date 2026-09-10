@@ -4278,6 +4278,77 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async updateAccountResourcesReadonlyBatch({ routeId, gameCode, advertiserId, updates = [] }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    const normalized = (Array.isArray(updates) ? updates : []).map((update = {}) => ({
+      resource_type: assertId("resource_type", update.resourceType),
+      visibility_status: String(update.visibilityStatus || ""),
+      readback_status: String(update.readbackStatus || ""),
+      platform_resource_id: String(update.platformResourceId || ""),
+      inheritance_status: String(update.inheritanceStatus || ""),
+      readonly_metadata: update.metadata || {},
+      resource_metadata: update.resourceMetadata || {}
+    }));
+    if (!normalized.length) return { updatedCount: 0, expectedCount: 0 };
+    if (new Set(normalized.map((item) => item.resource_type)).size !== normalized.length) {
+      throw new Error("account_resource_readonly_batch_duplicate_resource_type");
+    }
+
+    const result = await queryJson(`
+      WITH incoming AS (
+        SELECT *
+        FROM jsonb_to_recordset(${sqlJson(normalized)}) AS item(
+          resource_type text,
+          visibility_status text,
+          readback_status text,
+          platform_resource_id text,
+          inheritance_status text,
+          readonly_metadata jsonb,
+          resource_metadata jsonb
+        )
+      ),
+      scoped AS (
+        SELECT ar.resource_type
+        FROM mwb.account_resources ar
+        JOIN incoming item ON item.resource_type = ar.resource_type
+        WHERE ar.route_id = ${sqlLiteral(routeId)}
+          AND ar.game_code = ${sqlLiteral(gameCode)}
+          AND ar.advertiser_id = ${sqlLiteral(advertiserId)}
+      ),
+      counts AS (
+        SELECT
+          (SELECT count(*) FROM incoming) AS expected_count,
+          (SELECT count(*) FROM scoped) AS scoped_count
+      ),
+      updated AS (
+        UPDATE mwb.account_resources ar
+        SET visibility_status = coalesce(nullif(item.visibility_status, ''), ar.visibility_status),
+            readback_status = coalesce(nullif(item.readback_status, ''), ar.readback_status),
+            platform_resource_id = coalesce(nullif(item.platform_resource_id, ''), ar.platform_resource_id),
+            inheritance_status = coalesce(nullif(item.inheritance_status, ''), ar.inheritance_status),
+            metadata = ar.metadata || jsonb_build_object('readonly_check', item.readonly_metadata) || item.resource_metadata,
+            updated_at = now()
+        FROM incoming item, counts
+        WHERE ar.route_id = ${sqlLiteral(routeId)}
+          AND ar.game_code = ${sqlLiteral(gameCode)}
+          AND ar.advertiser_id = ${sqlLiteral(advertiserId)}
+          AND ar.resource_type = item.resource_type
+          AND counts.expected_count = counts.scoped_count
+        RETURNING ar.resource_type
+      )
+      SELECT jsonb_build_object(
+        'updated_count', (SELECT count(*) FROM updated),
+        'expected_count', (SELECT expected_count FROM counts)
+      )::text;
+    `, this.database);
+    const updatedCount = Number(result?.updated_count || 0);
+    const expectedCount = Number(result?.expected_count || normalized.length);
+    if (updatedCount !== expectedCount) throw new Error("account_resource_readonly_batch_scope_incomplete");
+    return { updatedCount, expectedCount };
+  }
+
   async mergeAccountResourceMetadata({ routeId, gameCode, advertiserId, resourceType, resourceMetadata }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);

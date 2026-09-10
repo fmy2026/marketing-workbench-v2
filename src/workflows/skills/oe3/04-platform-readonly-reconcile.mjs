@@ -139,9 +139,19 @@ export async function runPlatformReadonlyReconcileSkill({
     client
   });
   const { artifactId, probeSummary } = await recordEvidence({ repo, bundle, result });
-  for (const update of result.resourceUpdates || []) {
-    const checkedAt = new Date().toISOString();
-    const resourceMetadata = sanitizeForPublic({
+  const checkedAt = new Date().toISOString();
+  const updates = (result.resourceUpdates || []).map((update) => ({
+    resourceType: update.resourceType,
+    visibilityStatus: update.visibilityStatus,
+    readbackStatus: update.readbackStatus,
+    platformResourceId: update.platformResourceId,
+    inheritanceStatus: update.inheritanceStatus,
+    metadata: {
+      ...(update.readonlyCheck || {}),
+      checked_at: checkedAt,
+      evidence_refs: [artifactId]
+    },
+    resourceMetadata: sanitizeForPublic({
       ...(update.resourceMetadata || {}),
       ...(update.resourceType === "avatar"
         ? {
@@ -152,22 +162,17 @@ export async function runPlatformReadonlyReconcileSkill({
           }
         }
         : {})
-    });
-    await repo.updateAccountResourceReadonly({
+    })
+  }));
+  if (updates.length) {
+    if (typeof repo.updateAccountResourcesReadonlyBatch !== "function") {
+      throw new Error("account_resource_readonly_batch_repository_unavailable");
+    }
+    await repo.updateAccountResourcesReadonlyBatch({
       routeId: bundle.job.route_id,
       gameCode: bundle.job.game_code,
       advertiserId: bundle.job.advertiser_id,
-      resourceType: update.resourceType,
-      visibilityStatus: update.visibilityStatus,
-      readbackStatus: update.readbackStatus,
-      platformResourceId: update.platformResourceId,
-      inheritanceStatus: update.inheritanceStatus,
-      metadata: {
-        ...(update.readonlyCheck || {}),
-        checked_at: checkedAt,
-        evidence_refs: [artifactId]
-      },
-      resourceMetadata
+      updates
     });
   }
   const readonlyStatus = result.status || "blocked";

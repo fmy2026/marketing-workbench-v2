@@ -1,3 +1,5 @@
+import { publicErrorResponse } from "../src/server/publicError.mjs";
+
 const origin = process.env.MWBV2_TEST_ORIGIN || "http://127.0.0.1:3000";
 const loginName = process.env.MWBV2_TEST_LOGIN_NAME || "";
 const password = process.env.MWBV2_TEST_PASSWORD || "";
@@ -7,7 +9,31 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-assert(loginName && password && nextPassword, "test_login_credentials_required");
+const internal = publicErrorResponse(Object.assign(
+  new Error('ERROR: new row for relation "account_resources" violates check constraint "account_resources_inheritance_status_check"'),
+  { statusCode: 500 }
+));
+const internalText = JSON.stringify(internal.body);
+assert(internal.statusCode === 500 && internal.body.error === "internal_error", "internal_error_not_normalized");
+assert(/^sha256:[a-f0-9]{64}$/.test(internal.body.details?.diagnostic_fingerprint || ""), "internal_error_fingerprint_missing");
+assert(!/relation|constraint|account_resources|failing row/i.test(internalText), "internal_error_leaks_database_details");
+const conflict = publicErrorResponse(Object.assign(new Error("workflow_case_key_already_exists"), {
+  statusCode: 409,
+  details: { caseId: "CASE-SMOKE" }
+}));
+assert(conflict.statusCode === 409 && conflict.body.error === "workflow_case_key_already_exists" && conflict.body.details?.caseId === "CASE-SMOKE", "defined_client_error_changed");
+
+if (!loginName || !password || !nextPassword) {
+  if (process.env.MWBV2_AUTH_HTTP_ASSERTIONS_ONLY === "true") {
+    console.log(JSON.stringify({
+      status: "passed",
+      internalErrorBoundary: true,
+      authenticatedFlow: "not_run_missing_test_credentials"
+    }, null, 2));
+    process.exit(0);
+  }
+  throw new Error("test_login_credentials_required");
+}
 
 const anonymous = await fetch(`${origin}/api/auth/me`);
 assert(anonymous.status === 401, "anonymous_api_access_not_blocked");

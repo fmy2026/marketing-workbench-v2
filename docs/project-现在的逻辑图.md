@@ -44,7 +44,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 准备 01 `launch_intake` | `intake-normalize` | route、game、advertiser 规范化为 intake；缺字段即停止。owner 精确校验发生在建档前，不属于 Node。 |
 | 准备 02 `creation_context` | `context-resolve-*`、`monitor-state-read`；独立 monitor reconcile → Plan → execute → readback 链 | 装配账户、触点、monitor、平台 App；Monitor effective config 只由路线/游戏固定字段加 `advertiser_accounts` 的乾坤账户身份（agent、账户记录、owner）组成。普通 schedule 只读 monitor 状态，缺失 monitor 只能走独立 `monitor_bootstrap` Plan。 |
 | 准备 03 `game_launch_pack` | `launch-pack-resolve-*` | 解析游戏主档、路线默认值、保底物料、备用页与资源蓝图；不从历史账户复制动态资源 ID。 |
-| 就绪 04 `account_resource_prepare` | blueprint bootstrap、目标账户 readonly、抖音授权、资源来源/绑定/事件链与八类 verifier | 产出 `account_ready_report` 和四态资源摘要；只读、来源或合同不完整时 fail-closed，未确认前零平台写入。 |
+| 就绪 04 `account_resource_prepare` | blueprint bootstrap、目标账户 readonly、抖音授权、资源来源/绑定/事件链与八类 verifier | 产出 `account_ready_report` 和四态资源摘要；同轮基线 readonly 的资源状态原子落库，任一数据约束失败不保留部分更新。只读、来源或合同不完整时 fail-closed，未确认前零平台写入。 |
 | 就绪 05 `std_project_draft_builder` | confirmed resource orchestrator、`payload-build`、`payload-contract`、`duplicate-check`、`create-readiness` | 受控执行已确认资源 Plan，或生成 Draft/hash 并完成字段合同及未删除同名+语义查重；不创建项目。 |
 | 创建执行 06 `std_project_create_executor` | execution grant、`create-once`、持久化结果 | 只消费已确认 Create Plan，记录一个逻辑创建 action 与结果；授权或绑定漂移即停止。 |
 | 创建执行 07 `readback_closer` | `readback-std-project`、一致性与证据投影 | 以对象 ID/名称和字段回查决定 verified、等待或 blocker；不得补发 create 修复回查。 |
@@ -118,6 +118,8 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 非 active 且没有精确完成证据，或其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试入口 |
 
 工作台链路固定为 `allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan executor`。Intent Resolver 只识别意图和槽位；Gate Policy 只读 summary；历史 Job 始终只读；无效、越权或冲突 scope 均 fail-closed，不回退到其他账户。
+
+工作台只将 `workflow_case_summary` 的 root blocker 展示为“唯一阻断”。未处理的服务端 5xx 统一收敛为 `internal_error` 和不可逆诊断 fingerprint；前端仅提示处理未完成，不回显 SQL、数据库对象、失败行或账户数据，也不把技术错误写成新的 Gate。
 
 数字员工广场与 Agent 工作区是该链路的展示壳层：`/agents` 只提供当前用户可见的 Agent 目录，`/agents/launch-creation` 承载投放创建的模块和 Case/Job 地址。壳层的注册表只公布名称、模块与静态能力摘要，不包含账户、Case、凭据或运行状态；它不得计算 Gate、root blocker、下一步、Plan 或执行动作。右侧 Workflow 仍只消费当前 Job 和 `workflow_case_summary` 的受控投影，旧的 `/?case_id=` 或 `/?job_id=` 链接仅重定向到新地址，不改变其 owner 和只读语义。
 

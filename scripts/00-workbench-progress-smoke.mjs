@@ -167,6 +167,9 @@ assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_o
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 assert(clientSource.includes("preview.brandFallbackExperiment.label"), "brand_fallback_confirmation_label_missing");
+assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");
+assert(clientSource.includes("本次处理未完成，请刷新后重试；未执行新的确认或创建动作。"), "internal_error_ui_copy_missing");
+assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");
 
 console.log(JSON.stringify({
   status: "passed",

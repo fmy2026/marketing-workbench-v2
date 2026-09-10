@@ -54,6 +54,7 @@ import {
   verifyPassword
 } from "../security/workbenchAuth.mjs";
 import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
+import { publicErrorResponse } from "./publicError.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
@@ -93,10 +94,8 @@ function sendJson(res, statusCode, body, headers = {}) {
 }
 
 function sendError(res, error) {
-  sendJson(res, error.statusCode || 500, {
-    error: error.message || "internal_error",
-    details: error.details || null
-  });
+  const response = publicErrorResponse(error);
+  sendJson(res, response.statusCode, response.body);
 }
 
 function requestError(message, statusCode) {

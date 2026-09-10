@@ -893,7 +893,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
         resourceType: "brand_info",
         visibilityStatus: brandPassed || brandFallbackPassed ? "visible" : undefined,
         readbackStatus: brandPassed || brandFallbackPassed ? "readback_verified" : undefined,
-        inheritanceStatus: brandPassed ? "target_readonly_verified" : brandFallbackPassed ? "game_route_fallback_experiment" : "target_readonly_blocked",
+        inheritanceStatus: brandPassed ? "target_readonly_verified" : brandFallbackPassed ? "baseline_candidate" : "target_readonly_blocked",
         resourceMetadata: brandPassed ? {
           brand_info_official: brandInfoOfficialFromReadback({ brandSummary: brandProbe.summary || {}, industrySummary: industryProbe?.summary || {} })
         } : brandFallbackPassed ? {

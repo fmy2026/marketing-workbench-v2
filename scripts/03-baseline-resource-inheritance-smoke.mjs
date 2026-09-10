@@ -3,6 +3,7 @@ import {
   runOceanEngineBaselineResourceProbes,
   runOceanEngineReadonlyProbes
 } from "../src/platforms/oceanengineReadonlyAdapter.mjs";
+import { runPlatformReadonlyReconcileSkill } from "../src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { runDmpReadonlyGate } from "../src/workflows/skills/oe3/04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "../src/workflows/skills/oe3/03-launch-pack.mjs";
@@ -218,9 +219,47 @@ emptyBrandClient.get = async (definition) => {
 const fallbackProbe = await runOceanEngineBaselineResourceProbes({ bundle: fallbackBundle, client: emptyBrandClient });
 const fallbackBrandUpdate = fallbackProbe.resourceUpdates.find((item) => item.resourceType === "brand_info") || {};
 assert(fallbackBrandUpdate.readonlyCheck?.status === "passed_by_manual_confirmation", "empty_target_brand_did_not_use_approved_fallback");
+assert(fallbackBrandUpdate.inheritanceStatus === "baseline_candidate", "fallback_brand_must_use_existing_baseline_inheritance_status");
 assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.source === "game_route_fallback_experiment", "fallback_source_not_explicit");
 assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.tuple_hash === fallbackCandidate.tuple_hash, "fallback_tuple_hash_not_frozen");
 assert(!emptyBrandCalls.some((item) => item.label === "baseline_brand_industry"), "empty_target_brand_should_not_probe_industry_without_outer_brand_id");
+
+const batchWrites = [];
+const reconcile = await runPlatformReadonlyReconcileSkill({
+  repo: {
+    async listVerifiedGameBrandEvidence() { return fallbackEvidence; },
+    async upsertEvidence() {},
+    async updateAccountResourcesReadonlyBatch(input) { batchWrites.push(input); }
+  },
+  bundle: fallbackBundle,
+  client: emptyBrandClient,
+  allowReadonlyDependency: true
+});
+assert(reconcile.status === "passed", "fallback_reconcile_not_passed");
+assert(batchWrites.length === 1, "baseline_readonly_updates_must_use_one_atomic_batch");
+assert(batchWrites[0].updates.length === 3, "baseline_readonly_batch_resource_count_mismatch");
+assert(batchWrites[0].updates.find((item) => item.resourceType === "brand_info")?.inheritanceStatus === "baseline_candidate", "atomic_batch_fallback_brand_status_mismatch");
+
+const snapshot = (bundle, resourceType) => (bundle.resources || []).find((item) => item.resource_type === resourceType) || null;
+const beforeRejectedBatch = await repo.getCoreContext(TARGET);
+let invalidBatchRejected = false;
+try {
+  await repo.updateAccountResourcesReadonlyBatch({
+    ...TARGET,
+    updates: [
+      { resourceType: "avatar", inheritanceStatus: "baseline_candidate", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } },
+      { resourceType: "brand_info", inheritanceStatus: "game_route_fallback_experiment", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } },
+      { resourceType: "product_image", inheritanceStatus: "baseline_candidate", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } }
+    ]
+  });
+} catch (error) {
+  invalidBatchRejected = String(error.message || "").includes("account_resources_inheritance_status_check");
+}
+assert(invalidBatchRejected, "invalid_inheritance_status_must_be_rejected_by_database_check");
+const afterRejectedBatch = await repo.getCoreContext(TARGET);
+for (const resourceType of ["avatar", "brand_info", "product_image"]) {
+  assert(JSON.stringify(snapshot(beforeRejectedBatch, resourceType)) === JSON.stringify(snapshot(afterRejectedBatch, resourceType)), `invalid_batch_must_not_partially_update:${resourceType}`);
+}
 
 const ambiguousFallback = buildGameBrandFallbackCandidate({
   bundle: targetRuntimeBundle,
@@ -305,6 +344,8 @@ process.stdout.write(`${JSON.stringify({
   node3LandingScope: node3LandingDefault.outputSummary.scope,
   node4LandingScope: node4LandingCandidate.outputSummary.scope,
   freshRuntimeJobRequired: resumeRejected,
+  atomicReadonlyBatch: batchWrites.length === 1,
+  invalidBatchRolledBack: invalidBatchRejected,
   noOceanEngineNetwork: true,
   noPlatformWrite: true
 }, null, 2)}\n`);
