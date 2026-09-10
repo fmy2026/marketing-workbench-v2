@@ -55,7 +55,7 @@ function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = 
 }
 
 function correctiveAttemptMessage() {
-  return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗且不会重试。输入“继续执行”可创建同一 Case 的 fresh Job，重新只读准备下一 Attempt；真正创建仍需本人核对新确认卡并输入“确认创建”。";
+  return "标准项目创建已被平台明确拒绝；本次 Attempt 与 Plan 已消耗且不会重试。输入“重新只读准备”可创建同一 Case 的 fresh Job，准备下一 Attempt；真正创建仍需本人核对新确认卡并输入“确认创建”。";
 }
 
 function attemptLimitReviewMessage(manualReviewApproved = false) {
@@ -207,6 +207,14 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     return { ...base, effect: "run_monitor_readonly", message: "将执行一次 fresh readonly monitor 回查，不会创建 monitor。" };
   }
+  if (currentGate === "prepare_corrective_attempt" &&
+    ["request_readonly_recovery", "continue_workflow"].includes(intent.intent)) {
+    return {
+      ...base,
+      effect: "create_fresh_corrective_attempt",
+      message: "将创建同一 Case 的 fresh Job 并重新完成只读准备；不会复用旧 Plan、确认或平台动作，也不会自动创建项目。"
+    };
+  }
   if (intent.intent === "request_readonly_recovery") {
     if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
       return {
@@ -231,9 +239,6 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
   if (intent.intent === "continue_workflow") {
     if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
       return { ...base, effect: "manual_review_required", message: attemptLimitReviewMessage(manualReviewApproved) };
-    }
-    if (currentGate === "prepare_corrective_attempt") {
-      return { ...base, effect: "create_fresh_corrective_attempt", message: "将创建同一 Case 的 fresh Job 并重新完成只读准备；不会复用旧 Plan、确认或平台动作，也不会自动创建项目。" };
     }
     if (currentGate === "run_monitor_readonly") {
       return { ...base, effect: "run_monitor_readonly", message: "将执行 fresh readonly monitor 回查，不会创建 monitor。" };

@@ -9,6 +9,7 @@ import {
   FORMAL_RESOURCE_PREP_ACTION_ORDER,
   getResourceActionCapability
 } from "./skills/oe3/04-resource-action-registry.mjs";
+import { resourceReady } from "./skills/oe3/04-resource-verifiers.mjs";
 import {
   EVENT_ASSET_CREATE_ENDPOINT,
   EVENT_ASSET_CREATE_FIELD_NAMES,
@@ -67,9 +68,6 @@ const SINGLE_VARIABLE_CANDIDATE_RULES = Object.freeze({
     ])
   })
 });
-
-const READY_RESOURCE_VISIBILITY = new Set(["visible", "not_required"]);
-const READY_RESOURCE_READBACK = new Set(["readback_verified", "not_required"]);
 
 function compactAction(action) {
   return {
@@ -497,11 +495,6 @@ function monitorBlocker(bundle = {}) {
     return "monitor_readonly_reconcile_required";
   }
   return String(bundle.monitorProvision?.blocker || "").trim() || "monitor_readiness_contract_missing";
-}
-
-function resourceReady(resource = {}) {
-  return READY_RESOURCE_VISIBILITY.has(resource.visibility_status) &&
-    READY_RESOURCE_READBACK.has(resource.readback_status);
 }
 
 function resourcesByType(bundle = {}) {

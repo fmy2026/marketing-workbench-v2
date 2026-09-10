@@ -26,7 +26,7 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
   }
   if (blocker === "brand_info_not_ready") {
     return {
-      message: "当前阻断：目标账户品牌/行业未就绪。将先核验已冻结的游戏维度保底候选；请输入“重新只读准备”。",
+      message: "当前阻断：目标账户品牌/行业尚未满足当前创建前合同。请输入“重新只读准备”重新核验；不会自动确认或创建项目。",
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }

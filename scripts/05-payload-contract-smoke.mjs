@@ -609,8 +609,11 @@ try {
       empty_list_evidence_ref: "sha256:smoke-empty-brand-list",
       maximum_create_calls: 1,
       retry_allowed: false
-    }
+    },
+    readonly_check: { status: "passed" }
   };
+  targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").visibility_status = "not_required";
+  targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").readback_status = "not_required";
   const targetEmptyPayload = buildOe3StdProjectPayload({
     bundle: targetEmptyBundle,
     touchpointUrl: mock.touchpointVerification.touchpointUrl,
@@ -621,6 +624,23 @@ try {
   assert(targetEmptyPayload.requestFieldManifest.brandMode === "target_empty_omit_experiment", "target_empty_brand_mode_manifest_missing");
   assert(targetEmptyPayload.requestFieldManifest.brandInfoOmitted === true, "target_empty_brand_mode_manifest_not_omitted");
   assert(!targetEmptyPayload.blockers.includes("brand_info_integer_fields_missing"), "target_empty_brand_mode_should_not_require_brand_ids");
+  assert(!targetEmptyPayload.blockers.includes("nested_brand_info_contract_invalid"), "target_empty_brand_mode_must_pass_nested_omit_contract");
+  const targetEmptyWithBrand = evaluateNestedFieldContract({
+    payload: {
+      ...targetEmptyPayload.payload,
+      brand_info: {
+        brand_name_id: 1,
+        cdp_brand_id: 2,
+        cdp_brand_name: "should be omitted",
+        yuntu_category_id: 3
+      }
+    },
+    bundle: targetEmptyBundle,
+    materialReadiness: { status: "passed" },
+    backupLandingPage: { ready: true },
+    miniProgramLaunchLink: { ready: true, checks: { hashMatch: true, appIdMatch: true } }
+  });
+  assert(targetEmptyWithBrand.blockers.includes("nested_brand_info_contract_invalid"), "target_empty_brand_mode_must_reject_sent_brand_info");
 
   const invalidFallback = (mutate, message, { resourceInvalid = true } = {}) => {
     const bundle = structuredClone(fallbackBundle);

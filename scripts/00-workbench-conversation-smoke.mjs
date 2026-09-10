@@ -227,6 +227,13 @@ const correctiveContinue = evaluateGateAction({
 });
 assert(correctiveContinue.effect === "create_fresh_corrective_attempt", "corrective continue must prepare a fresh attempt");
 assert(correctiveContinue.message.includes("不会自动创建项目"), "corrective continue must remain platform-readonly");
+const correctiveReadonlyRecovery = evaluateGateAction({
+  intent: { intent: "request_readonly_recovery" },
+  caseSummary: correctiveCaseSummary,
+  isLatestCaseJob: true
+});
+assert(correctiveReadonlyRecovery.effect === correctiveContinue.effect, "corrective readonly recovery must share continue effect");
+assert(correctiveReadonlyRecovery.message === correctiveContinue.message, "corrective aliases must share one policy message");
 
 const correctiveBundle = {
   ...bundle,
@@ -275,7 +282,7 @@ const correctiveResponse = await handleWorkbenchCommand({
     async getWorkflowCaseSummary() { return correctiveCaseSummary; }
   },
   jobId: "JOB-CORRECTIVE-OLD-1",
-  message: "继续执行",
+  message: "重新只读准备",
   getJobViewFn: async () => correctiveView,
   credentialStateFn: () => ({ status: "ready", blockers: [] }),
   createCorrectiveAttemptJobFn: async (_repo, predecessor) => {
@@ -300,6 +307,34 @@ assert(correctiveReadonlyCalls === 1, "corrective continue must run one readonly
 assert(correctivePlatformCreateCalls === 0, "corrective continue must not call create executor");
 assert(correctiveResponse.interaction.kind === "corrective_attempt_prepared", "corrective response must expose prepared confirmation");
 assert(correctiveResponse.view.jobId === "JOB-CORRECTIVE-FRESH-2", "corrective response did not switch to fresh job");
+
+let concurrentCorrectiveClaims = 0;
+let concurrentCorrectiveReadonlyRuns = 0;
+const claimConcurrentCorrective = async () => {
+  concurrentCorrectiveClaims += 1;
+  return {
+    created: concurrentCorrectiveClaims === 1,
+    jobId: "JOB-CORRECTIVE-FRESH-CONCURRENT",
+    attemptNo: 2,
+    maximumCreateAttempts: 3
+  };
+};
+await Promise.all([
+  handleWorkbenchCommand({
+    repo: { async getLaunchJobBundle() { return correctiveBundle; }, async getWorkflowCaseSummary() { return correctiveCaseSummary; } },
+    jobId: "JOB-CORRECTIVE-OLD-1", message: "重新只读准备", getJobViewFn: async () => correctiveFreshView,
+    credentialStateFn: () => ({ status: "ready", blockers: [] }), createCorrectiveAttemptJobFn: claimConcurrentCorrective,
+    runWorkbenchInitialReadonlyFn: async () => { concurrentCorrectiveReadonlyRuns += 1; return correctiveFreshView; }
+  }),
+  handleWorkbenchCommand({
+    repo: { async getLaunchJobBundle() { return correctiveBundle; }, async getWorkflowCaseSummary() { return correctiveCaseSummary; } },
+    jobId: "JOB-CORRECTIVE-OLD-1", message: "重新只读准备", getJobViewFn: async () => correctiveFreshView,
+    credentialStateFn: () => ({ status: "ready", blockers: [] }), createCorrectiveAttemptJobFn: claimConcurrentCorrective,
+    runWorkbenchInitialReadonlyFn: async () => { concurrentCorrectiveReadonlyRuns += 1; return correctiveFreshView; }
+  })
+]);
+assert(concurrentCorrectiveClaims === 2, "concurrent corrective requests must consult the atomic claim twice");
+assert(concurrentCorrectiveReadonlyRuns === 1, "concurrent corrective requests must run one fresh readonly job");
 
 const exhaustedCaseSummary = {
   lifecycle_status: "active",

@@ -1,6 +1,6 @@
 import { SELLING_POINTS_CONTRACT, evaluateSellingPointsContract } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT, evaluateTitleMaterialPayloadList } from "./05-title-materials-contract.mjs";
-import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
+import { brandInfoMode, canonicalGuideVideoReadiness, resourceReady } from "./04-resource-verifiers.mjs";
 import {
   JSZC_FALLBACK_AGES,
   JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS,
@@ -47,21 +47,6 @@ function unicodeLength(value) {
 
 function present(value) {
   return value !== undefined && value !== null && value !== "" && (!Array.isArray(value) || value.length > 0);
-}
-
-function resourceReady(item = {}) {
-  const readonlyStatus = clean(item.metadata?.readonly_check?.status);
-  const productImageReadback = item.resource_type === "product_image" &&
-    clean(item.metadata?.product_image_target_upload_readback?.status) === "passed" &&
-    item.metadata?.product_image_target_upload_readback?.image_id_present === true &&
-    item.metadata?.product_image_target_upload_readback?.material_id_present === true;
-  return item.visibility_status === "visible" &&
-    (item.readback_status === "readback_verified" || item.readback_status === "not_required") &&
-    (
-      !readonlyStatus ||
-      ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) ||
-      productImageReadback
-    );
 }
 
 function resource(bundle = {}, type) {
@@ -529,18 +514,28 @@ export function evaluateNestedFieldContract({
     }
   });
 
+  const brandMode = brandInfoMode(bundle);
+  const brandInfoOmittedByContract = brandMode === "target_empty_omit_experiment";
+  const brandInfoPresent = Object.hasOwn(payload, "brand_info");
   const brand = payload.brand_info || {};
   addCheck(checks, {
     group: "brand_info",
     path: "brand_info",
-    passed: Number.isInteger(brand.brand_name_id) &&
-      Number.isInteger(brand.cdp_brand_id) &&
-      typeof brand.cdp_brand_name === "string" &&
-      clean(brand.cdp_brand_name) &&
-      Number.isInteger(brand.yuntu_category_id),
-    rule: "sent_brand_info_ids_are_integers_and_name_present_from_target_readonly_evidence",
+    passed: brandInfoOmittedByContract
+      ? !brandInfoPresent
+      : Number.isInteger(brand.brand_name_id) &&
+        Number.isInteger(brand.cdp_brand_id) &&
+        typeof brand.cdp_brand_name === "string" &&
+        clean(brand.cdp_brand_name) &&
+        Number.isInteger(brand.yuntu_category_id),
+    rule: brandInfoOmittedByContract
+      ? "target_empty_brand_mode_omits_brand_info_entirely"
+      : "sent_brand_info_ids_are_integers_and_name_present_from_target_readonly_evidence",
     blockerCode: "nested_brand_info_contract_invalid",
     actual: {
+      brandMode,
+      brandInfoPresent,
+      brandInfoOmittedByContract,
       brandNameIdPresent: Number.isInteger(brand.brand_name_id),
       cdpBrandIdPresent: Number.isInteger(brand.cdp_brand_id),
       cdpBrandNamePresent: Boolean(clean(brand.cdp_brand_name)),

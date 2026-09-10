@@ -18,7 +18,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresent = true } = {}) {
+function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresent = true, videoMaterials = [] } = {}) {
   const calls = [];
   async function fakeFetch(url, options = {}) {
     const href = String(url);
@@ -40,6 +40,13 @@ function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresen
         data: { list: [{ project_id: projectId, name, status: "ENABLE" }] }
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (href.includes("/oc_project/material/get/")) {
+      return new Response(JSON.stringify({
+        code: "0",
+        request_id: "fake-request-project-materials",
+        data: { video_material_list: videoMaterials }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     throw new Error(`unexpected_fake_fetch_url:${href}`);
   }
   fakeFetch.calls = calls;
@@ -48,6 +55,19 @@ function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresen
 
 function callCount(fakeFetch, fragment) {
   return fakeFetch.calls.filter((call) => call.href.includes(fragment)).length;
+}
+
+function expectedProjectVideoMaterials(bundle = {}) {
+  const guideVideoId = String((bundle.resources || [])
+    .find((item) => item.resource_type === "micro_app_instance")?.metadata?.guide_video_readiness?.guide_video_id || "").trim();
+  return (bundle.materialPack?.items || [])
+    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
+    .map((entry) => ({
+      video_id: String(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id || "").trim(),
+      video_cover_id: String(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "").trim(),
+      ...(guideVideoId ? { guide_video_id: guideVideoId } : {})
+    }))
+    .filter((item) => item.video_id);
 }
 
 const repo = new PostgresRepository();
@@ -123,7 +143,8 @@ try {
   assert(callCount(firstFetch, "/std_project/create/") === 1, "attempt_1_create_call_count_invalid");
   assert(firstResult.executionGrant.createCalled === true, "attempt_1_create_not_recorded");
   const failedAttemptBundle = await repo.getLaunchJobBundle(first.jobId);
-  assert(failedAttemptBundle.platformAction?.request_id_recorded === true, "formatted_request_id_not_persisted");
+  assert(failedAttemptBundle.platformAction?.request_id_present === true, "formatted_request_id_presence_not_persisted");
+  assert(failedAttemptBundle.platformAction?.request_id_recorded === false, "request_id_value_must_not_be_persisted");
   assert(
     failedAttemptBundle.platformAction?.error_summary === "platform_rejected_without_safe_detail",
     "safe_error_summary_not_persisted"
@@ -132,7 +153,11 @@ try {
 
   const second = await createReadyJob({ caseId: first.caseId, attemptNo: 2 });
   const secondState = await writePlanBoundState(second);
-  const secondFetch = fakeFetchFactory({ projectId: "999901002" });
+  const secondBundle = await repo.getLaunchJobBundle(second.jobId);
+  const secondFetch = fakeFetchFactory({
+    projectId: "999901002",
+    videoMaterials: expectedProjectVideoMaterials(secondBundle)
+  });
   const secondResult = await executeConfirmedLaunch({
     repo,
     jobId: second.jobId,
@@ -143,6 +168,7 @@ try {
   });
   assert(callCount(secondFetch, "/std_project/create/") === 1, "attempt_2_create_call_count_invalid");
   assert(callCount(secondFetch, "/std_project/list/") === 1, "attempt_2_readback_call_count_invalid");
+  assert(callCount(secondFetch, "/oc_project/material/get/") <= 1, "attempt_2_material_readback_call_count_invalid");
   assert(secondResult.executionGrant.createCalled === true, "attempt_2_create_not_recorded");
   assert(secondResult.headline.status === "created", "attempt_2_not_verified");
 
@@ -181,7 +207,7 @@ try {
     caseCreateActionCount: Number(caseState.createActionCount),
     caseCreatedObjectCount: Number(caseState.createdObjectCount),
     caseReadbackVerifiedCount: Number(caseState.readbackVerifiedCount),
-    formattedRequestIdPersisted: failedAttemptBundle.platformAction?.request_id_recorded === true,
+    requestIdPresencePersisted: failedAttemptBundle.platformAction?.request_id_present === true,
     rawPlatformErrorPersisted: false,
     createAfterVerifiedObjectCalls: callCount(thirdFetch, "/std_project/create/"),
     realPlatformWrites: 0

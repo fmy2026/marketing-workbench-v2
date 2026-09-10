@@ -540,7 +540,7 @@ import {
         : `创建尝试已耗尽（${attempts}），未创建项目且禁止重试。等待人工复盘；当前只能查看状态或刷新进度。`;
     }
     if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "prepare_corrective_attempt") {
-      return "当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt；生成确认卡前不会创建项目。";
+      return "当前 Attempt 已失败并安全结束。输入“重新只读准备”可准备下一 Attempt；生成确认卡前不会创建项目。";
     }
     const readonlyRecovery = readonlyRecoveryGuidance(gate);
     if (job.isLatestCaseJob && !viewOnly && readonlyRecovery) return readonlyRecovery.message;
@@ -770,7 +770,7 @@ import {
             ? "复盘已批准；输入“重新只读准备”..."
             : "等待人工复盘；可输入“查看状态”..."
         : job?.caseGate?.currentGate === "prepare_corrective_attempt"
-          ? "输入“继续执行”重新准备下一 Attempt，或输入“查看状态”..."
+          ? "输入“重新只读准备”准备下一 Attempt，或输入“查看状态”..."
           : readonlyRecovery
             ? readonlyRecovery.placeholder
           : "输入“继续执行”或“查看状态”..."

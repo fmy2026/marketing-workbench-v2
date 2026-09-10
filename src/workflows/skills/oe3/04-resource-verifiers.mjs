@@ -21,13 +21,14 @@ export function resourceReady(item = {}) {
     clean(item.metadata?.product_image_target_upload_readback?.status) === "passed" &&
     item.metadata?.product_image_target_upload_readback?.image_id_present === true &&
     item.metadata?.product_image_target_upload_readback?.material_id_present === true;
-  return item.visibility_status === "visible" &&
-    (item.readback_status === "readback_verified" || item.readback_status === "not_required") &&
-    (
-      !readonlyStatus ||
-      ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) ||
-      productImageTargetReadback
-    );
+  const visibleAndReadbackVerified = item.visibility_status === "visible" &&
+    (item.readback_status === "readback_verified" || item.readback_status === "not_required");
+  const explicitlyNotRequired = item.visibility_status === "not_required" &&
+    item.readback_status === "not_required";
+  const readonlyEvidenceVerified = ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) ||
+    productImageTargetReadback;
+  return (visibleAndReadbackVerified && (!readonlyStatus || readonlyEvidenceVerified)) ||
+    (explicitlyNotRequired && readonlyEvidenceVerified);
 }
 
 export function verifiedMicroAppInstanceResources(bundle = {}) {

@@ -121,7 +121,8 @@ assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重�
 assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] })?.placeholder === "输入“重新只读准备”或“查看状态”…", "unrelated_blocker_must_use_recovery_guidance");
 const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_not_ready"] });
-assert(brandFallbackGuidance?.message.includes("游戏维度保底候选"), "brand_fallback_guidance_missing");
+assert(brandFallbackGuidance?.message.includes("当前创建前合同"), "brand_contract_guidance_missing");
+assert(!brandFallbackGuidance.message.includes("游戏维度保底候选"), "brand_guidance_must_not_name_stale_fallback");
 assert(brandFallbackGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_fallback_placeholder_mismatch");
 assert(!brandFallbackGuidance.placeholder.includes("继续执行"), "brand_fallback_placeholder_must_not_continue");
 const brandConfirmationGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_confirmation"] });
@@ -165,8 +166,9 @@ assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_swit
 assert(clientSource.includes("progressNarrative?.message"), "deterministic_progress_narrative_not_rendered");
 assert(!clientSource.includes("当前 Gate：${gate.currentGate}"), "raw_gate_must_not_be_primary_conversation_copy");
 assert(clientSource.includes("已完成，可输入“查看状态”"), "completed_gate_input_copy_missing");
-assert(clientSource.includes("当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt"), "corrective_gate_operational_copy_missing");
-assert(clientSource.includes("输入“继续执行”重新准备下一 Attempt，或输入“查看状态”"), "corrective_gate_input_copy_missing");
+assert(clientSource.includes("当前 Attempt 已失败并安全结束。输入“重新只读准备”可准备下一 Attempt"), "corrective_gate_operational_copy_missing");
+assert(clientSource.includes("输入“重新只读准备”准备下一 Attempt，或输入“查看状态”"), "corrective_gate_input_copy_missing");
+assert(!clientSource.includes("输入“继续执行”重新准备下一 Attempt"), "corrective_gate_legacy_input_copy_still_primary");
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");

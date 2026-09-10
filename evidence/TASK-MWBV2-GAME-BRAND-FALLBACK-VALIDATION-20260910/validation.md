@@ -17,3 +17,13 @@
 - 2026-09-10T12:10:00Z：应用 migration `084_target_empty_brand_omit_experiment.sql`。它没有调用平台：保留 Attempt 1 的失败 action/API `40000` 和已消费 Plan，把游戏维度候选记为 `rejected`（未作字段归因），并在同一 Case 的既有 JSON metadata 登记 `brand_empty_omit_experiment=approved_for_single_create_validation`，调用上限为 1、禁止重试。
 - 回归通过：`test:baseline-resource-inheritance`、`test:node4-resource-prep-contracts`、`test:payload-contract`、`test:resource-action-registry`、`test:workbench-progress`、`test:workbench-conversation`、`git diff --check`、`check:project -- --phase start`。新增断言确认：目标品牌列表成功为空时，Node 04 将品牌设为 `not_required`，创建 payload 不含 `brand_info` 顶层对象，字段账本记录品牌路径为 omit。
 - Postgres 回查：Case 仍为 `prepare_corrective_attempt`，root blocker 为 `corrective_attempt_requires_new_payload_version`，已用创建次数为 1/3，现有失败 action 的 `request_field_manifest.kind=oe3_std_project_final_payload_manifest`，没有创建对象。未创建 fresh Job、Plan、confirmation 或平台 action；账户本人仍须在部署后的工作台输入“重新只读准备”，再决定是否确认新的单次创建。
+
+- 2026-09-10T12:26:34Z：修复 `prepare_corrective_attempt` 的命令合流。Gate Action Policy 让“重新只读准备”和“继续执行”返回同一 `create_fresh_corrective_attempt` effect；Case 锁、最新失败 Job、已消费 Plan、尝试上限、零创建对象及现有 executor 均未改动。工作台以“重新只读准备”为主提示，保留“继续执行”兼容输入。
+- 回归通过：`test:workbench-conversation`（含两个命令同 effect、并发 claim 仅运行一次 readonly）、`test:workbench-progress`、`test:case-corrective-create`、`test:workflow-case`、`test:agent-hub`、`test:workbench-address`、`git diff --check` 与 `check:project -- --phase start`。同步修正 corrective smoke：request ID 只记录存在性、不保存原值，并在 mock 中覆盖既有项目素材回查合同；`realPlatformWrites=0`。
+- 已通过 LaunchAgent 重启 LAN 服务。深层 Case 地址、`/app.js`、`/styles.css` 返回 HTTP 200。部署后 Postgres 只读核验：当前 Case 仍为 3 个 Job、1 条失败的 `std_project_create` action、0 个标准项目对象；Gate 仍为 `prepare_corrective_attempt`，下一 Attempt 为 2。未创建 fresh Job、Plan、confirmation 或平台 action；仍须账户本人在工作台输入“重新只读准备”。
+
+- 2026-09-10T12:41:31Z：统一品牌空列表省略模式的重复就绪校验。Node 04 的 `resourceReady` 成为 Node 05、嵌套字段合同和 Execution Plan 的唯一资源状态谓词；成对的 `not_required/not_required` 还必须有通过的只读证据。目标空列表模式下，嵌套合同要求 `brand_info` 顶层字段完全缺席；其他模式仍要求完整四字段对象。工作台仅显示中性创建前合同提示，不再称为游戏维度候选。
+- 回归通过：`test:node4-resource-prep-contracts`、`test:execution-plan`、`test:payload-contract`、`test:workbench-progress`、`test:workbench-conversation`、`test:workflow-case`、`test:agent-hub`、`test:workbench-address`、`git diff --check` 与 `check:project -- --phase start`。所有 smoke 的真实平台写入均为零。
+- Postgres 只读核验：当前 Case 最新 Job 仍处于 `resolve_case_blocker / brand_info_not_ready`，共 4 个 Job；历史仅有 1 条失败的 `oceanengine_std_project_create`，无成功标准项目创建。此次修正未新增业务 action、Plan、confirmation 或创建对象；部署后仍须账户本人输入“重新只读准备”。
+
+- 2026-09-10T12:43:18Z：已通过既有 `com.hys.marketing-workbench.local-server` LaunchAgent 重启工作台服务。HTTP 只读核验确认新客户端包含“当前创建前合同”提示；Postgres 投影仍为相同 latest Job、`resolve_case_blocker / brand_info_not_ready`，标准项目创建仍为 1 条失败、0 条成功。重启未产生业务写入。

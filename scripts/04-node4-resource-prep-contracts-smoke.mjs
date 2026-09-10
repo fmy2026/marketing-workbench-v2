@@ -10,7 +10,7 @@ import {
 import { runBackupLandingPageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
 import { runEventChainReadonlySkill } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
 import { runProductImageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
-import { brandIndustryPassed, runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
+import { brandIndustryPassed, resourceReady, runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { validateOe3WorkflowSchedules, workflowSkillScheduleForMode } from "../src/workflows/skills/oe3/00-runner.mjs";
 
 function assert(condition, message) {
@@ -78,6 +78,26 @@ function fallbackBrandBundle({ tupleHash = "", caseId = "CASE-SMOKE-BRAND", rout
 assert(brandIndustryPassed(fallbackBrandBundle()), "approved_brand_fallback_not_accepted_by_create_gate");
 assert(!brandIndustryPassed(fallbackBrandBundle({ tupleHash: "sha256:mismatch" })), "brand_fallback_hash_mismatch_not_rejected");
 assert(!brandIndustryPassed(fallbackBrandBundle({ routeId: "other_route" })), "brand_fallback_route_mismatch_not_rejected");
+assert(resourceReady({
+  visibility_status: "not_required",
+  readback_status: "not_required",
+  metadata: { readonly_check: { status: "passed" } }
+}), "explicit_not_required_resource_not_ready");
+assert(!resourceReady({
+  visibility_status: "not_required",
+  readback_status: "readback_verified",
+  metadata: { readonly_check: { status: "passed" } }
+}), "mixed_not_required_status_must_block");
+assert(!resourceReady({
+  visibility_status: "not_required",
+  readback_status: "not_required",
+  metadata: { readonly_check: { status: "blocked" } }
+}), "blocked_readonly_evidence_must_block_not_required_resource");
+assert(!resourceReady({
+  visibility_status: "not_required",
+  readback_status: "not_required",
+  metadata: {}
+}), "missing_readonly_evidence_must_block_not_required_resource");
 
 const root = await mkdtemp(join(tmpdir(), "mwb-node4-resource-prep-"));
 const productPath = join(root, "product.png");

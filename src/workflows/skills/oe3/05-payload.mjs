@@ -1,5 +1,5 @@
 import { hashValue } from "./00-contracts.mjs";
-import { brandInfoMode, canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
+import { brandInfoMode, canonicalGuideVideoReadiness, resourceReady } from "./04-resource-verifiers.mjs";
 import {
   applyOfficialCreateFieldSendPolicy,
   evaluateOfficialCreateFieldEvidence,
@@ -118,21 +118,6 @@ function resourcesByType(bundle = {}, type) {
 
 function resourceBySourceAsset(bundle = {}, type, sourceAssetId = "") {
   return resourcesByType(bundle, type).find((item) => clean(item.source_asset_id) === clean(sourceAssetId)) || {};
-}
-
-function resourceReady(item = {}) {
-  const readonlyStatus = clean(item.metadata?.readonly_check?.status);
-  const productImageTargetReadback = item.resource_type === "product_image" &&
-    clean(item.metadata?.product_image_target_upload_readback?.status) === "passed" &&
-    item.metadata?.product_image_target_upload_readback?.image_id_present === true &&
-    item.metadata?.product_image_target_upload_readback?.material_id_present === true;
-  return item.visibility_status === "visible" &&
-    (item.readback_status === "readback_verified" || item.readback_status === "not_required") &&
-    (
-      !readonlyStatus ||
-      ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus) ||
-      productImageTargetReadback
-    );
 }
 
 function metadataValue(source = {}, paths = []) {

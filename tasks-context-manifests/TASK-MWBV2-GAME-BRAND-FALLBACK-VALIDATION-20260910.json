@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T12:10:00Z",
+  "updated_at": "2026-09-10T12:43:18Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -24,7 +24,9 @@
     "src/platforms/oceanengineReadonlyAdapter.mjs",
     "src/workflows/skills/oe3/04-resource-verifiers.mjs",
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/executionPlan.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
     "src/workflows/skills/oe3/05-payload-contract.mjs",
     "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
     "src/workflows/skills/oe3/05-create-field-ledger.mjs",
@@ -41,8 +43,10 @@
     "scripts/04-node4-resource-prep-contracts-smoke.mjs",
     "scripts/04-resource-action-registry-smoke.mjs",
     "scripts/05-payload-contract-smoke.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-case-corrective-create-smoke.mjs",
     "scripts/00-execution-grant-smoke.mjs",
     "scripts/00-create-result-mapping-smoke.mjs",
     "scripts/00-workflow-case-smoke.mjs",
@@ -57,7 +61,9 @@
     "src/platforms/oceanengineReadonlyAdapter.mjs",
     "src/workflows/skills/oe3/04-resource-verifiers.mjs",
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/executionPlan.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
     "src/workflows/skills/oe3/05-payload-contract.mjs",
     "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
     "src/workflows/skills/oe3/05-create-field-ledger.mjs",
@@ -74,9 +80,11 @@
     "scripts/04-node4-resource-prep-contracts-smoke.mjs",
     "scripts/04-resource-action-registry-smoke.mjs",
     "scripts/05-payload-contract-smoke.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
     "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-case-corrective-create-smoke.mjs",
     "scripts/00-execution-grant-smoke.mjs",
     "scripts/00-create-result-mapping-smoke.mjs",
     "scripts/00-workflow-case-smoke.mjs",
@@ -114,6 +122,8 @@
     {"acceptance_id": "AC-07", "command": "npm run test:payload-contract && npm run test:workbench-conversation && npm run test:workbench-progress"}
     ,{"acceptance_id": "AC-08", "command": "npm run test:baseline-resource-inheritance && npm run test:payload-contract; inspect the fresh-job payload only through its redacted field manifest."}
     ,{"acceptance_id": "AC-09", "command": "npm run test:execution-grant && npm run test:workbench-conversation; inspect the failed action request_field_manifest and Node 7 result mapping."}
+    ,{"acceptance_id": "AC-10", "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:case-corrective-create; verify both corrective commands share one effect and that repeated requests use the existing atomic corrective Job claim."}
+    ,{"acceptance_id": "AC-11", "command": "npm run test:node4-resource-prep-contracts && npm run test:execution-plan && npm run test:payload-contract && npm run test:workbench-progress"}
   ],
   "validation_results": [
     {
@@ -179,6 +189,30 @@
       "verified_at": "2026-09-10T12:10:00Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
       "summary": "The historical failed action retains its frozen redacted final field manifest after migration 084. The broader execution-grant smoke is currently environment-sensitive because its guide-video fixture is pending at Node 7; no platform request is made by this implementation."
+    },
+    {
+      "acceptance_id": "AC-10",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:case-corrective-create && npm run test:workflow-case",
+      "status": "passed",
+      "verified_at": "2026-09-10T12:26:34Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "At prepare_corrective_attempt, both commands resolve to the one existing corrective effect. The conversation smoke proves one readonly run under concurrent claims; the Postgres corrective smoke proves Case-scoped attempts, final material readback, redacted request-ID handling, and zero real platform writes."
+    },
+    {
+      "acceptance_id": "AC-11",
+      "command": "npm run test:node4-resource-prep-contracts && npm run test:execution-plan && npm run test:payload-contract && npm run test:workbench-progress",
+      "status": "passed",
+      "verified_at": "2026-09-10T12:41:31Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "Node 04, Node 05 payload, nested field contract and Execution Plan now share the Node 04 readiness predicate. Explicit not_required pairs require passed readonly evidence; the approved target-empty mode omits brand_info entirely and rejects any sent brand object."
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "Restart com.hys.marketing-workbench.local-server; read mwb.workflow_case_summary and aggregate redacted action counts for the current Case.",
+      "status": "passed",
+      "verified_at": "2026-09-10T12:43:18Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The LAN service loaded the new workbench client. The latest Case Job and root blocker remained unchanged; historical standard-project create actions remain one failed and zero successful. Restart caused no business write."
     }
   ],
   "documentation_updates": [

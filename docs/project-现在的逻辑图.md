@@ -73,7 +73,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 是资源能力、动作顺序、调用量与证据要求的唯一来源。当前可受控准备前五类；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时不自动创建，其中备用页只允许既定人工共享后的只读核验。引导视频/封面等账户 capability 与动态 ID 存储只查[数据契约](project-数据与报表契约.md#配置与资源来源)及对应 verifier，不在本总览复制。
 
-`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。游戏维度候选仅保留为已消费历史 Plan 的解释证据，不能被新 Draft 复用。当前唯一的空列表实验是：fresh 目标账户品牌接口成功返回空列表，且 Case JSON 一次性授权精确绑定 Case、route、game、fresh Job 与最多一次 create 时，Node 04 将品牌资源表示为 `not_required`，Node 05 和 preflight 共同要求整个 `brand_info` 顶层对象不存在。该模式不发送空对象或部分字段、不伪装为目标账户授权；回查失败、不完整、不明或授权不匹配均保持 `BLOCKED`。字段账本记录四个品牌路径从 `send` 到 `omit`，成功后的权威回查才允许升级为账户通用 capability。
+`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。游戏维度候选仅保留为已消费历史 Plan 的解释证据，不能被新 Draft 复用。当前唯一的空列表实验是：fresh 目标账户品牌接口成功返回空列表，且 Case JSON 一次性授权精确绑定 Case、route、game、fresh Job 与最多一次 create 时，Node 04 将品牌资源表示为 `not_required/not_required`。Node 04 的 `resourceReady` 是资源状态唯一判定：显式省略还必须同时具备有效只读证据；Node 05、嵌套字段合同和 Execution Plan 均复用它。品牌权限仍由 `brandInfoMode` 的完整范围合同判定。该模式下嵌套合同、payload 和 preflight 共同要求整个 `brand_info` 顶层对象不存在；其他模式仍要求完整四字段对象。回查失败、不完整、不明或授权不匹配均保持 `BLOCKED`。字段账本记录四个品牌路径从 `send` 到 `omit`，成功后的权威回查才允许升级为账户通用 capability。
 
 ## 4. Plan、确认与执行不变量
 
@@ -112,7 +112,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 任一 ready monitor、资源或创建 Plan | `await_job_write_authorization` | 只展示与 Plan ID/hash 绑定的确认卡；“继续执行”不写平台 |
 | monitor 终态、上下文、资源或 Plan 有唯一当前阻断 | `resolve_case_blocker` | 展示 root blocker；只允许 Gate Policy 明示的恢复性 readonly |
 | 已有创建对象但未完成 verified 回查 | `run_readback_only` | 只读回查，绝不再次 create |
-| 明确创建失败且 Case 尚有次数 | `prepare_corrective_attempt` | 新建同 Case fresh Job/Attempt，重新 readonly 后再确认 |
+| 明确创建失败且 Case 尚有次数 | `prepare_corrective_attempt` | 输入“重新只读准备”新建同 Case fresh Job/Attempt，重新 readonly 后再确认；“继续执行”仅为兼容别名 |
 | Case 已达 `maximum_create_attempts` | `manual_review_after_attempt_limit` | 禁止重试；复盘批准后才可建立独立的一次性替代 Case |
 | 创建对象和回查证据完整 | `first_std_project_create_completed` | 只读完成投影并收口 Case |
 | 非 active 且没有精确完成证据，或其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试入口 |
