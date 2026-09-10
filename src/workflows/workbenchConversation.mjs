@@ -472,7 +472,18 @@ export async function handleWorkbenchCommand({
         : isMonitorBootstrap
           ? "monitor 已按单次 Plan 执行并完成只读回查；工作台已自动按 Gate 继续 readonly。"
           : isResourcePrepare
-            ? "资源 Plan 已执行并完成回查；同一 Case 的 fresh Job 已完成只读准备，请核对第二张创建确认卡。"
+            ? (() => {
+                const freshCreateConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
+                  nextView?.confirmationPreview?.planKind === "std_project_create";
+                if (freshCreateConfirmation) {
+                  return "资源 Plan 已执行并完成回查；同一 Case 的 fresh Job 已完成只读准备，请核对第二张创建确认卡。";
+                }
+                const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0]);
+                const presentation = nextView?.caseGate?.rootBlocker || presentRootBlocker(blocker);
+                return blocker
+                  ? `资源 Plan 已执行并完成回查；fresh Job 仍有卡点：${presentation.title}。${presentation.nextActionLabel}`
+                  : "资源 Plan 已执行并完成回查；fresh Job 尚未生成创建确认卡，请刷新后按当前 Gate 继续。";
+              })()
             : "单次创建已提交，并已进入只读回查。"
     }
   });

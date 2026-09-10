@@ -9,3 +9,7 @@
 - 2026-09-10T11:18:36Z：修复候选落库。游戏维度品牌候选使用既有 `inheritance_status=baseline_candidate`，实验来源和 `experimental_pending_create` 只保留在 `brand_info` JSON 元数据。Node 04 的头像、品牌、产品图更新改为单条原子 SQL；真实数据库 CHECK 负例被拒绝，三项资源快照均未变化。
 - 回归通过：`test:baseline-resource-inheritance`、`test:node4-resource-prep-contracts`、`test:resource-action-registry`、`test:payload-contract`、`test:workbench-progress`、`test:workbench-conversation`、`test:agent-hub`、`test:workbench-address`、`check:project -- --phase start`。``MWBV2_AUTH_HTTP_ASSERTIONS_ONLY=true npm run test:workbench-auth-http`` 通过 5xx 错误脱敏单元断言；完整认证 HTTP 回归缺少本机测试凭据，未执行。
 - 2026-09-10T11:18:36Z：通过 LaunchAgent 重启 LAN 服务；`http://192.168.42.7:3000/app.js` 已包含 5xx 受控提示，当前 Case 深层地址返回 HTTP 200。
+
+- 2026-09-10T11:35:42Z：修复 Node 05 对游戏维度品牌保底候选的误阻断。`05-payload-contract` 复用 Node 04 的 `brandIndustryPassed` 资格合同，并要求 Draft 的六项品牌摘要与当前资源一致；不新增状态、Gate、Plan、action 或执行入口。payload smoke 覆盖合法实验候选，以及 hash、Case、route、game、蓝图、证据、三元组和 Draft 漂移反例。
+- 回归通过：`test:baseline-resource-inheritance`、`test:node4-resource-prep-contracts`、`test:payload-contract`、`test:resource-action-registry`、`test:workbench-progress`、`test:workbench-conversation`、`test:agent-hub`、`test:workbench-address`、`check:project -- --phase start` 与 `git diff --check`。资源 Plan 完成后，只有 fresh Job 实际提供 `std_project_create` 确认卡才提示第二张确认卡；否则展示 Case summary 的受控 blocker。
+- 本次仅执行 test-run 数据清理和本地 smoke；未确认资源、未提交标准项目创建。当前业务 Case 的基线仍为 29 条既有 monitor/资源 action、0 条 `std_project_create` action、0 个创建对象。服务部署后仍须账户本人输入“重新只读准备”。

@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T11:00:59Z",
+  "updated_at": "2026-09-10T11:35:42Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -25,6 +25,7 @@
     "src/workflows/skills/oe3/04-resource-verifiers.mjs",
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/workbenchConversation.mjs",
@@ -47,6 +48,7 @@
     "src/workflows/skills/oe3/04-resource-verifiers.mjs",
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-payload-contract.mjs",
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/workbenchConversation.mjs",
@@ -88,7 +90,8 @@
     {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress && npm run test:workbench-conversation"},
     {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase start; run before-close and after-close only when the Task's real-create acceptance is terminal."},
     {"acceptance_id": "AC-05", "command": "After deployment, inspect mwb.workflow_case_summary and the frozen Plan/confirmation/action/readback rows for the current Case; do not issue platform writes outside the authenticated workbench."},
-    {"acceptance_id": "AC-06", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run test:workbench-auth-http"}
+    {"acceptance_id": "AC-06", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run test:workbench-auth-http"},
+    {"acceptance_id": "AC-07", "command": "npm run test:payload-contract && npm run test:workbench-conversation && npm run test:workbench-progress"}
   ],
   "validation_results": [
     {
@@ -130,6 +133,14 @@
       "verified_at": "2026-09-10T11:18:36Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
       "summary": "The fallback uses the existing baseline_candidate lifecycle; one SQL batch rejects an invalid status without partial resources, and the 5xx boundary returns only internal_error plus a fingerprint."
+    },
+    {
+      "acceptance_id": "AC-07",
+      "command": "npm run test:payload-contract && npm run test:workbench-conversation && npm run test:workbench-progress",
+      "status": "passed",
+      "verified_at": "2026-09-10T11:35:42Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "Node 05 now consumes the Node 04 brand eligibility contract and rejects scope/hash/evidence or Draft drift; the resource-completion message only advertises a create confirmation card when the fresh Job actually exposes one."
     }
   ],
   "documentation_updates": [

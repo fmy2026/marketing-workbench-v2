@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
+import { brandIndustryPassed } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
@@ -535,6 +537,83 @@ try {
   assert(mockManifest.imageMaterialListEmpty === true, "mock image_material_list should be empty");
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
+
+  const fallbackBundle = structuredClone(mock.bundle);
+  const fallbackBrand = fallbackBundle.resources.find((item) => item.resource_type === "brand_info");
+  assert(fallbackBrand, "fallback_brand_resource_missing");
+  const fallbackTuple = {
+    brand_name_id: "101",
+    cdp_brand_id: "202",
+    cdp_brand_name: "payload smoke fallback brand",
+    yuntu_category_id: "303",
+    matched_industry_path: "游戏 / SLG"
+  };
+  const fallbackTupleHash = `sha256:${createHash("sha256").update(JSON.stringify(fallbackTuple)).digest("hex")}`;
+  fallbackBrand.metadata = {
+    brand_info_official: {
+      ...fallbackTuple,
+      source: "game_route_fallback_experiment",
+      readback_status: "experimental_pending_create",
+      validation_status: "experimental_pending_create",
+      used_for_create_gate: true,
+      tuple_hash: fallbackTupleHash
+    },
+    game_route_fallback_experiment: {
+      status: "experimental_pending_create",
+      case_id: fallbackBundle.job.case_id,
+      route_id: fallbackBundle.job.route_id,
+      game_code: fallbackBundle.job.game_code,
+      brand_blueprint_id: fallbackBrand.blueprint_id,
+      tuple_hash: fallbackTupleHash,
+      supporting_account_count: 2,
+      distinct_tuple_count: 1,
+      evidence_refs: ["EV-SMOKE-BRAND-A", "EV-SMOKE-BRAND-B"]
+    }
+  };
+  const fallbackDraft = structuredClone(mock.bundle.draft);
+  fallbackDraft.payload_summary.brand_info = {
+    ...fallbackTuple,
+    readback_status: "experimental_pending_create"
+  };
+  const fallbackContract = evaluateOe3PayloadContract({
+    bundle: fallbackBundle,
+    draft: fallbackDraft,
+    touchpointVerification: mock.touchpointVerification
+  });
+  assert(!fallbackContract.gaps.some((gap) => gap.key === "brand_info_confirmation"), "approved_fallback_brand_must_pass_payload_contract");
+
+  const invalidFallback = (mutate, message, { resourceInvalid = true } = {}) => {
+    const bundle = structuredClone(fallbackBundle);
+    const draft = structuredClone(fallbackDraft);
+    mutate(bundle, draft);
+    const contract = evaluateOe3PayloadContract({ bundle, draft, touchpointVerification: mock.touchpointVerification });
+    if (resourceInvalid) assert(!brandIndustryPassed(bundle), `${message}:predicate_still_passed`);
+    assert(contract.gaps.some((gap) => gap.key === "brand_info_confirmation"), message);
+  };
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.brand_info_official.tuple_hash = "sha256:mismatch";
+  }, "fallback_brand_hash_mismatch_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.case_id = "CASE-OTHER";
+  }, "fallback_brand_case_mismatch_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.route_id = "other_route";
+  }, "fallback_brand_route_mismatch_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.game_code = "OTHER";
+  }, "fallback_brand_game_mismatch_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.brand_blueprint_id = "BRP-OTHER";
+  }, "fallback_brand_blueprint_mismatch_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.evidence_refs = ["EV-SMOKE-BRAND-A"];
+  }, "fallback_brand_insufficient_evidence_must_block_payload_contract");
+  invalidFallback((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.distinct_tuple_count = 2;
+  }, "fallback_brand_multiple_tuples_must_block_payload_contract");
+  invalidFallback((_bundle, draft) => {
+    draft.payload_summary.brand_info.brand_name_id = "999";
+  }, "fallback_brand_draft_drift_must_block_payload_contract", { resourceInvalid: false });
 
   const longIdTransportPreflight = evaluateStdProjectCreatePreflight({
     requestFieldManifest: {

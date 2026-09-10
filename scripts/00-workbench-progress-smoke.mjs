@@ -124,6 +124,10 @@ const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_c
 assert(brandFallbackGuidance?.message.includes("游戏维度保底候选"), "brand_fallback_guidance_missing");
 assert(brandFallbackGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_fallback_placeholder_mismatch");
 assert(!brandFallbackGuidance.placeholder.includes("继续执行"), "brand_fallback_placeholder_must_not_continue");
+const brandConfirmationGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_confirmation"] });
+assert(brandConfirmationGuidance?.message.includes("品牌候选创建前校验未通过"), "brand_confirmation_guidance_missing");
+assert(brandConfirmationGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_confirmation_placeholder_mismatch");
+assert(!brandConfirmationGuidance.placeholder.includes("继续执行"), "brand_confirmation_placeholder_must_not_continue");
 const genericBlockerGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["resource_contract_missing"] });
 assert(genericBlockerGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "generic_blocker_placeholder_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");

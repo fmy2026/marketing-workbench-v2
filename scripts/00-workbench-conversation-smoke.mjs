@@ -46,6 +46,10 @@ assert(
   presentRootBlocker("brand_info_not_ready").title === "品牌/行业需要重新核验",
   "brand_blocker_must_have_controlled_presentation"
 );
+assert(
+  presentRootBlocker("brand_info_confirmation").title === "品牌候选创建前校验未通过",
+  "brand_confirmation_blocker_must_have_controlled_presentation"
+);
 
 const bundle = {
   job: { advertiser_id: "1871922175825993" },
@@ -519,6 +523,33 @@ assert(freshReadonlyCount === 1, "fresh_readonly_not_run_once");
 assert(resourceResponse.view.jobId === "JOB-FRESH-2", "workbench_did_not_switch_to_fresh_job");
 assert(resourceResponse.interaction.message.includes("第二张创建确认卡"), "second_confirmation_guidance_missing");
 assert(resourceResponse.interaction.confirmationPreview?.planId === "PLAN-CREATE-2", "resource_response_reused_consumed_confirmation");
+
+const blockedFreshView = {
+  ...freshCreateView,
+  confirmationPreview: null,
+  caseGate: {
+    currentGate: "resolve_case_blocker",
+    rootBlockerCodes: ["brand_info_confirmation"],
+    rootBlocker: presentRootBlocker("brand_info_confirmation")
+  }
+};
+const blockedResourceResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return resourceBundle; },
+    async getWorkflowCaseSummary() { return resourceCaseSummary; }
+  },
+  jobId: "JOB-RESOURCE-1",
+  message: "确认准备资源",
+  expectedPlanId: resourcePlan.plan_id,
+  expectedPlanHash: resourcePlan.plan_hash,
+  getJobViewFn: async () => resourceView,
+  executeConfirmedResourcePlanFn: async () => ({ status: "passed", blockers: [], createCalled: false }),
+  createFreshJobFn: async () => ({ jobId: "JOB-FRESH-BLOCKED" }),
+  runWorkbenchInitialReadonlyFn: async () => blockedFreshView
+});
+assert(!blockedResourceResponse.interaction.message.includes("第二张创建确认卡"), "blocked_fresh_job_must_not_claim_create_confirmation");
+assert(blockedResourceResponse.interaction.message.includes("品牌候选创建前校验未通过"), "blocked_fresh_job_must_present_root_blocker");
+assert(blockedResourceResponse.interaction.confirmationPreview === null, "blocked_fresh_job_must_not_expose_create_confirmation");
 
 const monitorPlan = {
   plan_status: "ready",

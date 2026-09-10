@@ -30,6 +30,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "brand_info_confirmation") {
+    return {
+      message: "当前阻断：品牌候选创建前校验未通过。请输入“重新只读准备”；不会复用旧 Plan 或创建项目。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "guide_video_capability_probe_failed") {
     return {
       message: "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。",

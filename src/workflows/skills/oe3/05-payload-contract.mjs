@@ -4,7 +4,7 @@ import {
   cstYyyymmdd
 } from "../../stdProjectNameBuilder.mjs";
 import { buildOe3StdProjectPayload } from "./05-payload.mjs";
-import { brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
+import { brandIndustryPassed, brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
@@ -374,8 +374,13 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const brandInfoHasEcomBrandId = Object.prototype.hasOwnProperty.call(brandInfo, "ecom_brand_id");
   const brandInfoNumericFieldsOk = ["brand_name_id", "cdp_brand_id", "yuntu_category_id"]
     .every((field) => /^\d+$/.test(String(brandInfo[field] || "")));
-  const brandInfoConfirmed = ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"]
-    .includes(String(brandInfo.readback_status || ""));
+  const currentBrandInfo = brandInfoSummary(bundle);
+  const brandInfoMatchesCurrentContract = REQUIRED_BRAND_INFO_FIELDS
+    .every((field) => clean(brandInfo[field]) === clean(currentBrandInfo[field]));
+  // Node 04 owns eligibility for target readback and the narrowly approved
+  // game-route fallback. Node 05 only verifies that its frozen draft still
+  // matches that same resource contract.
+  const brandInfoConfirmed = brandIndustryPassed(bundle) && brandInfoMatchesCurrentContract;
   const expectedHash = usesFinalPayloadHash && payload.final_payload_hash
     ? payload.final_payload_hash
     : stablePayloadHash(payload);
@@ -689,7 +694,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     {
       key: "brand_info_confirmation",
       status: brandInfoConfirmed ? "passed" : "blocked",
-      summary: brandInfoConfirmed ? "brand_info readback_status 可用于创建前确认。" : "brand_info readback_status 未确认。"
+      summary: brandInfoConfirmed
+        ? "brand_info 已通过统一资源资格合同，且与当前 Draft 一致。"
+        : "brand_info 未通过统一资源资格合同，或与当前 Draft 不一致。"
     },
     {
       key: "long_numeric_ids",
