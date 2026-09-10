@@ -8,6 +8,7 @@ import {
   verifyPassword
 } from "../src/security/workbenchAuth.mjs";
 import { createWorkflowCase, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
+import { STD_PROJECT_40100_REDELIVERY_CONTRACT } from "../src/workflows/executionPlan.mjs";
 import { evaluatePlanBoundWriteAuthorization } from "../src/workflows/workbenchRuntimeWritePolicy.mjs";
 
 function assert(condition, message) {
@@ -145,7 +146,8 @@ const policyBundle = {
       target_advertiser_id: "1234567890123456",
       target_plan_id: "PLAN-AUTH-SMOKE",
       target_plan_hash: "sha256:auth-smoke",
-      retry_allowed: false
+      retry_allowed: false,
+      rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT }
     } }
   }
 };

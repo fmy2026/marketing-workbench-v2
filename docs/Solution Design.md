@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `080`；逻辑图精简任务 `TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910` |
+| 校验基线 | 当前代码、SQL migrations 至 `082`；逻辑图精简任务 `TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -19,6 +19,10 @@
 | 数据库文档唯一入口 | 结构、口径与数据库运维说明全部集中；旧说明及后续获批删除的早期方案由 Git 保留历史，避免重复规则漂移 | [批准任务](../tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md)、[数据契约](project-数据与报表契约.md) |
 | 3 阶段 7 Node | 节点只从注册表定义，Skill 与 runner 承接固定流程，减少消费者各自解释 | [节点统一任务](../tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md)、[逻辑图](project-现在的逻辑图.md) |
 | 当前逻辑图分层 | 当前逻辑图以唯一闭环为主线，按 7 Node 归纳 Workflow Skill，以资源四态和核心 Gate 场景说明分支，只保留一次 Plan-bound 安全约束；路线字段、接口参数、时间窗口和专项异常只链接唯一合同，避免静态总览退化为实现流水或第二套状态机 | [本次批准任务](../tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md)、[逻辑图](project-现在的逻辑图.md) |
+| 数字员工广场与 Agent 壳层 | 登录后先进入 Agent 广场；可用 Agent 通过服务端公开注册表声明，工作区仅以模块和地址承载既有 Workflow。壳层不计算 Gate、不选择 Plan、不持有账户动态事实；历史 Case/Job 链接统一迁至 Agent 工作区，旧根路径链接重定向兼容。P0 只开放投放创建，能力摘要采用真实的 7 Node、8 类资源和 3 类 Plan，不虚构知识库或技能数量 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md)、[当前逻辑图](project-现在的逻辑图.md) |
+| 每用户 Agent 模型配置 | 模型配置按 `user_id × agent_key` 隔离；Postgres 仅保存协议、模型、无凭据 API Base、不可逆本地凭据引用、启用和脱敏测试状态，API Key 仅保存于 gitignored 的本机 `0600` 原子凭据库。更新配置即失效，只有无业务数据的固定 Schema 测试通过后可启用；管理员不能读取或代改他人配置 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md)、[数据契约](project-数据与报表契约.md) |
+| LLM 仅作受限意图解析 | 只有本人已测试、已启用的配置才能解析未被规则准确识别的输入；精确确认、取消、状态、继续与 readonly 恢复始终由确定性解析优先处理。模型输入不含 Case、Job、Gate、Plan 或账户运行状态，输出只能是 allowlist intent、置信度和三项 Intake 槽位；超时、非 JSON、低置信或非法输出均回退规则解析。模型不能决定 Gate、Plan、确认、权限或任何平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md)、[当前逻辑图](project-现在的逻辑图.md) |
+| Agent 只读模块 | 记忆只投影本人 Case、最新 Job、规范化槽位、状态和受控证据引用，不保存聊天原文；知识库和技能仅展示注册表与 7 Node 的公开能力说明。数据统计默认本人，管理员须显式切换“全部用户”才读取全量只读报表，且不获得代操作权限 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md)、[数据契约](project-数据与报表契约.md) |
 | Case 与单一 Gate | Case 管持续目标、Job 管一次运行；消费者统一读 summary，避免历史 blocker 冒充当前阻断 | [Case Gate 任务](../tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md)、[数据契约](project-数据与报表契约.md) |
 | 用户与账户归属 | 本人执行/确认，管理员管理用户及只读报表；账户发现前验证唯一 owner | [账户隔离任务](../tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md) |
 | 局域网入口 | 私网 HTTP 仅以显式配置开放受限试用；部署配置与恢复方式集中在运维文档 | [部署说明](../deploy/README.md) |

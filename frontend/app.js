@@ -1,4 +1,7 @@
 import {
+  AGENT_HUB_PATH,
+  LAUNCH_CREATION_AGENT_PATH,
+  agentHubUrl,
   parseWorkbenchProgressTarget,
   workbenchCaseUrl
 } from "./workbench-address.mjs";
@@ -24,8 +27,14 @@ import {
   let pendingConfirmation = null;
   let rootHome = false;
   let currentUser = null;
+  let agentProfile = null;
+  let modelConfig = null;
+  let currentScreen = "hub";
+  let activeModule = "conversation";
+  let passwordChangeForced = false;
   const chatMessages = [];
   const focusedNodes = new Map();
+  const agentModules = new Set(["overview", "conversation", "memory", "knowledge", "skills", "statistics"]);
   const draftIntake = {
     route_id: "",
     game_code: "",
@@ -59,6 +68,359 @@ import {
       throw error;
     }
     return body;
+  }
+
+  function roleLabel(role) {
+    return role === "admin" ? "管理员" : "普通用户";
+  }
+
+  function moduleFromLocation() {
+    const requested = String(new URLSearchParams(window.location.search).get("module") || "conversation").trim();
+    return agentModules.has(requested) ? requested : "conversation";
+  }
+
+  function workspacePath({ module = activeModule, keepProgressTarget = true } = {}) {
+    const url = new URL(window.location.href);
+    url.pathname = LAUNCH_CREATION_AGENT_PATH;
+    if (!keepProgressTarget) {
+      url.searchParams.delete("case_id");
+      url.searchParams.delete("job_id");
+    }
+    if (module && module !== "conversation") url.searchParams.set("module", module);
+    else url.searchParams.delete("module");
+    return `${url.pathname}${url.search}`;
+  }
+
+  function setCurrentUrl(path, { replace = false } = {}) {
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method]({}, "", path);
+  }
+
+  function closeUserMenu() {
+    const menu = document.getElementById("userMenu");
+    const trigger = document.getElementById("userMenuButton");
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  function updateUserPresentation() {
+    const displayName = currentUser?.displayName || currentUser?.loginName || "当前用户";
+    const avatar = displayName.slice(0, 1);
+    document.getElementById("operatorName").textContent = displayName;
+    document.getElementById("operatorAvatar").textContent = avatar;
+    document.getElementById("userMenuAvatar").textContent = avatar;
+    document.getElementById("userMenuDisplayName").textContent = displayName;
+    document.getElementById("userMenuLoginName").textContent = currentUser?.loginName || "";
+    document.getElementById("userMenuRole").textContent = roleLabel(currentUser?.role);
+    document.getElementById("userAdminButton").hidden = currentUser?.role !== "admin";
+  }
+
+  function renderAgentOverview() {
+    if (!agentProfile) return;
+    document.getElementById("overviewDescription").textContent = agentProfile.positioning || agentProfile.description || "投放创建 Agent";
+    const metrics = document.getElementById("capabilityMetrics");
+    metrics.innerHTML = "";
+    const summary = agentProfile.capabilitySummary || {};
+    [
+      [summary.workflowNodeCount || 0, "Workflow Node"],
+      [summary.resourceTypeCount || 0, "资源类别"],
+      [summary.planKindCount || 0, "可确认 Plan"]
+    ].forEach(([value, label]) => {
+      const metric = el("div", "capability-metric");
+      metric.append(el("strong", "", String(value)));
+      metric.append(el("span", "", label));
+      metrics.append(metric);
+    });
+    const modelStatus = document.getElementById("overviewModelStatus");
+    if (modelStatus) {
+      modelStatus.textContent = modelConfig?.enabled === true
+        ? `模型配置：已启用（${modelTestLabel(modelConfig.testStatus)}）。`
+        : `模型配置：未启用（${modelTestLabel(modelConfig?.testStatus || "not_configured")}）；仍可完整使用规则解析。`;
+    }
+  }
+
+  function valueOf(record, snakeCase, camelCase = "") {
+    return record?.[snakeCase] ?? (camelCase ? record?.[camelCase] : undefined) ?? "";
+  }
+
+  function formatMoment(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("zh-CN", { hour12: false });
+  }
+
+  function emptyModule(container, text) {
+    container.innerHTML = "";
+    container.append(el("p", "readonly-empty", text));
+  }
+
+  function appendRecordField(grid, label, value) {
+    const field = el("span", "");
+    field.append(el("strong", "", `${label}：`));
+    field.append(document.createTextNode(String(value || "-")));
+    grid.append(field);
+  }
+
+  async function renderMemory() {
+    const container = document.getElementById("memoryContent");
+    if (!container) return;
+    emptyModule(container, "正在读取本人结构化业务记录…");
+    try {
+      const result = await api("/api/agents/launch_creation/memory");
+      const cases = result.cases || [];
+      if (!cases.length) return emptyModule(container, "尚无可展示的本人 Case。启动流程后，结构化记录会在这里出现。");
+      container.innerHTML = "";
+      for (const item of cases) {
+        const record = el("article", "readonly-record");
+        const heading = el("div", "readonly-record-heading");
+        heading.append(el("h3", "", `Case ${String(valueOf(item, "case_id", "caseId")).replace(/^(.{0,8}).*$/, "$1")}`));
+        heading.append(el("span", "readonly-tag", valueOf(item, "lifecycle_status", "lifecycleStatus") || "未知状态"));
+        record.append(heading);
+        const grid = el("div", "readonly-record-grid");
+        appendRecordField(grid, "账户", valueOf(item, "advertiser_masked", "advertiserMasked"));
+        appendRecordField(grid, "游戏", valueOf(item, "game_code", "gameCode"));
+        appendRecordField(grid, "路线", valueOf(item, "route_id", "routeId"));
+        appendRecordField(grid, "当前 Gate", valueOf(item, "current_gate", "currentGate"));
+        appendRecordField(grid, "唯一阻断", valueOf(item, "root_blocker_code", "rootBlockerCode") || "无");
+        appendRecordField(grid, "更新时间", formatMoment(valueOf(item, "latest_job_updated_at", "latestJobUpdatedAt") || valueOf(item, "updated_at", "updatedAt")));
+        record.append(grid);
+        const evidenceRefs = valueOf(item, "evidence_refs", "evidenceRefs") || [];
+        const tags = el("div", "readonly-tags");
+        if (evidenceRefs.length) {
+          tags.append(...evidenceRefs.slice(0, 3).map((ref) => el("span", "readonly-tag", `证据：${ref}`)));
+        } else {
+          tags.append(el("span", "readonly-tag", "暂无可展示的证据引用"));
+        }
+        record.append(tags);
+        const caseId = valueOf(item, "case_id", "caseId");
+        const open = el("button", "memory-open-button", "恢复最新 Job");
+        open.type = "button";
+        open.disabled = !caseId || !valueOf(item, "latest_job_id", "latestJobId");
+        open.addEventListener("click", () => window.location.assign(workbenchCaseUrl(caseId)));
+        record.append(open);
+        container.append(record);
+      }
+    } catch {
+      emptyModule(container, "结构化业务记录暂时不可用；未读取或写入任何对话原文。");
+    }
+  }
+
+  function renderKnowledge() {
+    const container = document.getElementById("knowledgeContent");
+    if (!container) return;
+    const topics = agentProfile?.knowledgeTopics || [];
+    if (!topics.length) return emptyModule(container, "公开知识说明加载中…");
+    container.innerHTML = "";
+    for (const topic of topics) {
+      const record = el("article", "readonly-record");
+      record.append(el("h3", "", topic.title || String(topic)));
+      record.append(el("p", "", topic.description || "共享只读能力说明。"));
+      container.append(record);
+    }
+  }
+
+  function renderSkills() {
+    const container = document.getElementById("skillsContent");
+    if (!container) return;
+    const nodes = agentProfile?.workflowNodes || [];
+    if (!nodes.length) return emptyModule(container, "固定 Workflow 技能说明加载中…");
+    container.innerHTML = "";
+    for (const node of nodes) {
+      const record = el("article", "readonly-record");
+      record.append(el("h3", "", `${node.number}. ${node.name}`));
+      record.append(el("p", "", `${node.phase} · ${node.statusMeaning || "状态由当前 Case 的只读投影决定。"}`));
+      const grid = el("div", "readonly-record-grid");
+      appendRecordField(grid, "技能组", (node.skillGroup || []).join("、"));
+      appendRecordField(grid, "输入", (node.inputs || []).join("、"));
+      appendRecordField(grid, "输出", (node.outputs || []).join("、"));
+      record.append(grid);
+      container.append(record);
+    }
+  }
+
+  async function renderStatistics(requestedScope = "") {
+    const container = document.getElementById("statisticsContent");
+    const label = document.getElementById("statisticsScopeLabel");
+    const selector = document.getElementById("statisticsScope");
+    if (!container || !label || !selector) return;
+    const isAdmin = currentUser?.role === "admin";
+    const scope = isAdmin && (requestedScope || selector.value) === "all" ? "all" : "self";
+    label.hidden = !isAdmin;
+    selector.value = scope;
+    emptyModule(container, "正在读取 Workflow 统计投影…");
+    try {
+      const suffix = scope === "all" ? "?scope=all" : "?scope=self";
+      const [summaryResult, detailResult] = await Promise.all([
+        api(`/api/reports/workflow-summary${suffix}`),
+        api(`/api/reports/workflow-detail${suffix}`)
+      ]);
+      container.innerHTML = "";
+      const summaries = summaryResult.users || [];
+      const details = detailResult.cases || [];
+      if (!summaries.length && !details.length) return emptyModule(container, "当前范围内暂无 Workflow 统计记录。");
+      container.append(table(
+        ["人员", "账户", "Case", "已验证成功", "进行中", "阻断", "未成功终态"],
+        summaries.map((item) => [
+          `${valueOf(item, "display_name", "displayName")} (${valueOf(item, "login_name", "loginName")})`,
+          valueOf(item, "advertiser_count", "advertiserCount") || 0,
+          valueOf(item, "case_count", "caseCount") || 0,
+          valueOf(item, "verified_success_count", "verifiedSuccessCount") || 0,
+          valueOf(item, "active_case_count", "activeCaseCount") || 0,
+          valueOf(item, "blocked_case_count", "blockedCaseCount") || 0,
+          valueOf(item, "terminal_unsuccessful_count", "terminalUnsuccessfulCount") || 0
+        ])
+      ));
+      container.append(table(
+        ["归属人", "账户", "游戏", "状态", "当前 Gate", "唯一阻断"],
+        details.map((item) => [
+          valueOf(item, "owner_display_name", "ownerDisplayName") || "待核实",
+          valueOf(item, "advertiser_id", "advertiserId") || "-",
+          valueOf(item, "game_code", "gameCode") || "-",
+          valueOf(item, "lifecycle_status", "lifecycleStatus") || "-",
+          valueOf(item, "current_gate", "currentGate") || "-",
+          (valueOf(item, "root_blocker_codes", "rootBlockerCodes") || [])[0] || ""
+        ])
+      ));
+    } catch {
+      emptyModule(container, "统计投影暂时不可用；当前没有执行或修改任何投放账户。");
+    }
+  }
+
+  async function renderModuleData(module = activeModule) {
+    if (module === "memory") return renderMemory();
+    if (module === "knowledge") return renderKnowledge();
+    if (module === "skills") return renderSkills();
+    if (module === "statistics") return renderStatistics();
+    return undefined;
+  }
+
+  function renderAgentCards(agents = []) {
+    const grid = document.getElementById("agentCardGrid");
+    grid.innerHTML = "";
+    for (const agent of agents) {
+      const card = el("article", "agent-card");
+      card.append(el("span", "agent-card-icon", "投"));
+      const heading = el("div", "agent-card-heading");
+      heading.append(el("h2", "", agent.displayName));
+      heading.append(el("span", "agent-availability", "在线"));
+      card.append(heading);
+      card.append(el("p", "", agent.description));
+      const metrics = el("div", "agent-card-metrics");
+      const summary = agent.capabilitySummary || {};
+      [
+        [summary.workflowNodeCount || 0, "Workflow Node"],
+        [summary.resourceTypeCount || 0, "资源"],
+        [summary.planKindCount || 0, "Plan"]
+      ].forEach(([value, label]) => {
+        const metric = el("span", "");
+        metric.append(el("strong", "", String(value)));
+        metric.append(document.createTextNode(` ${label}`));
+        metrics.append(metric);
+      });
+      card.append(metrics);
+      const open = el("button", "agent-open-button", "进入 Agent");
+      open.type = "button";
+      open.addEventListener("click", async () => {
+        setCurrentUrl(workspacePath({ module: "conversation", keepProgressTarget: false }));
+        showAgentWorkspace();
+        await loadAgentWorkspace();
+      });
+      card.append(open);
+      grid.append(card);
+    }
+    const comingSoon = el("article", "agent-card agent-card-coming-soon");
+    comingSoon.append(el("span", "agent-card-icon is-muted", "＋"));
+    comingSoon.append(el("h2", "", "即将上线"));
+    comingSoon.append(el("p", "", "更多数字员工正在接入中。"));
+    const disabled = el("button", "agent-open-button", "敬请期待");
+    disabled.type = "button";
+    disabled.disabled = true;
+    comingSoon.append(disabled);
+    grid.append(comingSoon);
+  }
+
+  async function loadAgentHub() {
+    const result = await api("/api/agents");
+    renderAgentCards(result.agents || []);
+  }
+
+  async function loadAgentProfile() {
+    const result = await api("/api/agents/launch_creation");
+    agentProfile = result.agent || null;
+    renderAgentOverview();
+    await renderModuleData(activeModule);
+  }
+
+  function selectModule(module, { updateAddress = false } = {}) {
+    activeModule = agentModules.has(module) ? module : "conversation";
+    document.querySelectorAll("[data-module-content]").forEach((section) => {
+      section.hidden = section.dataset.moduleContent !== activeModule;
+    });
+    document.querySelectorAll(".agent-module-button").forEach((button) => {
+      const selected = button.dataset.module === activeModule;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-current", selected ? "page" : "false");
+    });
+    if (updateAddress) setCurrentUrl(workspacePath({ module: activeModule }));
+    renderModuleData(activeModule).catch(() => {});
+  }
+
+  function modelTestLabel(status) {
+    return {
+      passed: "已通过固定 Schema 测试",
+      failed: "连接测试失败",
+      not_tested: "配置已变更，等待测试",
+      not_configured: "尚未配置 API Key"
+    }[status] || "尚未验证";
+  }
+
+  function renderModelConfig(config = modelConfig) {
+    modelConfig = config || null;
+    const visible = config || {
+      protocol: "openai_compatible", modelName: "", apiBase: "", credentialConfigured: false,
+      enabled: false, testStatus: "not_configured"
+    };
+    document.getElementById("modelProtocol").value = visible.protocol || "openai_compatible";
+    document.getElementById("modelApiBase").value = visible.apiBase || "";
+    document.getElementById("modelName").value = visible.modelName || "";
+    document.getElementById("modelApiKey").value = "";
+    document.getElementById("modelCredentialState").textContent = `API Key：${visible.credentialConfigured ? "已配置（不会展示）" : "未配置"}`;
+    document.getElementById("modelTestState").textContent = modelTestLabel(visible.testStatus);
+    const enabled = document.getElementById("modelEnabled");
+    enabled.checked = visible.enabled === true;
+    enabled.disabled = visible.testStatus !== "passed";
+    document.getElementById("modelConfigError").textContent = "";
+    renderAgentOverview();
+  }
+
+  function closeModelConfig() {
+    document.getElementById("modelConfigModal").hidden = true;
+    document.getElementById("modelApiKey").value = "";
+  }
+
+  async function loadModelConfig() {
+    const result = await api("/api/agents/launch_creation/model-config");
+    renderModelConfig(result.config);
+    return result.config;
+  }
+
+  function modelConfigPayload({ preserveEnabled = false } = {}) {
+    const key = document.getElementById("modelApiKey").value;
+    return {
+      protocol: "openai_compatible",
+      api_base: document.getElementById("modelApiBase").value.trim(),
+      model_name: document.getElementById("modelName").value.trim(),
+      ...(key ? { api_key: key } : {}),
+      enabled: preserveEnabled ? document.getElementById("modelEnabled").checked : false
+    };
+  }
+
+  async function saveModelConfig({ preserveEnabled = true } = {}) {
+    const result = await api("/api/agents/launch_creation/model-config", {
+      method: "PUT",
+      body: JSON.stringify(modelConfigPayload({ preserveEnabled }))
+    });
+    renderModelConfig(result.config);
+    return result.config;
   }
 
   function phases() {
@@ -603,6 +965,9 @@ import {
       setActiveCaseUrl(result.view.caseId);
     }
     pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
+    if (result.interaction?.parserSource) {
+      message("agent", result.interaction.parserSource === "llm" ? "本次已使用大模型解析。" : "本次已使用规则解析。");
+    }
     if (result.interaction?.message) message("agent", result.interaction.message);
     renderAll();
   }
@@ -611,17 +976,19 @@ import {
     currentUser = null;
     document.getElementById("authGate").hidden = false;
     document.getElementById("loginForm").hidden = false;
-    document.getElementById("changePasswordForm").hidden = true;
+    document.getElementById("passwordModal").hidden = true;
+    document.getElementById("appShell").hidden = true;
+    document.getElementById("agentHub").hidden = true;
     document.getElementById("workbenchShell").hidden = true;
   }
 
   function showPasswordChange({ forced = currentUser?.mustChangePassword === true } = {}) {
-    document.getElementById("authGate").hidden = false;
-    document.getElementById("loginForm").hidden = true;
-    document.getElementById("changePasswordForm").hidden = false;
-    document.getElementById("workbenchShell").hidden = true;
+    passwordChangeForced = forced;
+    document.getElementById("authGate").hidden = true;
+    document.getElementById("passwordModal").hidden = false;
+    if (forced) document.getElementById("appShell").hidden = true;
     document.getElementById("changePasswordTitle").textContent = forced ? "修改初始密码" : "修改密码";
-    document.getElementById("changePasswordHint").textContent = forced ? "首次登录后才能进入工作台" : "修改后其他会话会自动退出";
+    document.getElementById("changePasswordHint").textContent = forced ? "首次登录后才能进入数字员工广场" : "修改后其他会话会自动退出";
     document.getElementById("savePasswordButton").textContent = forced ? "保存并进入" : "保存新密码";
     document.getElementById("cancelPasswordChangeButton").hidden = forced;
     document.getElementById("changePasswordError").textContent = "";
@@ -630,12 +997,35 @@ import {
     document.getElementById("confirmPassword").value = "";
   }
 
-  function showWorkbench() {
+  function showAgentHub({ updateAddress = false } = {}) {
     document.getElementById("authGate").hidden = true;
+    document.getElementById("passwordModal").hidden = true;
+    document.getElementById("appShell").hidden = false;
+    document.getElementById("agentHub").hidden = false;
+    document.getElementById("workbenchShell").hidden = true;
+    document.getElementById("backToAgentsButton").hidden = true;
+    document.getElementById("agentHeaderTitle").hidden = true;
+    document.getElementById("modelConfigButton").hidden = true;
+    currentScreen = "hub";
+    updateUserPresentation();
+    closeUserMenu();
+    if (updateAddress) setCurrentUrl(AGENT_HUB_PATH, { replace: true });
+  }
+
+  function showAgentWorkspace() {
+    document.getElementById("authGate").hidden = true;
+    document.getElementById("passwordModal").hidden = true;
+    document.getElementById("appShell").hidden = false;
+    document.getElementById("agentHub").hidden = true;
     document.getElementById("workbenchShell").hidden = false;
-    document.getElementById("operatorName").textContent = currentUser?.displayName || currentUser?.loginName || "当前用户";
-    document.getElementById("operatorAvatar").textContent = (currentUser?.displayName || "用").slice(0, 1);
-    document.getElementById("userAdminButton").hidden = currentUser?.role !== "admin";
+    document.getElementById("backToAgentsButton").hidden = false;
+    document.getElementById("agentHeaderTitle").hidden = false;
+    document.getElementById("modelConfigButton").hidden = false;
+    currentScreen = "workspace";
+    activeModule = moduleFromLocation();
+    selectModule(activeModule);
+    updateUserPresentation();
+    closeUserMenu();
   }
 
   function table(headers, rows) {
@@ -750,8 +1140,8 @@ import {
         currentUser = result.user;
         if (currentUser.mustChangePassword) showPasswordChange();
         else {
-          showWorkbench();
-          await loadWorkspace();
+          showAgentHub({ updateAddress: true });
+          await loadAgentHub();
         }
       } catch (error) {
         errorNode.textContent = error.message === "login_temporarily_locked" ? "登录失败次数过多，请稍后再试。" : "账号或密码错误。";
@@ -774,21 +1164,39 @@ import {
           })
         });
         currentUser = result.user;
-        showWorkbench();
-        if (job || workbench) renderAll();
-        else await loadWorkspace();
+        document.getElementById("passwordModal").hidden = true;
+        if (passwordChangeForced || currentScreen === "hub") {
+          showAgentHub({ updateAddress: passwordChangeForced });
+          await loadAgentHub();
+        } else {
+          showAgentWorkspace();
+          if (job || workbench) renderAll();
+          else await loadAgentWorkspace();
+        }
       } catch (error) {
         errorNode.textContent = error.message === "current_password_invalid" ? "当前密码错误。" : "新密码至少 8 位，且不能继续使用初始密码。";
       }
     });
     document.getElementById("logoutButton").addEventListener("click", async () => {
       await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
-      window.location.assign("/");
+      window.location.assign(agentHubUrl());
     });
-    document.getElementById("changePasswordButton").addEventListener("click", () => showPasswordChange({ forced: false }));
-    document.getElementById("cancelPasswordChangeButton").addEventListener("click", () => showWorkbench());
-    document.getElementById("reportButton").addEventListener("click", () => renderReports().catch(showError));
-    document.getElementById("userAdminButton").addEventListener("click", () => renderUserAdmin().catch(showError));
+    document.getElementById("changePasswordButton").addEventListener("click", () => {
+      closeUserMenu();
+      showPasswordChange({ forced: false });
+    });
+    document.getElementById("cancelPasswordChangeButton").addEventListener("click", () => {
+      document.getElementById("passwordModal").hidden = true;
+    });
+    document.getElementById("userAdminButton").addEventListener("click", async () => {
+      closeUserMenu();
+      if (currentScreen !== "workspace") {
+        setCurrentUrl(workspacePath({ module: "overview", keepProgressTarget: false }));
+        showAgentWorkspace();
+        await loadAgentWorkspace();
+      }
+      renderUserAdmin().catch(showError);
+    });
     document.getElementById("managementCloseButton").addEventListener("click", () => {
       document.getElementById("managementPanel").hidden = true;
     });
@@ -817,9 +1225,10 @@ import {
         });
         mergeIntake(intake);
         const missing = missingFields();
+        const parserLabel = intake.parseSource === "llm" ? "已使用大模型解析" : "已使用规则解析";
         message("agent", missing.length
-          ? `已识别 ${requiredFields().length - missing.length}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
-          : "三项输入已规范化；请核对后点击“启动流程”。");
+          ? `${parserLabel}，已识别 ${requiredFields().length - missing.length}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
+          : `${parserLabel}，三项输入已规范化；请核对后点击“启动流程”。`);
       } catch (error) {
         showError(error);
       } finally {
@@ -828,6 +1237,84 @@ import {
     });
     document.getElementById("startWorkflowButton").addEventListener("click", () => {
       startWorkflow();
+    });
+  }
+
+  function bindShellInteractions() {
+    document.getElementById("brandHomeButton").addEventListener("click", async () => {
+      showAgentHub({ updateAddress: true });
+      await loadAgentHub();
+    });
+    document.getElementById("backToAgentsButton").addEventListener("click", async () => {
+      showAgentHub({ updateAddress: true });
+      await loadAgentHub();
+    });
+    document.getElementById("userMenuButton").addEventListener("click", (event) => {
+      event.stopPropagation();
+      const menu = document.getElementById("userMenu");
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      document.getElementById("userMenuButton").setAttribute("aria-expanded", String(opening));
+    });
+    document.getElementById("userMenu").addEventListener("click", (event) => event.stopPropagation());
+    document.addEventListener("click", closeUserMenu);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeUserMenu();
+        if (!passwordChangeForced) document.getElementById("passwordModal").hidden = true;
+        closeModelConfig();
+      }
+    });
+    document.getElementById("modelConfigButton").addEventListener("click", async () => {
+      try {
+        await loadModelConfig();
+        document.getElementById("modelConfigModal").hidden = false;
+      } catch (error) {
+        showError(error);
+      }
+    });
+    document.getElementById("modelConfigCloseButton").addEventListener("click", closeModelConfig);
+    document.getElementById("modelConfigCancelButton").addEventListener("click", closeModelConfig);
+    document.getElementById("modelConfigForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await saveModelConfig({ preserveEnabled: true });
+        closeModelConfig();
+      } catch (error) {
+        document.getElementById("modelConfigError").textContent = error.message === "model_config_test_required"
+          ? "请先完成连接测试，再启用模型解析。"
+          : "配置格式无效，或当前配置无法保存。";
+      }
+    });
+    document.getElementById("modelTestButton").addEventListener("click", async () => {
+      const errorNode = document.getElementById("modelConfigError");
+      errorNode.textContent = "";
+      try {
+        await saveModelConfig({ preserveEnabled: true });
+        const result = await api("/api/agents/launch_creation/model-config/test", {
+          method: "POST",
+          body: "{}"
+        });
+        renderModelConfig(result.config);
+      } catch (error) {
+        errorNode.textContent = error.message === "model_connection_test_failed"
+          ? "连接测试未通过，请检查配置后重试。"
+          : "请先填写 API Base、模型名，并配置 API Key。";
+        await loadModelConfig().catch(() => {});
+      }
+    });
+    document.querySelectorAll(".agent-module-button").forEach((button) => {
+      button.addEventListener("click", () => selectModule(button.dataset.module, { updateAddress: true }));
+    });
+    document.getElementById("statisticsScope").addEventListener("change", (event) => {
+      renderStatistics(event.target.value).catch(() => {});
+    });
+    document.getElementById("sidebarCollapseButton").addEventListener("click", () => {
+      const workspace = document.getElementById("workbenchShell");
+      const collapsed = workspace.classList.toggle("sidebar-is-collapsed");
+      const button = document.getElementById("sidebarCollapseButton");
+      button.textContent = collapsed ? "›" : "‹";
+      button.setAttribute("aria-label", collapsed ? "展开模块导航" : "收起模块导航");
     });
   }
 
@@ -853,9 +1340,16 @@ import {
     renderAll();
   }
 
+  async function loadAgentWorkspace() {
+    await Promise.all([loadAgentProfile(), loadWorkspace(), loadModelConfig().catch(() => null)]);
+    renderAgentOverview();
+    await renderModuleData(activeModule);
+  }
+
   async function init() {
     bindInteractions();
     bindAuthInteractions();
+    bindShellInteractions();
     try {
       const session = await api("/api/auth/me");
       currentUser = session.user;
@@ -863,15 +1357,20 @@ import {
         showPasswordChange();
         return;
       }
-      showWorkbench();
-      await loadWorkspace();
+      if (window.location.pathname === LAUNCH_CREATION_AGENT_PATH) {
+        showAgentWorkspace();
+        await loadAgentWorkspace();
+      } else {
+        showAgentHub({ updateAddress: window.location.pathname !== AGENT_HUB_PATH });
+        await loadAgentHub();
+      }
     } catch (error) {
       if (error.status === 401) {
         showLogin();
         return;
       }
       document.getElementById("agentStatus").textContent = "加载失败";
-      showWorkbench();
+      showAgentWorkspace();
       showError(error);
     }
   }

@@ -33,14 +33,8 @@ function boundedText(value) {
 function redactForProvider(value) {
   return boundedText(value)
     .replace(/(?:https?|sslocal):\/\/[^\s]+/gi, "[url_redacted]")
-    .replace(/\b(?:access[_-]?token|refresh[_-]?token|token|authorization|cookie|secret)\s*[:=]\s*[^\s,，;；]+/gi, "[credential_redacted]");
-}
-
-function maskIdentifier(value) {
-  const text = clean(value);
-  if (!text) return "";
-  if (text.length <= 4) return "****";
-  return `****${text.slice(-4)}`;
+    .replace(/\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|authorization|cookie|secret|password)\s*[:=]\s*[^\s,，;；]+/gi, "[credential_redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[credential_redacted]");
 }
 
 function safeSlots(value = {}) {
@@ -70,28 +64,12 @@ export function intentProviderConfig(env = process.env) {
   };
 }
 
-export function buildIntentContext({ message = "", jobView = {} } = {}) {
-  const gate = jobView.caseGate || {};
+export function buildIntentContext({ message = "" } = {}) {
   return {
     schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION,
     userMessage: redactForProvider(message),
     availableIntents: CONVERSATION_INTENTS,
-    case: {
-      currentGate: clean(gate.currentGate),
-      suggestedNextAction: clean(gate.suggestedNextAction),
-      rootBlockerCode: clean((gate.rootBlockerCodes || [])[0]),
-      lifecycleStatus: clean(gate.lifecycleStatus)
-    },
-    job: {
-      jobId: clean(jobView.jobId),
-      caseId: clean(jobView.caseId),
-      latestCaseJob: jobView.isLatestCaseJob === true,
-      status: clean(jobView.headline?.status)
-    },
-    draft: {
-      projectName: clean(jobView.draft?.projectName),
-      advertiser: maskIdentifier(jobView.intake?.advertiserId)
-    }
+    slots: ["route_id", "game_code", "advertiser_id"]
   };
 }
 
@@ -184,10 +162,12 @@ export function createConversationIntentResolver({ provider, model, apiBase, ada
     };
   }
   return {
-      provider: selectedProvider,
-      configuration,
-      async resolve({ message, jobView }) {
-        try {
+    provider: selectedProvider,
+    configuration,
+    async resolve({ message, jobView }) {
+      const deterministic = deterministicIntent({ message });
+      if (deterministic.confidence === 1) return deterministic;
+      try {
         const result = await adapter.resolve(buildIntentContext({ message, jobView }), configuration);
         return validateIntent(result, { source: `llm:${selectedProvider}` });
       } catch {
@@ -196,6 +176,40 @@ export function createConversationIntentResolver({ provider, model, apiBase, ada
           source: "deterministic_fallback",
           issues: ["intent_provider_failed"]
         };
+      }
+    }
+  };
+}
+
+export function createOpenAiCompatibleIntentAdapter({ apiKey, fetchFn = globalThis.fetch, timeoutMs = 10_000 } = {}) {
+  const key = clean(apiKey);
+  return {
+    async resolve(context = {}, configuration = {}) {
+      if (!key || typeof fetchFn !== "function") throw new Error("intent_provider_unavailable");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const endpoint = new URL(`${clean(configuration.apiBase).replace(/\/$/, "")}/chat/completions`);
+        if (!/^https?:$/.test(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+          throw new Error("intent_provider_configuration_invalid");
+        }
+        const response = await fetchFn(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            model: clean(configuration.model), temperature: 0, response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Return JSON only: {intent,confidence,slots:{route_id,game_code,advertiser_id}}. intent must be one allowed intent. Never return Gate, Plan, action, confirmation, budget, bid, or platform instruction." },
+              { role: "user", content: JSON.stringify(context) }
+            ]
+          }), signal: controller.signal
+        });
+        if (!response.ok) throw new Error("intent_provider_rejected");
+        const body = await response.json();
+        const content = body?.choices?.[0]?.message?.content;
+        return typeof content === "string" ? JSON.parse(content) : content;
+      } finally {
+        clearTimeout(timer);
       }
     }
   };

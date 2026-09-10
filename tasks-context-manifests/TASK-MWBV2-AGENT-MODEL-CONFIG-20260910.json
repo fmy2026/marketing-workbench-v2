@@ -1,0 +1,92 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-AGENT-MODEL-CONFIG-20260910",
+  "task_ref": "tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T08:04:23Z",
+  "updated_at": "2026-09-10T08:10:23Z",
+  "base_revision": "530f6a8b6a14644418326c90949678bd652025bf",
+  "baseline_dirty_files": {
+    "docs/Solution Design.md": "sha256:15370b987b6cd4710d4e53705c43ab529d17e476223e9d68370d76e4945b7eac",
+    "docs/project-现在的逻辑图.md": "sha256:726fe31cd2a572c65e923b2907e66db6225c205dad4bb712c6d053a06fedbb52",
+    "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md": "sha256:9ab30117b0f075385f66d841bbca1d2e0eb0336fbba7a83bd18081e561aba08b",
+    "frontend/app.js": "sha256:23fc709a41282871cc971a3062b7853615b4620db14e06203eeacf68a656bd37",
+    "frontend/index.html": "sha256:4e87e59c4987f4056214551ba01813538e1ca317231e5e0650ad81f4f6e2f038",
+    "frontend/styles.css": "sha256:0145175dee6c0b1e13f4abf0809c5f313c639df77a5e4ff713c0ef14513ad04e",
+    "frontend/workbench-address.mjs": "sha256:e2f8cef998d50b559fcf88bb27e8859d348b57a4c5c2faaa7464637a3cc2fd6f",
+    "package.json": "sha256:184159af29b504ead6f193c10be070e0aad204491d365ada8ee1fa3e565db783",
+    "project.state.json": "sha256:9e7a3bda68b75f0ef3ca47de442a8ebf0148c8b4b78f0daf507da429e27b76b0",
+    "scripts/00-agent-hub-smoke.mjs": "sha256:295fbdcc234e564b55642e53a35d38b659cf33964358e9f22f7e68a0ca45a522",
+    "scripts/00-workbench-address-smoke.mjs": "sha256:d89431161186803d3d016a16700171ab599520bf747d4bddf1788bf7967dc5b5",
+    "scripts/00-workbench-user-isolation-smoke.mjs": "sha256:acca092a7933ed2c58ef52b6608b71056575b41b3131d37e444ca67f9a1f27cc",
+    "src/agents/agentRegistry.mjs": "sha256:1ed937b1e6a71563d748188f5dafb3a09d5548b7e50a36b9289cfe7fe7c10b41",
+    "src/server/index.mjs": "sha256:13f2182e0112d2cf1c28b7f66fe465bd612c6adbc3fecfc1350df0fd0b3b4055",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-HUB-SHELL-20260910.json": "sha256:af9ec305cb1a703061231989536b383564616043a65c2dcf0678117fd692fa4d",
+    "tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md": "sha256:dd276a17b00804c93fa1432cafee94fc7082f079d2fc265377d7d56597fd0c9c"
+  },
+  "domains": ["control", "workflow", "data", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "db/082_workbench_agent_model_configs.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/security/workbenchAgentModelCredentialStore.mjs",
+    "src/agents/openaiCompatibleModelConfigTest.mjs",
+    "src/server/index.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-agent-model-config-smoke.mjs",
+    "package.json",
+    "evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/**"
+  ],
+  "forbidden_actions": [
+    "保存或输出 API Key、token、完整敏感 URL、原始模型响应或原始对话",
+    "将模型配置或测试权限扩展到其他用户或管理员代操作",
+    "改变 Gate、Plan、confirmation、action grant、平台动作或预算出价",
+    "在开发验证中调用真实模型或真实投放平台"
+  ],
+  "stop_conditions": [
+    "需要保存、展示、审计或调试输出 API Key、完整 URL、原始模型响应或原始对话时停止",
+    "需要将模型输出用于 Gate、Plan、确认、平台动作或越过本人作用域时停止",
+    "migration 无法安全应用或发现既有配置泄露时停止"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    { "acceptance_id": "AC-01", "command": "npm run test:agent-model-config" },
+    { "acceptance_id": "AC-02", "command": "npm run test:agent-model-config && npm run test:workbench-user-isolation" },
+    { "acceptance_id": "AC-03", "command": "npm run test:agent-model-config && node --check frontend/app.js" },
+    { "acceptance_id": "AC-04", "command": "npm run test:agent-hub && npm run test:workbench-conversation && npm run test:workbench-runtime-policy && npm run check:project -- --phase before-close" }
+  ],
+  "validation_results": [
+    { "acceptance_id": "AC-01", "status": "passed", "command": "npm run test:agent-model-config; psql column query", "verified_at": "2026-09-10T08:09:41Z", "summary": "用户+Agent 唯一配置、0600 原子凭据库和 Key 不入库约束均已验证。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/validation.md"] },
+    { "acceptance_id": "AC-02", "status": "passed", "command": "npm run test:agent-model-config && npm run test:workbench-user-isolation", "verified_at": "2026-09-10T08:09:41Z", "summary": "配置测试与启用的 fail-closed 规则、当前用户 owner 隔离和 audit 脱敏边界已验证。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/validation.md"] },
+    { "acceptance_id": "AC-03", "status": "passed", "command": "npm run test:agent-model-config && node --check frontend/app.js", "verified_at": "2026-09-10T08:09:41Z", "summary": "配置 Modal 只读取非敏感字段，Key 输入不回填；连接测试为固定 Schema mock。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/validation.md"] },
+    { "acceptance_id": "AC-04", "status": "passed", "command": "npm run test:agent-hub && npm run test:workbench-conversation && npm run test:workbench-runtime-policy && npm run check:project -- --phase before-close", "verified_at": "2026-09-10T08:09:41Z", "summary": "模型配置不改变 Agent 壳层、对话解析规则或 Plan-bound 执行策略。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/validation.md"] }
+  ],
+  "documentation_updates": [
+    { "ref": "docs/Solution Design.md", "status": "updated", "reason": "记录每用户 Agent 模型配置与本地 Key 隔离的已批准选择。" },
+    { "ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "明确模型配置与固定 Schema 测试不参与 Workflow 决策。" },
+    { "ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "记录模型配置表的粒度、字段、Key 存储边界和 migration 082。" },
+    { "ref": "deploy/README.md", "status": "updated", "reason": "补充本地 0600 模型 Key 凭据库的部署与操作边界。" }
+  ],
+  "temporary_authorizations": [],
+  "result": { "summary": "每用户、每 Agent 的 OpenAI-compatible 模型配置、安全本地 Key 存储、固定 Schema 测试和工作区配置 Modal 已交付。", "side_effects": "应用 migration 082 创建了空的配置元数据表；未配置真实模型 Key、未调用真实模型或平台。", "remaining_risks": ["下一 Task 才将已通过测试且启用的配置接入 Intent Resolver。"], "business_evidence_refs": [] },
+  "closed_at": "2026-09-10T08:10:23Z"
+}

@@ -1,6 +1,7 @@
 import {
   buildIntentContext,
   createConversationIntentResolver,
+  createOpenAiCompatibleIntentAdapter,
   isExplicitCreateConfirmation,
   resolveConversationIntent
 } from "../src/agents/conversationIntentResolver.mjs";
@@ -109,12 +110,55 @@ const lowConfidenceResolver = createConversationIntentResolver({
     "fake-low": { async resolve() { return { intent: "continue_workflow", confidence: 0.2 }; } }
   }
 });
-const lowConfidence = await resolveConversationIntent({ message: "继续", jobView, resolver: lowConfidenceResolver });
+const lowConfidence = await resolveConversationIntent({ message: "帮我随便处理一下", jobView, resolver: lowConfidenceResolver });
 assert(lowConfidence.intent === "unknown", "low confidence intent did not fail closed");
 
-const context = buildIntentContext({ message: "token=secret https://example.invalid/a", jobView });
+let exactCommandAdapterCalls = 0;
+const exactCommandResolver = createConversationIntentResolver({
+  provider: "fake-exact-command",
+  adapters: {
+    "fake-exact-command": {
+      async resolve() {
+        exactCommandAdapterCalls += 1;
+        return { intent: "intake_update", confidence: 1, slots: { route_id: "unexpected" } };
+      }
+    }
+  }
+});
+const exactCommand = await resolveConversationIntent({ message: "确认创建", jobView, resolver: exactCommandResolver });
+assert(exactCommand.intent === "request_confirmation", "exact confirmation must remain deterministic");
+assert(exactCommandAdapterCalls === 0, "exact confirmation must not call model adapter");
+
+let adapterRequest = null;
+const openAiResolver = createConversationIntentResolver({
+  provider: "openai_compatible",
+  model: "mock-model",
+  apiBase: "https://llm.example.invalid/v1",
+  adapters: {
+    openai_compatible: createOpenAiCompatibleIntentAdapter({
+      apiKey: "test-key-not-persisted",
+      fetchFn: async (url, options) => {
+        adapterRequest = { url: String(url), body: JSON.parse(options.body) };
+        return {
+          ok: true,
+          async json() {
+            return { choices: [{ message: { content: JSON.stringify({ intent: "intake_update", confidence: 0.95, slots: { route_id: "oceanengine_3_byte_mini_game", game_code: "JSZC", advertiser_id: "1871922175825993" } }) } }] };
+          }
+        };
+      }
+    })
+  }
+});
+const modelResolved = await resolveConversationIntent({ message: "帮我开启一项新的推广", jobView, resolver: openAiResolver });
+assert(modelResolved.intent === "intake_update" && modelResolved.source === "llm:openai_compatible", "OpenAI-compatible result was not normalized");
+assert(adapterRequest?.url === "https://llm.example.invalid/v1/chat/completions", "OpenAI-compatible endpoint changed");
+assert(adapterRequest?.body?.temperature === 0 && adapterRequest?.body?.response_format?.type === "json_object", "OpenAI-compatible request must force structured JSON");
+assert(!JSON.stringify(adapterRequest.body).includes("JOB-TEST-1"), "provider request leaked job state");
+
+const context = buildIntentContext({ message: "token=secret sk-abcdefghijklmnop https://example.invalid/a", jobView });
 assert(!context.userMessage.includes("secret"), "provider context retained credential value");
 assert(!context.userMessage.includes("https://"), "provider context retained URL");
+assert(!context.userMessage.includes("sk-abcdefghijklmnop"), "provider context retained API key value");
 
 const preview = buildConfirmationPreview(bundle, caseSummary);
 assert(preview?.advertiser === "****5993", "confirmation preview must mask advertiser");

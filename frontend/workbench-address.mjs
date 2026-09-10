@@ -1,6 +1,8 @@
 export const WORKBENCH_HOST = "127.0.0.1";
 export const WORKBENCH_PORT = 3000;
 export const WORKBENCH_ORIGIN = `http://${WORKBENCH_HOST}:${WORKBENCH_PORT}`;
+export const AGENT_HUB_PATH = "/agents";
+export const LAUNCH_CREATION_AGENT_PATH = "/agents/launch-creation";
 
 export function currentWorkbenchOrigin() {
   if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
@@ -19,7 +21,18 @@ function requiredIdentifier(name, value) {
 }
 
 export function workbenchHomeUrl() {
-  return `${currentWorkbenchOrigin()}/`;
+  return `${currentWorkbenchOrigin()}${LAUNCH_CREATION_AGENT_PATH}`;
+}
+
+export function agentHubUrl() {
+  return `${currentWorkbenchOrigin()}${AGENT_HUB_PATH}`;
+}
+
+export function launchCreationModuleUrl(module = "conversation") {
+  const url = new URL(workbenchHomeUrl());
+  const normalized = String(module || "conversation").trim();
+  if (normalized && normalized !== "conversation") url.searchParams.set("module", normalized);
+  return url.toString();
 }
 
 export function workbenchCaseUrl(caseId) {

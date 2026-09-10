@@ -31,7 +31,8 @@ function response({ view, interaction }) {
       currentGate: interaction.currentGate || "",
       suggestedNextAction: interaction.nextAction || "",
       rootBlockerCode: interaction.blocker || "",
-      confirmationPreview: interaction.confirmationPreview || null
+      confirmationPreview: interaction.confirmationPreview || null,
+      parserSource: interaction.parserSource || "rules"
     }
   };
 }
@@ -118,6 +119,7 @@ export async function handleWorkbenchCommand({
     explicitConfirmation: clean(message) === clean(confirmationPreview?.confirmationPhrase),
     manualReviewApproved: bundle.case?.metadata?.manual_review?.approved === true
   });
+  interaction.parserSource = intent.source?.startsWith("llm:") ? "llm" : "rules";
 
   if (interaction.effect === "run_dry_run") {
     const nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {

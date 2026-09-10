@@ -1,0 +1,136 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-AGENT-HUB-SHELL-20260910",
+  "task_ref": "tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T07:53:35Z",
+  "updated_at": "2026-09-10T08:03:34Z",
+  "base_revision": "530f6a8b6a14644418326c90949678bd652025bf",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-HUB-SHELL-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-HUB-SHELL-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "frontend/workbench-address.mjs",
+    "src/agents/agentRegistry.mjs",
+    "src/server/index.mjs",
+    "scripts/00-agent-hub-smoke.mjs",
+    "scripts/00-workbench-address-smoke.mjs",
+    "scripts/00-workbench-user-isolation-smoke.mjs",
+    "package.json",
+    "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/**"
+  ],
+  "forbidden_actions": [
+    "任何真实平台写入、预算或出价修改、创建重试或 OAuth 刷新",
+    "创建模型凭据库、保存 API Key、调用外部 LLM 或保存原始对话",
+    "改变 Gate、Plan、confirmation、action grant、账户归属或业务运行事实",
+    "访问、展示或操作其他用户的账户、Case、Job 或配置"
+  ],
+  "stop_conditions": [
+    "需要改变确定性 Gate、Plan、确认、平台写入权限或数据库运行事实时停止",
+    "需要保存或展示凭据、原始对话或其他用户数据时停止",
+    "新地址不能兼容既有 Case/Job 语义或回归检查发现隔离风险时停止"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:agent-hub && npm run test:workbench-address"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:agent-hub"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:agent-hub && npm run test:workbench-user-isolation && npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-runtime-policy"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run check:project -- --phase before-close"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:agent-hub && npm run test:workbench-address; local HTTP checks for /agents, /agents/launch-creation, root legacy redirect, and unknown path",
+      "verified_at": "2026-09-10T08:02:27Z",
+      "summary": "公开 Agent 目录、规范地址、旧 Case/Job 重定向和受限 SPA 入口均通过；目录内容不含敏感或动态账户事实。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:agent-hub; node --check frontend/app.js; local browser accessibility inspection of /agents",
+      "verified_at": "2026-09-10T08:02:27Z",
+      "summary": "广场、工作区模块壳层、用户菜单收起逻辑、可取消自主改密 Modal 与不可取消首次改密逻辑均已落地并完成静态和浏览器入口检查。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:agent-hub && npm run test:workbench-user-isolation && npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-runtime-policy",
+      "verified_at": "2026-09-10T08:02:27Z",
+      "summary": "账户 owner 隔离、首次改密、对话命令、进度、历史只读和 Plan-bound 执行策略均无回归；真实平台创建调用为零。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run check:project -- --phase before-close",
+      "verified_at": "2026-09-10T08:03:14Z",
+      "summary": "Task 合同、允许写入范围、文档回写和验收证据已按项目协议核验。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录数字员工广场与 Agent 壳层的静态注册表、能力摘要及不参与 Workflow 决策的已批准边界。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明新地址和展示壳层只消费受控投影，不拥有 Gate、Plan 或运行状态真值。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "数字员工广场、投放创建 Agent 三栏壳层、公开 Agent 目录、地址兼容与用户菜单已完成；现有确定性 Workflow 继续在对话状态模块中运行。",
+    "side_effects": "仅变更本地工作台 UI、公开静态 Agent 描述、地址路由及回归 smoke；未写入业务数据、未调用外部模型或平台、未保存凭据。",
+    "remaining_risks": [
+      "模型配置、LLM 解析及其安全凭据库由后续独立 Task 实施。",
+      "记忆、知识库、技能和数据统计当前仅完成导航壳层，业务投影由后续独立 Task 实施。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T08:03:34Z"
+}

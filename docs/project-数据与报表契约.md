@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-STD-PROJECT-40100-RATE-LIMIT-REDELIVERY-20260909`；Postgres 37 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `080_std_project_40100_rate_limit_redelivery.sql` |
+| 最后更新时间 | 2026-09-10 CST |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-AGENT-MODEL-CONFIG-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `082_workbench_agent_model_configs.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `080` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 81 个 migration 文件、编号至 `080`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 37 表、7 View 与 24 列合同。
+结构清单沿用 migration `082` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 83 个 migration 文件、编号至 `082`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -37,11 +37,11 @@ L6 当前运营状态只读投影
 workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 ```
 
-## 2. 基础表契约（37 张）
+## 2. 基础表契约（38 张）
 
 | 层 | 表 | 行粒度 / 主关联 | 写入者 | 主要消费者 |
 | --- | --- | --- | --- | --- |
-| L0 用户（3） | `workbench_users`、`workbench_sessions`、`workbench_audit_events` | 用户、登录会话、脱敏登录/改密/用户管理/归属冲突审计；会话只存 token hash | migration、认证与管理员接口 | API 认证、账户访问控制、用户管理 |
+| L0 用户（4） | `workbench_users`、`workbench_sessions`、`workbench_audit_events`、`workbench_agent_model_configs` | 用户、登录会话、脱敏登录/改密/用户管理/归属冲突审计，以及按 `user_id × agent_key` 唯一的模型配置元数据。配置只保存 `openai_compatible` 协议、模型名、无凭据 API Base、不可逆本地凭据引用、启用及测试状态；API Key 不入库，会话只存 token hash | migration、认证与模型配置 API | API 认证、账户访问控制、本人模型配置 |
 | L1 配置（13） | `platform_routes`、`games`、`game_route_defaults`、`game_platform_apps` | 路线、游戏、路线×游戏、游戏×平台 App；JSZC 路线默认值含数值保底、CTA、性别/年龄、336 位时段及其 success-profile/ledger 摘要 | migration、种子、受控配置维护 | Node 01–03、Node 05 |
 |  | `game_assets`、`material_packs`、`material_pack_items` | 游戏资产、路线物料包、物料包条目 | 同上 | Node 03、Node 05 |
 |  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
@@ -108,8 +108,8 @@ route_id + game_code
 | `v_monitor_provision_status_report` | 一个 monitor provision cycle | monitor run/attempt、账户、触点、路线默认值 | cycle、attempt、账户/触点、脱敏回查与错误摘要 | Node 02、人工诊断 | 创建 monitor、写回触点或运行状态 |
 | `v_monitor_provision_blocker_report` | 当前 scope 的一个 actionable blocker | canonical monitor readiness + cycle 状态报表 | blocker、最新 attempt 状态与错误分类 | Node 02 分流、人工排障 | 触发 retry 或写入 |
 | `v_advertiser_aweme_authorization_readiness` | 一个 route×game×advertiser 授权就绪状态 | advertiser account 的脱敏抖音授权关系 | ready、blocker、next action、脱敏探测证据 | Node 04、Node 05 | 替代 fresh readonly 或修改授权 |
-| `v_user_workflow_case_detail` | 一个 `runtime_truth` Case | Case、账户、唯一 summary、owner 用户 | 账户、最新 Job、Gate、root blocker、创建/回查状态；多个 Job 不重复计数 | 个人明细、管理员明细 | 写回流程事实、统计 `test_run` |
-| `v_user_workflow_summary` | 一个工作台用户 | 账户与 Case 明细 | 账户数、Case 数、verified 成功数、进行中、阻断和终态未成功数 | 管理员汇总、个人摘要 | 把平台受理当成功、授予代操作权限 |
+| `v_user_workflow_case_detail` | 一个 `runtime_truth` Case | Case、账户、唯一 summary、owner 用户 | 账户、最新 Job、Gate、root blocker、创建/回查状态；多个 Job 不重复计数 | 数据统计明细：普通用户固定本人，管理员显式选“全部用户”才读取全量 | 写回流程事实、统计 `test_run` |
+| `v_user_workflow_summary` | 一个工作台用户 | 账户与 Case 明细 | 账户数、Case 数、verified 成功数、进行中、阻断和终态未成功数 | 数据统计汇总：默认本人，管理员可选全量只读范围 | 把平台受理当成功、授予代操作权限 |
 
 ## 4. `workflow_case_summary` 合同
 
@@ -141,6 +141,7 @@ route_id + game_code
 | Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
 | Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
 | 用户 / 会话 / 用户审计 | `user_id` / `session_id` / `audit_event_id`；登录名与 owner key 大小写归一后唯一，会话 token hash 唯一 | 会话到期/撤销与用户变更审计独立；报表读取权限不能推导为账户操作权限 |
+| Agent 模型配置 | `(user_id, agent_key)`；协议固定 `openai_compatible`，启用记录只能对应测试通过状态 | 更新 API Base、模型或本地 Key 后清除测试时间并停止启用；本地 Key 的唯一事实为 gitignored `0600` 凭据库，数据库只保存不可用来换取 Key 的引用 |
 
 SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空值表示尚无对应执行时间，不能填成成功或零耗时。当前 View 是查询时的运营投影，没有按日分桶、币种换算或归因窗口。导出及对账须注明查询时刻与显示时区，禁止把文档更新时间当成数据截至时间。
 
@@ -178,7 +179,7 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 | 模型与投影权威 | SQL/数据库约束定义数据结构，注册表定义 Node，summary 定义当前 Gate；[逻辑图](project-现在的逻辑图.md) 解释流程，不另建可写状态副本 |
 | 元数据边界 | 账户级资源合同、核验时间、Plan/Draft hash、来源和必要关联 ID 保存到既有受控字段；不得把账户动态资源 ID 或历史 Plan 复制进游戏默认配置 |
 | 授权与回查 | 平台授权、安全规则与任务闭环只查 [AGENTS](../AGENTS.md)；Plan 状态变化、资源动作、HTTP deadline 和 Case finalizer 行为只查 [逻辑图](project-现在的逻辑图.md) |
-| 敏感信息 | 普通 JSON/日志仅保存脱敏摘要、hash、状态、必要 ID 与证据引用；触点、落地页和启动深链仅用既有受控存储，禁止复制到报表、前端或 Task |
+| 敏感信息 | 普通 JSON/日志仅保存脱敏摘要、hash、状态、必要 ID 与证据引用；触点、落地页和启动深链仅用既有受控存储，禁止复制到报表、前端或 Task。模型 API Key 仅在 `.local/workbench-llm-credentials.json` 的 `0600` 本地原子凭据库中出现；模型 API Base 仅在本人配置表中保存且禁止含用户名、密码、query 或 fragment，audit/API/前端均不回显 Key |
 | 历史与测试 | `test_run` 与 runtime 真值分离并由测试清理；旧 migration 不删除，旧 Task/Manifest 不补造验收，隔离脚本不是新的表/View 写入来源 |
 | 完成证明 | 开发任务由 Manifest 验收关闭；真实创建成功必须有 Postgres 权威回查证据；两者不得互相替代 |
 

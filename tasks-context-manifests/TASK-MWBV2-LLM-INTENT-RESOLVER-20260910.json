@@ -1,0 +1,72 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-LLM-INTENT-RESOLVER-20260910",
+  "task_ref": "tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T08:11:30Z",
+  "updated_at": "2026-09-10T08:17:18Z",
+  "base_revision": "530f6a8b6a14644418326c90949678bd652025bf",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "security", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/**",
+    "tasks-context-manifests/**",
+    "evidence/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "frontend/**",
+    "src/agents/**",
+    "src/workflows/**",
+    "src/security/**",
+    "src/server/**",
+    "scripts/**",
+    "package.json",
+    "db/082_workbench_agent_model_configs.sql",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "forbidden_actions": [
+    "模型决定 Gate、Plan、确认、平台动作或权限",
+    "保存原始对话、模型原始响应或凭据",
+    "真实模型或平台写入"
+  ],
+  "stop_conditions": ["模型可能改变确定性执行链时停止"],
+  "open_gaps": [],
+  "validation_plan": [
+    { "acceptance_id": "AC-01", "command": "npm run test:workbench-conversation" },
+    { "acceptance_id": "AC-02", "command": "npm run test:workbench-conversation" },
+    { "acceptance_id": "AC-03", "command": "npm run test:agent-model-config && npm run test:workbench-runtime-policy" }
+  ],
+  "validation_results": [
+    { "acceptance_id": "AC-01", "status": "passed", "command": "npm run test:workbench-conversation", "verified_at": "2026-09-10T08:16:13Z", "summary": "OpenAI-compatible mock 的结构化输出、非法 intent、低置信与异常 fallback 均通过 allowlist 验证。", "evidence_refs": ["evidence/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910/validation.md#ac-01"] },
+    { "acceptance_id": "AC-02", "status": "passed", "command": "npm run test:workbench-conversation && npm run test:workbench-user-isolation", "verified_at": "2026-09-10T08:16:13Z", "summary": "精确确认不调用模型；初始 Intake 与 Job command 都使用当前用户 resolver，且 owner 隔离保持有效。", "evidence_refs": ["evidence/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910/validation.md#ac-02"] },
+    { "acceptance_id": "AC-03", "status": "passed", "command": "npm run test:agent-model-config && npm run test:workbench-runtime-policy && npm run test:agent-hub && git diff --check", "verified_at": "2026-09-10T08:16:13Z", "summary": "模型配置、Plan-bound runtime policy、Agent 壳层和静态地址回归通过；所有测试使用 mock，未作真实模型或平台写入。", "evidence_refs": ["evidence/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910/validation.md#ac-03"] }
+  ],
+  "documentation_updates": [
+    { "ref": "docs/Solution Design.md", "status": "updated", "reason": "记录模型仅作受限意图与槽位解析的长期边界。" },
+    { "ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "记录规则优先、无运行状态模型上下文与 fallback 链。" },
+    { "ref": "docs/project-数据与报表契约.md", "status": "not_needed", "reason": "未改变表、字段、数据来源、读写责任或报表口径。" },
+    { "ref": "deploy/README.md", "status": "not_needed", "reason": "未改变部署、网络或本地凭据库操作方式。" }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已将每用户已测试启用的 OpenAI-compatible 配置以规则优先、严格 Schema 和安全 fallback 接入初始 Intake 与 Job command。",
+    "side_effects": "工作区会显示本次使用大模型解析或规则解析；未写入原始对话、模型原始响应或真实模型/平台数据。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T08:17:18Z"
+}

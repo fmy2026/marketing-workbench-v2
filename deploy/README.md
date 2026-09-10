@@ -32,6 +32,8 @@ npm run setup:qiankun-user -- --user zhangchaobo --gui
 
 `--gui` 会打开 macOS 隐藏输入弹窗；去掉它则在交互终端中隐藏读取。命令不接受 Token 参数；结果写入 gitignored、权限为 `600` 的本地 credential store，终端仅输出脱敏状态。Token 默认 30 天到期、25 天后提示更新，与当前凭据合同一致。不要通过聊天、Git 或普通日志传递 Token。
 
+投放创建 Agent 的用户自配模型 Key 独立保存在 `.local/workbench-llm-credentials.json`：程序强制文件为 `0600` 并采用临时文件替换；数据库、audit、日志和浏览器不会读取或回显 Key。该文件由工作区“大模型配置”写入，配置、测试和启用均只能由该用户本人完成；不要手工复制 Key 到环境变量、任务文件或部署日志。
+
 ## 长期 HTTPS 上线参数
 
 上线前需要公司内网提供两个值：

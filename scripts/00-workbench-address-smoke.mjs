@@ -3,6 +3,9 @@ import {
   WORKBENCH_HOST,
   WORKBENCH_ORIGIN,
   WORKBENCH_PORT,
+  AGENT_HUB_PATH,
+  LAUNCH_CREATION_AGENT_PATH,
+  agentHubUrl,
   parseWorkbenchProgressTarget,
   workbenchCaseUrl,
   workbenchHomeUrl,
@@ -28,9 +31,12 @@ const activeCase = {
 
 assert(WORKBENCH_HOST === "127.0.0.1", "workbench_host_must_be_loopback");
 assert(WORKBENCH_PORT === 3000, "workbench_port_must_be_fixed");
-assert(workbenchHomeUrl() === "http://127.0.0.1:3000/", "workbench_home_url_mismatch");
-assert(workbenchCaseUrl(activeCase.case_id) === `${WORKBENCH_ORIGIN}/?case_id=${activeCase.case_id}`, "case_url_mismatch");
-assert(workbenchJobUrl(activeCase.latest_job_id) === `${WORKBENCH_ORIGIN}/?job_id=${activeCase.latest_job_id}`, "job_url_mismatch");
+assert(AGENT_HUB_PATH === "/agents", "agent_hub_path_mismatch");
+assert(LAUNCH_CREATION_AGENT_PATH === "/agents/launch-creation", "launch_agent_path_mismatch");
+assert(agentHubUrl() === `${WORKBENCH_ORIGIN}/agents`, "agent_hub_url_mismatch");
+assert(workbenchHomeUrl() === "http://127.0.0.1:3000/agents/launch-creation", "workbench_home_url_mismatch");
+assert(workbenchCaseUrl(activeCase.case_id) === `${WORKBENCH_ORIGIN}/agents/launch-creation?case_id=${activeCase.case_id}`, "case_url_mismatch");
+assert(workbenchJobUrl(activeCase.latestJobId || activeCase.latest_job_id) === `${WORKBENCH_ORIGIN}/agents/launch-creation?job_id=${activeCase.latest_job_id}`, "job_url_mismatch");
 assert(parseWorkbenchProgressTarget(`?case_id=${activeCase.case_id}`).status === "case", "case_target_parse_failed");
 assert(parseWorkbenchProgressTarget(`?job_id=${activeCase.latest_job_id}`).status === "job", "job_target_parse_failed");
 assert(parseWorkbenchProgressTarget(`?case_id=${activeCase.case_id}&job_id=${activeCase.latest_job_id}`).status === "invalid", "ambiguous_target_not_blocked");

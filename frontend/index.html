@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent 工作台 · 投放创建</title>
+  <title>数字员工广场</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <section class="auth-shell" id="authGate" aria-label="工作台登录">
     <form class="auth-card" id="loginForm">
-      <div class="brand-mark" aria-hidden="true">A</div>
-      <h1>Agent 工作台</h1>
-      <p>使用乾坤拼音账号登录</p>
+      <div class="brand-mark" aria-hidden="true">投</div>
+      <h1>数字员工广场</h1>
+      <p>使用账号登录，选择可用的数字员工。</p>
       <label for="loginName">账号</label>
       <input id="loginName" name="loginName" autocomplete="username" required>
       <label for="loginPassword">密码</label>
@@ -19,9 +19,12 @@
       <button class="start-button" type="submit">登录</button>
       <p class="auth-error" id="loginError" role="alert"></p>
     </form>
-    <form class="auth-card" id="changePasswordForm" hidden>
+  </section>
+
+  <div class="password-modal" id="passwordModal" hidden role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle">
+    <form class="auth-card password-dialog-card" id="changePasswordForm">
       <h1 id="changePasswordTitle">修改初始密码</h1>
-      <p id="changePasswordHint">首次登录后才能进入工作台</p>
+      <p id="changePasswordHint">首次登录后才能进入数字员工广场</p>
       <label for="currentPassword">当前密码</label>
       <input id="currentPassword" type="password" autocomplete="current-password" required>
       <label for="newPassword">新密码</label>
@@ -32,90 +35,188 @@
       <button class="secondary-button" id="cancelPasswordChangeButton" type="button" hidden>取消</button>
       <p class="auth-error" id="changePasswordError" role="alert"></p>
     </form>
-  </section>
+  </div>
 
-  <main class="workbench-shell" id="workbenchShell" hidden>
-    <header class="topbar">
-      <div class="brand-lockup" aria-label="Agent 工作台">
-        <span class="brand-mark" aria-hidden="true">A</span>
-        <div>
-          <h1>Agent 工作台</h1>
-          <p>v2</p>
-        </div>
+  <main class="app-shell" id="appShell" hidden>
+    <header class="app-topbar">
+      <div class="app-heading">
+        <button class="back-button" id="backToAgentsButton" type="button" hidden aria-label="返回数字员工广场">←</button>
+        <button class="brand-home" id="brandHomeButton" type="button" aria-label="返回数字员工广场">
+          <span class="brand-mark" aria-hidden="true">投</span>
+          <span>数字员工广场</span>
+        </button>
+        <span class="agent-header-title" id="agentHeaderTitle" hidden>投放创建</span>
       </div>
-
-      <nav class="module-nav" aria-label="模块导航">
-        <button class="module-tab is-active" type="button">投放创建</button>
-      </nav>
-
-      <div class="operator-actions" aria-label="当前用户">
-        <button class="topbar-action" id="reportButton" type="button">数据统计</button>
-        <button class="topbar-action" id="userAdminButton" type="button" hidden>用户管理</button>
-        <button class="topbar-action" id="changePasswordButton" type="button">修改密码</button>
-        <div class="operator-chip">
-          <span class="operator-avatar" id="operatorAvatar" aria-hidden="true">用</span>
-          <span id="operatorName">当前用户</span>
+      <div class="header-actions">
+        <button class="model-config-button" id="modelConfigButton" type="button" hidden>大模型配置</button>
+        <div class="user-menu-wrap">
+          <button class="user-menu-trigger" id="userMenuButton" type="button" aria-expanded="false" aria-controls="userMenu">
+            <span class="operator-avatar" id="operatorAvatar" aria-hidden="true">用</span>
+            <span class="operator-name" id="operatorName">当前用户</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+          <section class="user-menu" id="userMenu" hidden aria-label="用户菜单">
+            <div class="user-menu-identity">
+              <span class="operator-avatar" id="userMenuAvatar" aria-hidden="true">用</span>
+              <div>
+                <strong id="userMenuDisplayName">当前用户</strong>
+                <span id="userMenuLoginName"></span>
+              </div>
+            </div>
+            <span class="role-badge" id="userMenuRole">普通用户</span>
+            <div class="user-menu-actions">
+              <button class="user-menu-action" id="changePasswordButton" type="button">修改密码</button>
+              <button class="user-menu-action" id="userAdminButton" type="button" hidden>用户管理</button>
+              <button class="user-menu-action is-danger" id="logoutButton" type="button">退出登录</button>
+            </div>
+          </section>
         </div>
-        <button class="topbar-action" id="logoutButton" type="button">退出</button>
       </div>
     </header>
 
+    <section class="agent-hub" id="agentHub" aria-labelledby="agentHubTitle" hidden>
+      <div class="agent-hub-intro">
+        <p class="eyebrow">数字员工广场</p>
+        <h1 id="agentHubTitle">选择一位数字员工</h1>
+        <p>每位员工拥有独立的工作区。投放创建会把输入规范化后交由固定 Workflow 执行。</p>
+      </div>
+      <div class="agent-card-grid" id="agentCardGrid" aria-live="polite"></div>
+    </section>
+
+    <section class="agent-workspace" id="workbenchShell" hidden aria-label="投放创建 Agent 工作区">
+      <aside class="agent-sidebar" id="agentSidebar" aria-label="投放创建模块">
+        <div class="agent-sidebar-heading">
+          <span class="agent-sidebar-icon" aria-hidden="true">投</span>
+          <div><span>当前员工</span><strong>投放创建</strong></div>
+          <button class="sidebar-collapse-button" id="sidebarCollapseButton" type="button" aria-label="收起模块导航">‹</button>
+        </div>
+        <nav class="agent-module-nav" aria-label="Agent 模块">
+          <button class="agent-module-button" type="button" data-module="overview">Agent 概览</button>
+          <button class="agent-module-button" type="button" data-module="conversation">对话状态</button>
+          <button class="agent-module-button" type="button" data-module="memory">记忆</button>
+          <button class="agent-module-button" type="button" data-module="knowledge">知识库</button>
+          <button class="agent-module-button" type="button" data-module="skills">技能</button>
+          <button class="agent-module-button" type="button" data-module="statistics">数据统计</button>
+        </nav>
+      </aside>
+
+      <section class="agent-main-panel" id="agentMainPanel">
+        <section class="agent-module-content" id="overviewModule" data-module-content="overview" hidden>
+          <p class="eyebrow">Agent 概览</p>
+          <h2>投放创建</h2>
+          <p id="overviewDescription">加载 Agent 能力说明中…</p>
+          <div class="capability-metrics" id="capabilityMetrics"></div>
+          <p class="module-note" id="overviewModelStatus">模型配置状态加载中…</p>
+          <p class="module-note">模型只参与意图和三项输入槽位识别；Gate、Plan、确认与执行权限由确定性流程决定。</p>
+        </section>
+
+        <section class="agent-module-content intake-panel" id="conversationModule" data-module-content="conversation">
+          <div class="panel-title">
+            <div>
+              <h2>对话状态</h2>
+              <p id="agentStatus">加载中</p>
+            </div>
+            <button class="icon-button" id="configButton" type="button" aria-label="规范化解析" aria-describedby="configTip">⌘</button>
+            <span class="tooltip" id="configTip" role="tooltip">当前使用规则解析</span>
+          </div>
+
+          <div class="identity-strip" id="intentCard" aria-label="识别结果"></div>
+          <section class="active-cases" id="activeCases" aria-label="活动账户" hidden></section>
+          <div class="intake-action" id="intakeAction" aria-live="polite">
+            <span class="intake-hint" id="intakeHint"></span>
+            <button class="start-button" id="startWorkflowButton" type="button" disabled>启动流程</button>
+          </div>
+          <div class="chat-stream" id="chatStream" aria-live="polite"></div>
+
+          <form class="chat-form" id="chatForm">
+            <label class="sr-only" for="chatInput">输入投放需求</label>
+            <input id="chatInput" name="chatInput" type="text" autocomplete="off" placeholder="输入投放需求…">
+            <button class="send-button" type="submit" aria-label="发送">→</button>
+          </form>
+          <footer class="command-bar" id="commandBar">
+            <div class="progress-text" id="progressText" aria-live="polite">进度 0 / 7</div>
+            <button class="progress-refresh" id="progressRefreshButton" type="button" disabled>等待流程</button>
+          </footer>
+        </section>
+
+        <section class="agent-module-content module-placeholder" id="memoryModule" data-module-content="memory" hidden>
+          <p class="eyebrow">记忆</p>
+          <h2>结构化业务记录</h2>
+          <p>仅展示本人 Case、最新 Job、规范化槽位、当前 Gate 和脱敏证据引用；不保存聊天原文。</p>
+          <div class="readonly-module-list" id="memoryContent" aria-live="polite"></div>
+        </section>
+        <section class="agent-module-content module-placeholder" id="knowledgeModule" data-module-content="knowledge" hidden>
+          <p class="eyebrow">知识库</p>
+          <h2>共享只读规则</h2>
+          <p>来自 Agent 注册表的公开能力说明；不支持上传、编辑或按用户复制。</p>
+          <div class="readonly-module-list" id="knowledgeContent"></div>
+        </section>
+        <section class="agent-module-content module-placeholder" id="skillsModule" data-module-content="skills" hidden>
+          <p class="eyebrow">技能</p>
+          <h2>固定 Workflow 能力</h2>
+          <p>按固定 Workflow Node 展示公开的技能组、输入、输出和状态含义；不提供启停或账户专用编辑。</p>
+          <div class="readonly-module-list" id="skillsContent"></div>
+        </section>
+        <section class="agent-module-content module-placeholder" id="statisticsModule" data-module-content="statistics" hidden>
+          <p class="eyebrow">数据统计</p>
+          <h2>Workflow 状态汇总</h2>
+          <p>数据来自现有 Workflow summary/detail，只读且不授予账户操作权限。</p>
+          <label class="statistics-scope" id="statisticsScopeLabel" hidden>统计范围
+            <select id="statisticsScope">
+              <option value="self">本人</option>
+              <option value="all">全部用户</option>
+            </select>
+          </label>
+          <div class="statistics-content" id="statisticsContent" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <aside class="workflow-rail" id="workflowRail" aria-label="固定 Workflow">
+        <div class="workflow-title">
+          <div><h2 id="workflowHeading">Workflow</h2><p>固定流程，不由对话改变</p></div>
+          <span class="status-pill" id="runState">待执行</span>
+        </div>
+        <div class="workflow-grid" id="workflowGrid"></div>
+      </aside>
+    </section>
+
     <section class="management-panel" id="managementPanel" hidden>
       <div class="management-heading">
-        <div>
-          <h2 id="managementTitle">数据统计</h2>
-          <p id="managementHint"></p>
-        </div>
+        <div><h2 id="managementTitle">用户管理</h2><p id="managementHint"></p></div>
         <button class="icon-button" id="managementCloseButton" type="button" aria-label="关闭">×</button>
       </div>
       <div class="management-content" id="managementContent"></div>
     </section>
-
-    <section class="workspace">
-      <aside class="intake-panel" aria-label="对话">
-        <div class="panel-title">
-          <div>
-            <h2>对话</h2>
-            <p id="agentStatus">加载中</p>
-          </div>
-          <button class="icon-button" id="configButton" type="button" aria-label="规范化解析" aria-describedby="configTip">
-            <i data-lucide="settings-2" aria-hidden="true"></i>
-          </button>
-          <span class="tooltip" id="configTip" role="tooltip">规范化解析</span>
-        </div>
-
-        <div class="identity-strip" id="intentCard" aria-label="识别结果"></div>
-        <section class="active-cases" id="activeCases" aria-label="活动账户" hidden></section>
-        <div class="intake-action" id="intakeAction" aria-live="polite">
-          <span class="intake-hint" id="intakeHint"></span>
-          <button class="start-button" id="startWorkflowButton" type="button" disabled>启动流程</button>
-        </div>
-        <div class="chat-stream" id="chatStream" aria-live="polite"></div>
-
-        <form class="chat-form" id="chatForm">
-          <label class="sr-only" for="chatInput">输入投放需求</label>
-          <input id="chatInput" name="chatInput" type="text" autocomplete="off" placeholder="输入投放需求..." />
-          <button class="send-button" type="submit" aria-label="发送">
-            <i data-lucide="send-horizontal" aria-hidden="true"></i>
-          </button>
-        </form>
-      </aside>
-
-      <section class="workflow-panel" aria-label="Workflow">
-        <div class="workflow-title">
-          <h2 id="workflowHeading">Workflow</h2>
-          <span class="status-pill" id="runState">待执行</span>
-        </div>
-
-        <div class="workflow-grid" id="workflowGrid"></div>
-      </section>
-    </section>
-
-    <footer class="command-bar">
-      <div class="progress-text" id="progressText" aria-live="polite">进度 0 / 7</div>
-      <button class="progress-refresh" id="progressRefreshButton" type="button" disabled>等待流程</button>
-    </footer>
   </main>
+
+  <div class="model-config-modal" id="modelConfigModal" hidden role="dialog" aria-modal="true" aria-labelledby="modelConfigTitle">
+    <form class="model-config-card" id="modelConfigForm">
+      <div class="model-config-heading">
+        <div><p class="eyebrow">仅本人可见</p><h2 id="modelConfigTitle">大模型配置</h2></div>
+        <button class="icon-button" id="modelConfigCloseButton" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="model-config-hint">模型仅用于意图和输入槽位识别；固定 Workflow、Gate、Plan 和执行权限不会交给模型决定。</p>
+      <label for="modelProtocol">协议</label>
+      <input id="modelProtocol" value="openai_compatible" readonly>
+      <label for="modelApiBase">API Base</label>
+      <input id="modelApiBase" autocomplete="off" placeholder="https://api.example.com/v1" required>
+      <label for="modelName">模型名</label>
+      <input id="modelName" autocomplete="off" placeholder="例如 gpt-4.1-mini" required>
+      <label for="modelApiKey">API Key</label>
+      <input id="modelApiKey" type="password" autocomplete="new-password" placeholder="仅写入本机受控凭据库，不会再次展示">
+      <p class="model-credential-state" id="modelCredentialState">API Key：未配置</p>
+      <div class="model-config-test-row">
+        <button class="secondary-button" id="modelTestButton" type="button">连接测试</button>
+        <span id="modelTestState">尚未验证</span>
+      </div>
+      <label class="model-enable-row" for="modelEnabled"><input id="modelEnabled" type="checkbox"> 测试通过后启用模型解析</label>
+      <p class="auth-error" id="modelConfigError" role="alert"></p>
+      <div class="model-config-actions">
+        <button class="secondary-button" id="modelConfigCancelButton" type="button">取消</button>
+        <button class="start-button" type="submit">保存配置</button>
+      </div>
+    </form>
+  </div>
 
   <script type="module" src="./app.js"></script>
 </body>

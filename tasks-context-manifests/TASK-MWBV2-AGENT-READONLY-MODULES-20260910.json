@@ -1,0 +1,106 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-AGENT-READONLY-MODULES-20260910",
+  "task_ref": "tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T08:17:18Z",
+  "updated_at": "2026-09-10T08:26:32Z",
+  "base_revision": "530f6a8b6a14644418326c90949678bd652025bf",
+  "baseline_dirty_files": {
+    "db/082_workbench_agent_model_configs.sql": "sha256:853b51ff2036c7e4ae392f565e53b32738b86bdfc8659e6628ec2cf7c86f5380",
+    "deploy/README.md": "sha256:20d9d36707a7cad857317a5ab2400e22a366e080701a6988de7f459373ba7653",
+    "docs/Solution Design.md": "sha256:a1bb2cbdc3fe01995edff33725171135ee22f16c6a56418be2069834397f0898",
+    "docs/project-数据与报表契约.md": "sha256:aab229a8d9851b0bffe82d7478e7640518e3c6f02d44e2f8bffb21388cbd4e55",
+    "docs/project-现在的逻辑图.md": "sha256:aac0dec735b7999edecb7e7eb3b4f9bb6a0b59c4c6f95f7408ce9d13633f1da1",
+    "evidence/TASK-MWBV2-AGENT-HUB-SHELL-20260910/validation.md": "sha256:9ab30117b0f075385f66d841bbca1d2e0eb0336fbba7a83bd18081e561aba08b",
+    "evidence/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910/validation.md": "sha256:a0de3790c6bf77d572968cb45db9a0c60b3b56d1832f2daa1b4e5530ea96d304",
+    "evidence/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910/validation.md": "sha256:4608e05d257ee3aa7e26f83ec7b83d511d82fc51d38c2e853157629da1d70494",
+    "frontend/app.js": "sha256:61aec2cd24dfd341c25a219bc704ab7cd6ea3c4965e4136aa550f99c915858c2",
+    "frontend/index.html": "sha256:259eb461795922cf0a1eaff9aca694b954708195786f9fbd8d213132db7da7eb",
+    "frontend/styles.css": "sha256:f62794b2e788b7460a7939f04f2b562374065a09e8f50368d7dd28fcaf7c93a1",
+    "frontend/workbench-address.mjs": "sha256:e2f8cef998d50b559fcf88bb27e8859d348b57a4c5c2faaa7464637a3cc2fd6f",
+    "package.json": "sha256:d24e1e0e44c0636474aa404a37b3db25cd0817fa68a86d6fd0b5b9cd1e1b0876",
+    "project.state.json": "sha256:25ce57406e30e0aa34fc23c7ce00df9b964d6f541632fcd96daecf8aede6f3a1",
+    "scripts/00-agent-hub-smoke.mjs": "sha256:295fbdcc234e564b55642e53a35d38b659cf33964358e9f22f7e68a0ca45a522",
+    "scripts/00-agent-model-config-smoke.mjs": "sha256:030d5abc93c12fb5f787000637c0220d5e9772339985c83f8c8d7f2670291b1b",
+    "scripts/00-workbench-address-smoke.mjs": "sha256:d89431161186803d3d016a16700171ab599520bf747d4bddf1788bf7967dc5b5",
+    "scripts/00-workbench-conversation-smoke.mjs": "sha256:fc83c31bc686638e27d4f4a99a85e5cfbe21c8f15173ff5d318f303db7351d33",
+    "scripts/00-workbench-user-isolation-smoke.mjs": "sha256:acca092a7933ed2c58ef52b6608b71056575b41b3131d37e444ca67f9a1f27cc",
+    "src/agents/agentRegistry.mjs": "sha256:1ed937b1e6a71563d748188f5dafb3a09d5548b7e50a36b9289cfe7fe7c10b41",
+    "src/agents/conversationIntentResolver.mjs": "sha256:9229f25c6d3741974278233e6daf2b0909901a6991733dd8074aca400c53ea06",
+    "src/agents/openaiCompatibleModelConfigTest.mjs": "sha256:e5c4613471a09c5c2a112db9c64990ccc5d6b50955cc6b6668fd13825d84a813",
+    "src/repositories/postgresRepository.mjs": "sha256:f9433ca1c162000dab23bab9bd36fcf5524165e3261b4b403db2a6100fdcd0a6",
+    "src/security/workbenchAgentModelCredentialStore.mjs": "sha256:23e9f8828876749d98542cc83ff1e6244b5f026e169caa91fa7083428a93e9fc",
+    "src/server/index.mjs": "sha256:6fb48cbaaebf467d03de579a01b34d3710a43f8ce35d67c758f1ec5d0a4fca56",
+    "src/workflows/workbenchConversation.mjs": "sha256:20d64676ddf6ceec3469c4254a79f0f28fd25e718d9e74ef1a49999bcf52ccf9",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-HUB-SHELL-20260910.json": "sha256:af9ec305cb1a703061231989536b383564616043a65c2dcf0678117fd692fa4d",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.json": "sha256:ca96fcd05dc7b0c873202451eaf81ab6bd140126f8ea2209651c45187bc6821c",
+    "tasks-context-manifests/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.json": "sha256:68d1e83b239aaa35a7c926c879dbedbd090fe8b5e1945855f72e1b4a988758f2",
+    "tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md": "sha256:dd276a17b00804c93fa1432cafee94fc7082f079d2fc265377d7d56597fd0c9c",
+    "tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md": "sha256:2a1ab58f65163bc88be747b874cc48ed8934e88fdbe0828c53760ed8baac345a",
+    "tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md": "sha256:720ae5bd3664137e9136ff111d8e8d6669cf15cc2de7fa388e6bd1bb639d5e94"
+  },
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.json",
+    "evidence/TASK-MWBV2-AGENT-READONLY-MODULES-20260910/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/agentWorkspaceScopes.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/index.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-agent-readonly-modules-smoke.mjs",
+    "package.json"
+  ],
+  "forbidden_actions": [
+    "保存原始对话、模型原始响应或创建记忆写入表",
+    "提供知识上传、技能编辑或定时任务",
+    "扩大管理员代操作权限或执行真实平台写入"
+  ],
+  "stop_conditions": [
+    "模块需要复制动态真值、显示跨用户记录或改变既有 Gate/Plan/执行链时停止"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    { "acceptance_id": "AC-01", "command": "npm run test:agent-readonly-modules && npm run test:workbench-user-isolation" },
+    { "acceptance_id": "AC-02", "command": "npm run test:agent-hub && npm run test:agent-readonly-modules" },
+    { "acceptance_id": "AC-03", "command": "npm run test:agent-readonly-modules && npm run test:workbench-user-isolation" },
+    { "acceptance_id": "AC-04", "command": "npm run test:workbench-conversation && npm run test:workbench-runtime-policy && git diff --check" }
+  ],
+  "validation_results": [
+    { "acceptance_id": "AC-01", "status": "passed", "command": "npm run test:agent-readonly-modules && npm run test:workbench-user-isolation", "verified_at": "2026-09-10T08:26:02Z", "summary": "本人记忆投影不含完整账户标识，证据引用受控，跨用户 owner 隔离仍有效。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-READONLY-MODULES-20260910/validation.md#ac-01"] },
+    { "acceptance_id": "AC-02", "status": "passed", "command": "npm run test:agent-hub && npm run test:agent-readonly-modules", "verified_at": "2026-09-10T08:26:02Z", "summary": "Agent 概览、知识库和技能投影仅公开注册表声明的真实能力，不含内部文件路径。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-READONLY-MODULES-20260910/validation.md#ac-02"] },
+    { "acceptance_id": "AC-03", "status": "passed", "command": "npm run test:agent-readonly-modules && npm run test:workbench-user-isolation", "verified_at": "2026-09-10T08:26:02Z", "summary": "统计默认本人；all 范围仅对管理员显式开放，普通用户无法扩大读取范围。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-READONLY-MODULES-20260910/validation.md#ac-03"] },
+    { "acceptance_id": "AC-04", "status": "passed", "command": "npm run test:workbench-conversation && npm run test:workbench-runtime-policy && npm run test:agent-model-config && git diff --check", "verified_at": "2026-09-10T08:26:02Z", "summary": "对话、模型配置、Plan-bound runtime policy 和无真实平台写入的回归均通过。", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-READONLY-MODULES-20260910/validation.md#ac-04"] }
+  ],
+  "documentation_updates": [
+    { "ref": "docs/Solution Design.md", "status": "updated", "reason": "记录 Agent 只读记忆、公开能力说明和显式统计范围的长期选择。" },
+    { "ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "明确只读模块从当前投影/注册表读取且不扩大操作权限。" },
+    { "ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "记录 user workflow detail/summary 在数据统计中的本人默认与管理员显式全量范围。" }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "投放创建 Agent 的记忆、知识库、技能和数据统计已完成为受控只读模块。",
+    "side_effects": "管理员可以在数据统计中显式切换全部用户只读报表；没有新增记忆写入、知识上传、技能编辑、定时任务或真实平台动作。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T08:26:32Z"
+}

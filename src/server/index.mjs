@@ -6,6 +6,23 @@ import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import {
+  getPublicAgent,
+  isRegisteredAgentPath,
+  listPublicAgents
+} from "../agents/agentRegistry.mjs";
+import {
+  getWorkbenchLlmCredential,
+  hasWorkbenchLlmCredential,
+  setWorkbenchLlmCredential,
+  credentialRefFor
+} from "../security/workbenchAgentModelCredentialStore.mjs";
+import {
+  normalizeOpenAiCompatibleModelConfig,
+  testOpenAiCompatibleModelConfig
+} from "../agents/openaiCompatibleModelConfigTest.mjs";
+import { createConversationIntentResolver, createOpenAiCompatibleIntentAdapter } from "../agents/conversationIntentResolver.mjs";
+import { resolveWorkflowStatisticsScope } from "../agents/agentWorkspaceScopes.mjs";
+import {
   buildWorkbenchView,
   createJob,
   createWorkflowCase,
@@ -85,6 +102,58 @@ function requestError(message, statusCode) {
   return error;
 }
 
+function requireRegisteredAgent(agentKey) {
+  const normalized = String(agentKey || "").trim().replace(/-/g, "_");
+  if (!getPublicAgent(normalized)) throw requestError("agent_not_found", 404);
+  return normalized;
+}
+
+export function workflowReportScope({ requestedScope = "", userRole = "" } = {}) {
+  return resolveWorkflowStatisticsScope({ requestedScope, userRole });
+}
+
+function publicModelConfig(config, { credentialConfigured = false } = {}) {
+  if (!config) {
+    return {
+      protocol: "openai_compatible",
+      modelName: "",
+      apiBase: "",
+      credentialConfigured: false,
+      enabled: false,
+      testStatus: "not_configured",
+      testedAt: null,
+      updatedAt: null
+    };
+  }
+  return {
+    protocol: config.protocol,
+    modelName: config.modelName,
+    apiBase: config.apiBase,
+    credentialConfigured: credentialConfigured === true,
+    enabled: config.enabled === true && credentialConfigured === true,
+    testStatus: credentialConfigured === true ? config.testStatus : "not_configured",
+    testedAt: config.testedAt || null,
+    updatedAt: config.updatedAt || null
+  };
+}
+
+async function readCurrentUserModelConfig(userId, agentKey) {
+  const config = await repo.getWorkbenchAgentModelConfig({ userId, agentKey });
+  const credentialConfigured = hasWorkbenchLlmCredential({ userId, agentKey });
+  return { config, credentialConfigured, publicConfig: publicModelConfig(config, { credentialConfigured }) };
+}
+
+async function resolverForCurrentUser(userId, agentKey = "launch_creation") {
+  const current = await readCurrentUserModelConfig(userId, agentKey);
+  if (current.publicConfig.enabled !== true || current.publicConfig.testStatus !== "passed") return undefined;
+  return createConversationIntentResolver({
+    provider: "openai_compatible",
+    model: current.config.modelName,
+    apiBase: current.config.apiBase,
+    adapters: { openai_compatible: createOpenAiCompatibleIntentAdapter({ apiKey: getWorkbenchLlmCredential({ userId, agentKey }) }) }
+  });
+}
+
 function requireJsonMutation(req) {
   const contentType = String(req.headers["content-type"] || "").toLowerCase();
   if (!contentType.startsWith("application/json")) throw requestError("json_content_type_required", 415);
@@ -151,7 +220,7 @@ async function readBody(req) {
 }
 
 async function serveStatic(req, res, pathname) {
-  const requested = pathname === "/" ? "/index.html" : pathname;
+  const requested = pathname === "/" || isRegisteredAgentPath(pathname) ? "/index.html" : pathname;
   const safePath = normalize(join(frontendDir, requested));
   if (!safePath.startsWith(frontendDir)) {
     res.writeHead(403);
@@ -248,6 +317,99 @@ async function handleApi(req, res, url) {
 
   if (auth.user.must_change_password === true) throw requestError("password_change_required", 403);
 
+  if (req.method === "GET" && pathname === "/api/agents") {
+    return sendJson(res, 200, { agents: listPublicAgents() });
+  }
+  const agentMatch = pathname.match(/^\/api\/agents\/([^/]+)$/);
+  if (req.method === "GET" && agentMatch) {
+    const agent = getPublicAgent(decodeURIComponent(agentMatch[1]).replace(/-/g, "_"));
+    if (!agent) return sendJson(res, 404, { error: "agent_not_found" });
+    return sendJson(res, 200, { agent });
+  }
+  const agentMemoryMatch = pathname.match(/^\/api\/agents\/([^/]+)\/memory$/);
+  if (req.method === "GET" && agentMemoryMatch) {
+    const agentKey = requireRegisteredAgent(decodeURIComponent(agentMemoryMatch[1]));
+    if (agentKey !== "launch_creation") return sendJson(res, 404, { error: "agent_memory_not_available" });
+    return sendJson(res, 200, {
+      cases: await repo.getUserWorkflowMemory({ userId: auth.user.user_id })
+    });
+  }
+  const agentModelConfigMatch = pathname.match(/^\/api\/agents\/([^/]+)\/model-config$/);
+  if (agentModelConfigMatch) {
+    const agentKey = requireRegisteredAgent(decodeURIComponent(agentModelConfigMatch[1]));
+    if (req.method === "GET") {
+      const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
+      return sendJson(res, 200, { config: current.publicConfig });
+    }
+    if (req.method === "PUT") {
+      const body = await readBody(req);
+      const normalized = normalizeOpenAiCompatibleModelConfig({
+        protocol: body.protocol || "openai_compatible",
+        apiBase: body.api_base || body.apiBase,
+        modelName: body.model_name || body.modelName
+      });
+      const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
+      const apiKey = String(body.api_key ?? body.apiKey ?? "").trim();
+      const configurationChanged = !current.config ||
+        current.config.protocol !== normalized.protocol ||
+        current.config.modelName !== normalized.modelName ||
+        current.config.apiBase !== normalized.apiBase ||
+        Boolean(apiKey);
+      const credentialConfigured = Boolean(apiKey) || current.credentialConfigured;
+      const testStatus = configurationChanged
+        ? (credentialConfigured ? "not_tested" : "not_configured")
+        : current.publicConfig.testStatus;
+      const enabledRequested = body.enabled === true;
+      const enabled = configurationChanged ? false : enabledRequested;
+      if (enabled && testStatus !== "passed") throw requestError("model_config_test_required", 409);
+      if (apiKey) setWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey, apiKey });
+      const config = await repo.upsertWorkbenchAgentModelConfig({
+        userId: auth.user.user_id,
+        agentKey,
+        protocol: normalized.protocol,
+        modelName: normalized.modelName,
+        apiBase: normalized.apiBase,
+        credentialRef: credentialRefFor(auth.user.user_id, agentKey),
+        enabled,
+        testStatus
+      });
+      const nextCredentialConfigured = hasWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey });
+      await audit({
+        actorUserId: auth.user.user_id,
+        subjectUserId: auth.user.user_id,
+        eventType: "agent_model_config_update",
+        eventStatus: "passed",
+        summary: { agentKey, testStatus, enabled: config.enabled === true }
+      });
+      return sendJson(res, 200, { config: publicModelConfig(config, { credentialConfigured: nextCredentialConfigured }) });
+    }
+  }
+  const agentModelConfigTestMatch = pathname.match(/^\/api\/agents\/([^/]+)\/model-config\/test$/);
+  if (req.method === "POST" && agentModelConfigTestMatch) {
+    const agentKey = requireRegisteredAgent(decodeURIComponent(agentModelConfigTestMatch[1]));
+    const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
+    if (!current.config || !current.credentialConfigured) throw requestError("model_config_not_ready_for_test", 409);
+    const test = await testOpenAiCompatibleModelConfig({
+      apiBase: current.config.apiBase,
+      modelName: current.config.modelName,
+      apiKey: getWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey })
+    });
+    const config = await repo.recordWorkbenchAgentModelConfigTest({
+      userId: auth.user.user_id,
+      agentKey,
+      passed: test.status === "passed"
+    });
+    await audit({
+      actorUserId: auth.user.user_id,
+      subjectUserId: auth.user.user_id,
+      eventType: "agent_model_config_test",
+      eventStatus: test.status === "passed" ? "passed" : "failed",
+      summary: { agentKey, result: test.status }
+    });
+    if (test.status !== "passed") throw requestError("model_connection_test_failed", 422);
+    return sendJson(res, 200, { config: publicModelConfig(config, { credentialConfigured: true }) });
+  }
+
   if (req.method === "GET" && pathname === "/api/admin/users") {
     requireAdmin(auth);
     return sendJson(res, 200, { users: await repo.listWorkbenchUsers() });
@@ -279,19 +441,29 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { status: "password_reset", mustChangePassword: true });
   }
   if (req.method === "GET" && pathname === "/api/reports/workflow-detail") {
+    const scope = workflowReportScope({
+      requestedScope: url.searchParams.get("scope") || "",
+      userRole: auth.user.user_role
+    });
     return sendJson(res, 200, {
       cases: await repo.getUserWorkflowCaseDetail({
         userId: auth.user.user_id,
-        admin: auth.user.user_role === "admin"
-      })
+        admin: scope === "all"
+      }),
+      scope
     });
   }
   if (req.method === "GET" && pathname === "/api/reports/workflow-summary") {
+    const scope = workflowReportScope({
+      requestedScope: url.searchParams.get("scope") || "",
+      userRole: auth.user.user_role
+    });
     return sendJson(res, 200, {
       users: await repo.getUserWorkflowSummary({
         userId: auth.user.user_id,
-        admin: auth.user.user_role === "admin"
-      })
+        admin: scope === "all"
+      }),
+      scope
     });
   }
 
@@ -306,7 +478,21 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {
     const body = await readBody(req);
-    return sendJson(res, 200, parseLaunchIntake(body.user_intent || body.userIntent || ""));
+    const message = body.user_intent || body.userIntent || "";
+    const deterministic = parseLaunchIntake(message);
+    if (deterministic.route_id || deterministic.game_code || deterministic.advertiser_id) {
+      return sendJson(res, 200, { ...deterministic, parseSource: "rules" });
+    }
+    const resolver = await resolverForCurrentUser(auth.user.user_id);
+    if (!resolver) return sendJson(res, 200, { ...deterministic, parseSource: "rules" });
+    const intent = await resolver.resolve({ message, jobView: {} });
+    return sendJson(res, 200, {
+      ...deterministic,
+      route_id: intent.slots?.route_id || "", game_code: intent.slots?.game_code || "", advertiser_id: intent.slots?.advertiser_id || "",
+      routeId: intent.slots?.route_id || "", gameCode: intent.slots?.game_code || "", advertiserId: intent.slots?.advertiser_id || "",
+      missing_fields: ["route_id", "game_code", "advertiser_id"].filter((key) => !intent.slots?.[key]),
+      parseSource: intent.source?.startsWith("llm:") ? "llm" : "rules"
+    });
   }
 
   if (req.method === "POST" && pathname === "/api/launch/jobs") {
@@ -402,7 +588,8 @@ async function handleApi(req, res, url) {
       message: body.message || body.user_intent || body.userIntent || "",
       expectedPlanId: body.expected_plan_id || body.expectedPlanId || "",
       expectedPlanHash: body.expected_plan_hash || body.expectedPlanHash || "",
-      currentUser: auth.user
+      currentUser: auth.user,
+      resolver: await resolverForCurrentUser(auth.user.user_id)
     }));
   }
   if (req.method === "POST" && action === "execute-once") {
@@ -450,6 +637,15 @@ const server = createServer(async (req, res) => {
     const url = new URL(requestUrl, publicOrigin);
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res, url);
+      return;
+    }
+    if (url.pathname === "/" && (url.searchParams.has("case_id") || url.searchParams.has("job_id"))) {
+      res.writeHead(302, {
+        location: `/agents/launch-creation${url.search}`,
+        "cache-control": "no-store",
+        ...securityHeaders
+      });
+      res.end();
       return;
     }
     await serveStatic(req, res, url.pathname);

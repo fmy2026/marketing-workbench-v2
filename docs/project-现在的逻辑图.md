@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `080`、Node/Skill/资源注册表与数据契约 |
+| 校验基线 | 当前代码、Schema migrations 至 `082`、Node/Skill/资源注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 重新校验条件 | Node/Skill、runner mode、资源能力、Plan/确认、Case summary、工作台入口或 Schema/View 变化时 |
 
@@ -115,6 +115,12 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 非 active 且没有精确完成证据，或其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试入口 |
 
 工作台链路固定为 `allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan executor`。Intent Resolver 只识别意图和槽位；Gate Policy 只读 summary；历史 Job 始终只读；无效、越权或冲突 scope 均 fail-closed，不回退到其他账户。
+
+数字员工广场与 Agent 工作区是该链路的展示壳层：`/agents` 只提供当前用户可见的 Agent 目录，`/agents/launch-creation` 承载投放创建的模块和 Case/Job 地址。壳层的注册表只公布名称、模块与静态能力摘要，不包含账户、Case、凭据或运行状态；它不得计算 Gate、root blocker、下一步、Plan 或执行动作。右侧 Workflow 仍只消费当前 Job 和 `workflow_case_summary` 的受控投影，旧的 `/?case_id=` 或 `/?job_id=` 链接仅重定向到新地址，不改变其 owner 和只读语义。
+
+工作区的“记忆”只从本人 `runtime_truth` Case 的当前投影读取最近 Job、路线/游戏、脱敏账户、Gate、唯一 blocker、更新时间和受控证据引用；它不保存或回放聊天原文。知识库、技能只从公开 Agent 注册表和固定 Node 投影渲染，不上传、不编辑、不开关技能。“数据统计”复用 `v_user_workflow_summary` 与 `v_user_workflow_case_detail`：普通用户固定本人范围，管理员默认本人、仅在显式选择全部用户后才读取全量只读报表，任何范围都不授予账户操作权限。
+
+大模型配置也属于工作区壳层：配置只按当前用户和 Agent 读取，连接测试只发送固定 Schema，不携带 Intake、Case、Job、账户、资源、Plan 或原始对话。该配置的启用状态不能改变上述工作台链路；Intent Resolver 仅在规则没有准确命中且配置已测试启用时调用模型。精确确认、取消、状态、继续和 readonly 恢复始终先由规则处理；模型只接收脱敏后的用户输入及允许的 intent/slot Schema，不接收 Case、Job、Gate、Plan 或账户运行状态。它只能返回 allowlist intent、confidence、`route_id`、`game_code`、`advertiser_id`，任一超时、非 JSON、低置信或非法输出都退回规则解析，随后仍由 Gate Action Policy 决定下一步。
 
 ## 6. 权威来源索引
 

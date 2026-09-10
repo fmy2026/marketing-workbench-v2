@@ -221,6 +221,85 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async getWorkbenchAgentModelConfig({ userId, agentKey }) {
+    assertId("user_id", userId);
+    assertId("agent_key", agentKey, /^[a-z][a-z0-9_]{1,63}$/);
+    return queryJson(`
+      SELECT jsonb_build_object(
+        'userId', config.user_id,
+        'agentKey', config.agent_key,
+        'protocol', config.protocol,
+        'modelName', config.model_name,
+        'apiBase', config.api_base,
+        'credentialRef', config.credential_ref,
+        'enabled', config.enabled,
+        'testStatus', config.test_status,
+        'testedAt', config.tested_at,
+        'updatedAt', config.updated_at
+      )::text
+      FROM mwb.workbench_agent_model_configs config
+      WHERE config.user_id = ${sqlLiteral(userId)}
+        AND config.agent_key = ${sqlLiteral(agentKey)}
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async upsertWorkbenchAgentModelConfig({
+    userId,
+    agentKey,
+    protocol = "openai_compatible",
+    modelName,
+    apiBase,
+    credentialRef,
+    enabled = false,
+    testStatus = "not_configured"
+  }) {
+    assertId("user_id", userId);
+    assertId("agent_key", agentKey, /^[a-z][a-z0-9_]{1,63}$/);
+    if (protocol !== "openai_compatible") throw new Error("invalid_model_protocol");
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(String(modelName || ""))) throw new Error("invalid_model_name");
+    if (!/^https?:\/\/[^/?#@]+(?:\/[^?#]*)?$/i.test(String(apiBase || ""))) throw new Error("invalid_model_api_base");
+    if (!/^local:workbench_llm:[A-Za-z0-9_.:-]+:[a-z][a-z0-9_]{1,63}$/.test(String(credentialRef || ""))) throw new Error("invalid_model_credential_ref");
+    if (!new Set(["not_configured", "not_tested", "passed", "failed"]).has(testStatus)) throw new Error("invalid_model_test_status");
+    if (enabled === true && testStatus !== "passed") throw new Error("model_config_test_required");
+    await runPsql(`
+      INSERT INTO mwb.workbench_agent_model_configs (
+        user_id, agent_key, protocol, model_name, api_base, credential_ref,
+        enabled, test_status, tested_at, created_at, updated_at
+      ) VALUES (
+        ${sqlLiteral(userId)}, ${sqlLiteral(agentKey)}, ${sqlLiteral(protocol)},
+        ${sqlLiteral(modelName)}, ${sqlLiteral(apiBase)}, ${sqlLiteral(credentialRef)},
+        ${enabled === true ? "true" : "false"}, ${sqlLiteral(testStatus)},
+        NULL, now(), now()
+      )
+      ON CONFLICT (user_id, agent_key) DO UPDATE SET
+        protocol = EXCLUDED.protocol,
+        model_name = EXCLUDED.model_name,
+        api_base = EXCLUDED.api_base,
+        credential_ref = EXCLUDED.credential_ref,
+        enabled = EXCLUDED.enabled,
+        test_status = EXCLUDED.test_status,
+        tested_at = NULL,
+        updated_at = now();
+    `, this.database);
+    return this.getWorkbenchAgentModelConfig({ userId, agentKey });
+  }
+
+  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed }) {
+    assertId("user_id", userId);
+    assertId("agent_key", agentKey, /^[a-z][a-z0-9_]{1,63}$/);
+    await runPsql(`
+      UPDATE mwb.workbench_agent_model_configs
+      SET test_status = ${passed === true ? "'passed'" : "'failed'"},
+          tested_at = now(),
+          enabled = CASE WHEN ${passed === true ? "true" : "false"} THEN enabled ELSE false END,
+          updated_at = now()
+      WHERE user_id = ${sqlLiteral(userId)}
+        AND agent_key = ${sqlLiteral(agentKey)};
+    `, this.database);
+    return this.getWorkbenchAgentModelConfig({ userId, agentKey });
+  }
+
   async createWorkbenchSession({ sessionId, userId, tokenHash, expiresAt }) {
     assertId("session_id", sessionId);
     assertId("user_id", userId);
@@ -359,6 +438,38 @@ export class PostgresRepository {
         ORDER BY detail.case_updated_at DESC, detail.case_id DESC), '[]'::jsonb)::text
       FROM mwb.v_user_workflow_case_detail detail
       ${admin ? "" : `WHERE detail.owner_user_id = ${sqlLiteral(userId)}`};
+    `, this.database);
+  }
+
+  async getUserWorkflowMemory({ userId = "" } = {}) {
+    assertId("user_id", userId);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'case_id', summary.case_id,
+        'latest_job_id', summary.latest_job_id,
+        'route_id', summary.route_id,
+        'game_code', summary.game_code,
+        'advertiser_masked', CASE
+          WHEN length(summary.advertiser_id) <= 4 THEN '****'
+          ELSE '****' || right(summary.advertiser_id, 4)
+        END,
+        'lifecycle_status', summary.lifecycle_status,
+        'current_gate', summary.current_gate,
+        'root_blocker_code', coalesce(summary.root_blocker_codes->>0, ''),
+        'updated_at', summary.updated_at,
+        'latest_job_updated_at', summary.latest_job_updated_at,
+        'evidence_refs', coalesce((
+          SELECT jsonb_agg(DISTINCT evidence_ref)
+          FROM mwb.launch_node_runs node_run
+          CROSS JOIN LATERAL jsonb_array_elements_text(coalesce(node_run.evidence_refs, '[]'::jsonb)) AS evidence_ref
+          WHERE node_run.job_id = summary.latest_job_id
+            AND evidence_ref <> ''
+        ), '[]'::jsonb)
+      ) ORDER BY summary.latest_job_updated_at DESC NULLS LAST, summary.updated_at DESC), '[]'::jsonb)::text
+      FROM mwb.workflow_case_summary summary
+      JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = summary.case_id
+      WHERE summary.source_usage = 'runtime_truth'
+        AND workflow_case.owner_user_id = ${sqlLiteral(userId)};
     `, this.database);
   }
 
