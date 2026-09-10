@@ -75,7 +75,7 @@ const jobIds = [];
 const tempDirs = [];
 const runRef = `case-corrective-create-smoke:${Date.now()}`;
 
-async function createReadyJob({ caseId = "", attemptNo }) {
+async function createReadyJob({ caseId = "", attemptNo, deriveAttemptNo = false }) {
   const created = await createJob(repo, {
     user_intent: `${TARGET.routeId} ${TARGET.gameCode} ${TARGET.advertiserId}`,
     route_id: TARGET.routeId,
@@ -86,12 +86,13 @@ async function createReadyJob({ caseId = "", attemptNo }) {
     ...(caseId ? { case_id: caseId } : {})
   });
   jobIds.push(created.jobId);
-  await runJob(repo, created.jobId, {
+  const runOptions = {
     mode: "dry_run",
     mockReady: true,
-    createAttemptNo: attemptNo,
     maximumCreateAttempts: 3
-  });
+  };
+  if (!deriveAttemptNo) runOptions.createAttemptNo = attemptNo;
+  await runJob(repo, created.jobId, runOptions);
   const bundle = await repo.getLaunchJobBundle(created.jobId);
   assert(bundle.executionPlan?.plan_status === "ready", `attempt_${attemptNo}_plan_not_ready`);
   assert(Number(bundle.executionPlan?.metadata?.create_attempt_no) === attemptNo, `attempt_${attemptNo}_binding_missing`);
@@ -125,7 +126,7 @@ async function writePlanBoundState(job) {
 }
 
 try {
-  const first = await createReadyJob({ attemptNo: 1 });
+  const first = await createReadyJob({ attemptNo: 1, deriveAttemptNo: true });
   const firstState = await writePlanBoundState(first);
   const firstFetch = fakeFetchFactory({
     projectId: "999901001",
@@ -151,7 +152,34 @@ try {
   );
   assert(!JSON.stringify(failedAttemptBundle.platformAction || {}).includes("opaque platform condition"), "raw_platform_error_persisted");
 
-  const second = await createReadyJob({ caseId: first.caseId, attemptNo: 2 });
+  const mismatched = await createJob(repo, {
+    user_intent: `${TARGET.routeId} ${TARGET.gameCode} ${TARGET.advertiserId}`,
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: first.caseId,
+    source_usage: "test_run",
+    source_record_ref: `${runRef}:attempt-mismatch`
+  });
+  jobIds.push(mismatched.jobId);
+  let mismatchError = null;
+  try {
+    await runJob(repo, mismatched.jobId, {
+      mode: "dry_run",
+      mockReady: true,
+      createAttemptNo: 1,
+      maximumCreateAttempts: 3
+    });
+  } catch (error) {
+    mismatchError = error;
+  }
+  assert(mismatchError?.message === "create_attempt_no_mismatch", "explicit_attempt_mismatch_must_fail_closed");
+  const mismatchedBundle = await repo.getLaunchJobBundle(mismatched.jobId);
+  assert(!mismatchedBundle.draft, "attempt_mismatch_must_not_persist_draft");
+  assert(!mismatchedBundle.executionPlan, "attempt_mismatch_must_not_persist_plan");
+  assert(!mismatchedBundle.platformAction, "attempt_mismatch_must_not_persist_platform_action");
+
+  const second = await createReadyJob({ caseId: first.caseId, attemptNo: 2, deriveAttemptNo: true });
   const secondState = await writePlanBoundState(second);
   const secondBundle = await repo.getLaunchJobBundle(second.jobId);
   const secondFetch = fakeFetchFactory({

@@ -27,3 +27,8 @@
 - Postgres 只读核验：当前 Case 最新 Job 仍处于 `resolve_case_blocker / brand_info_not_ready`，共 4 个 Job；历史仅有 1 条失败的 `oceanengine_std_project_create`，无成功标准项目创建。此次修正未新增业务 action、Plan、confirmation 或创建对象；部署后仍须账户本人输入“重新只读准备”。
 
 - 2026-09-10T12:43:18Z：已通过既有 `com.hys.marketing-workbench.local-server` LaunchAgent 重启工作台服务。HTTP 只读核验确认新客户端包含“当前创建前合同”提示；Postgres 投影仍为相同 latest Job、`resolve_case_blocker / brand_info_not_ready`，标准项目创建仍为 1 条失败、0 条成功。重启未产生业务写入。
+
+- 2026-09-10T13:01:28Z：修复 Attempt 2 只读重跑的参数错配。`runJob` 现在从既有 Case 创建尝试仓储真值推导当前创建 Attempt（与 `mwb.workflow_case_summary.action_readback_state.next_attempt_no` 一致）；调用方显式传入的值必须一致，否则在 Draft、Plan 或平台 action 前以 `create_attempt_no_mismatch` 停止。该规则不含账户、Case 或 Job 特判。
+- 回归通过：`test:case-corrective-create`、`test:workbench-conversation`、`test:workflow-case`、`test:payload-contract`、`test:execution-plan`、`check:project -- --phase start` 与 `git diff --check`。corrective smoke 覆盖初次无参数为 Attempt 1、已有一次失败创建后的无参数重跑为 Attempt 2，以及错误显式 Attempt 不产生 Draft、Plan 或平台 action；所有 smoke 的真实平台写入均为零。
+
+- 2026-09-10T13:02:54Z：通过 `com.hys.marketing-workbench.local-server` 重启 LAN 服务；新进程启动于 21:01:59 CST，当前 Case 深层地址经 LAN 直连返回 HTTP 200。部署后 Postgres 仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象；重启没有业务写入。

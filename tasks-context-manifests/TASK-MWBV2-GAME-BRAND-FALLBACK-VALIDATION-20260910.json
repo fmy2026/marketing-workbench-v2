@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T12:43:18Z",
+  "updated_at": "2026-09-10T13:02:54Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -124,6 +124,7 @@
     ,{"acceptance_id": "AC-09", "command": "npm run test:execution-grant && npm run test:workbench-conversation; inspect the failed action request_field_manifest and Node 7 result mapping."}
     ,{"acceptance_id": "AC-10", "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:case-corrective-create; verify both corrective commands share one effect and that repeated requests use the existing atomic corrective Job claim."}
     ,{"acceptance_id": "AC-11", "command": "npm run test:node4-resource-prep-contracts && npm run test:execution-plan && npm run test:payload-contract && npm run test:workbench-progress"}
+    ,{"acceptance_id": "AC-12", "command": "npm run test:case-corrective-create && npm run test:workbench-conversation && npm run test:workflow-case"}
   ],
   "validation_results": [
     {
@@ -210,9 +211,17 @@
       "acceptance_id": "AC-05",
       "command": "Restart com.hys.marketing-workbench.local-server; read mwb.workflow_case_summary and aggregate redacted action counts for the current Case.",
       "status": "passed",
-      "verified_at": "2026-09-10T12:43:18Z",
+      "verified_at": "2026-09-10T13:02:54Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
-      "summary": "The LAN service loaded the new workbench client. The latest Case Job and root blocker remained unchanged; historical standard-project create actions remain one failed and zero successful. Restart caused no business write."
+      "summary": "The LAN service restarted after the Attempt-resolution change; the current deep Case address returns HTTP 200. Postgres remains at four Jobs, one failed standard-project create action and zero created objects, so deployment caused no business write."
+    },
+    {
+      "acceptance_id": "AC-12",
+      "command": "npm run test:case-corrective-create && npm run test:workbench-conversation && npm run test:workflow-case && npm run test:payload-contract && npm run test:execution-plan && npm run check:project -- --phase start && git diff --check",
+      "status": "passed",
+      "verified_at": "2026-09-10T13:01:28Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "runJob now derives the create Attempt from Postgres Case state and rejects an explicit mismatch before any Draft, Plan or platform action. The Postgres smoke covers both first-attempt defaulting and an Attempt 2 reservation/Draft binding."
     }
   ],
   "documentation_updates": [

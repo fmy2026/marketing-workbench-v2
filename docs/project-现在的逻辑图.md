@@ -95,6 +95,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - `Case` 表示持续业务目标，`Job` 表示一次运行；同一 route×game×advertiser 最多一个 active runtime Case，fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
 - monitor、资源准备和项目创建分别确认；资源回查通过后才以 fresh Job/Plan 生成创建确认卡。
 - 确认前重新执行所需 fresh readonly；资源、调用量、Draft/payload hash、授权或重复状态漂移均 fail-closed。
+- `runJob` 的创建 Attempt 只从当前 Case 的 `nextCreateAttemptNo` 推导；显式调用参数必须一致，避免只读重跑把 Attempt 2 的 Draft/reservation 误绑定为 Attempt 1。
 - Monitor readonly、Plan 和确认后的 fresh preflight 必须复用同一 effective config；fresh `accountIndex` 身份与数据库/Plan 不一致时，旧 Plan 消费但零平台写入，用户只能“重新只读准备”生成 fresh Job、Plan 与确认。
 - 每份确认 Plan 只消费冻结动作一次；写入受理不等于 READY，只有权威只读回查可以写入 verified。
 - 明确失败或修正使用新 Job/Plan/confirmation/Attempt。唯一例外是同一冻结 Create action 收到无对象 ID 的精确 `40100`，可在一个逻辑 action 内按合同错峰物理投递至多三次；其他错误、超时或不明结果不自动重试。

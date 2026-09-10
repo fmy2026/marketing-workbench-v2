@@ -1595,6 +1595,34 @@ export function resolveReadonlyDependencyForRun(options = {}) {
   return readonlyPermissionState({ projectStatePath: options.projectStatePath }).allowed;
 }
 
+function createAttemptMismatchError() {
+  const error = new Error("create_attempt_no_mismatch");
+  error.statusCode = 409;
+  return error;
+}
+
+async function resolveCreateAttemptNoForRun(repo, bundle, options = {}) {
+  const explicitlyProvided = Object.hasOwn(options, "createAttemptNo") &&
+    options.createAttemptNo !== undefined && options.createAttemptNo !== null && options.createAttemptNo !== "";
+  const explicitAttemptNo = Number(options.createAttemptNo);
+  if (explicitlyProvided && (!Number.isInteger(explicitAttemptNo) || explicitAttemptNo < 1)) {
+    throw createAttemptMismatchError();
+  }
+  // Test doubles that do not implement Case attempt state retain the historical
+  // first-attempt default. Runtime repositories always derive this from Postgres.
+  if (typeof repo.getCaseCreateAttemptState !== "function") return explicitlyProvided ? explicitAttemptNo : 1;
+
+  const state = await repo.getCaseCreateAttemptState(bundle.job.case_id);
+  const derivedAttemptNo = Number(state?.nextCreateAttemptNo);
+  if (!Number.isInteger(derivedAttemptNo) || derivedAttemptNo < 1) {
+    throw createAttemptMismatchError();
+  }
+  if (explicitlyProvided && explicitAttemptNo !== derivedAttemptNo) {
+    throw createAttemptMismatchError();
+  }
+  return derivedAttemptNo;
+}
+
 export async function runJob(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
@@ -1607,6 +1635,7 @@ export async function runJob(repo, jobId, options = {}) {
   if (!Number.isInteger(caseMaximumCreateAttempts) || caseMaximumCreateAttempts < 1 || caseMaximumCreateAttempts > 3) {
     throw new Error("case_maximum_create_attempts_invalid");
   }
+  const createAttemptNo = await resolveCreateAttemptNoForRun(repo, bundle, options);
   const result = await runOe3WorkflowSkills({
     repo,
     jobId,
@@ -1626,7 +1655,7 @@ export async function runJob(repo, jobId, options = {}) {
     allowedPlanActions: options.allowedPlanActions || [],
     mockMonitorEnsure: options.mockMonitorEnsure === true,
     qiankunOwnerKey: options.qiankunOwnerKey || "",
-    createAttemptNo: options.createAttemptNo || 1,
+    createAttemptNo,
     verificationSeriesId: options.verificationSeriesId || "",
     verificationTaskRef: options.verificationTaskRef || "",
     maximumCreateAttempts: caseMaximumCreateAttempts,
