@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；已验证可复用经验集 |
-| 最后更新时间 | 2026-09-09 CST（标准项目语义查重与评论管理启用经验） |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909`；当前逻辑图、数据报表契约、7 Node 注册表与已验证的真实创建/回查证据 |
+| 最后更新时间 | 2026-09-10 CST（引导视频当前 Job 缓存绑定经验） |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-LESSON-20260910`；当前逻辑图、数据报表契约、7 Node 注册表与已验证的真实创建/回查证据 |
 | 重新校验条件 | 新增可复用闭环经验、接口/字段合同变化，或既有经验被当前代码、Schema、官方资料或真实回查否定时 |
 
 ## 使用规则
@@ -233,6 +233,18 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 终态一致性 | verified 成功同时收口 Plan、Job 和 Case；非 active Case 不再投影确认、重试或执行入口，只有完整完成证据保留完成 Gate。 |
 | deadline 单一来源 | 所有生产 HTTP 经同一封装：JSON 15 秒、上传 60 秒；Node 07 保留 `0/3/5/8/10` 秒绝对回查点并设 25 秒整轮硬截止。封装必须组合 caller signal、超时 abort 与 timer 清理，且不实现自动重试。 |
 | 回归范围 | 可控假传输覆盖超时 abort、timer 清理、一次写入、不明恢复、明确失败不可恢复和 Node 07 截止；数据库迁移只收口已落库的确定性证据。 |
+
+## JSZC 引导视频：当前 Job 缓存绑定（2026-09-10）
+
+| 项 | 经验结论 |
+| --- | --- |
+| 适用范围 | 仅适用于“按 Job 绑定的引导视频能力”。账户资源行可以保存动态只读结果，但资源行本身不是可跨 Job 复用的事实。 |
+| 唯一缓存资格 | 以 `canonicalGuideVideoReadiness` 的 `currentJobBound` 为唯一判断：当前 `job_id` 与 `verified_by_job_id`、当前已核验小游戏实例与 `verified_instance_id` 必须同时精确匹配。不得以历史 Job 字段非空或单独存在实例作为命中条件。 |
+| 失配处理 | 任一 Job 或实例不匹配即缓存未命中，沿用一次既有 `gameplay/list` readonly；结果覆写为当前 Job 绑定的脱敏 evidence 与资源 metadata，而不是复制历史动态值。 |
+| 同 Job 复用 | 只有同一 Job、同一已核验实例的 `passed`、`not_required`、`blocked` 结果可复用，保证每个 Job 至多一次该平台只读探测；`blocked` 也必须保留原 blocker，不能因缓存而静默放行。 |
+| 回归边界 | 必须覆盖旧 Job 的 `passed`/`blocked`、当前 Job 的错误实例、当前 Job 的 `passed`/`not_required`/`blocked`；前两类各重新探测一次，后三类零重复探测。唯一、空列表、多候选及账户强制要求的既有行为也不得回归。 |
+| 不适用边界 | 不将本规则泛化为账户 canonical 资源、已确认 Plan、confirmation、平台创建 action 或其他资源能力；它们仍按各自的真值与幂等合同判断。 |
+| 案例依据 | 通用修复 `0177fe0`、`TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910` 与 `npm run test:guide-video-readonly`；均不以账户或动态业务标识作为机制条件。 |
 
 ## 新案例模板
 
