@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   credentialReady,
   getOceanEngineCredentialSummary,
@@ -252,25 +252,42 @@ export function safePlatformErrorSummary(payload = {}) {
   };
 }
 
-function summarizeListPayload(payload = {}, projectName = "") {
+function projectIdFromListItem(item = {}) {
+  return clean(item?.project_id || item?.std_project_id || item?.id || "");
+}
+
+function projectNameFromListItem(item = {}) {
+  return clean(item?.name || item?.project_name || item?.std_project_name || "");
+}
+
+function summarizeListPayload(payload = {}, { projectName = "", expectedProjectId = "" } = {}) {
   const data = payload.data || {};
   const list = data.list || data.items || data.projects || [];
   const items = Array.isArray(list) ? list : [];
-  const nameMatch = items.find((item) => clean(item.name || item.project_name || item.std_project_name) === projectName) || null;
-  // The list endpoint is filtered by draft name, but retain the first returned
-  // object when that filter is eventually consistent or interpreted loosely.
-  // That lets the readback close immediately and preserve an ID/name mismatch
-  // for manual inspection instead of relabeling a visible inconsistent object
-  // as another ordinary "not found" attempt.
-  const match = nameMatch || items[0] || null;
+  const nameMatch = items.find((item) => projectNameFromListItem(item) === projectName) || null;
+  const expectedId = clean(expectedProjectId);
+  const exactIdMatch = expectedId
+    ? items.find((item) => projectIdFromListItem(item) === expectedId) || null
+    : null;
+  // An ID-filtered list must never promote its first item as the created
+  // project. Keep a mismatching returned ID only as a fail-closed diagnostic.
+  const unexpectedObjectId = expectedId
+    ? projectIdFromListItem(items.find((item) => {
+        const itemId = projectIdFromListItem(item);
+        return Boolean(itemId) && itemId !== expectedId;
+      }))
+    : "";
+  const match = expectedId ? exactIdMatch : nameMatch;
   return {
     apiCode: extractApiCode(payload),
     requestIdPresent: Boolean(extractRequestId(payload)),
     listCount: items.length,
-    objectId: clean(match?.project_id || match?.std_project_id || match?.id || ""),
-    objectName: clean(match?.name || match?.project_name || match?.std_project_name || ""),
+    objectId: projectIdFromListItem(match),
+    objectName: projectNameFromListItem(match),
     objectStatus: clean(match?.status || match?.project_status || match?.opt_status || ""),
-    objectNameMatches: Boolean(nameMatch)
+    objectNameMatches: Boolean(match && projectNameFromListItem(match) === projectName),
+    expectedIdFound: Boolean(exactIdMatch),
+    unexpectedObjectId
   };
 }
 
@@ -363,7 +380,7 @@ function summarizeProjectVideoMaterials(payload = {}, expected = {}) {
   };
 }
 
-async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchImpl, accessToken, remainingMs }) {
+async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchImpl, accessToken, remainingMs, evidenceRef: suppliedEvidenceRef = "" }) {
   const expected = expectedGuideVideoBindings(bundle);
   if (!expected.required) return { status: "not_required", called: false, evidenceRef: "" };
   if (expected.status !== "ready") {
@@ -411,7 +428,7 @@ async function readbackGuideVideoMaterialsOnce({ repo, bundle, objectId, fetchIm
     summary.apiCode = timedOut ? "timeout" : "transport_error";
   }
   const passed = Boolean(response?.ok) && (summary.apiCode === "0" || summary.apiCode === "") && summary.allExpectedBindingsMatch;
-  const evidenceRef = `EV-${bundle.job.job_id}-GUIDE-VIDEO-MATERIAL-READBACK`;
+  const evidenceRef = clean(suppliedEvidenceRef) || `EV-${bundle.job.job_id}-GUIDE-VIDEO-MATERIAL-READBACK`;
   await repo.upsertEvidence({
     artifactId: evidenceRef,
     jobId: bundle.job.job_id,
@@ -979,6 +996,33 @@ function safeReadbackDelays(delays = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS) {
   return normalized.length ? normalized.slice(0, 5) : [...DEFAULT_STD_PROJECT_READBACK_DELAYS_MS];
 }
 
+function validDecimalProjectId(value = "") {
+  const projectId = clean(value);
+  return /^[0-9]+$/.test(projectId) ? projectId : "";
+}
+
+function observationToken(value = "") {
+  const token = clean(value);
+  return /^[A-Za-z0-9_-]{8,128}$/.test(token) ? token : "";
+}
+
+function readbackObservationToken(factory) {
+  const supplied = typeof factory === "function" ? observationToken(factory()) : "";
+  return supplied || randomUUID();
+}
+
+function buildStdProjectReadbackLookup({ responseConfirmedByCreate, createResponseObjectId, projectName }) {
+  if (responseConfirmedByCreate) {
+    const objectId = validDecimalProjectId(createResponseObjectId);
+    if (!objectId) return { mode: "confirmed_object_id_missing", filtering: "", expectedProjectId: "" };
+    // The official API declares project_ids as number[]. Construct this small
+    // JSON fragment from validated decimal text so large platform IDs never
+    // pass through a JavaScript number and lose precision.
+    return { mode: "project_ids", filtering: `{\"project_ids\":[${objectId}]}`, expectedProjectId: objectId };
+  }
+  return { mode: "name", filtering: JSON.stringify({ name: clean(projectName) }), expectedProjectId: "" };
+}
+
 export async function readbackStdProjectOnce({
   repo,
   jobId,
@@ -987,7 +1031,8 @@ export async function readbackStdProjectOnce({
   readbackDelaysMs = DEFAULT_STD_PROJECT_READBACK_DELAYS_MS,
   nowFn = Date.now,
   sleepImpl = sleep,
-  readbackDeadlineMs = STD_PROJECT_READBACK_DEADLINE_MS
+  readbackDeadlineMs = STD_PROJECT_READBACK_DEADLINE_MS,
+  observationIdFactory
 } = {}) {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
@@ -999,11 +1044,6 @@ export async function readbackStdProjectOnce({
     return { status: "credential_required", blockers: credentialSummary.blockers };
   }
   const env = fakeTransport ? {} : readOceanEngineEnv().env;
-  const url = new URL(`${API_BASE}${LIST_ENDPOINT}`);
-  url.searchParams.set("advertiser_id", runtimeTarget.advertiserId);
-  url.searchParams.set("filtering", JSON.stringify({ name: runtimeTarget.projectName }));
-  url.searchParams.set("page", "1");
-  url.searchParams.set("page_size", "20");
   const attempts = [];
   const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
     bundle.platformAction?.object_id_present === true;
@@ -1011,15 +1051,71 @@ export async function readbackStdProjectOnce({
   const createResponseObjectId = responseConfirmedByCreate
     ? clean(bundle.createdObject?.object_id)
     : "";
+  const lookup = buildStdProjectReadbackLookup({
+    responseConfirmedByCreate,
+    createResponseObjectId,
+    projectName: runtimeTarget.projectName
+  });
+  const observationId = readbackObservationToken(observationIdFactory);
+  const evidenceRef = `EV-${jobId}-STD-PROJECT-READBACK-${observationId}`;
+  const readbackId = `RB-${jobId}-STD-PROJECT-REAL-${observationId}`;
   if (runtimeTarget.planId && typeof repo.markConfirmedStdProjectCreatePlanWaitingReadback === "function") {
     await repo.markConfirmedStdProjectCreatePlanWaitingReadback({
       jobId,
       planId: runtimeTarget.planId
     });
   }
+  if (lookup.mode === "confirmed_object_id_missing") {
+    await repo.upsertEvidence({
+      artifactId: evidenceRef,
+      jobId,
+      artifactType: "std_project_readback_once",
+      title: "std_project readback skipped",
+      summary: "endpoint=std_project/list status=blocked reason=confirmed_create_response_object_id_missing platform_called=false",
+      contentHash: `sha256:${sha256(`${jobId}:${observationId}:confirmed_create_response_object_id_missing`)}`,
+      storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+      sourceRef: `oceanengine:${LIST_ENDPOINT}`,
+      sourceUsage: "runtime_truth"
+    });
+    await repo.upsertReadbackRecord({
+      readbackId,
+      jobId,
+      objectType: "std_project",
+      objectId: "CONFIRMED_CREATE_OBJECT_ID_MISSING",
+      objectName: runtimeTarget.projectName,
+      readbackStatus: "confirmed_create_object_id_missing",
+      fieldDiffSummary: {
+        source: "oceanengine_std_project_list",
+        real_platform_readback_called: false,
+        create_response_confirmed: true,
+        raw_response_stored: false
+      },
+      evidenceRef
+    });
+    return {
+      status: "confirmed_create_object_id_missing",
+      httpStatus: null,
+      apiCode: "",
+      requestIdPresent: false,
+      objectId: "",
+      objectName: "",
+      objectStatus: "",
+      objectNameMatches: false,
+      projectIdMatchesCreate: false,
+      responseUnknownByCreate,
+      readbackAttempts: [],
+      guideVideoMaterialReadback: { status: "not_called", called: false, evidenceRef: "" },
+      evidenceRef
+    };
+  }
+  const url = new URL(`${API_BASE}${LIST_ENDPOINT}`);
+  url.searchParams.set("advertiser_id", runtimeTarget.advertiserId);
+  url.searchParams.set("filtering", lookup.filtering);
+  url.searchParams.set("page", "1");
+  url.searchParams.set("page_size", "20");
   let response = null;
   let text = "";
-  let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false };
+  let summary = { apiCode: "", requestIdPresent: false, objectId: "", objectName: "", objectStatus: "", objectNameMatches: false, expectedIdFound: false, unexpectedObjectId: "" };
   const readbackStartedAt = nowFn();
   const absoluteDeadlineMs = Math.max(1, Number(readbackDeadlineMs) || STD_PROJECT_READBACK_DEADLINE_MS);
   for (const delayMs of safeReadbackDelays(readbackDelaysMs)) {
@@ -1067,9 +1163,12 @@ export async function readbackStdProjectOnce({
     } catch {
       payload = {};
     }
-    summary = summarizeListPayload(payload, runtimeTarget.projectName);
-    const projectIdMatchesCreate = !createResponseObjectId ||
-      (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
+    summary = summarizeListPayload(payload, {
+      projectName: runtimeTarget.projectName,
+      expectedProjectId: lookup.expectedProjectId
+    });
+    const projectIdMatchesCreate = !lookup.expectedProjectId ||
+      (summary.expectedIdFound && !summary.unexpectedObjectId);
     attempts.push({
       delay_ms: delayMs,
       http_status: response.status,
@@ -1078,9 +1177,10 @@ export async function readbackStdProjectOnce({
       object_id_present: Boolean(summary.objectId),
       object_name_matches: summary.objectNameMatches === true,
       project_id_matches_create: projectIdMatchesCreate,
+      lookup_mode: lookup.mode,
       response_hash: `sha256:${sha256(text)}`
     });
-    if (summary.objectId) break;
+    if (summary.objectId || summary.unexpectedObjectId) break;
   }
   const guideVideoMaterialReadback = summary.objectId
     ? await readbackGuideVideoMaterialsOnce({
@@ -1089,27 +1189,27 @@ export async function readbackStdProjectOnce({
         objectId: summary.objectId,
         fetchImpl,
         accessToken: env.OCEANENGINE_ACCESS_TOKEN,
-        remainingMs: absoluteDeadlineMs - (nowFn() - readbackStartedAt)
+        remainingMs: absoluteDeadlineMs - (nowFn() - readbackStartedAt),
+        evidenceRef: `EV-${jobId}-GUIDE-VIDEO-MATERIAL-READBACK-${observationId}`
       })
     : {
         status: canonicalGuideVideoReadiness(bundle).required === true || bundle.account?.video_cover_required === true ? "project_not_found" : "not_required",
         called: false,
         evidenceRef: ""
       };
-  const evidenceRef = `EV-${jobId}-STD-PROJECT-READBACK-ONCE`;
   await repo.upsertEvidence({
     artifactId: evidenceRef,
     jobId,
     artifactType: "std_project_readback_once",
     title: "std_project readback once",
-    summary: `endpoint=std_project/list attempts=${attempts.length} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches} guide_video_material_status=${guideVideoMaterialReadback.status}`,
+    summary: `endpoint=std_project/list lookup=${lookup.mode} attempts=${attempts.length} http=${response?.status || 0} api_code=${summary.apiCode || "unknown"} request_id_present=${summary.requestIdPresent} object_id_present=${Boolean(summary.objectId)} object_name_matches=${summary.objectNameMatches} guide_video_material_status=${guideVideoMaterialReadback.status}`,
     contentHash: `sha256:${sha256(text)}`,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${LIST_ENDPOINT}`,
     sourceUsage: "runtime_truth"
   });
-  const projectIdMatchesCreate = !createResponseObjectId ||
-    (Boolean(summary.objectId) && summary.objectId === createResponseObjectId);
+  const projectIdMatchesCreate = !lookup.expectedProjectId ||
+    (summary.expectedIdFound && !summary.unexpectedObjectId);
   const guideVideoMaterialVerified = ["not_required", "passed"].includes(guideVideoMaterialReadback.status);
   const readbackVerified = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate && guideVideoMaterialVerified;
   if (readbackVerified) {
@@ -1132,7 +1232,7 @@ export async function readbackStdProjectOnce({
       }
     });
     await repo.upsertReadbackRecord({
-      readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
+      readbackId,
       jobId,
       objectType: "std_project",
       objectId: summary.objectId,
@@ -1189,11 +1289,11 @@ export async function readbackStdProjectOnce({
       });
     }
   } else {
-    const projectIdMismatch = Boolean(summary.objectId) && !projectIdMatchesCreate;
+    const projectIdMismatch = Boolean(summary.unexpectedObjectId) || (Boolean(summary.objectId) && !projectIdMatchesCreate);
     const projectNameMismatch = Boolean(summary.objectId) && projectIdMatchesCreate && !summary.objectNameMatches;
     const guideVideoMaterialPending = Boolean(summary.objectId) && summary.objectNameMatches && projectIdMatchesCreate && !guideVideoMaterialVerified;
     await repo.upsertReadbackRecord({
-      readbackId: `RB-${jobId}-STD-PROJECT-REAL`,
+      readbackId,
       jobId,
       objectType: "std_project",
       objectId: projectIdMismatch
@@ -1237,7 +1337,7 @@ export async function readbackStdProjectOnce({
   return {
     status: readbackVerified
       ? "readback_verified"
-      : summary.objectId && !projectIdMatchesCreate
+        : (summary.objectId || summary.unexpectedObjectId) && !projectIdMatchesCreate
         ? "project_id_mismatch"
         : summary.objectId && !summary.objectNameMatches
           ? "project_name_mismatch"
@@ -1252,6 +1352,7 @@ export async function readbackStdProjectOnce({
     objectStatus: summary.objectStatus,
     objectNameMatches: summary.objectNameMatches,
     projectIdMatchesCreate,
+    lookupMode: lookup.mode,
     responseUnknownByCreate,
     readbackAttempts: attempts,
     guideVideoMaterialReadback,

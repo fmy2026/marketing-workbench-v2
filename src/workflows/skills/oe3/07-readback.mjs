@@ -138,11 +138,38 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     const projectIdMismatch = readback.status === "project_id_mismatch";
     const projectNameMismatch = readback.status === "project_name_mismatch";
     const guideVideoMaterialPending = readback.status === "guide_video_material_pending";
+    const confirmedObjectIdMissing = readback.status === "confirmed_create_object_id_missing";
     const identityMismatch = projectIdMismatch || projectNameMismatch;
     const recoveredByReadback = readback.status === "readback_verified" && responseUnknown;
     const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" &&
       responseUnknown &&
       !guideVideoMaterialPending;
+    const readbackBlockers = readback.status === "readback_verified"
+      ? []
+      : projectIdMismatch
+        ? ["readback_project_id_mismatch"]
+        : projectNameMismatch
+          ? ["readback_project_name_mismatch"]
+          : guideVideoMaterialPending
+            ? ["guide_video_material_readback_pending"]
+            : confirmedObjectIdMissing
+              ? ["confirmed_create_object_id_missing"]
+              : readbackMissAfterUnconfirmedCreate
+                ? ["create_response_unconfirmed_readback_not_found"]
+                : ["created_pending_readback"];
+    const readbackStatus = readback.status === "readback_verified"
+      ? "readback_verified"
+      : projectIdMismatch
+        ? "project_id_mismatch"
+        : projectNameMismatch
+          ? "project_name_mismatch"
+          : guideVideoMaterialPending
+            ? "guide_video_material_pending"
+            : confirmedObjectIdMissing
+              ? "confirmed_create_object_id_missing"
+              : readbackMissAfterUnconfirmedCreate
+                ? "create_unconfirmed_readback_not_found"
+                : "not_found_after_create";
     if (readbackMissAfterUnconfirmedCreate) {
       const planId = latestBundle.executionPlan?.plan_id || "";
       if (planId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function") {
@@ -157,33 +184,13 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         : readbackMissAfterUnconfirmedCreate
           ? "failed"
           : "blocked",
-      blockers: readback.status === "readback_verified"
-        ? []
-        : projectIdMismatch
-          ? ["readback_project_id_mismatch"]
-          : projectNameMismatch
-            ? ["readback_project_name_mismatch"]
-            : guideVideoMaterialPending
-              ? ["guide_video_material_readback_pending"]
-        : readbackMissAfterUnconfirmedCreate
-          ? ["create_response_unconfirmed_readback_not_found"]
-          : ["created_pending_readback"],
+      blockers: readbackBlockers,
       evidenceRefs: readback.evidenceRef ? [readback.evidenceRef] : [],
       outputSummary: {
-        readbackStatus: readback.status === "readback_verified"
-          ? "readback_verified"
-          : projectIdMismatch
-            ? "project_id_mismatch"
-            : projectNameMismatch
-              ? "project_name_mismatch"
-              : guideVideoMaterialPending
-                ? "guide_video_material_pending"
-          : readbackMissAfterUnconfirmedCreate
-            ? "create_unconfirmed_readback_not_found"
-            : "created_pending_readback",
+        readbackStatus,
         objectNameSource: "launch_drafts.project_name",
         objectNameMatchesDraft: Boolean(readback.objectNameMatches),
-        realPlatformReadbackCalled: true,
+        realPlatformReadbackCalled: !confirmedObjectIdMissing,
         realObjectIdPresent: Boolean(readback.objectId),
         readbackAttemptCount: Array.isArray(readback.readbackAttempts) ? readback.readbackAttempts.length : 0,
         createResponseConfirmed: responseConfirmed,
@@ -198,9 +205,11 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
               ? "创建响应与回查项目名称不一致，已停止且禁止自动重试。"
               : guideVideoMaterialPending
                 ? "项目已出现，等待素材只读确认推广视频均关联本轮引导视频。"
-          : readbackMissAfterUnconfirmedCreate
-            ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
-            : "真实创建已调用，等待只读回查确认。",
+                : confirmedObjectIdMissing
+                  ? "创建响应已确认但本地对象 ID 缺失，已停止且不会按名称猜测或再次创建。"
+                  : readbackMissAfterUnconfirmedCreate
+                    ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"
+                    : "本轮只读回查已完成，平台 API 暂未返回匹配对象；不会重复创建。",
         evidenceRef: readback.evidenceRef || ""
       }
     };

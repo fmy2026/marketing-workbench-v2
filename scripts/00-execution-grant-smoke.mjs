@@ -74,6 +74,8 @@ function fakeFetchFactory({
   numericProjectIdTokens = false
 }) {
   const calls = [];
+  let createdProjectName = "";
+  let createdVideoMaterials = [];
   async function fakeFetch(url, options = {}) {
     const href = String(url);
     const bodyText = String(options.body || "");
@@ -87,6 +89,16 @@ function fakeFetchFactory({
       } : {})
     });
     if (href.includes("/std_project/create/")) {
+      try {
+        const createPayload = JSON.parse(bodyText);
+        createdProjectName = createPayload.name || createdProjectName;
+        createdVideoMaterials = Array.isArray(createPayload.project_materials?.video_material_list)
+          ? createPayload.project_materials.video_material_list
+          : createdVideoMaterials;
+      } catch {
+        // The actual create contract owns parsing; the test transport only
+        // needs its already-sent draft name for a subsequent ID readback.
+      }
       if (createTransportThrows) throw new Error("synthetic_create_transport_error");
       if (createTimeoutThrows) {
         const error = new Error("synthetic_create_timeout");
@@ -115,11 +127,19 @@ function fakeFetchFactory({
         data: effectiveObjectIdPresent ? { project_id: effectiveProjectId } : {}
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (href.includes("/oc_project/material/get/")) {
+      return new Response(JSON.stringify({
+        code: "0",
+        request_id: "fake-request-material-readback",
+        data: { video_material_list: createdVideoMaterials }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (href.includes("/std_project/list/")) {
       const filtering = new URL(href).searchParams.get("filtering") || "{}";
       let name = "";
       try {
-        name = JSON.parse(filtering).name || "";
+        const parsedFiltering = JSON.parse(filtering);
+        name = parsedFiltering.name || (Array.isArray(parsedFiltering.project_ids) ? createdProjectName : "");
       } catch {
         name = "";
       }

@@ -66,6 +66,12 @@ function readbackMessage(view = {}) {
   if (outcome === "project_name_mismatch") {
     return "只读回查发现项目名称与草稿不一致，已停止且未再次创建；请人工检查。";
   }
+  if (outcome === "confirmed_create_object_id_missing") {
+    return "创建响应已确认但本地对象 ID 缺失，已停止且不会按名称猜测或再次创建；请人工检查。";
+  }
+  if (outcome === "not_found_after_create") {
+    return "本轮只读回查已完成，平台 API 暂未返回匹配对象；不会重复创建。";
+  }
   if (currentGate === "run_readback_only" || outcome === "created_pending_readback") {
     return "项目已创建，但本次只读回查尚未在平台 API 中验证；Case 保持暂停，未再次创建。";
   }
@@ -486,7 +492,7 @@ export async function handleWorkbenchCommand({
               })()
             : (() => {
                 const readback = nextView?.execution?.readbackStatus || nextView?.readback?.readback_status || "";
-                return ["readback_verified", "created_pending_readback", "project_id_mismatch", "project_name_mismatch", "guide_video_material_pending"].includes(readback)
+                return ["readback_verified", "created_pending_readback", "not_found_after_create", "project_id_mismatch", "project_name_mismatch", "guide_video_material_pending", "confirmed_create_object_id_missing"].includes(readback)
                   ? "单次创建已提交，已按结果进入只读回查。"
                   : "单次创建请求已结束；未开始只读回查，请按当前状态查看结果。";
               })()

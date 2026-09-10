@@ -15,7 +15,7 @@ const GUIDE_VIDEO_ID = "guide-video-smoke";
 const VIDEO_IDS = ["video-smoke-1", "video-smoke-2"];
 const VIDEO_COVER_IDS = ["video-cover-smoke-1", "video-cover-smoke-2"];
 
-function bundle({ guideRequired = false, coverRequired = false } = {}) {
+function bundle({ guideRequired = false, coverRequired = false, createResponseUnknown = false, createdObjectId = PROJECT_ID } = {}) {
   return {
     job: {
       job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE",
@@ -64,14 +64,22 @@ function bundle({ guideRequired = false, coverRequired = false } = {}) {
       plan_id: "PLAN-STD-PROJECT-READBACK-SCHEDULE-SMOKE",
       planned_actions: [{ action_type: "std_project_create" }]
     },
-    platformAction: {
-      action_status: "succeeded",
-      object_id_present: true
-    },
-    createdObject: {
-      object_id: PROJECT_ID,
-      evidence_ref: "EV-STD-PROJECT-CREATE-SMOKE"
-    }
+    platformAction: createResponseUnknown
+      ? {
+          action_status: "failed_or_unconfirmed",
+          object_id_present: false,
+          response_summary: { outcome_category: "platform_response_unknown" }
+        }
+      : {
+          action_status: "succeeded",
+          object_id_present: true
+        },
+    createdObject: createdObjectId
+      ? {
+          object_id: createdObjectId,
+          evidence_ref: "EV-STD-PROJECT-CREATE-SMOKE"
+        }
+      : null
   };
 }
 
@@ -92,32 +100,38 @@ async function runScenario({
   guideRequired = false,
   coverRequired = false,
   guideBindingMatch = true,
-  coverBindingMatch = true
+  coverBindingMatch = true,
+  createResponseUnknown = false,
+  createdObjectId = PROJECT_ID,
+  observationId = "readback-smoke-observation",
+  sharedObservations = null
 } = {}) {
   let now = 0;
   let listCallCount = 0;
   let materialCallCount = 0;
   const requestTimes = [];
+  const requestFilterings = [];
   const waits = [];
-  const readbackRecords = [];
+  const readbackRecords = sharedObservations?.readbackRecords || [];
+  const evidenceRecords = sharedObservations?.evidenceRecords || [];
   const planTransitions = [];
   const repo = {
     async getLaunchJobBundle() {
-      return bundle({ guideRequired, coverRequired });
+      return bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId });
     },
     async markConfirmedStdProjectCreatePlanWaitingReadback({ jobId, planId }) {
-      assert(jobId === bundle({ guideRequired, coverRequired }).job.job_id, "waiting_readback_job_binding_changed");
-      assert(planId === bundle({ guideRequired, coverRequired }).executionPlan.plan_id, "waiting_readback_plan_binding_changed");
+      assert(jobId === bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId }).job.job_id, "waiting_readback_job_binding_changed");
+      assert(planId === bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId }).executionPlan.plan_id, "waiting_readback_plan_binding_changed");
       planTransitions.push("waiting_readback");
       return { transitioned: planTransitions.length === 1 };
     },
     async consumeConfirmedStdProjectCreatePlanAfterReadback({ jobId, planId }) {
-      assert(jobId === bundle({ guideRequired, coverRequired }).job.job_id, "consumed_job_binding_changed");
-      assert(planId === bundle({ guideRequired, coverRequired }).executionPlan.plan_id, "consumed_plan_binding_changed");
+      assert(jobId === bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId }).job.job_id, "consumed_job_binding_changed");
+      assert(planId === bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId }).executionPlan.plan_id, "consumed_plan_binding_changed");
       planTransitions.push("consumed");
       return { consumed: true };
     },
-    async upsertEvidence() {},
+    async upsertEvidence(record) { evidenceRecords.push(record); },
     async upsertCreatedObject() {},
     async upsertReadbackRecord(record) {
       readbackRecords.push(record);
@@ -125,13 +139,14 @@ async function runScenario({
   };
   const result = await readbackStdProjectOnce({
     repo,
-    jobId: bundle({ guideRequired, coverRequired }).job.job_id,
+    jobId: bundle({ guideRequired, coverRequired, createResponseUnknown, createdObjectId }).job.job_id,
     target: { grantSource: "test_fake_transport" },
     nowFn: () => now,
     sleepImpl: async (delayMs) => {
       waits.push(delayMs);
       now += delayMs;
     },
+    observationIdFactory: () => observationId,
     fetchImpl: async (requestUrl) => {
       if (String(requestUrl).includes("/oc_project/material/get/")) {
         materialCallCount += 1;
@@ -149,6 +164,7 @@ async function runScenario({
       }
       listCallCount += 1;
       requestTimes.push(now);
+      requestFilterings.push(new URL(String(requestUrl)).searchParams.get("filtering"));
       if (transportError) throw new Error("transport_error_for_smoke");
       const item = listCallCount === matchAt
         ? {
@@ -163,7 +179,7 @@ async function runScenario({
       });
     }
   });
-  return { result, listCallCount, materialCallCount, requestTimes, waits, readbackRecords, planTransitions };
+  return { result, listCallCount, materialCallCount, requestTimes, requestFilterings, waits, readbackRecords, evidenceRecords, planTransitions };
 }
 
 assert(
@@ -178,6 +194,12 @@ assert(JSON.stringify(fifthMatch.requestTimes) === JSON.stringify(EXPECTED_SCHED
 assert(JSON.stringify(fifthMatch.waits) === JSON.stringify(EXPECTED_WAIT_WINDOWS), "wait_windows_must_not_accumulate_to_26_seconds");
 assert(JSON.stringify(fifthMatch.planTransitions) === JSON.stringify(["waiting_readback", "consumed"]), "verified_plan_must_transition_ready_waiting_consumed");
 assert(fifthMatch.readbackRecords.at(-1)?.readbackStatus === "readback_verified", "verified_readback_record_missing");
+assert(
+  fifthMatch.requestFilterings.every((filtering) => filtering === `{"project_ids":[${PROJECT_ID}]}`),
+  "confirmed_create_must_query_project_ids_without_precision_loss"
+);
+assert(fifthMatch.requestFilterings.every((filtering) => !filtering.includes("name")), "known_id_readback_must_not_send_name_filter");
+assert(fifthMatch.readbackRecords.at(-1)?.readbackId.endsWith("readback-smoke-observation"), "readback_observation_id_missing");
 
 for (const matchAt of [1, 2, 3, 4]) {
   const earlyMatch = await runScenario({ matchAt });
@@ -200,6 +222,21 @@ const transport = await runScenario({ transportError: true });
 assert(transport.result.status === "not_found_or_mismatch", "transport_errors_must_not_verify_or_create");
 assert(transport.listCallCount === 5, "transport_errors_must_cap_list_calls_at_five");
 assert(transport.result.readbackAttempts.every((attempt) => attempt.api_code === "transport_error"), "transport_errors_must_be_recorded_safely");
+
+const nameFallback = await runScenario({ matchAt: 1, createResponseUnknown: true, observationId: "name-fallback-observation" });
+assert(nameFallback.result.status === "readback_verified", "unknown_create_without_id_may_use_name_recovery");
+assert(nameFallback.requestFilterings[0] === JSON.stringify({ name: PROJECT_NAME }), "name_recovery_must_keep_name_filter");
+
+const missingConfirmedId = await runScenario({ createdObjectId: "", observationId: "missing-id-observation" });
+assert(missingConfirmedId.result.status === "confirmed_create_object_id_missing", "confirmed_create_without_local_id_must_fail_closed");
+assert(missingConfirmedId.listCallCount === 0, "confirmed_create_without_local_id_must_not_fallback_to_name_query");
+assert(missingConfirmedId.readbackRecords.at(-1)?.readbackId.endsWith("missing-id-observation"), "missing_id_observation_must_be_independent");
+
+const sharedObservations = { readbackRecords: [], evidenceRecords: [] };
+await runScenario({ matchAt: 1, observationId: "observation-one", sharedObservations });
+await runScenario({ matchAt: 1, observationId: "observation-two", sharedObservations });
+assert(new Set(sharedObservations.readbackRecords.map((record) => record.readbackId)).size === 2, "separate_readback_runs_must_not_overwrite_observations");
+assert(new Set(sharedObservations.evidenceRecords.map((record) => record.artifactId)).size === 2, "separate_readback_runs_must_not_overwrite_evidence");
 
 const idMismatch = await runScenario({ matchAt: 2, mismatch: "id" });
 assert(idMismatch.result.status === "project_id_mismatch", "id_mismatch_must_stop_for_manual_review");

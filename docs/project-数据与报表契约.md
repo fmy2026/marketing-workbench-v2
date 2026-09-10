@@ -57,7 +57,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
 | L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation 保存真实 `confirmed_by_user_id`。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
 |  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于精确 `std_project/create + 40100 + 无对象 ID`，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
-|  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
+|  | `readback_records`、`evidence_artifacts` | Job×回查观察、脱敏证据；每次 Node 7 `readback_only` 生成独立 readback/evidence ID，历史观察不覆盖，消费者按 `created_at` 选择最新记录 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
 ### 核心关联
 

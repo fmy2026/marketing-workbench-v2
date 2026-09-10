@@ -47,7 +47,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 就绪 04 `account_resource_prepare` | blueprint bootstrap、目标账户 readonly、抖音授权、资源来源/绑定/事件链与八类 verifier | 产出 `account_ready_report` 和四态资源摘要；同轮基线 readonly 的资源状态原子落库，任一数据约束失败不保留部分更新。只读、来源或合同不完整时 fail-closed，未确认前零平台写入。 |
 | 就绪 05 `std_project_draft_builder` | confirmed resource orchestrator、`payload-build`、`payload-contract`、`duplicate-check`、`create-readiness` | 受控执行已确认资源 Plan，或生成 Draft/hash 并完成字段合同及未删除同名+语义查重；不创建项目。 |
 | 创建执行 06 `std_project_create_executor` | execution grant、`create-once`、持久化结果 | 只消费已确认 Create Plan，记录一个逻辑创建 action 与结果；授权或绑定漂移即停止。 |
-| 创建执行 07 `readback_closer` | `readback-std-project`、一致性与证据投影 | 以对象 ID/名称和字段回查决定 verified、等待或 blocker；不得补发 create 修复回查。 |
+| 创建执行 07 `readback_closer` | `readback-std-project`、一致性与证据投影 | 创建响应已确认且本地对象 ID 完整时，以官方 `project_ids` 精确只读查询（大 ID 保持十进制文本）并同时核验对象 ID、Draft 名称与所需素材；创建响应不明且无 ID 才按名称恢复性查询。每轮独立留存脱敏 observation；空、不一致或本地 ID 缺失均停止，不得补发 create 修复回查。 |
 
 注册 Skill 不等于都进入每种 schedule：monitor 后四步由 Gate/Plan 专链调用；小程序实例 authority Skill 是诊断入口；事件配置 baseline 是资源动作依赖。它们仍归属对应 Node，但不能被通用 runner 当成自动平台写入。
 

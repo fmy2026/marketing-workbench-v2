@@ -23,6 +23,7 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 - 统一 `not_required` 资源状态的消费：Node 04、Node 05、嵌套字段合同与 Execution Plan 复用同一就绪谓词；目标品牌空列表实验只允许整组省略 `brand_info`，不允许空对象或部分字段。
 - 将只读重跑的创建 Attempt 统一从 Case 尝试状态推导；Attempt 2 的未确认 Draft 与项目名 reservation 不得因调用方默认值退回 Attempt 1。
 - 将 JSZC 成功样本的字段形态校验收口为一个纯函数：目标空列表实验仅可将精确的五条品牌省略账本记录投影为历史四字段品牌形态用于比较；payload、payload contract、preflight 和 runner 共用该判定，品牌外任一差异继续阻断。
+- 修复 Node 7 的已知创建对象回查锚点：创建响应已确认且本地对象 ID 完整时，只能按精确 `project_ids` 只读查询并同时核验 ID 与草稿名称；每次只读观察独立留痕，绝不重放 Node 6 或再次创建。
 
 ## 非目标
 
@@ -31,6 +32,7 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 - 不把实验候选宣称为 `fresh_target_brand_industry_readback_passed`，不保存凭据、原始请求、原始响应或完整触点 URL。
 - 不新增数据库状态、Schema、Node、Gate、Plan、action、执行入口或平台写入；仅以获批 migration 在当前 Case 的既有 JSON 元数据登记 Attempt 1 结果和 Attempt 2 一次性授权，不修改资源、Plan、confirmation 或 action 历史。
 - 不在 live 源码按账户、Case、品牌或平台 ID 分支；不发送空、部分或游戏维度继承的 `brand_info` 作为本次 Attempt 2 payload。
+- 不以名称过滤为空为由再次创建、不扩大 Node 7 的五次/25 秒只读边界，也不将已确认 ID 缺失降级为名称猜测。
 
 ## 验收
 
@@ -47,6 +49,7 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 - AC-11: 已获当前合同授权的 `not_required/not_required` 资源在所有消费端得到一致判定；目标空列表模式在嵌套合同中要求 `brand_info` 完全缺席，其他模式仍要求完整四字段品牌对象。
 - AC-12: Case 已有失败创建时，无显式 Attempt 的 readonly 重跑使用 `nextCreateAttemptNo`；不匹配的显式 Attempt 在 Draft、Plan 或平台动作前 fail-closed。
 - AC-13: 获批目标空列表模式的真实草稿可通过完整 Node 05、Plan 和正式 prepare 预检；仅品牌省略可偏离历史形态，伪造、残缺或任何非品牌形态漂移均 fail-closed，工作台准确说明系统字段合同阻断。
+- AC-14: 已确认创建响应的 Node 7 以保留精度的 `project_ids` 回查，同一记录必须同时精确匹配 ID、草稿名称及所需素材绑定；每轮只读观察独立归档，名称过滤仅保留给创建响应不明且无 ID 的恢复场景，且全程零创建调用。
 
 ## 停止条件
 
@@ -57,4 +60,4 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 
 ## 交付说明
 
-交付通用的实验候选机制与前端恢复提示。真实平台写入和候选最终结论仍由当前 Case 的 fresh Plan、本人确认与权威回查决定；任务关闭时如未实际验证，不把该候选升级为长期经验。
+交付通用的实验候选机制、字段合同和 Node 7 ID 优先回查机制。真实平台写入和候选最终结论仍由当前 Case 的 fresh Plan、本人确认与权威回查决定；任务关闭时如未实际验证，不把该候选升级为长期经验。

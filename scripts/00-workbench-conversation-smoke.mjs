@@ -801,6 +801,25 @@ const pendingReadbackResponse = await handleWorkbenchCommand({
 assert(readbackOnlyCalls === 1, "continue_must_run_one_readback_only_command");
 assert(pendingReadbackResponse.interaction.message.includes("Case 保持暂停，未再次创建"), "pending_readback_message_must_not_claim_running_or_create_again");
 
+const notFoundReadbackView = {
+  ...pendingReadbackView,
+  phases: [{
+    nodes: [{ id: "readback_closer", outputSummary: { readbackStatus: "not_found_after_create" } }]
+  }]
+};
+const notFoundReadbackResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return readbackOnlyBundle; },
+    async getWorkflowCaseSummary() { return readbackOnlyCase; }
+  },
+  jobId: "JOB-READBACK-ONLY-1",
+  message: "继续执行",
+  getJobViewFn: async () => pendingReadbackView,
+  runJobFn: async () => notFoundReadbackView
+});
+assert(notFoundReadbackResponse.interaction.message.includes("本轮只读回查已完成"), "completed_not_found_readback_must_not_claim_not_started");
+assert(notFoundReadbackResponse.interaction.message.includes("不会重复创建"), "completed_not_found_readback_must_not_create_again");
+
 const verifiedReadbackView = {
   ...pendingReadbackView,
   caseGate: { currentGate: "first_std_project_create_completed", rootBlockerCodes: [] },

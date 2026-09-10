@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T13:28:32Z",
+  "updated_at": "2026-09-10T14:06:00Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -50,7 +50,9 @@
     "scripts/00-execution-grant-smoke.mjs",
     "scripts/00-create-result-mapping-smoke.mjs",
     "scripts/00-workflow-case-smoke.mjs",
-    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md"
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md"
   ],
   "reference_only": [],
   "allowed_writes": [
@@ -88,6 +90,7 @@
     "scripts/00-execution-grant-smoke.mjs",
     "scripts/00-create-result-mapping-smoke.mjs",
     "scripts/00-workflow-case-smoke.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
     "db/084_target_empty_brand_omit_experiment.sql",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
@@ -126,6 +129,7 @@
     ,{"acceptance_id": "AC-11", "command": "npm run test:node4-resource-prep-contracts && npm run test:execution-plan && npm run test:payload-contract && npm run test:workbench-progress"}
     ,{"acceptance_id": "AC-12", "command": "npm run test:case-corrective-create && npm run test:workbench-conversation && npm run test:workflow-case"}
     ,{"acceptance_id": "AC-13", "command": "npm run test:payload-contract && npm run test:execution-plan && npm run test:execution-grant && npm run test:workbench-progress && npm run test:workbench-conversation; run read-only prepareStdProjectCreate against the current Draft and verify ready=true with no platform write."}
+    ,{"acceptance_id": "AC-14", "command": "npm run test:std-project-readback && npm run test:create-result-mapping && npm run test:platform-http-deadline && npm run test:execution-grant && npm run test:workflow-case && npm run test:workbench-conversation && npm run test:workbench-progress; deploy without business action, then have the account owner issue one workbench '继续执行' and inspect the new readback observation and Case projection."}
   ],
   "validation_results": [
     {
