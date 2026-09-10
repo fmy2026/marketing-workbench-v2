@@ -42,6 +42,10 @@ assert(
   presentRootBlocker("qiankun_account_identity_preflight_failed").title === "账户监测身份已更新",
   "legacy_identity_preflight_blocker_must_have_controlled_presentation"
 );
+assert(
+  presentRootBlocker("brand_info_not_ready").title === "品牌/行业需要重新核验",
+  "brand_blocker_must_have_controlled_presentation"
+);
 
 const bundle = {
   job: { advertiser_id: "1871922175825993" },
@@ -173,6 +177,20 @@ const preview = buildConfirmationPreview(bundle, caseSummary);
 assert(preview?.advertiser === "****5993", "confirmation preview must mask advertiser");
 assert(preview?.maximumPlatformCalls === 1, "confirmation preview call limit missing");
 assert(preview?.retryAllowed === false, "confirmation preview retry boundary missing");
+const fallbackPreview = buildConfirmationPreview({
+  ...bundle,
+  resources: [{
+    resource_type: "brand_info",
+    metadata: {
+      brand_info_official: {
+        source: "game_route_fallback_experiment",
+        readback_status: "experimental_pending_create",
+        tuple_hash: "sha256:brand-fallback-smoke"
+      }
+    }
+  }]
+}, caseSummary);
+assert(fallbackPreview?.brandFallbackExperiment?.label.includes("游戏维度保底候选"), "brand_fallback_confirmation_preview_missing");
 
 const continueDecision = evaluateGateAction({
   intent: deterministic,

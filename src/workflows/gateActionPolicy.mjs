@@ -95,6 +95,16 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       ? "确认准备资源"
       : "确认创建";
   const actionGrants = scope.action_grants || scope.actionGrants || {};
+  const brandOfficial = (bundle.resources || []).find((item) => item.resource_type === "brand_info")?.metadata?.brand_info_official || {};
+  const brandFallbackExperiment = isSingleCreatePlan &&
+    clean(brandOfficial.source) === "game_route_fallback_experiment" &&
+    clean(brandOfficial.readback_status) === "experimental_pending_create"
+    ? {
+      source: "game_route_fallback_experiment",
+      label: "游戏维度保底候选；目标账户可投品牌列表为空；本次为验证创建",
+      tupleHash: clean(brandOfficial.tuple_hash)
+    }
+    : null;
   const actionLimits = actionTypes.map((type) => ({
     actionType: type,
     maximumPlatformCalls: Number(
@@ -121,6 +131,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),
     planHash: clean(plan.plan_hash),
+    brandFallbackExperiment,
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),

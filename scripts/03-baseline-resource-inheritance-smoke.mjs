@@ -1,4 +1,5 @@
 import {
+  buildGameBrandFallbackCandidate,
   runOceanEngineBaselineResourceProbes,
   runOceanEngineReadonlyProbes
 } from "../src/platforms/oceanengineReadonlyAdapter.mjs";
@@ -160,6 +161,77 @@ assert(avatarUpdate.readonlyCheck?.avatar_readiness_reason === "avatar_ready", "
 assert(productUpdate.readonlyCheck?.status === "needs_confirmation", "product_image_inventory_was_auto_selected");
 assert(!productUpdate.platformResourceId, "product_image_platform_id_was_auto_selected");
 assert(productUpdate.resourceMetadata?.product_image_inventory?.candidate_count === 3, "product_image_inventory_count_missing");
+
+const fallbackEvidence = ["A", "B"].map((suffix) => ({
+  brand_name_id: "11467384",
+  cdp_brand_id: "4016408",
+  cdp_brand_name: "巨兽战场",
+  yuntu_category_id: "2202",
+  matched_industry_path: "游戏 / SLG",
+  source: "live_target_account_readback",
+  readback_status: "fresh_target_brand_industry_readback_passed",
+  checked_at: new Date().toISOString(),
+  evidence_refs: [`EV-SMOKE-BRAND-${suffix}`]
+}));
+const fallbackCandidate = buildGameBrandFallbackCandidate({ bundle: targetRuntimeBundle, evidence: fallbackEvidence });
+assert(fallbackCandidate.status === "candidate", "game_brand_fallback_candidate_not_built");
+assert(fallbackCandidate.supporting_account_count === 2, "game_brand_fallback_support_count_mismatch");
+assert(fallbackCandidate.distinct_tuple_count === 1, "game_brand_fallback_tuple_not_unique");
+
+const fallbackBundle = {
+  ...baselineInventoryBundle,
+  job: { ...baselineInventoryBundle.job, case_id: "CASE-SMOKE-BRAND-FALLBACK" },
+  case: {
+    case_id: "CASE-SMOKE-BRAND-FALLBACK",
+    metadata: {
+      brand_fallback_experiment: {
+        status: "approved_for_single_create_validation",
+        case_id: "CASE-SMOKE-BRAND-FALLBACK",
+        tuple_hash: fallbackCandidate.tuple_hash,
+        route_id: TARGET.routeId,
+        game_code: TARGET.gameCode,
+        brand_blueprint_id: fallbackCandidate.brand_blueprint_id,
+        maximum_create_calls: 1,
+        retry_allowed: false
+      }
+    }
+  },
+  gameBrandFallbackCandidate: fallbackCandidate
+};
+const emptyBrandCalls = [];
+const emptyBrandClient = fakeReadonlyClient(emptyBrandCalls);
+const baseGet = emptyBrandClient.get.bind(emptyBrandClient);
+emptyBrandClient.get = async (definition) => {
+  if (definition.label !== "baseline_brand_info") return baseGet(definition);
+  emptyBrandCalls.push(definition);
+  return {
+    label: definition.label,
+    endpoint: definition.endpoint,
+    status: "passed",
+    httpStatus: 200,
+    apiCode: "0",
+    requestIdPresent: true,
+    responseHash: "sha256:smoke-empty-brand",
+    summary: { matchedBrandCount: 0, outerBrandId: "", brandNameId: "", cdpBrandId: "", cdpBrandName: "" }
+  };
+};
+const fallbackProbe = await runOceanEngineBaselineResourceProbes({ bundle: fallbackBundle, client: emptyBrandClient });
+const fallbackBrandUpdate = fallbackProbe.resourceUpdates.find((item) => item.resourceType === "brand_info") || {};
+assert(fallbackBrandUpdate.readonlyCheck?.status === "passed_by_manual_confirmation", "empty_target_brand_did_not_use_approved_fallback");
+assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.source === "game_route_fallback_experiment", "fallback_source_not_explicit");
+assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.tuple_hash === fallbackCandidate.tuple_hash, "fallback_tuple_hash_not_frozen");
+assert(!emptyBrandCalls.some((item) => item.label === "baseline_brand_industry"), "empty_target_brand_should_not_probe_industry_without_outer_brand_id");
+
+const ambiguousFallback = buildGameBrandFallbackCandidate({
+  bundle: targetRuntimeBundle,
+  evidence: [...fallbackEvidence, { ...fallbackEvidence[0], cdp_brand_id: "4016409", evidence_refs: ["EV-SMOKE-BRAND-C"] }]
+});
+assert(ambiguousFallback.status === "unavailable" && ambiguousFallback.blockers.includes("brand_fallback_tuple_ambiguous"), "ambiguous_brand_fallback_not_rejected");
+const staleFallback = buildGameBrandFallbackCandidate({
+  bundle: targetRuntimeBundle,
+  evidence: fallbackEvidence.map((item) => ({ ...item, checked_at: "2020-01-01T00:00:00.000Z" }))
+});
+assert(staleFallback.status === "unavailable" && staleFallback.blockers.includes("brand_fallback_insufficient_verified_accounts"), "stale_brand_fallback_not_rejected");
 
 const genericCalls = [];
 await runOceanEngineReadonlyProbes({

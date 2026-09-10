@@ -119,7 +119,13 @@ const targetSharedGuidance = readonlyRecoveryGuidance({
 assert(targetSharedGuidance?.message === "当前阻断：目标账户共享站点只读核验未完成。下一步：输入“重新只读准备”重新核验；不会确认或创建平台对象。", "target_shared_readonly_guidance_message_mismatch");
 assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重新核验，或输入“查看状态”...", "target_shared_readonly_guidance_placeholder_mismatch");
 assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
-assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] }) === null, "unrelated_blocker_must_keep_existing_guidance");
+assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] })?.placeholder === "输入“重新只读准备”或“查看状态”…", "unrelated_blocker_must_use_recovery_guidance");
+const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_not_ready"] });
+assert(brandFallbackGuidance?.message.includes("游戏维度保底候选"), "brand_fallback_guidance_missing");
+assert(brandFallbackGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_fallback_placeholder_mismatch");
+assert(!brandFallbackGuidance.placeholder.includes("继续执行"), "brand_fallback_placeholder_must_not_continue");
+const genericBlockerGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["resource_contract_missing"] });
+assert(genericBlockerGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "generic_blocker_placeholder_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_candidate_ambiguous"] })?.message === "当前阻断：检测到多个引导视频，需先确定唯一玩法。", "guide_video_ambiguous_guidance_message_mismatch");
 const identityRecoveryBlockers = [
@@ -160,6 +166,7 @@ assert(clientSource.includes("输入“继续执行”重新准备下一 Attempt
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
+assert(clientSource.includes("preview.brandFallbackExperiment.label"), "brand_fallback_confirmation_label_missing");
 
 console.log(JSON.stringify({
   status: "passed",

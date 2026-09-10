@@ -1,0 +1,146 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910",
+  "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
+  "status": "active",
+  "created_at": "2026-09-10T10:51:27Z",
+  "updated_at": "2026-09-10T11:00:59Z",
+  "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "docs/project-lessons.md",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "frontend/workbench-progress.mjs",
+    "frontend/app.js",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "frontend/workbench-progress.mjs",
+    "frontend/app.js",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.json",
+    "evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/**"
+  ],
+  "forbidden_actions": [
+    "绕过 Plan、confirmation、action grant 或通用 executor 的真实平台写入",
+    "自动确认、创建、重试或复用旧 Plan",
+    "在 live 源码内嵌账户、Case、Job、品牌或平台 ID",
+    "保存或传播凭据、Cookie、token、完整触点 URL、原始请求或响应"
+  ],
+  "stop_conditions": [
+    "无法证明候选为唯一完整且同 route/game 的已验证证据",
+    "候选机制需要新增旁路写入链路或放宽既有授权边界",
+    "真实创建未由本人在工作台精确确认或权威回查结果不明",
+    "验证需要敏感数据"
+  ],
+  "open_gaps": [
+    "真实创建验证必须等待实现部署后由当前账户本人在工作台完成两次明确确认；本开发任务不得代为确认。"
+  ],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts"},
+    {"acceptance_id": "AC-02", "command": "npm run test:payload-contract && npm run test:resource-action-registry"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase start && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close"},
+    {"acceptance_id": "AC-05", "command": "After deployment, inspect mwb.workflow_case_summary and the frozen Plan/confirmation/action/readback rows for the current Case; do not issue platform writes outside the authenticated workbench."}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts",
+      "status": "passed",
+      "verified_at": "2026-09-10T11:00:59Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "Smoke covers target-readback precedence, an approved empty-list fallback, and rejection of ambiguous or stale evidence."
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:payload-contract && npm run test:resource-action-registry",
+      "status": "passed",
+      "verified_at": "2026-09-10T11:00:59Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The candidate requires a frozen integer tuple hash, exact Case/route/game/blueprint scope and existing one-shot resource/create action boundaries."
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:workbench-progress && npm run test:workbench-conversation",
+      "status": "passed",
+      "verified_at": "2026-09-10T11:00:59Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The brand blocker now instructs readonly preparation, generic blockers no longer default to continue, and a create confirmation card labels the experimental brand source."
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:agent-hub && npm run test:workbench-address && git diff --check",
+      "status": "passed",
+      "verified_at": "2026-09-10T11:00:59Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "All requested local regressions passed; the restarted deep workbench and root assets return HTTP 200."
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "Records the approved experimental decision and its fail-closed conditions."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "Defines the single experimental brand readiness path without adding a Node, Gate, Plan or executor."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "Defines the existing JSON metadata used for candidate scope, hash and evidence."
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "not_needed",
+      "reason": "A reusable lesson requires the pending real create and authority readback result; the candidate is not yet verified."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

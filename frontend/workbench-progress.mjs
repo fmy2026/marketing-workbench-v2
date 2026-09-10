@@ -24,6 +24,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "brand_info_not_ready") {
+    return {
+      message: "当前阻断：目标账户品牌/行业未就绪。将先核验已冻结的游戏维度保底候选；请输入“重新只读准备”。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "guide_video_capability_probe_failed") {
     return {
       message: "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。",
@@ -36,11 +42,15 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“查看状态”..."
     };
   }
-  if (blocker !== "site_get_target_shared_blocked") return null;
-  return {
+  if (blocker === "site_get_target_shared_blocked") return {
     message: "当前阻断：目标账户共享站点只读核验未完成。下一步：输入“重新只读准备”重新核验；不会确认或创建平台对象。",
     placeholder: "输入“重新只读准备”重新核验，或输入“查看状态”..."
   };
+  if (blocker) return {
+    message: "当前阻断仍待处理。请按上方卡点处理后，输入“重新只读准备”或“查看状态”。",
+    placeholder: "输入“重新只读准备”或“查看状态”…"
+  };
+  return null;
 }
 
 export function progressPresentation({

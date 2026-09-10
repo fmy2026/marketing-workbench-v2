@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { OE3_RESOURCE_LABELS, hashValue } from "./00-contracts.mjs";
 import { backupLandingPageReadiness as node3BackupLandingPageReadiness } from "./03-landing-page-readiness.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
@@ -124,9 +125,34 @@ export function brandIndustryPassed(bundle = {}) {
   const brand = resource(bundle, "brand_info");
   const official = brand.metadata?.brand_info_official || {};
   const repair = brand.metadata?.oe3_brand_industry_repair || {};
+  const fallback = brand.metadata?.game_route_fallback_experiment || {};
+  const tuple = {
+    brand_name_id: clean(official.brand_name_id),
+    cdp_brand_id: clean(official.cdp_brand_id),
+    cdp_brand_name: clean(official.cdp_brand_name),
+    yuntu_category_id: clean(official.yuntu_category_id),
+    matched_industry_path: clean(official.matched_industry_path)
+  };
+  const tupleHash = `sha256:${createHash("sha256").update(JSON.stringify(tuple)).digest("hex")}`;
+  const approvedFallback = clean(official.source) === "game_route_fallback_experiment" &&
+    clean(official.readback_status) === "experimental_pending_create" &&
+    clean(official.validation_status) === "experimental_pending_create" &&
+    official.used_for_create_gate === true &&
+    clean(fallback.status) === "experimental_pending_create" &&
+    clean(fallback.case_id) === clean(bundle.job?.case_id) &&
+    clean(fallback.route_id) === clean(bundle.job?.route_id) &&
+    clean(fallback.game_code) === clean(bundle.job?.game_code) &&
+    clean(fallback.brand_blueprint_id) === clean(brand.blueprint_id) &&
+    clean(fallback.tuple_hash) === tupleHash &&
+    clean(official.tuple_hash) === tupleHash &&
+    Number(fallback.supporting_account_count) >= 2 &&
+    Number(fallback.distinct_tuple_count) === 1 &&
+    /^\d+$/.test(tuple.brand_name_id) && /^\d+$/.test(tuple.cdp_brand_id) && /^\d+$/.test(tuple.yuntu_category_id) &&
+    Boolean(tuple.cdp_brand_name) && Boolean(tuple.matched_industry_path) &&
+    Array.isArray(fallback.evidence_refs) && fallback.evidence_refs.length >= 2;
   return ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"].includes(clean(official.readback_status)) ||
     clean(official.live_brand_industry_status) === "passed" ||
-    clean(repair.status) === "passed";
+    clean(repair.status) === "passed" || approvedFallback;
 }
 
 export function eventChainPassed(bundle = {}) {

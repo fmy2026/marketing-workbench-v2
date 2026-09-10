@@ -775,6 +775,11 @@ export function presentRootBlocker(code = "") {
       title: "事件资产尚无当前账户合同",
       reason: "目标账户事件资产的模板或账户绑定未通过校验。",
       nextActionLabel: "建立账户级合同并完成只读前提核验后，再生成单次事件资产 Plan。"
+    },
+    brand_info_not_ready: {
+      title: "品牌/行业需要重新核验",
+      reason: "目标账户当前可投品牌列表未形成可用的品牌/行业合同；只有已冻结、同路线同游戏且获本 Case 批准的保底候选可进入一次验证创建。",
+      nextActionLabel: "请输入“重新只读准备”；只读核验会优先使用目标账户结果，候选不会自动创建项目。"
     }
   };
   return { code, ...(catalog[code] || {

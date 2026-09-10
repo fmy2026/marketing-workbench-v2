@@ -4209,6 +4209,38 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async listVerifiedGameBrandEvidence({ routeId, gameCode, excludeAdvertiserId = "" } = {}) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    if (excludeAdvertiserId) assertId("exclude_advertiser_id", excludeAdvertiserId, /^[0-9A-Za-z_\-.]+$/);
+    return queryJson(`
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'brand_name_id', ar.metadata->'brand_info_official'->>'brand_name_id',
+        'cdp_brand_id', ar.metadata->'brand_info_official'->>'cdp_brand_id',
+        'cdp_brand_name', ar.metadata->'brand_info_official'->>'cdp_brand_name',
+        'yuntu_category_id', ar.metadata->'brand_info_official'->>'yuntu_category_id',
+        'matched_industry_path', ar.metadata->'brand_info_official'->>'matched_industry_path',
+        'readback_status', ar.metadata->'brand_info_official'->>'readback_status',
+        'source', ar.metadata->'brand_info_official'->>'source',
+        'checked_at', ar.metadata->'readonly_check'->>'checked_at',
+        'evidence_refs', coalesce(ar.metadata->'readonly_check'->'evidence_refs', '[]'::jsonb)
+      ) ORDER BY ar.updated_at DESC), '[]'::jsonb)::text
+      FROM mwb.account_resources ar
+      WHERE ar.route_id = ${sqlLiteral(routeId)}
+        AND ar.game_code = ${sqlLiteral(gameCode)}
+        AND ar.resource_type = 'brand_info'
+        AND ar.visibility_status = 'visible'
+        AND ar.readback_status = 'readback_verified'
+        AND ar.metadata->'readonly_check'->>'status' = 'passed'
+        AND ar.metadata->'brand_info_official'->>'source' = 'live_target_account_readback'
+        AND ar.metadata->'brand_info_official'->>'readback_status' IN (
+          'fresh_target_brand_industry_readback_passed',
+          'target_account_fresh_brand_industry_readback_passed'
+        )
+        ${excludeAdvertiserId ? `AND ar.advertiser_id <> ${sqlLiteral(excludeAdvertiserId)}` : ''};
+    `, this.database);
+  }
+
   async updateNodeRun(jobId, nodeKey, { status, summary, diagnosticLevel = "info", outputSummary = {}, evidenceRefs = [] }) {
     assertId("job_id", jobId);
     assertId("node_key", nodeKey);

@@ -10,7 +10,7 @@ import {
 import { runBackupLandingPageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-backup-landing-page-source-prepare.mjs";
 import { runEventChainReadonlySkill } from "../src/workflows/skills/oe3/04-event-chain-readiness.mjs";
 import { runProductImageSourcePrepareSkill } from "../src/workflows/skills/oe3/04-product-image-source-prepare.mjs";
-import { runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
+import { brandIndustryPassed, runResourceVerifier } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { validateOe3WorkflowSchedules, workflowSkillScheduleForMode } from "../src/workflows/skills/oe3/00-runner.mjs";
 
 function assert(condition, message) {
@@ -31,6 +31,53 @@ function tinyPng() {
 function sha256Hex(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
+
+function fallbackBrandBundle({ tupleHash = "", caseId = "CASE-SMOKE-BRAND", routeId = "oceanengine_3_byte_mini_game" } = {}) {
+  const official = {
+    brand_name_id: "101",
+    cdp_brand_id: "202",
+    cdp_brand_name: "smoke brand",
+    yuntu_category_id: "303",
+    matched_industry_path: "游戏 / SLG",
+    source: "game_route_fallback_experiment",
+    readback_status: "experimental_pending_create",
+    validation_status: "experimental_pending_create",
+    used_for_create_gate: true
+  };
+  const hash = tupleHash || `sha256:${createHash("sha256").update(JSON.stringify({
+    brand_name_id: official.brand_name_id,
+    cdp_brand_id: official.cdp_brand_id,
+    cdp_brand_name: official.cdp_brand_name,
+    yuntu_category_id: official.yuntu_category_id,
+    matched_industry_path: official.matched_industry_path
+  })).digest("hex")}`;
+  official.tuple_hash = hash;
+  return {
+    job: { case_id: caseId, route_id: routeId, game_code: "JSZC" },
+    resources: [{
+      resource_type: "brand_info",
+      blueprint_id: "BRP-SMOKE-BRAND",
+      metadata: {
+        brand_info_official: official,
+        game_route_fallback_experiment: {
+          status: "experimental_pending_create",
+          case_id: caseId,
+          route_id: "oceanengine_3_byte_mini_game",
+          game_code: "JSZC",
+          brand_blueprint_id: "BRP-SMOKE-BRAND",
+          tuple_hash: hash,
+          supporting_account_count: 2,
+          distinct_tuple_count: 1,
+          evidence_refs: ["EV-SMOKE-A", "EV-SMOKE-B"]
+        }
+      }
+    }]
+  };
+}
+
+assert(brandIndustryPassed(fallbackBrandBundle()), "approved_brand_fallback_not_accepted_by_create_gate");
+assert(!brandIndustryPassed(fallbackBrandBundle({ tupleHash: "sha256:mismatch" })), "brand_fallback_hash_mismatch_not_rejected");
+assert(!brandIndustryPassed(fallbackBrandBundle({ routeId: "other_route" })), "brand_fallback_route_mismatch_not_rejected");
 
 const root = await mkdtemp(join(tmpdir(), "mwb-node4-resource-prep-"));
 const productPath = join(root, "product.png");

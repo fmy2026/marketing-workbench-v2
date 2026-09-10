@@ -1,5 +1,8 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
-import { runOceanEngineBaselineResourceProbes } from "../../../platforms/oceanengineReadonlyAdapter.mjs";
+import {
+  buildGameBrandFallbackCandidate,
+  runOceanEngineBaselineResourceProbes
+} from "../../../platforms/oceanengineReadonlyAdapter.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 
@@ -125,7 +128,16 @@ export async function runPlatformReadonlyReconcileSkill({
     };
   }
 
-  const result = await runOceanEngineBaselineResourceProbes({ bundle, client });
+  const brandEvidence = await repo.listVerifiedGameBrandEvidence({
+    routeId: bundle.job.route_id,
+    gameCode: bundle.job.game_code,
+    excludeAdvertiserId: bundle.job.advertiser_id
+  });
+  const gameBrandFallbackCandidate = buildGameBrandFallbackCandidate({ bundle, evidence: brandEvidence || [] });
+  const result = await runOceanEngineBaselineResourceProbes({
+    bundle: { ...bundle, gameBrandFallbackCandidate },
+    client
+  });
   const { artifactId, probeSummary } = await recordEvidence({ repo, bundle, result });
   for (const update of result.resourceUpdates || []) {
     const checkedAt = new Date().toISOString();
@@ -170,6 +182,13 @@ export async function runPlatformReadonlyReconcileSkill({
       resourceUpdateCount: (result.resourceUpdates || []).length,
       credential: safeCredential(result.credential),
       checks: result.checks || [],
+      gameBrandFallbackCandidate: {
+        status: gameBrandFallbackCandidate.status,
+        tuple_hash: gameBrandFallbackCandidate.tuple_hash || "",
+        supporting_account_count: Number(gameBrandFallbackCandidate.supporting_account_count || 0),
+        distinct_tuple_count: Number(gameBrandFallbackCandidate.distinct_tuple_count || 0),
+        evidence_ref_count: (gameBrandFallbackCandidate.evidence_refs || []).length
+      },
       probes: probeSummary,
       evidenceRef: artifactId,
       rawRequestStored: false,

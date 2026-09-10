@@ -33,6 +33,7 @@
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |
 | 账户当前状态 | 使用账户 canonical readiness 纠正历史缺失/未就绪投影，保留历史 Skill 证据 | [账户投影任务](../tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md) |
 | 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产、配置与目标绑定顺序核验，部分完成也要有准确 blocker | [逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
+| 品牌保底候选验证 | 新鲜目标账户品牌/行业回查始终优先。仅在目标可投品牌列表为空时，允许同 route×game 下至少两份新鲜目标账户回查形成的唯一品牌三元组，作为当前 Case 一次验证创建的实验候选；候选必须冻结 hash、蓝图与脱敏证据引用，并经本人完成既有资源确认和创建确认。成功权威回查前不得宣称目标账户已授权；多版本、过期、范围或 hash 不匹配一律阻断 | [本次批准 Task](../tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md)、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 资源动作精确调用量 | 资源 executor 的 fresh readonly 结果是该动作唯一调用量来源：0 表示已满足、不生成写动作；正整数同时冻结在 planned action、action grant 与 Plan 总调用量。确认前重新计算；任一数量或授权不一致均在 confirmation claim 前 fail-closed，必须走 fresh Job/Plan，不能改写旧 Plan | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md)、[当前逻辑](project-现在的逻辑图.md) |
 | 事件配置最终一致性 | 所有写入成功后采用有界只读回查窗口吸收可见性延迟，失败不重试创建 | [回查窗口任务](../tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md) |
 | 平台响应与完成判定 | 受理不等于 verified；统一错误分类、HTTP deadline 和严格 finalizer，避免误成功或悬挂 | [终态任务](../tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md)、[回查收口任务](../tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md) |
