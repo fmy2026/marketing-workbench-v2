@@ -29,7 +29,7 @@
 - AC-02: 旧 Job 或错误实例的缓存均不能命中；当前 Job 的 passed、not_required、blocked 结果可缓存，相关 smoke 全部通过。
 - AC-03: 服务重启后加载修正提交并保持健康；不改变公开接口、Schema 或平台写权限。
 - AC-04: 当前 replacement Job 首次实际运行 `gameplay/list` readonly，写入当前 Job 绑定的脱敏 evidence，且 root blocker 不再是 `guide_video_current_job_readonly_missing`。
-- AC-05: 若无其他 blocker，生成更高版本的单一 `std_project_create` ready Plan，保持逻辑 Attempt `0/1` 与零平台 action；若有真实新 blocker，保留证据并停止。
+- AC-05: 若无其他 blocker，生成单一 `std_project_create` ready Plan，保持逻辑 Attempt `0/1` 与零平台 action；未确认的同 Attempt readiness snapshot 可依既有合同原位重编译，确认后的冻结 Plan 不可改写。若有真实新 blocker，保留证据并停止。
 
 ## 停止条件
 

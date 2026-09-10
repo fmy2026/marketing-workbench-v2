@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910",
   "task_ref": "tasks/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-10T03:42:16Z",
-  "updated_at": "2026-09-10T03:42:16Z",
+  "updated_at": "2026-09-10T03:49:30Z",
   "base_revision": "5959699fbf5b7d4bb655623314df7eb64fe8c7a6",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md": "sha256:ff1e1d55d419fd882ccea18db02c4070a399ef6ec89e00e77062d272789ab8e8",
@@ -33,6 +33,8 @@
   "reference_only": [],
   "allowed_writes": [
     "project.state.json",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.json",
+    "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/**",
     "tasks/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.md",
     "tasks-context-manifests/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.json",
     "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/**",
@@ -71,10 +73,61 @@
     },
     {
       "acceptance_id": "AC-05",
-      "command": "readonly Postgres verification of higher-version Plan, Gate, action count, logical attempt and zero platform writes; stop on a new real blocker"
+      "command": "readonly Postgres verification of ready Plan, Gate, action count, logical attempt and zero platform writes; stop on a new real blocker"
     }
   ],
-  "validation_results": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start",
+      "verified_at": "2026-09-10T03:42:16Z",
+      "summary": "The successor control/workflow Task started with the prior Task closure recorded as the immutable dirty-file baseline.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/validation.md#ac-01--task-startup"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run smoke:workflow-skills && npm run check:runtime-consistency && npm run db:contract-check",
+      "verified_at": "2026-09-10T03:44:31Z",
+      "summary": "All checks passed. The readonly smoke proves previous-Job and wrong-instance metadata refresh once, while current-Job passed, not_required and blocked metadata stay cached.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/validation.md#ac-02--generic-cache-regression"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server; verify PID/start time after fix commit and HTTP health",
+      "verified_at": "2026-09-10T03:44:51Z",
+      "summary": "Service restarted after commit 0177fe0 to PID 76419; its launch log reports the configured LAN listener and the workbench loaded in the authenticated browser before the expected restart session invalidation.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/validation.md#ac-03--service-load"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "authenticated owner workbench command 重新只读准备; readonly Postgres verification of current-job guide-video evidence, metadata binding, skill source and case blocker",
+      "verified_at": "2026-09-10T03:46:21Z",
+      "summary": "The owner-bound readonly recovery performed one fresh gameplay/list probe, persisted current-Job guide-video evidence and cleared guide_video_current_job_readonly_missing.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/validation.md#ac-04--current-job-readonly-recovery"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "readonly Postgres verification of ready Plan, Gate, action count, logical attempt and zero platform writes; stop on a new real blocker",
+      "verified_at": "2026-09-10T03:47:37Z",
+      "summary": "Gate is await_job_write_authorization with one ready std_project_create action and logical Attempt 0/1. The pre-confirmation readiness snapshot was safely rebuilt as V1 under the existing reusable-plan contract; confirmations, platform actions, created objects and verified readbacks remain zero.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/validation.md#ac-05--ready-plan-and-zero-write-boundary"
+      ]
+    }
+  ],
   "documentation_updates": [
     {
       "ref": "docs/Solution Design.md",
@@ -98,6 +151,17 @@
     }
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "A generic current-Job/current-instance cache binding repair allowed the existing replacement Job to perform its one required guide-video readonly probe and reach owner confirmation readiness without a platform write.",
+    "side_effects": "Closed the predecessor recovery Task as cancelled, restarted the local LAN service, and wrote current-Job readonly evidence and resource metadata through the existing runtime flow. No schema, public API, account capability, platform action, confirmation, created object or verified readback was changed.",
+    "remaining_risks": [
+      "The browser session was invalidated by service restart; the ready confirmation card must be reopened by the account owner before any optional create confirmation.",
+      "A future create remains subject to the existing exact-40100 bounded delivery contract and authoritative readback."
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-0F11DE6EF5CEB4097B",
+      "postgres:mwb.evidence_artifacts:EV-JOB-MWBV2-20260910033223-093F5A-GUIDE-VIDEO-READONLY"
+    ]
+  },
+  "closed_at": "2026-09-10T03:49:30Z"
 }
