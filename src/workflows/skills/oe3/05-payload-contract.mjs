@@ -4,7 +4,7 @@ import {
   cstYyyymmdd
 } from "../../stdProjectNameBuilder.mjs";
 import { buildOe3StdProjectPayload } from "./05-payload.mjs";
-import { brandIndustryPassed, brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
+import { brandIndustryPassed, brandInfoMode, brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
@@ -118,6 +118,7 @@ function projectNameMatches(projectName, payload) {
 }
 
 function basePayloadSummary({ bundle, projectName, namePrefix, projectSeq, yyyymmdd }) {
+  const brandMode = brandInfoMode(bundle);
   return {
     route_id: bundle.job.route_id,
     game_code: bundle.job.game_code,
@@ -134,7 +135,8 @@ function basePayloadSummary({ bundle, projectName, namePrefix, projectSeq, yyyym
     roi_goal: Number(bundle.defaults?.roi_goal || 0),
     targeting_summary: bundle.defaults?.targeting_summary || "",
     dmp_summary: bundle.defaults?.dmp_summary || "",
-    brand_info: brandInfoSummary(bundle),
+    brand_mode: brandMode,
+    ...(brandMode === "target_empty_omit_experiment" ? {} : { brand_info: brandInfoSummary(bundle) }),
     material_pack_id: bundle.materialPack?.pack?.pack_id || "",
     material_asset_refs: materialItems(bundle).map((entry) => entry.item?.asset_ref).filter(Boolean),
     naming_prefix: namePrefix,
@@ -367,7 +369,11 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const finalManifest = payload.final_payload_manifest || {};
   const finalPayloadBlockers = Array.isArray(payload.final_payload_blockers) ? payload.final_payload_blockers : [];
   const usesFinalPayloadHash = payload.payload_hash_source === "final_controlled_payload";
-  const missingFields = REQUIRED_PAYLOAD_FIELDS.filter((field) => !valuePresent(payload[field]));
+  const brandMode = brandInfoMode(bundle);
+  const targetEmptyOmit = brandMode === "target_empty_omit_experiment";
+  const missingFields = REQUIRED_PAYLOAD_FIELDS
+    .filter((field) => field !== "brand_info" || !targetEmptyOmit)
+    .filter((field) => !valuePresent(payload[field]));
   const forbiddenKeys = collectForbiddenKeys(payload);
   const brandInfo = payload.brand_info || {};
   const missingBrandInfoFields = REQUIRED_BRAND_INFO_FIELDS.filter((field) => !valuePresent(brandInfo[field]));
@@ -380,7 +386,9 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   // Node 04 owns eligibility for target readback and the narrowly approved
   // game-route fallback. Node 05 only verifies that its frozen draft still
   // matches that same resource contract.
-  const brandInfoConfirmed = brandIndustryPassed(bundle) && brandInfoMatchesCurrentContract;
+  const brandInfoConfirmed = targetEmptyOmit
+    ? !Object.hasOwn(payload, "brand_info") && finalManifest.brandMode === "target_empty_omit_experiment" && finalManifest.brandInfoOmitted === true
+    : brandIndustryPassed(bundle) && brandInfoMatchesCurrentContract;
   const expectedHash = usesFinalPayloadHash && payload.final_payload_hash
     ? payload.final_payload_hash
     : stablePayloadHash(payload);
@@ -678,25 +686,25 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
     },
     {
       key: "brand_info_required",
-      status: missingBrandInfoFields.length ? "blocked" : "passed",
-      summary: missingBrandInfoFields.length ? `brand_info 缺少 ${missingBrandInfoFields.join("、")}` : "brand_info 官方字段齐全。"
+      status: targetEmptyOmit ? (!Object.hasOwn(payload, "brand_info") ? "passed" : "blocked") : missingBrandInfoFields.length ? "blocked" : "passed",
+      summary: targetEmptyOmit ? (!Object.hasOwn(payload, "brand_info") ? "目标账户品牌列表为空；brand_info 已整组省略。" : "目标空列表模式不得发送 brand_info。") : missingBrandInfoFields.length ? `brand_info 缺少 ${missingBrandInfoFields.join("、")}` : "brand_info 官方字段齐全。"
     },
     {
       key: "brand_info_forbidden_fields",
-      status: brandInfoHasEcomBrandId ? "blocked" : "passed",
+      status: targetEmptyOmit ? (!Object.hasOwn(payload, "brand_info") ? "passed" : "blocked") : brandInfoHasEcomBrandId ? "blocked" : "passed",
       summary: brandInfoHasEcomBrandId ? "3.0 payload 禁止 brand_info.ecom_brand_id。" : "brand_info 未包含 ecom_brand_id。"
     },
     {
       key: "brand_info_numeric_fields",
-      status: brandInfoNumericFieldsOk ? "passed" : "blocked",
-      summary: brandInfoNumericFieldsOk ? "brand_info 数字字段可安全转为 integer。" : "brand_info 数字字段缺失或不是数字。"
+      status: targetEmptyOmit ? (!Object.hasOwn(payload, "brand_info") ? "passed" : "blocked") : brandInfoNumericFieldsOk ? "passed" : "blocked",
+      summary: targetEmptyOmit ? "目标空列表模式不发送品牌数字字段。" : brandInfoNumericFieldsOk ? "brand_info 数字字段可安全转为 integer。" : "brand_info 数字字段缺失或不是数字。"
     },
     {
       key: "brand_info_confirmation",
       status: brandInfoConfirmed ? "passed" : "blocked",
       summary: brandInfoConfirmed
-        ? "brand_info 已通过统一资源资格合同，且与当前 Draft 一致。"
-        : "brand_info 未通过统一资源资格合同，或与当前 Draft 不一致。"
+        ? targetEmptyOmit ? "目标空列表省略实验已通过统一资源资格合同，Draft 未包含 brand_info。" : "brand_info 已通过统一资源资格合同，且与当前 Draft 一致。"
+        : targetEmptyOmit ? "目标空列表省略实验的模式、授权或 Draft 不一致。" : "brand_info 未通过统一资源资格合同，或与当前 Draft 不一致。"
     },
     {
       key: "long_numeric_ids",

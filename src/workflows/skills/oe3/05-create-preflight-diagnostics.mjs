@@ -801,8 +801,13 @@ function checkNestedFieldContractManifest(manifest = {}) {
 function checkCreateFieldLedger(manifest = {}) {
   const ledger = manifest.createFieldLedger || {};
   const profile = manifest.successProfile || {};
-  const expectedPathCount = Number(profile.expectedLedgerPathCount || 0);
+  const targetEmptyOmit = manifest.brandMode === "target_empty_omit_experiment";
+  const expectedPathCount = targetEmptyOmit
+    ? Number(ledger.checkedPathCount || 0)
+    : Number(profile.expectedLedgerPathCount || 0);
   const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+  const brandOmitted = targetEmptyOmit && ["brand_info", "brand_info.brand_name_id", "brand_info.cdp_brand_id", "brand_info.cdp_brand_name", "brand_info.yuntu_category_id"]
+    .every((path) => entries.some((entry) => entry.path === path && entry.sendPolicy === "omit" && entry.preCreateStatus === "passed"));
   const passed = ledger.status === "passed" &&
     ledger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
     Number(ledger.checkedPathCount || 0) > 0 &&
@@ -812,7 +817,8 @@ function checkCreateFieldLedger(manifest = {}) {
     /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)) &&
     ledger.fieldShapeHash === manifest.fieldShapeHash &&
     entries.every((entry) => entry.rawValueStored === false && entry.preCreateStatus === "passed") &&
-    ledger.rawPayloadStored === false;
+    ledger.rawPayloadStored === false &&
+    (!targetEmptyOmit || brandOmitted);
   return diag({
     checkId: "manifest:create_field_ledger",
     fieldPath: "final_payload_manifest.createFieldLedger",
@@ -836,6 +842,7 @@ function checkCreateFieldLedger(manifest = {}) {
 
 function checkJsZcSuccessProfile(manifest = {}) {
   const profile = manifest.successProfile || {};
+  const targetEmptyOmit = manifest.brandMode === "target_empty_omit_experiment";
   const guideVideoRequired = manifest.guideVideoRequired === true;
   const expectedShapeHash = guideVideoRequired
     ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
@@ -853,7 +860,7 @@ function checkJsZcSuccessProfile(manifest = {}) {
     Number(profile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
     profile.guideVideoRequired === guideVideoRequired &&
     profile.guideVideoPolicy === (guideVideoRequired ? "fresh_gameplay_readonly" : "omit") &&
-    manifest.fieldShapeHash === expectedShapeHash &&
+    (targetEmptyOmit ? manifest.brandInfoOmitted === true : manifest.fieldShapeHash === expectedShapeHash) &&
     profile.filterEventPolicy === "omit" &&
     profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
     profile.externalUrlMaterialListPolicy === "send" &&
@@ -915,6 +922,7 @@ export function evaluateStdProjectCreatePreflight({
 } = {}) {
   const diagnostics = [];
   if (payload) {
+    const targetEmptyOmit = requestFieldManifest.brandMode === "target_empty_omit_experiment";
     const externalUrlPolicy = clean(requestFieldManifest.externalUrlMaterialListPolicy || "omit");
     const filterEventPolicy = clean(requestFieldManifest.filterEventPolicy || "omit");
     const convertedTimeDurationPolicy = clean(requestFieldManifest.convertedTimeDurationPolicy || "");
@@ -935,8 +943,7 @@ export function evaluateStdProjectCreatePreflight({
       "audience_type",
       "audience",
       "project_materials",
-      "track_url_setting",
-      "brand_info"
+      "track_url_setting"
     ].forEach((path) => diagnostics.push(checkRequired(payload, path)));
     diagnostics.push(checkInteger(payload, "advertiser_id", {
       blockerCode: "advertiser_id_not_safe_integer_for_platform_payload"
@@ -975,9 +982,17 @@ export function evaluateStdProjectCreatePreflight({
         }));
     diagnostics.push(checkCreateWireBody(payload));
     diagnostics.push(checkPayloadAwemeId(payload));
-    diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
-    diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
-    diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
+    if (targetEmptyOmit) {
+      diagnostics.push(checkAbsent(payload, "brand_info", {
+        blockerCode: "brand_info_must_be_omitted_for_target_empty_brand_mode",
+        repairHint: "目标账户品牌列表成功为空的受控实验中，brand_info 及其所有子字段必须整组省略。"
+      }));
+    } else {
+      diagnostics.push(checkRequired(payload, "brand_info"));
+      diagnostics.push(checkInteger(payload, "brand_info.brand_name_id"));
+      diagnostics.push(checkInteger(payload, "brand_info.cdp_brand_id"));
+      diagnostics.push(checkInteger(payload, "brand_info.yuntu_category_id"));
+    }
     diagnostics.push(checkEnum(payload, "audience.gender", [JSZC_FALLBACK_GENDER]));
     diagnostics.push(checkExactStringArray(payload, "audience.age", JSZC_FALLBACK_AGES));
     diagnostics.push(checkExactStringArray(payload, "project_materials.call_to_action_buttons", JSZC_FALLBACK_CALL_TO_ACTION_BUTTONS));

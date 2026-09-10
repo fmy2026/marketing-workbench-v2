@@ -517,6 +517,7 @@ export async function prepareStdProjectCreate({ repo, jobId, target = null } = {
     bundle,
     target: runtimeTarget,
     payload: finalPayload.payload,
+    requestFieldManifest: finalPayload.requestFieldManifest,
     redactedPayloadSummary: redactedPayloadSummary(finalPayload.payload),
     payloadContractStatus: contract.status,
     payloadHashStable,
@@ -632,6 +633,7 @@ export async function createStdProjectForTargetOnce({
     };
   }
   const actionId = `ACTION-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
+  const requestFieldManifest = prepared.requestFieldManifest || bundle.draft?.payload_summary?.final_payload_manifest || {};
   const wireBody = buildStdProjectCreateWireBody(prepared.payload);
   const requestHash = wireBody.requestHash;
   const claim = await repo.claimStdProjectCreateAction({
@@ -681,6 +683,7 @@ export async function createStdProjectForTargetOnce({
       attemptNo: runtimeTarget.createAttemptNo,
       requestHash,
       idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
+      requestFieldManifest,
       metadata: {
         target_project_name: runtimeTarget.projectName,
         raw_payload_stored: false,
@@ -779,7 +782,7 @@ export async function createStdProjectForTargetOnce({
       }
       await repo.upsertPlatformAction({
         actionId, jobId: runtimeTarget.jobId, confirmationId, planId: runtimeTarget.planId,
-        actionType: "oceanengine_std_project_create", endpoint: CREATE_ENDPOINT, method: "POST",
+        actionType: "oceanengine_std_project_create", endpoint: CREATE_ENDPOINT, method: "POST", requestFieldManifest,
         actionStatus: "failed_or_unconfirmed", attemptNo: runtimeTarget.createAttemptNo, requestHash, responseHash,
         httpStatus: null, apiCode: timedOut ? "timeout" : "transport_error", requestIdPresent: false,
         objectIdPresent: false, errorSummary: "platform_create_transport_not_confirmed", requestId: "",
@@ -843,6 +846,7 @@ export async function createStdProjectForTargetOnce({
     confirmationId,
     planId: runtimeTarget.planId,
     actionType: "oceanengine_std_project_create",
+    requestFieldManifest,
     endpoint: CREATE_ENDPOINT,
     method: "POST",
     actionStatus: passed ? "succeeded" : "failed",

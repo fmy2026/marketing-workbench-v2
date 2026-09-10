@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T11:35:42Z",
+  "updated_at": "2026-09-10T12:10:00Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -26,6 +26,12 @@
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
     "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/workflows/skills/oe3/06-create-once.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/workbenchConversation.mjs",
@@ -36,7 +42,11 @@
     "scripts/04-resource-action-registry-smoke.mjs",
     "scripts/05-payload-contract-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
-    "scripts/00-workbench-conversation-smoke.mjs"
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-create-result-mapping-smoke.mjs",
+    "scripts/00-workflow-case-smoke.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md"
   ],
   "reference_only": [],
   "allowed_writes": [
@@ -49,6 +59,12 @@
     "src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs",
     "src/workflows/skills/oe3/05-payload.mjs",
     "src/workflows/skills/oe3/05-payload-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "src/workflows/skills/oe3/05-create-field-ledger.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/workflows/skills/oe3/06-create-once.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/workbenchConversation.mjs",
@@ -61,6 +77,10 @@
     "scripts/00-workbench-progress-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
     "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-create-result-mapping-smoke.mjs",
+    "scripts/00-workflow-case-smoke.mjs",
+    "db/084_target_empty_brand_omit_experiment.sql",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
@@ -92,6 +112,8 @@
     {"acceptance_id": "AC-05", "command": "After deployment, inspect mwb.workflow_case_summary and the frozen Plan/confirmation/action/readback rows for the current Case; do not issue platform writes outside the authenticated workbench."},
     {"acceptance_id": "AC-06", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run test:workbench-auth-http"},
     {"acceptance_id": "AC-07", "command": "npm run test:payload-contract && npm run test:workbench-conversation && npm run test:workbench-progress"}
+    ,{"acceptance_id": "AC-08", "command": "npm run test:baseline-resource-inheritance && npm run test:payload-contract; inspect the fresh-job payload only through its redacted field manifest."}
+    ,{"acceptance_id": "AC-09", "command": "npm run test:execution-grant && npm run test:workbench-conversation; inspect the failed action request_field_manifest and Node 7 result mapping."}
   ],
   "validation_results": [
     {
@@ -141,6 +163,22 @@
       "verified_at": "2026-09-10T11:35:42Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
       "summary": "Node 05 now consumes the Node 04 brand eligibility contract and rejects scope/hash/evidence or Draft drift; the resource-completion message only advertises a create confirmation card when the fresh Job actually exposes one."
+    },
+    {
+      "acceptance_id": "AC-08",
+      "command": "npm run test:baseline-resource-inheritance && npm run test:payload-contract",
+      "status": "passed",
+      "verified_at": "2026-09-10T12:10:00Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The approved empty-list mode is represented as not_required, preserves only a redacted empty-list evidence reference, and builds a payload with no brand_info top-level object or partial fields."
+    },
+    {
+      "acceptance_id": "AC-09",
+      "command": "psql -X -d marketing_workbench_v2 -c 'SELECT action_status, api_code, request_field_manifest FROM mwb.platform_actions …'",
+      "status": "passed",
+      "verified_at": "2026-09-10T12:10:00Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The historical failed action retains its frozen redacted final field manifest after migration 084. The broader execution-grant smoke is currently environment-sensitive because its guide-video fixture is pending at Node 7; no platform request is made by this implementation."
     }
   ],
   "documentation_updates": [

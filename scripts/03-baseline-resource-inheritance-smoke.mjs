@@ -224,6 +224,22 @@ assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.source === "ga
 assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.tuple_hash === fallbackCandidate.tuple_hash, "fallback_tuple_hash_not_frozen");
 assert(!emptyBrandCalls.some((item) => item.label === "baseline_brand_industry"), "empty_target_brand_should_not_probe_industry_without_outer_brand_id");
 
+const targetEmptyOmitBundle = structuredClone(fallbackBundle);
+targetEmptyOmitBundle.case.metadata.brand_empty_omit_experiment = {
+  status: "approved_for_single_create_validation",
+  case_id: targetEmptyOmitBundle.job.case_id,
+  route_id: targetEmptyOmitBundle.job.route_id,
+  game_code: targetEmptyOmitBundle.job.game_code,
+  maximum_create_calls: 1,
+  retry_allowed: false
+};
+const targetEmptyOmitProbe = await runOceanEngineBaselineResourceProbes({ bundle: targetEmptyOmitBundle, client: emptyBrandClient });
+const targetEmptyOmitBrand = targetEmptyOmitProbe.resourceUpdates.find((item) => item.resourceType === "brand_info") || {};
+assert(targetEmptyOmitBrand.visibilityStatus === "not_required", "target_empty_brand_must_not_be_presented_as_visible");
+assert(targetEmptyOmitBrand.readbackStatus === "not_required", "target_empty_brand_must_not_be_presented_as_readback_verified");
+assert(targetEmptyOmitBrand.resourceMetadata?.brand_info_official?.source === "target_empty_omit_experiment", "target_empty_omit_source_missing");
+assert(targetEmptyOmitBrand.resourceMetadata?.target_empty_omit_experiment?.matched_brand_count === 0, "target_empty_omit_evidence_missing");
+
 const batchWrites = [];
 const reconcile = await runPlatformReadonlyReconcileSkill({
   repo: {

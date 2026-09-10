@@ -566,6 +566,8 @@ try {
   const explicitFailureAudit = await repo.getLaunchJobBundle(explicitFailureView.jobId);
   const explicitFailurePlan = await repo.getLatestLaunchExecutionPlan(explicitFailureView.jobId);
   assert(explicitFailureAudit.platformAction?.action_status === "failed", "explicit platform rejection must stay failed");
+  assert(explicitFailureAudit.platformAction?.request_field_manifest?.kind === "oe3_std_project_final_payload_manifest", "failed create must retain the frozen redacted field ledger");
+  assert(explicitFailureAudit.platformAction?.request_field_manifest?.rawPayloadStored !== true, "failed create audit must not retain raw payload");
   assert(explicitFailurePlan?.plan_status === "consumed", "explicit failure must consume confirmed plan");
   assert(explicitFailureAudit.platformAction?.request_id_recorded === false, "complete request_id must not be retained in action audit");
   assert(explicitFailureAudit.platformAction?.error_category === "landing_url_invalid", "field error should have a safe landing URL category");

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
+import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";
 import { brandIndustryPassed } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
@@ -581,6 +582,45 @@ try {
     touchpointVerification: mock.touchpointVerification
   });
   assert(!fallbackContract.gaps.some((gap) => gap.key === "brand_info_confirmation"), "approved_fallback_brand_must_pass_payload_contract");
+
+  const targetEmptyBundle = structuredClone(fallbackBundle);
+  targetEmptyBundle.case.metadata.brand_empty_omit_experiment = {
+    status: "approved_for_single_create_validation",
+    case_id: targetEmptyBundle.job.case_id,
+    route_id: targetEmptyBundle.job.route_id,
+    game_code: targetEmptyBundle.job.game_code,
+    maximum_create_calls: 1,
+    retry_allowed: false
+  };
+  targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").metadata = {
+    brand_info_official: {
+      source: "target_empty_omit_experiment",
+      readback_status: "target_empty_omit_experiment",
+      validation_status: "experimental_pending_create",
+      used_for_create_gate: true
+    },
+    target_empty_omit_experiment: {
+      status: "experimental_pending_create",
+      case_id: targetEmptyBundle.job.case_id,
+      route_id: targetEmptyBundle.job.route_id,
+      game_code: targetEmptyBundle.job.game_code,
+      job_id: targetEmptyBundle.job.job_id,
+      matched_brand_count: 0,
+      empty_list_evidence_ref: "sha256:smoke-empty-brand-list",
+      maximum_create_calls: 1,
+      retry_allowed: false
+    }
+  };
+  const targetEmptyPayload = buildOe3StdProjectPayload({
+    bundle: targetEmptyBundle,
+    touchpointUrl: mock.touchpointVerification.touchpointUrl,
+    backupLandingPageUrl: mock.backupLandingPageUrl,
+    miniProgramLaunchLink: mock.miniProgramLaunchLink
+  });
+  assert(!Object.hasOwn(targetEmptyPayload.payload, "brand_info"), "target_empty_brand_mode_must_omit_entire_brand_info");
+  assert(targetEmptyPayload.requestFieldManifest.brandMode === "target_empty_omit_experiment", "target_empty_brand_mode_manifest_missing");
+  assert(targetEmptyPayload.requestFieldManifest.brandInfoOmitted === true, "target_empty_brand_mode_manifest_not_omitted");
+  assert(!targetEmptyPayload.blockers.includes("brand_info_integer_fields_missing"), "target_empty_brand_mode_should_not_require_brand_ids");
 
   const invalidFallback = (mutate, message, { resourceInvalid = true } = {}) => {
     const bundle = structuredClone(fallbackBundle);

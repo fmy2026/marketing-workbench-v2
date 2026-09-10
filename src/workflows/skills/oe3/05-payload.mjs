@@ -1,5 +1,5 @@
 import { hashValue } from "./00-contracts.mjs";
-import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
+import { brandInfoMode, canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
 import {
   applyOfficialCreateFieldSendPolicy,
   evaluateOfficialCreateFieldEvidence,
@@ -470,6 +470,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   createFieldLedger = {},
   successProfile = {}
 } = {}) {
+  const brandMode = brandInfoMode(bundle);
+  const brandInfoOmitted = brandMode === "target_empty_omit_experiment";
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
@@ -479,7 +481,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   const convertedTimeDurationPolicy = routeNestedFieldPolicy(bundle, "audience", "converted_time_duration_policy", "missing");
   const convertedTimeDurationPresent = Object.hasOwn(payload.audience || {}, "converted_time_duration");
   const wireBody = instanceIdCreateEvidence.canSend ? buildStdProjectCreateWireBody(payload) : { status: "not_required", blockers: [] };
-  const missing = REQUIRED_CREATE_FIELDS.filter((field) => {
+  const missing = REQUIRED_CREATE_FIELDS.filter((field) => field !== "brand_info" || !brandInfoOmitted).filter((field) => {
     const value = payload[field];
     return value === "" || value === null || value === undefined || (Array.isArray(value) && !value.length);
   });
@@ -488,7 +490,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     "dmp_audience_package",
     "event_asset",
     "product_image",
-    "brand_info",
+    ...(brandInfoOmitted ? [] : ["brand_info"]),
     "micro_app_instance",
     ...(externalUrlMaterialListRequired ? ["backup_landing_page"] : [])
   ]
@@ -536,7 +538,9 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => !clean(item.guide_video_id)) ? ["guide_video_id_missing"] : []),
     ...(!guideVideoRequired && (payload.project_materials?.video_material_list || []).some((item) => Object.hasOwn(item, "guide_video_id")) ? ["guide_video_id_must_be_omitted"] : []),
     ...(!payload.project_materials?.title_material_list?.length ? ["title_material_list_missing"] : []),
-    ...(!payload.brand_info?.brand_name_id || !payload.brand_info?.cdp_brand_id || !payload.brand_info?.yuntu_category_id ? ["brand_info_integer_fields_missing"] : []),
+    ...(brandInfoOmitted
+      ? (Object.hasOwn(payload, "brand_info") ? ["brand_info_must_be_omitted_for_target_empty_brand_mode"] : [])
+      : (!payload.brand_info?.brand_name_id || !payload.brand_info?.cdp_brand_id || !payload.brand_info?.yuntu_category_id ? ["brand_info_integer_fields_missing"] : [])),
     ...(Number(payload.budget) === JSZC_FALLBACK_BUDGET ? [] : ["jszc_fallback_budget_mismatch"]),
     ...(Number(payload.cpa_bid) === JSZC_FALLBACK_BID ? [] : ["jszc_fallback_bid_mismatch"]),
     ...(Number(payload.roi_goal) === JSZC_FALLBACK_ROI_GOAL ? [] : ["jszc_fallback_roi_goal_mismatch"]),
@@ -551,8 +555,8 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPolicy !== "omit_when_no_exclude" ? ["converted_time_duration_policy_invalid_for_no_exclude"] : []),
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPresent ? ["converted_time_duration_must_be_omitted_for_no_exclude"] : []),
     ...(successProfile.status === "passed" ? [] : (successProfile.blockers || ["jszc_success_profile_not_verified"])),
-    ...(createFieldLedger.fieldShapeHash === successProfile.goldenFieldShapeHash ? [] : ["jszc_success_profile_field_shape_mismatch"]),
-    ...(Number(createFieldLedger.checkedPathCount || 0) === Number(successProfile.expectedLedgerPathCount || 0) ? [] : ["jszc_success_profile_ledger_path_count_mismatch"]),
+    ...(brandInfoOmitted ? [] : (createFieldLedger.fieldShapeHash === successProfile.goldenFieldShapeHash ? [] : ["jszc_success_profile_field_shape_mismatch"])),
+    ...(brandInfoOmitted ? [] : (Number(createFieldLedger.checkedPathCount || 0) === Number(successProfile.expectedLedgerPathCount || 0) ? [] : ["jszc_success_profile_ledger_path_count_mismatch"])),
     ...((payload.audience?.retargeting_tags_exclude || []).length < 10 ? ["dmp_custom_audience_ids_below_jszc_baseline"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
@@ -567,6 +571,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
 }
 
 function fieldManifest(payload = {}, blockers = [], {
+  bundle = {},
   advertiserIdStorageValue = "",
   configSource = {},
   materialReadiness = {},
@@ -580,6 +585,7 @@ function fieldManifest(payload = {}, blockers = [], {
   createFieldLedger = {},
   successProfile = {}
 } = {}) {
+  const brandMode = brandInfoMode(bundle);
   const audience = payload.audience || {};
   const materials = payload.project_materials || {};
   const brand = payload.brand_info || {};
@@ -611,7 +617,11 @@ function fieldManifest(payload = {}, blockers = [], {
         : "safe_integer_number";
   return {
     kind: "oe3_std_project_final_payload_manifest",
-    requiredFieldsPresent: REQUIRED_CREATE_FIELDS.every((field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== ""),
+    requiredFieldsPresent: REQUIRED_CREATE_FIELDS
+      .filter((field) => field !== "brand_info" || brandMode !== "target_empty_omit_experiment")
+      .every((field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== ""),
+    brandMode,
+    brandInfoOmitted: brandMode === "target_empty_omit_experiment" && !Object.hasOwn(payload, "brand_info"),
     advertiserIdType: typeof payload.advertiser_id,
     advertiserIdStorageType: typeof advertiserIdStorageText,
     advertiserIdTransportType: typeof payload.advertiser_id,
@@ -776,6 +786,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const productImage = resource(bundle, "product_image");
   const dmpIds = dmpAudienceIds(bundle);
   const brand = brandInfo(bundle);
+  const brandMode = brandInfoMode(bundle);
   const backupLandingPage = backupLandingPageReadiness(bundle, backupLandingPageUrl);
   const miniProgramLink = miniProgramLaunchLinkReadiness(bundle, miniProgramLaunchLink);
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
@@ -841,7 +852,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       retargeting_tags_exclude: dmpIds,
       interest_action_mode: clean(requiredConfigValue(payloadDefaults, "targeting.interest_action_mode", configBlockers))
     },
-    brand_info: brand,
+    ...(brandMode === "target_empty_omit_experiment" ? {} : { brand_info: brand }),
     project_materials: {
       title_material_list: titleMaterialResult.items || [],
       video_material_list: videoMaterials(bundle),
@@ -887,7 +898,8 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
   const createFieldLedger = evaluateCreateFieldLedger(payload, {
     externalUrlMaterialListPolicy,
     filterEventPolicy,
-    convertedTimeDurationPolicy
+    convertedTimeDurationPolicy,
+    brandInfoPolicy: brandMode === "target_empty_omit_experiment" ? "omit" : "send"
   });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",
@@ -917,6 +929,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     payload,
     payloadHash,
     requestFieldManifest: fieldManifest(payload, blockers, {
+      bundle,
       advertiserIdStorageValue,
       configSource,
       materialReadiness,

@@ -73,7 +73,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 是资源能力、动作顺序、调用量与证据要求的唯一来源。当前可受控准备前五类；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时不自动创建，其中备用页只允许既定人工共享后的只读核验。引导视频/封面等账户 capability 与动态 ID 存储只查[数据契约](project-数据与报表契约.md#配置与资源来源)及对应 verifier，不在本总览复制。
 
-`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。唯一例外是一次性游戏维度实验：目标账户品牌列表为空时，Node 04 可从同 route×game 的至少两份新鲜 `live_target_account_readback` 记录聚合唯一完整三元组；它必须与品牌蓝图、当前 Case、route/game 和冻结 hash 精确一致，并仅在 Case 显式批准后以 `experimental_pending_create` 进入既有 Node 05/Plan 链。该状态不是目标账户授权，也不新增资源写入动作；真实创建及权威回查成功前，任何不一致、多版本、过期或缺证据均保持 `BLOCKED`。
+`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。游戏维度候选仅保留为已消费历史 Plan 的解释证据，不能被新 Draft 复用。当前唯一的空列表实验是：fresh 目标账户品牌接口成功返回空列表，且 Case JSON 一次性授权精确绑定 Case、route、game、fresh Job 与最多一次 create 时，Node 04 将品牌资源表示为 `not_required`，Node 05 和 preflight 共同要求整个 `brand_info` 顶层对象不存在。该模式不发送空对象或部分字段、不伪装为目标账户授权；回查失败、不完整、不明或授权不匹配均保持 `BLOCKED`。字段账本记录四个品牌路径从 `send` 到 `omit`，成功后的权威回查才允许升级为账户通用 capability。
 
 ## 4. Plan、确认与执行不变量
 

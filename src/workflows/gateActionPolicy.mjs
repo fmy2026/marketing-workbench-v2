@@ -105,6 +105,14 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       tupleHash: clean(brandOfficial.tuple_hash)
     }
     : null;
+  const targetEmptyBrandOmitExperiment = isSingleCreatePlan &&
+    clean(brandOfficial.source) === "target_empty_omit_experiment" &&
+    clean(brandOfficial.readback_status) === "target_empty_omit_experiment"
+    ? {
+      source: "target_empty_omit_experiment",
+      label: "品牌模式：目标账户品牌列表为空；创建字段：整组省略 brand_info；游戏维度保底候选：不使用；本次仅允许一次 std_project_create"
+    }
+    : null;
   const actionLimits = actionTypes.map((type) => ({
     actionType: type,
     maximumPlatformCalls: Number(
@@ -132,6 +140,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     planId: clean(plan.plan_id),
     planHash: clean(plan.plan_hash),
     brandFallbackExperiment,
+    targetEmptyBrandOmitExperiment,
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),

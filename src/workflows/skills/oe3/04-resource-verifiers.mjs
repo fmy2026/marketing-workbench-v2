@@ -121,11 +121,13 @@ export function dmpIdsReady(bundle = {}) {
   return dmpCustomAudienceIds(bundle).length > 0;
 }
 
-export function brandIndustryPassed(bundle = {}) {
+export function brandInfoMode(bundle = {}) {
   const brand = resource(bundle, "brand_info");
   const official = brand.metadata?.brand_info_official || {};
   const repair = brand.metadata?.oe3_brand_industry_repair || {};
   const fallback = brand.metadata?.game_route_fallback_experiment || {};
+  const emptyExperiment = brand.metadata?.target_empty_omit_experiment || {};
+  const approval = bundle.case?.metadata?.brand_empty_omit_experiment || {};
   const tuple = {
     brand_name_id: clean(official.brand_name_id),
     cdp_brand_id: clean(official.cdp_brand_id),
@@ -150,9 +152,33 @@ export function brandIndustryPassed(bundle = {}) {
     /^\d+$/.test(tuple.brand_name_id) && /^\d+$/.test(tuple.cdp_brand_id) && /^\d+$/.test(tuple.yuntu_category_id) &&
     Boolean(tuple.cdp_brand_name) && Boolean(tuple.matched_industry_path) &&
     Array.isArray(fallback.evidence_refs) && fallback.evidence_refs.length >= 2;
-  return ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"].includes(clean(official.readback_status)) ||
+  const targetVerified = ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"].includes(clean(official.readback_status)) ||
     clean(official.live_brand_industry_status) === "passed" ||
-    clean(repair.status) === "passed" || approvedFallback;
+    clean(repair.status) === "passed";
+  const targetEmptyOmitExperiment = clean(official.source) === "target_empty_omit_experiment" &&
+    clean(official.readback_status) === "target_empty_omit_experiment" &&
+    clean(official.validation_status) === "experimental_pending_create" &&
+    clean(emptyExperiment.status) === "experimental_pending_create" &&
+    clean(emptyExperiment.case_id) === clean(bundle.job?.case_id) &&
+    clean(emptyExperiment.route_id) === clean(bundle.job?.route_id) &&
+    clean(emptyExperiment.game_code) === clean(bundle.job?.game_code) &&
+    clean(emptyExperiment.job_id) === clean(bundle.job?.job_id) &&
+    Number(emptyExperiment.matched_brand_count) === 0 &&
+    Boolean(clean(emptyExperiment.empty_list_evidence_ref)) &&
+    clean(approval.status) === "approved_for_single_create_validation" &&
+    clean(approval.case_id) === clean(bundle.job?.case_id) &&
+    clean(approval.route_id) === clean(bundle.job?.route_id) &&
+    clean(approval.game_code) === clean(bundle.job?.game_code) &&
+    Number(approval.maximum_create_calls) === 1 && approval.retry_allowed === false;
+  if (targetVerified) return "target_verified";
+  if (targetEmptyOmitExperiment) return "target_empty_omit_experiment";
+  // Kept only so consumed historical Plans remain explainable. New drafts must never select it.
+  if (approvedFallback) return "legacy_game_route_fallback";
+  return "blocked";
+}
+
+export function brandIndustryPassed(bundle = {}) {
+  return brandInfoMode(bundle) !== "blocked";
 }
 
 export function eventChainPassed(bundle = {}) {
@@ -175,6 +201,7 @@ export function backupLandingPageReadiness(bundle = {}) {
 export function brandInfoSummary(bundle = {}) {
   const official = resource(bundle, "brand_info").metadata?.brand_info_official || {};
   return {
+    brand_mode: brandInfoMode(bundle),
     brand_name_id: clean(official.brand_name_id),
     cdp_brand_id: clean(official.cdp_brand_id),
     cdp_brand_name: clean(official.cdp_brand_name),

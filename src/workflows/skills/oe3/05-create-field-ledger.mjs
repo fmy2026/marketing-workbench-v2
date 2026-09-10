@@ -54,6 +54,7 @@ function normalizedPath(parts = []) {
 }
 
 function fieldGroup(path = "") {
+  if (path === "brand_info") return "brand";
   if (path.startsWith("audience.")) return "audience";
   if (path.startsWith("brand_info.")) return "brand";
   if (path.startsWith("project_materials.")) return "materials";
@@ -107,7 +108,8 @@ function hasPath(value, dotted) {
 export function evaluateCreateFieldLedger(payload = {}, {
   externalUrlMaterialListPolicy = "omit",
   filterEventPolicy = "omit",
-  convertedTimeDurationPolicy = ""
+  convertedTimeDurationPolicy = "",
+  brandInfoPolicy = "send"
 } = {}) {
   const entries = collectEntries(payload)
     .filter((entry) => entry.path)
@@ -118,6 +120,9 @@ export function evaluateCreateFieldLedger(payload = {}, {
     ...(filterEventPolicy === "omit" ? ["audience.filter_event"] : []),
     ...(convertedTimeDurationPolicy === "omit_when_no_exclude" && payload.audience?.hide_if_converted === "NO_EXCLUDE"
       ? ["audience.converted_time_duration"]
+      : []),
+    ...(brandInfoPolicy === "omit"
+      ? ["brand_info", "brand_info.brand_name_id", "brand_info.cdp_brand_id", "brand_info.cdp_brand_name", "brand_info.yuntu_category_id"]
       : [])
   ];
   const omitted = omittedPaths.map((path) => ({

@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `083_monitor_account_identity_effective_config.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `084_target_empty_brand_omit_experiment.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `083` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 84 个 migration 文件、编号至 `083`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
+结构清单沿用 migration `084` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 85 个 migration 文件、编号至 `084`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -177,7 +177,7 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 | 数据写入责任 | 仅本文件表契约列明的受控配置维护、runner、Skill、确认 executor 与回查写入对应表；报表/View 不反向更新业务真值 |
 | 数据变更任务 | 新增/变更表、列、View 或报表时，同一 Task 登记粒度、主键/自然键、时间语义、来源、写入者、消费者、去重、修正与质量检查；更新本文件相关行并关联 migration 和回归证据 |
 | 模型与投影权威 | SQL/数据库约束定义数据结构，注册表定义 Node，summary 定义当前 Gate；[逻辑图](project-现在的逻辑图.md) 解释流程，不另建可写状态副本 |
-| 元数据边界 | 账户级资源合同、核验时间、Plan/Draft hash、来源和必要关联 ID 保存到既有受控字段；不得把账户动态资源 ID 或历史 Plan 复制进游戏默认配置 |
+| 元数据边界 | 账户级资源合同、核验时间、Plan/Draft hash、来源和必要关联 ID 保存到既有受控字段；目标品牌空列表实验只存于 `workflow_cases.metadata.brand_empty_omit_experiment` 与 `account_resources.metadata.target_empty_omit_experiment`，记录 scope、fresh Job、空列表证据引用、一次调用上限和终态，不新增列或生命周期枚举；不得把账户动态资源 ID 或历史 Plan 复制进游戏默认配置 |
 | 授权与回查 | 平台授权、安全规则与任务闭环只查 [AGENTS](../AGENTS.md)；Plan 状态变化、资源动作、HTTP deadline 和 Case finalizer 行为只查 [逻辑图](project-现在的逻辑图.md) |
 | 敏感信息 | 普通 JSON/日志仅保存脱敏摘要、hash、状态、必要 ID 与证据引用；触点、落地页和启动深链仅用既有受控存储，禁止复制到报表、前端或 Task。模型 API Key 仅在 `.local/workbench-llm-credentials.json` 的 `0600` 本地原子凭据库中出现；模型 API Base 仅在本人配置表中保存且禁止含用户名、密码、query 或 fragment，audit/API/前端均不回显 Key |
 | 历史与测试 | `test_run` 与 runtime 真值分离并由测试清理；旧 migration 不删除，旧 Task/Manifest 不补造验收，隔离脚本不是新的表/View 写入来源 |

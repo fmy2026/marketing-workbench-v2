@@ -370,6 +370,40 @@ function approvedGameBrandFallback(bundle = {}) {
   return { approved: matches, candidate, contract };
 }
 
+function approvedTargetEmptyBrandOmitExperiment(bundle = {}) {
+  const approval = bundle.case?.metadata?.brand_empty_omit_experiment || {};
+  const matches = compact(approval.status) === "approved_for_single_create_validation" &&
+    compact(approval.case_id) === compact(bundle.job?.case_id) &&
+    compact(approval.route_id) === compact(bundle.job?.route_id) &&
+    compact(approval.game_code) === compact(bundle.job?.game_code) &&
+    Number(approval.maximum_create_calls) === 1 && approval.retry_allowed === false;
+  return { approved: matches, approval };
+}
+
+function targetEmptyBrandOmitMetadata({ bundle = {}, probe = {} } = {}) {
+  return {
+    brand_info_official: {
+      source: "target_empty_omit_experiment",
+      readback_status: "target_empty_omit_experiment",
+      validation_status: "experimental_pending_create",
+      used_for_create_gate: true,
+      matched_brand_count: 0
+    },
+    target_empty_omit_experiment: {
+      status: "experimental_pending_create",
+      case_id: compact(bundle.job?.case_id),
+      route_id: compact(bundle.job?.route_id),
+      game_code: compact(bundle.job?.game_code),
+      job_id: compact(bundle.job?.job_id),
+      matched_brand_count: 0,
+      // The client persists only a response hash; no raw response or account data is retained.
+      empty_list_evidence_ref: compact(probe.responseHash),
+      maximum_create_calls: 1,
+      retry_allowed: false
+    }
+  };
+}
+
 function manualBrandConfirmation(resource = {}, contract = {}) {
   const official = resource?.metadata?.brand_info_official || {};
   const readonlyStatus = compact(resource?.metadata?.readonly_check?.status);
@@ -577,6 +611,7 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
   });
   const brandResource = resourceByType(bundle, "brand_info");
   const manualBrand = manualBrandConfirmation(brandResource, contract);
+  const targetEmptyOmit = approvedTargetEmptyBrandOmitExperiment(bundle);
 
   let industryProbe = null;
   const brandIndustryRequest = buildBrandIndustryReadonlyRequest({
@@ -687,6 +722,14 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
           nextAction: "进入单次真实创建确认前检查"
         });
       }
+      if (brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 0 && targetEmptyOmit.approved) {
+        return check("passed_by_manual_confirmation", "platform_brand_info", "目标账户可投品牌列表为空；本 Case 已获准在一次创建验证中整组省略 brand_info。", {
+          resourceType: "brand_info",
+          gap: "",
+          nextAction: "进入单次真实创建确认前检查",
+          targetEmptyOmitExperiment: true
+        });
+      }
       if (brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 0 && fallback.approved) {
         return check("passed_by_manual_confirmation", "platform_brand_info", "目标账户可投品牌列表为空；已冻结游戏维度保底候选，等待单次真实创建验证。", {
           resourceType: "brand_info",
@@ -707,8 +750,8 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
     .filter((item) => item.resourceType)
     .map((item) => ({
       resourceType: item.resourceType,
-      visibilityStatus: ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "visible" : undefined,
-      readbackStatus: ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "readback_verified" : undefined,
+      visibilityStatus: item.targetEmptyOmitExperiment ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "visible" : undefined,
+      readbackStatus: item.targetEmptyOmitExperiment ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "readback_verified" : undefined,
       platformResourceId: item.key === "platform_event_asset" && eventProbe.summary?.expectedAssetId ? eventProbe.summary.expectedAssetId : undefined,
       resourceMetadata: item.key === "platform_brand_info" && item.status === "passed"
         ? {
@@ -717,6 +760,8 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
             industrySummary: industryProbe?.summary || {}
           })
         }
+        : item.key === "platform_brand_info" && item.status === "passed_by_manual_confirmation" && item.targetEmptyOmitExperiment
+          ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe })
         : item.key === "platform_brand_info" && item.status === "passed_by_manual_confirmation" && item.fallbackCandidate
           ? {
             brand_info_official: fallbackOfficial(item.fallbackCandidate),
@@ -849,6 +894,9 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
     industryProbe?.status === "passed" && brandOfficialMatchesExpected(brandProbe.summary || {}, industryProbe.summary || {}, contract);
   const brandFallbackPassed = brandProbe.status === "passed" &&
     brandProbe.summary?.matchedBrandCount === 0 && fallback.approved;
+  const targetEmptyOmit = approvedTargetEmptyBrandOmitExperiment(bundle);
+  const brandEmptyOmitPassed = brandProbe.status === "passed" &&
+    brandProbe.summary?.matchedBrandCount === 0 && targetEmptyOmit.approved;
   const imageInventoryReadable = imageProbe.status === "passed";
   const productImageReadback = productImage.metadata?.product_image_target_upload_readback || {};
   const productImagePassed = imageInventoryReadable &&
@@ -860,7 +908,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
   const blockedProbes = probes.filter((probe) => probe.status !== "passed");
   const checks = [
     check(avatarPassed ? "passed" : "blocked", "baseline_platform_avatar", avatarPassed ? "目标账户头像已通过只读核验。" : "目标账户头像未 ready。", { resourceType: "avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready" }),
-    check(brandPassed ? "passed" : brandFallbackPassed ? "passed_by_manual_confirmation" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : brandFallbackPassed ? "目标账户可投品牌列表为空；已冻结游戏维度保底候选，等待单次真实创建验证。" : "目标账户品牌或行业未完整命中。", { resourceType: "brand_info", gap: brandPassed || brandFallbackPassed ? "" : "brand_industry_readback_required", fallbackCandidate: brandFallbackPassed ? fallback.candidate : null }),
+    check(brandPassed ? "passed" : brandEmptyOmitPassed || brandFallbackPassed ? "passed_by_manual_confirmation" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : brandEmptyOmitPassed ? "目标账户可投品牌列表为空；已获准一次整组省略 brand_info 验证。" : brandFallbackPassed ? "目标账户可投品牌列表为空；已冻结游戏维度保底候选，等待单次真实创建验证。" : "目标账户品牌或行业未完整命中。", { resourceType: "brand_info", gap: brandPassed || brandFallbackPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", fallbackCandidate: brandFallbackPassed ? fallback.candidate : null, targetEmptyOmitExperiment: brandEmptyOmitPassed }),
     check(productImagePassed ? "passed" : imageInventoryReadable ? "needs_confirmation" : "blocked", "baseline_platform_product_image_inventory", productImagePassed ? "目标账户产品图已通过上传回查证据核验。" : imageInventoryReadable ? "已盘点目标账户产品图库存；未自动选择产品图。" : "目标账户产品图库存读取失败。", { resourceType: "product_image", gap: productImagePassed ? "" : imageInventoryReadable ? "product_image_selection_required" : "product_image_inventory_unavailable" })
   ];
 
@@ -891,12 +939,12 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
       },
       {
         resourceType: "brand_info",
-        visibilityStatus: brandPassed || brandFallbackPassed ? "visible" : undefined,
-        readbackStatus: brandPassed || brandFallbackPassed ? "readback_verified" : undefined,
-        inheritanceStatus: brandPassed ? "target_readonly_verified" : brandFallbackPassed ? "baseline_candidate" : "target_readonly_blocked",
+        visibilityStatus: brandEmptyOmitPassed ? "not_required" : brandPassed || brandFallbackPassed ? "visible" : undefined,
+        readbackStatus: brandEmptyOmitPassed ? "not_required" : brandPassed || brandFallbackPassed ? "readback_verified" : undefined,
+        inheritanceStatus: brandPassed ? "target_readonly_verified" : brandFallbackPassed ? "baseline_candidate" : brandEmptyOmitPassed ? "target_readonly_verified" : "target_readonly_blocked",
         resourceMetadata: brandPassed ? {
           brand_info_official: brandInfoOfficialFromReadback({ brandSummary: brandProbe.summary || {}, industrySummary: industryProbe?.summary || {} })
-        } : brandFallbackPassed ? {
+        } : brandEmptyOmitPassed ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe }) : brandFallbackPassed ? {
           brand_info_official: fallbackOfficial(fallback.candidate),
           game_route_fallback_experiment: {
             status: "experimental_pending_create",
@@ -910,7 +958,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
             evidence_refs: fallback.candidate.evidence_refs || []
           }
         } : {},
-        readonlyCheck: { status: brandPassed ? "passed" : brandFallbackPassed ? "passed_by_manual_confirmation" : "blocked", key: "baseline_platform_brand", gap: brandPassed || brandFallbackPassed ? "" : "brand_industry_readback_required", probe_labels: probes.filter((probe) => probe.label.startsWith("baseline_brand")).map((probe) => probe.label) }
+        readonlyCheck: { status: brandPassed ? "passed" : brandFallbackPassed || brandEmptyOmitPassed ? "passed_by_manual_confirmation" : "blocked", key: "baseline_platform_brand", gap: brandPassed || brandFallbackPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", probe_labels: probes.filter((probe) => probe.label.startsWith("baseline_brand")).map((probe) => probe.label) }
       },
       {
         resourceType: "product_image",

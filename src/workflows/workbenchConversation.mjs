@@ -484,7 +484,12 @@ export async function handleWorkbenchCommand({
                   ? `资源 Plan 已执行并完成回查；fresh Job 仍有卡点：${presentation.title}。${presentation.nextActionLabel}`
                   : "资源 Plan 已执行并完成回查；fresh Job 尚未生成创建确认卡，请刷新后按当前 Gate 继续。";
               })()
-            : "单次创建已提交，并已进入只读回查。"
+            : (() => {
+                const readback = nextView?.execution?.readbackStatus || nextView?.readback?.readback_status || "";
+                return ["readback_verified", "created_pending_readback", "project_id_mismatch", "project_name_mismatch", "guide_video_material_pending"].includes(readback)
+                  ? "单次创建已提交，已按结果进入只读回查。"
+                  : "单次创建请求已结束；未开始只读回查，请按当前状态查看结果。";
+              })()
     }
   });
 }
