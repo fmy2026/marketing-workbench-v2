@@ -1,0 +1,155 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910",
+  "task_ref": "tasks/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T06:35:47Z",
+  "updated_at": "2026-09-10T06:39:48Z",
+  "base_revision": "de8bc52a48b4327ea300d3233646a8f7ca188f68",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "db/027_add_launch_execution_plans.sql",
+    "db/035_add_workflow_cases.sql",
+    "db/068_case_terminal_http_deadline_reconciliation.sql",
+    "frontend/app.js"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910.json",
+    "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/**",
+    "db/081_historical_case_minimal_reconciliation.sql",
+    "frontend/app.js"
+  ],
+  "forbidden_actions": [
+    "调用外部平台、确认或执行任何 Plan、创建或重试项目",
+    "修改非指定账户或 Case，或删除/改写历史 Job、confirmation、action、对象、readback 或 evidence",
+    "修改账户名称、ID 展示、状态文本、重复防护或其他工作台界面",
+    "保存 token、Cookie、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "指定 Case、Plan 或独立成功 readback 前提不符",
+    "需要修改历史证据、调用外部平台或扩大到其他账户/Case",
+    "任一变更超出允许路径或平台写入边界"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run check:project -- --phase start"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "rg -n '进行中的流程' frontend/app.js && git diff -- frontend/app.js"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/081_historical_case_minimal_reconciliation.sql; readonly Postgres verification of exact Case/Plan/object/readback state"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "readonly Postgres verification of v_user_workflow_summary and /api/launch/workbench-equivalent active Case query for USR-FENGMEIYU"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "node --check frontend/app.js && git diff --check; task closure then runs npm run check:project -- --phase before-close and --phase after-close"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start",
+      "verified_at": "2026-09-10T06:35:47Z",
+      "summary": "Task started from clean base revision de8bc52a48b4327ea300d3233646a8f7ca188f68; declared scope and write paths passed the project checker.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/validation.md#ac-01-task-启动"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "node --check frontend/app.js && rg -n '进行中的流程' frontend/app.js && curl --noproxy '*' -fsS http://192.168.42.7:3000/app.js | rg -n '进行中的流程'",
+      "verified_at": "2026-09-10T06:37:18Z",
+      "summary": "The sole frontend change is the active Case section title; the running LAN service serves the new text.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/validation.md#ac-02-首页标题"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "psql -X -d marketing_workbench_v2 -v ON_ERROR_STOP=1 -f db/081_historical_case_minimal_reconciliation.sql; readonly Postgres verification of exact Case/Plan/object/readback state",
+      "verified_at": "2026-09-10T06:37:18Z",
+      "summary": "The transaction updated exactly two Case lifecycle rows and one unconsumed Plan; P04 and P07 remain ENABLE with readback_verified evidence.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/validation.md#ac-03-精确历史状态收口"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "readonly Postgres verification of v_user_workflow_summary and /api/launch/workbench-equivalent active Case query for USR-FENGMEIYU",
+      "verified_at": "2026-09-10T06:37:18Z",
+      "summary": "The owner summary reports four advertiser accounts, four verified successes and zero active/blocked Cases; the homepage-equivalent active Case query is empty.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/validation.md#ac-04-用户首页投影"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "node --check frontend/app.js && git diff --check",
+      "verified_at": "2026-09-10T06:38:37Z",
+      "summary": "Frontend syntax and repository whitespace checks passed; formal project closure checks are run immediately after this recorded validation.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-HISTORICAL-CASE-MINIMAL-RECONCILIATION-20260910/validation.md#ac-05-task-关闭"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "The approved one-time historical reconciliation changes no long-term method or decision."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "not_needed",
+      "reason": "No Node, Gate, Plan-bound execution behavior or workflow mechanism changes."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "No schema, View, storage, ownership or reporting-contract changes; the migration only reconciles exact runtime records."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Two historical active Cases were cancelled, the one unconsumed duplicate Create Plan was marked stale, and the homepage title now says 进行中的流程.",
+    "side_effects": "Only the exact Case and Plan lifecycle records changed in Postgres. No media-platform call, confirmation, platform action, object, readback or historical evidence was created, modified or deleted.",
+    "remaining_risks": [
+      "Future repeated Case creation prevention and broader workbench UX changes remain intentionally deferred to the planned frontend redesign."
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-LEGACY-2E4217E20C9E26BFB648772C",
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-EC9287D4A4BC82E5E2",
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-CTD-OMIT-20260830051146-6C3BEBF8",
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-3CDAF4E9202381253E"
+    ]
+  },
+  "closed_at": "2026-09-10T06:39:25Z"
+}

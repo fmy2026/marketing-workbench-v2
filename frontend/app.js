@@ -247,7 +247,7 @@ import {
     container.hidden = cases.length === 0;
     if (!cases.length) return;
     const heading = el("div", "active-cases-heading");
-    heading.append(el("strong", "", "活动账户"));
+    heading.append(el("strong", "", "进行中的流程"));
     heading.append(el("span", "", `${cases.length} 个`));
     container.append(heading);
     const list = el("div", "active-cases-list");
