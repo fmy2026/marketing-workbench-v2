@@ -694,7 +694,7 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
   });
 }
 
-function rootBlockerPresentation(code = "") {
+export function presentRootBlocker(code = "") {
   const catalog = {
     monitor_create_busy_retry_exhausted: {
       title: "monitor 创建周期已耗尽",
@@ -741,6 +741,21 @@ function rootBlockerPresentation(code = "") {
       reason: "已确认资源 Plan 在平台响应未明确时停止；旧 Plan 已消费且禁止重试。",
       nextActionLabel: "输入“重新只读准备”创建 fresh Job，只读核验后再决定新的 Plan。"
     },
+    qiankun_account_identity_changed_since_plan: {
+      title: "账户监测身份已更新",
+      reason: "乾坤最新账户身份与冻结 Plan 不一致；旧 Plan 已失效，未调用创建接口。",
+      nextActionLabel: "请输入“重新只读准备”，生成 fresh Job 和新的确认卡。"
+    },
+    qiankun_account_identity_preflight_failed: {
+      title: "账户监测身份已更新",
+      reason: "旧 Plan 的账户监测身份核验未通过；旧 Plan 已失效，未调用创建接口。",
+      nextActionLabel: "请输入“重新只读准备”，生成 fresh Job 和新的确认卡。"
+    },
+    monitor_fresh_readonly_contract_drift: {
+      title: "账户监测身份已更新",
+      reason: "fresh readonly 与冻结 Monitor Plan 的配置不一致；旧 Plan 已失效，未调用创建接口。",
+      nextActionLabel: "请输入“重新只读准备”，生成 fresh Job 和新的确认卡。"
+    },
     created_object_readback_pending: {
       title: "项目已创建，等待平台 API 可见",
       reason: "创建接口已返回对象 ID，但权威 list 回查尚未确认对象 ID 与草稿名称一致。",
@@ -775,7 +790,7 @@ function caseGateView(summary = null, jobId = "", workflowCase = {}) {
   const publicBlockerCode = (value = "") => String(value)
     .replaceAll("touchpoint_url", "touchpoint")
     .replaceAll("landing_url", "landing_page");
-  const rootBlocker = rootBlockerPresentation(rootBlockerCode);
+  const rootBlocker = presentRootBlocker(rootBlockerCode);
   return {
     currentGate: summary?.current_gate || "",
     rootBlockerCodes: Array.isArray(summary?.root_blocker_codes)

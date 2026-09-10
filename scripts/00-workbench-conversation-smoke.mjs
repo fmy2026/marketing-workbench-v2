@@ -7,7 +7,11 @@ import {
 } from "../src/agents/conversationIntentResolver.mjs";
 import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
 import { handleWorkbenchCommand } from "../src/workflows/workbenchConversation.mjs";
-import { createCorrectiveAttemptJob, createReadonlyRecoveryJob } from "../src/workflows/launchWorkflow.mjs";
+import {
+  createCorrectiveAttemptJob,
+  createReadonlyRecoveryJob,
+  presentRootBlocker
+} from "../src/workflows/launchWorkflow.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -33,6 +37,11 @@ const caseSummary = {
   root_blocker_codes: [],
   latest_job_id: "JOB-TEST-1"
 };
+
+assert(
+  presentRootBlocker("qiankun_account_identity_preflight_failed").title === "账户监测身份已更新",
+  "legacy_identity_preflight_blocker_must_have_controlled_presentation"
+);
 
 const bundle = {
   job: { advertiser_id: "1871922175825993" },
@@ -571,6 +580,26 @@ const monitorResponse = await handleWorkbenchCommand({
 assert(monitorExecutionCount === 1, "monitor_plan_not_executed_once");
 assert(monitorAutoAdvanceCount === 1, "monitor_confirmation_did_not_auto_advance");
 assert(monitorResponse.interaction.confirmationPreview?.planId === "PLAN-RESOURCE-AFTER-MONITOR", "monitor_response_reused_consumed_confirmation");
+
+const blockedMonitorResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return monitorBundle; },
+    async getWorkflowCaseSummary() { return monitorCaseSummary; }
+  },
+  jobId: "JOB-MONITOR-1",
+  message: "确认创建 monitor",
+  expectedPlanId: monitorPlan.plan_id,
+  expectedPlanHash: monitorPlan.plan_hash,
+  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
+  getJobViewFn: async () => monitorConfirmationView,
+  executeConfirmedMonitorBootstrapFn: async () => ({
+    status: "blocked",
+    blockers: ["qiankun_account_identity_changed_since_plan"],
+    platformWriteCalled: false
+  })
+});
+assert(blockedMonitorResponse.interaction.confirmationPreview === null, "consumed_monitor_plan_must_not_return_stale_confirmation");
+assert(blockedMonitorResponse.interaction.message === "账户监测身份已更新，旧 Plan 已失效；请重新只读准备。", "identity_drift_message_must_be_controlled_chinese");
 
 const freshCreateBundle = {
   job: {

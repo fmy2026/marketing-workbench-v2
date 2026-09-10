@@ -1,20 +1,6 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { explicitMonitorTarget, monitorProvisionId, runMonitorProvisionReadonlyReconcile } from "../src/workflows/skills/oe3/02-monitor/index.mjs";
-import {
-  QIANKUN_CATE_VEST_TARGET,
-  QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET,
-  QIANKUN_MEDIA_CATALOG_TARGET,
-  QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET,
-  QIANKUN_PACKAGE_BASE_INFO_TARGET,
-  QIANKUN_VEST_PACKAGE_TARGET,
-  runQiankunCateVestReadonlySync,
-  runQiankunLevel3MediaResourceReadonlySync,
-  runQiankunMediaCatalogReadonlySync,
-  runQiankunMonitorTechnicalCombinationReadonlySync,
-  runQiankunPackageBaseInfoReadonlySync,
-  runQiankunVestPackageReadonlySync
-} from "../src/workflows/skills/oe3/02-monitor/config-sync.mjs";
 
 function arg(name, fallback = "") {
   const inline = process.argv.find((item) => item.startsWith(`--${name}=`));
@@ -76,34 +62,6 @@ if (scope.status !== "passed") {
     target: scope.target,
     ownerKey: arg("owner-key")
   });
-  console.log(JSON.stringify(output, null, 2));
-} else if (mode === "config-sync") {
-  const configScope = arg("scope", "all");
-  const runners = {
-    "cate-vest": [runQiankunCateVestReadonlySync, QIANKUN_CATE_VEST_TARGET],
-    "vest-package": [runQiankunVestPackageReadonlySync, QIANKUN_VEST_PACKAGE_TARGET],
-    "package-base": [runQiankunPackageBaseInfoReadonlySync, QIANKUN_PACKAGE_BASE_INFO_TARGET],
-    "technical-combination": [runQiankunMonitorTechnicalCombinationReadonlySync, QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET],
-    "level3-media": [runQiankunLevel3MediaResourceReadonlySync, QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET],
-    "media-catalog": [runQiankunMediaCatalogReadonlySync, QIANKUN_MEDIA_CATALOG_TARGET]
-  };
-  const names = configScope === "all" ? Object.keys(runners) : [configScope];
-  if (names.some((name) => !runners[name])) throw new Error("unsupported_monitor_config_sync_scope");
-  const results = [];
-  for (const name of names) {
-    const [runner, defaultTarget] = runners[name];
-    results.push({ name, result: await runner({ repo, ownerKey: arg("owner-key"), target: { ...defaultTarget, ...scope.target } }) });
-  }
-  const output = sanitizeForPublic({
-    status: results.every((item) => item.result?.status === "passed") ? "passed" : "blocked",
-    mode,
-    scope: configScope,
-    results,
-    platformWriteCalled: false,
-    rawRequestStored: false,
-    rawResponseStored: false
-  });
-  assertNoSensitiveLeak(output);
   console.log(JSON.stringify(output, null, 2));
 } else {
   throw new Error("unsupported_monitor_cli_mode");

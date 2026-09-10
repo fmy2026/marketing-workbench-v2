@@ -74,7 +74,6 @@
     "test:backup-landing-page-material-inventory": "node scripts/04-backup-landing-page-material-inventory-smoke.mjs",
     "monitor:status": "node scripts/02-monitor-cli.mjs --mode status",
     "monitor:reconcile": "node scripts/02-monitor-cli.mjs --mode reconcile",
-    "monitor:config-sync": "node scripts/02-monitor-cli.mjs --mode config-sync",
     "check:runtime-consistency": "node scripts/00-runtime-consistency-check.mjs",
     "db:contract-check": "node scripts/00-jszc-success-profile-contract-check.mjs",
     "check:oe3-backup-landing-page": "node scripts/03-backup-landing-page-readonly-resolve.mjs",

@@ -8,6 +8,7 @@ import {
   createJob,
   createReadonlyRecoveryJob,
   getJobView,
+  presentRootBlocker,
   reconcileMonitorAndPersistPlan,
   runJob,
   runWorkbenchInitialReadonly
@@ -459,9 +460,15 @@ export async function handleWorkbenchCommand({
     interaction: {
       ...interaction,
       effect: executionBlocked ? "execution_blocked" : "execution_completed",
-      confirmationPreview: executionBlocked ? confirmationPreview : nextView?.confirmationPreview || null,
+      confirmationPreview: executionBlocked ? null : nextView?.confirmationPreview || null,
       message: executionBlocked
-        ? `未执行受控动作：${(isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "当前确认 Gate 未通过"}。`
+        ? (() => {
+            const blocker = (isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "";
+            const presentation = presentRootBlocker(blocker);
+            return blocker === "qiankun_account_identity_changed_since_plan" || blocker === "monitor_fresh_readonly_contract_drift"
+              ? "账户监测身份已更新，旧 Plan 已失效；请重新只读准备。"
+              : `未执行受控动作：${presentation.title}。${presentation.nextActionLabel}`;
+          })()
         : isMonitorBootstrap
           ? "monitor 已按单次 Plan 执行并完成只读回查；工作台已自动按 Gate 继续 readonly。"
           : isResourcePrepare

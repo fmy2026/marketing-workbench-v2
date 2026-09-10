@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910",
+  "task_ref": "tasks/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T09:39:02Z",
+  "updated_at": "2026-09-10T09:56:29Z",
+  "base_revision": "68e7e3357e3ce0dee7a24dd0c29857758de4465c",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910.json",
+    "package.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260827.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "tasks/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910.json",
+    "evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/**",
+    "db/083_monitor_account_identity_effective_config.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/02-monitor/index.mjs",
+    "src/workflows/skills/oe3/02-monitor/config-sync.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchBlockerPresentation.mjs",
+    "frontend/app.js",
+    "package.json",
+    "scripts/02-monitor-smoke.mjs",
+    "scripts/02-monitor-cli.mjs",
+    "scripts/00-oe3-readonly-readiness-cli.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workflow-case-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "任何真实 Monitor 或平台创建、自动重试、账户 B 运行写入",
+    "修改 3 阶段 7 Node、Gate、Plan kind、确认或单次 executor 合同",
+    "手工修改账户 B、复用旧 Plan/confirmation，或泄漏敏感信息"
+  ],
+  "stop_conditions": [
+    "需要超出批准范围的 Workflow、授权或账户数据变更",
+    "无法证明身份漂移时零平台写入",
+    "测试或实现暴露敏感信息"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:monitor"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workflow-case && npm run test:execution-plan"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation && npm run test:workbench-progress"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-runtime-policy && npm run smoke:workflow-skills"},
+    {"acceptance_id": "AC-05", "command": "git diff --check && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id": "AC-01", "command": "npm run test:monitor", "status": "passed", "verified_at": "2026-09-10T09:54:39Z", "evidence_refs": ["evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/validation.md"], "summary": "Monitor smoke proves account-owned identity wins over route candidates for distinct agent values."},
+    {"acceptance_id": "AC-02", "command": "npm run test:workflow-case && npm run test:execution-plan", "status": "passed", "verified_at": "2026-09-10T09:54:39Z", "evidence_refs": ["evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/validation.md"], "summary": "Workflow-case and execution-plan regressions passed without a platform write."},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation && npm run test:workbench-progress", "status": "passed", "verified_at": "2026-09-10T09:54:39Z", "evidence_refs": ["evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/validation.md"], "summary": "Conversation and progress regressions passed, including stale confirmation removal and controlled presentation."},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-runtime-policy && npm run smoke:workflow-skills", "status": "passed", "verified_at": "2026-09-10T09:54:39Z", "evidence_refs": ["evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/validation.md"], "summary": "Runtime policy and seven-Node workflow smoke passed with no real platform write."},
+    {"acceptance_id": "AC-05", "command": "git diff --check && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close", "status": "passed", "verified_at": "2026-09-10T09:54:39Z", "evidence_refs": ["evidence/TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910/validation.md"], "summary": "Diff, project contract close checks, and authorized real readonly validation were completed without a Monitor create."}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "Recorded the approved account-identity effective Monitor configuration decision."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "Recorded the shared Monitor effective-config chain and blocked-Plan recovery behavior."},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "Recorded account-owned Qiankun Monitor identity fields and confirmed pre-write blocker projection semantics."}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Monitor effective configuration now derives agent, media-account record, and owner only from the current advertiser account identity projection; route defaults no longer contain an account agent value.",
+    "side_effects": "Applied migration 083, invalidated presentation of consumed or failed confirmation previews, and removed the obsolete route-agent config-sync entrypoint. No Monitor or platform create was performed.",
+    "remaining_risks": [
+      "An account without a fresh complete account-index identity stops before Plan generation and requires its account data to be restored through the normal readonly flow.",
+      "A changed fresh identity invalidates an existing Monitor Plan and requires the user to start a new readonly preparation and exact confirmation."
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-AC24AABC9184D5588A"
+    ]
+  },
+  "closed_at": "2026-09-10T09:56:29Z"
+}

@@ -13,26 +13,10 @@ import {
   monitorReissuePolicy,
   secondsSince
 } from "./cycle-policy.mjs";
-import {
-  QIANKUN_CATE_VEST_TARGET,
-  QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET,
-  QIANKUN_MEDIA_CATALOG_TARGET,
-  QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET,
-  QIANKUN_PACKAGE_BASE_INFO_TARGET,
-  QIANKUN_VEST_PACKAGE_TARGET,
-  runQiankunCateVestReadonlySync,
-  runQiankunLevel3MediaResourceReadonlySync,
-  runQiankunMediaCatalogReadonlySync,
-  runQiankunMonitorTechnicalCombinationReadonlySync,
-  runQiankunPackageBaseInfoReadonlySync,
-  runQiankunVestPackageReadonlySync
-} from "./config-sync.mjs";
 
 export const EXPLICIT_ACCOUNT_SCOPE_BLOCKER = "explicit_account_scope_required";
 
 export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./cycle-policy.mjs";
-export const MONITOR_L3_OVERRIDE_CONFIRM_ENV = "MWBV2_MONITOR_L3_OVERRIDE_CONFIRM";
-export const MONITOR_L3_OVERRIDE_CONFIRM_VALUE = "CONFIRM_MEDIA_RESOURCE_310_FOR_ONE_MONITOR";
 export const QIANKUN_CURRENT_API_DOC_REF = "docs/qiankun-api-docs-20260827.md";
 const MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS = new Set(["package_download_url"]);
 
@@ -178,70 +162,42 @@ export function monitorProvisionFingerprint({ routeId, gameCode, advertiserId, t
   });
 }
 
-export function manualL3OverrideState({ target = {}, provisionId = "", evidence = null, now = Date.now() } = {}) {
-  const evidenceTarget = evidence?.target || {};
-  const manualConfirm = evidence?.manualConfirm || {};
-  const expiresAt = clean(manualConfirm.expiresAt || evidence?.expiresAt);
-  const expiryTimestamp = Date.parse(expiresAt);
-  const expirySpecified = Boolean(expiresAt) && Number.isFinite(expiryTimestamp);
-  const expired = !expirySpecified || expiryTimestamp <= now;
-  const checks = [
-    ["provision_id", provisionId, evidenceTarget.provisionId],
-    ["route_id", target.routeId, evidenceTarget.routeId],
-    ["game_code", target.gameCode, evidenceTarget.gameCode],
-    ["advertiser_id", target.advertiserId, evidenceTarget.advertiserId]
-  ].map(([field, actual, expected]) => ({ field, expected: clean(expected), actual: clean(actual), matched: Boolean(clean(expected)) && clean(actual) === clean(expected) }));
+function accountMonitorIdentity(identity = {}) {
   return {
-    requiredEnv: MONITOR_L3_OVERRIDE_CONFIRM_ENV,
-    expectedValue: MONITOR_L3_OVERRIDE_CONFIRM_VALUE,
-    confirmValuePresent: Boolean(evidence),
-    scopeMatches: checks.every((item) => item.matched),
-    active: Boolean(evidence) && checks.every((item) => item.matched) && !expired,
-    evidenceArtifactId: clean(evidence?.artifactId),
-    overrideValues: {
-      media_id: clean(manualConfirm.mediaId),
-      media_name: clean(manualConfirm.mediaName),
-      monitor_api: clean(manualConfirm.monitorApi),
-      agent_id: clean(manualConfirm.agentId),
-      qiankun_account_record_id: clean(manualConfirm.qiankunAccountRecordId)
-    },
-    scopeChecks: checks,
-    source: clean(manualConfirm.source),
-    validFor: clean(manualConfirm.validFor) || "evidence_required",
-    expiresAtPresent: expirySpecified,
-    expired
+    agentId: clean(identity.agent_id || identity.qiankun_agent_id || identity.qiankunAgentId || identity.agentId),
+    mediaAccountId: clean(identity.media_account_id || identity.qiankun_account_record_id || identity.qiankunAccountRecordId || identity.mediaAccountId),
+    ownerKey: clean(identity.owner || identity.qiankun_owner_key || identity.qiankunOwnerKey || identity.ownerKey)
   };
 }
 
-function scopedQiankunTarget(base = {}, target = {}) {
+// Route defaults own only route/game fields. Qiankun agent, account record and
+// owner are account facts and can enter a Monitor config only from the stored
+// account identity projection.
+export function buildEffectiveMonitorConfig({ defaults = {}, accountIdentity = null } = {}) {
+  const source = defaults.monitor_provision || {};
+  const candidates = defaults.monitor_provision_reference_candidates || {};
+  const {
+    agent_id: _routeAgentId,
+    media_account_id: _routeMediaAccountId,
+    owner: _routeOwner,
+    ...routeConfig
+  } = source;
+  const identity = accountMonitorIdentity(accountIdentity || defaults.account_identity || {});
   return {
-    ...(base || {}),
-    routeId: target.routeId,
-    gameCode: target.gameCode,
-    advertiserId: target.advertiserId
-  };
-}
-
-function applyManualL3Override(defaults = {}, manualOverride = {}) {
-  if (manualOverride.active !== true) return defaults;
-  return {
-    ...(defaults || {}),
-    monitor_provision_present: true,
-    monitor_provision: {
-      ...(defaults?.monitor_provision || {}),
-      media_id: manualOverride.overrideValues.media_id,
-      media_name: manualOverride.overrideValues.media_name,
-      monitor_api: manualOverride.overrideValues.monitor_api,
-      agent_id: manualOverride.overrideValues.agent_id,
-      manual_l3_override_evidence_id: manualOverride.evidenceArtifactId,
-      manual_l3_override_scope: "current_provision_only"
-    }
+    ...routeConfig,
+    ...(clean(routeConfig.media_id) ? {} : { media_id: clean(candidates.media_id) }),
+    ...(clean(routeConfig.monitor_api) ? {} : { monitor_api: clean(candidates.monitor_api) }),
+    agent_id: identity.agentId,
+    media_account_id: identity.mediaAccountId,
+    owner: identity.ownerKey,
+    reference_candidate_status: clean(candidates.status),
+    reference_candidate_source_ref: clean(candidates.source_ref)
   };
 }
 
 function monitorDefaultsReadiness(defaults = {}) {
   const config = defaults.monitor_provision || {};
-  const required = ["os", "package_id", "cate_id", "vest_id", "channel", "media_id", "agent_id", "monitor_api", "usage", "num"];
+  const required = ["os", "package_id", "cate_id", "vest_id", "channel", "media_id", "agent_id", "media_account_id", "owner", "monitor_api", "usage", "num"];
   const missing = required.filter((key) => clean(config[key]) === "");
   return {
     present: defaults.monitor_provision_present === true,
@@ -250,22 +206,9 @@ function monitorDefaultsReadiness(defaults = {}) {
   };
 }
 
-function monitorPlanConfig(defaults = {}) {
-  const config = defaults.monitor_provision || {};
-  const candidates = defaults.monitor_provision_reference_candidates || {};
-  return {
-    ...config,
-    ...(clean(config.media_id) ? {} : { media_id: clean(candidates.media_id) }),
-    ...(clean(config.agent_id) ? {} : { agent_id: clean(candidates.agent_id) }),
-    ...(clean(config.monitor_api) ? {} : { monitor_api: clean(candidates.monitor_api) }),
-    reference_candidate_status: clean(candidates.status),
-    reference_candidate_source_ref: clean(candidates.source_ref)
-  };
-}
-
-function monitorReadonlyDefaults(defaults = {}) {
-  const config = monitorPlanConfig(defaults);
-  const candidateFieldsApplied = ["media_id", "agent_id", "monitor_api"]
+function monitorEffectiveDefaults(defaults = {}) {
+  const config = buildEffectiveMonitorConfig({ defaults });
+  const candidateFieldsApplied = ["media_id", "monitor_api"]
     .filter((key) => clean(defaults?.monitor_provision?.[key]) === "" && clean(config[key]) !== "");
   return {
     ...(defaults || {}),
@@ -480,79 +423,6 @@ async function upsertMonitorIdsReadonlyEvidence({ repo, artifactId, summary }) {
   return artifactId;
 }
 
-async function syncManualL3ConfirmedRelations({
-  repo,
-  target,
-  defaults,
-  account,
-  evidenceArtifactId,
-  requestFingerprint,
-  responseHash
-}) {
-  if (!repo || !account || !evidenceArtifactId) return [];
-  const config = defaults?.monitor_provision || {};
-  const os = clean(config.os);
-  const mediaId = clean(config.media_id);
-  const mediaName = clean(config.media_name);
-  const monitorApi = clean(config.monitor_api);
-  const accountRecordId = clean(account.qiankunAccountRecordId || account.technicalAccountRecordId || account.mediaAccountId);
-  const agentId = clean(config.agent_id || account.agentId);
-  const relationSpecs = [
-    {
-      relationType: "media_resource_to_allowed_account_record",
-      parentType: "media_resource",
-      parentId: mediaId,
-      parentName: mediaName,
-      childType: "account_record",
-      relations: accountRecordId ? [{ childId: accountRecordId, childName: accountRecordId }] : []
-    },
-    {
-      relationType: "media_resource_to_allowed_monitor_api",
-      parentType: "media_resource",
-      parentId: mediaId,
-      parentName: mediaName,
-      childType: "monitor_api",
-      relations: monitorApi ? [{ childId: monitorApi, childName: monitorApi }] : []
-    },
-    {
-      relationType: "account_record_to_agent",
-      parentType: "account_record",
-      parentId: accountRecordId,
-      parentName: account.ownerName || "",
-      childType: "agent",
-      relations: agentId ? [{ childId: agentId, childName: account.agentName || agentId }] : []
-    }
-  ];
-
-  const results = [];
-  for (const spec of relationSpecs) {
-    if (!os || !spec.parentId || spec.relations.length === 0) continue;
-    const result = await repo.syncQiankunOptionRelations({
-      relationType: spec.relationType,
-      routeId: target.routeId,
-      gameCode: target.gameCode,
-      os,
-      parentType: spec.parentType,
-      parentId: spec.parentId,
-      parentName: spec.parentName,
-      childType: spec.childType,
-      relations: spec.relations,
-      validationStatus: "observed",
-      sourceEndpoint: "/tf/ad/index",
-      requestFingerprint,
-      responseHash,
-      evidenceArtifactId
-    });
-    results.push({
-      relationType: spec.relationType,
-      inputCount: spec.relations.length,
-      upsertedCount: Number(result?.upsertedCount || 0),
-      staleCount: Number(result?.staleCount || 0)
-    });
-  }
-  return results;
-}
-
 async function persistReadonlyReconcile({
   repo,
   jobId = "",
@@ -704,13 +574,13 @@ function monitorCreateParams({ target = {}, account = {}, ownerKey = "", technic
     cate_id: technicalConfig.cate_id,
     vest_id: technicalConfig.vest_id,
     channel: clean(technicalConfig.channel),
-    owner: clean(ownerKey),
+    owner: clean(technicalConfig.owner || ownerKey),
     media_id: technicalConfig.media_id,
     agent_id: technicalConfig.agent_id,
     num: technicalConfig.num,
     usage: technicalConfig.usage,
     monitor_api: clean(technicalConfig.monitor_api),
-    media_account_id: clean(account.qiankunAccountRecordId || account.technicalAccountRecordId || account.mediaAccountId),
+    media_account_id: clean(technicalConfig.media_account_id || account.qiankunAccountRecordId || account.technicalAccountRecordId || account.mediaAccountId),
     server_callback_type: clean(technicalConfig.server_callback_type),
     server_callback_data_types: callbackDataTypes(technicalConfig),
     remark: `mwbv2-${target.gameCode}-${target.advertiserId}`
@@ -735,7 +605,7 @@ export function buildMonitorBootstrapContract({
   attemptNo = 0,
   readonlyEvidenceRef = ""
 } = {}) {
-  const effectiveConfig = monitorPlanConfig({ monitor_provision: technicalConfig });
+  const effectiveConfig = { ...(technicalConfig || {}) };
   const params = monitorCreateParams({
     target,
     account,
@@ -1047,13 +917,14 @@ export async function runMonitorProvisionReadonlyReconcile({
       "/tf/ad/index"
     ]
   });
-  const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
+  let storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
-    gameCode: target.gameCode
+    gameCode: target.gameCode,
+    advertiserId: target.advertiserId
   }) : null;
-  const defaults = monitorReadonlyDefaults(storedDefaults || {});
-  const readiness = monitorDefaultsReadiness(defaults || {});
-  const requestFingerprint = monitorProvisionFingerprint({
+  let defaults = monitorEffectiveDefaults(storedDefaults || {});
+  let readiness = monitorDefaultsReadiness(defaults || {});
+  let requestFingerprint = monitorProvisionFingerprint({
     ...target,
     technicalConfig: defaults?.monitor_provision || {}
   });
@@ -1097,6 +968,34 @@ export async function runMonitorProvisionReadonlyReconcile({
   }
   if (account && !clean(effectiveOwnerKey) && allowPendingOwnerKeyBootstrap) {
     blockers.push("owner_key_resolved_but_not_persisted");
+  }
+  if (repo && account && !blockers.length) {
+    await repo.updateQiankunAccountIdentity({
+      advertiserId: target.advertiserId,
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      accountName: account.advertiserName || target.advertiserId,
+      authStatus: account.authStatusName || "unknown",
+      platformStatus: account.status || "unknown",
+      ownerName: account.ownerName || "",
+      qiankunAccountRecordId: account.mediaAccountId,
+      qiankunOwnerKey: account.ownerKey,
+      qiankunAgentId: account.agentId,
+      qiankunMediaMasterId: account.mediaMasterId,
+      qiankunMediaMasterName: account.mediaMasterName,
+      qiankunIdentityStatus: "observed"
+    });
+    storedDefaults = await repo.getMonitorProvisionDefaults({
+      routeId: target.routeId,
+      gameCode: target.gameCode,
+      advertiserId: target.advertiserId
+    });
+    defaults = monitorEffectiveDefaults(storedDefaults || {});
+    readiness = monitorDefaultsReadiness(defaults || {});
+    requestFingerprint = monitorProvisionFingerprint({
+      ...target,
+      technicalConfig: defaults.monitor_provision || {}
+    });
   }
   if (!readiness.readyForReadonlyReconcile) {
     blockers.push(readiness.present ? `monitor_provision_defaults_incomplete:${readiness.missingFields.join(",")}` : "monitor_provision_defaults_missing");
@@ -1276,18 +1175,15 @@ async function runMonitorProvisionPlanOnly({
   const initialCredential = redactedQiankunCredentialStatus({ ownerKey });
   const effectiveOwnerKey = selectedOwnerKey(ownerKey, initialCredential);
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
-  const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
+  let storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
-    gameCode: target.gameCode
+    gameCode: target.gameCode,
+    advertiserId: target.advertiserId
   }) : null;
-  const planDefaults = {
-    ...(storedDefaults || {}),
-    monitor_provision_present: storedDefaults?.monitor_provision_present === true,
-    monitor_provision: monitorPlanConfig(storedDefaults || {})
-  };
-  const readiness = monitorDefaultsReadiness(planDefaults || {});
-  const callbackContract = callbackContractState(planDefaults.monitor_provision || {});
-  const requestFingerprint = monitorProvisionFingerprint({
+  let planDefaults = monitorEffectiveDefaults(storedDefaults || {});
+  let readiness = monitorDefaultsReadiness(planDefaults || {});
+  let callbackContract = callbackContractState(planDefaults.monitor_provision || {});
+  let requestFingerprint = monitorProvisionFingerprint({
     ...target,
     technicalConfig: planDefaults.monitor_provision || {}
   });
@@ -1311,10 +1207,6 @@ async function runMonitorProvisionPlanOnly({
   const blockers = [];
   if (!effectiveOwnerKey) blockers.push("owner_key_missing_or_not_persisted");
   if (effectiveOwnerKey && credential.status !== "active") blockers.push(`credential_not_active:${credential.status}`);
-  if (!readiness.readyForReadonlyReconcile) {
-    blockers.push(readiness.present ? `monitor_plan_contract_incomplete:${readiness.missingFields.join(",")}` : "monitor_provision_defaults_missing");
-  }
-  if (!callbackContract.ready) blockers.push("callback_contract_missing");
   blockers.push(...attemptPolicy.blockers);
 
   const client = monitorClient({ fetchImpl });
@@ -1359,11 +1251,42 @@ async function runMonitorProvisionPlanOnly({
         accessTokenPresent: accountRow.accessTokenPresent === true
       };
       if (resolvedOwnerKey !== effectiveOwnerKey) blockers.push("credential_owner_mismatch");
-      if (clean(planDefaults.monitor_provision.agent_id) && clean(accountRow.agentId) && clean(accountRow.agentId) !== clean(planDefaults.monitor_provision.agent_id)) {
-        blockers.push("reference_candidate_agent_id_mismatch");
+      if (repo && !blockers.includes("credential_owner_mismatch")) {
+        await repo.updateQiankunAccountIdentity({
+          advertiserId: target.advertiserId,
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          accountName: account.advertiserName || target.advertiserId,
+          authStatus: account.authStatusName || "unknown",
+          platformStatus: account.status || "unknown",
+          ownerName: account.ownerName || "",
+          qiankunAccountRecordId: account.mediaAccountId,
+          qiankunOwnerKey: account.ownerKey,
+          qiankunAgentId: account.agentId,
+          qiankunMediaMasterId: account.mediaMasterId,
+          qiankunMediaMasterName: account.mediaMasterName,
+          qiankunIdentityStatus: "observed"
+        });
+        storedDefaults = await repo.getMonitorProvisionDefaults({
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          advertiserId: target.advertiserId
+        });
+        planDefaults = monitorEffectiveDefaults(storedDefaults || {});
+        readiness = monitorDefaultsReadiness(planDefaults || {});
+        callbackContract = callbackContractState(planDefaults.monitor_provision || {});
+        requestFingerprint = monitorProvisionFingerprint({
+          ...target,
+          technicalConfig: planDefaults.monitor_provision || {}
+        });
       }
     }
   }
+
+  if (!readiness.readyForReadonlyReconcile) {
+    blockers.push(readiness.present ? `monitor_plan_contract_incomplete:${readiness.missingFields.join(",")}` : "monitor_provision_defaults_missing");
+  }
+  if (!callbackContract.ready) blockers.push("callback_contract_missing");
 
   let monitorResult = null;
   let monitorRows = [];
@@ -1640,13 +1563,10 @@ async function runMonitorProvisionReissuePlan({
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
   const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
-    gameCode: target.gameCode
+    gameCode: target.gameCode,
+    advertiserId: target.advertiserId
   }) : null;
-  const planDefaults = {
-    ...(storedDefaults || {}),
-    monitor_provision_present: storedDefaults?.monitor_provision_present === true,
-    monitor_provision: monitorPlanConfig(storedDefaults || {})
-  };
+  const planDefaults = monitorEffectiveDefaults(storedDefaults || {});
   const requestFingerprint = monitorProvisionFingerprint({
     ...target,
     technicalConfig: planDefaults.monitor_provision || {}
@@ -1889,13 +1809,10 @@ export async function runMonitorIdsReadonlyVerify({
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
   const defaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
-    gameCode: target.gameCode
+    gameCode: target.gameCode,
+    advertiserId: target.advertiserId
   }) : null;
-  const planDefaults = {
-    ...(defaults || {}),
-    monitor_provision_present: defaults?.monitor_provision_present === true,
-    monitor_provision: monitorPlanConfig(defaults || {})
-  };
+  const planDefaults = monitorEffectiveDefaults(defaults || {});
   const requestFingerprint = monitorProvisionFingerprint({
     ...target,
     technicalConfig: planDefaults.monitor_provision || {}
@@ -2049,27 +1966,13 @@ async function runMonitorProvisionEnsure({
   const credential = redactedQiankunCredentialStatus({ ownerKey: effectiveOwnerKey });
   const storedDefaults = repo ? await repo.getMonitorProvisionDefaults({
     routeId: target.routeId,
-    gameCode: target.gameCode
-  }) : null;
-  const compiledDefaults = {
-    ...(storedDefaults || {}),
-    monitor_provision_present: storedDefaults?.monitor_provision_present === true,
-    monitor_provision: monitorPlanConfig(storedDefaults || {})
-  };
-  const manualOverrideEvidence = typeof repo?.getManualL3OverrideEvidence === "function" ? await repo.getManualL3OverrideEvidence({
-    routeId: target.routeId,
     gameCode: target.gameCode,
-    advertiserId: target.advertiserId,
-    provisionId
+    advertiserId: target.advertiserId
   }) : null;
-  const manualOverrideBase = manualL3OverrideState({ target, provisionId, evidence: manualOverrideEvidence });
-  const manualOverrideEvidenceArtifactId = manualOverrideBase.evidenceArtifactId;
-  const manualL3Override = {
-    ...manualOverrideBase,
-    evidenceArtifactId: manualOverrideEvidenceArtifactId,
-    active: manualOverrideBase.active === true && Boolean(manualOverrideEvidenceArtifactId)
-  };
-  const defaults = applyManualL3Override(compiledDefaults, manualL3Override);
+  const compiledDefaults = monitorEffectiveDefaults(storedDefaults || {});
+  // The only supported effective configuration is route defaults plus the
+  // stored accountIndex projection; per-provision identity overrides do not exist.
+  const defaults = compiledDefaults;
   const readiness = monitorDefaultsReadiness(defaults || {});
   const callbackContract = callbackContractState(defaults?.monitor_provision || {});
   const requestFingerprint = monitorProvisionFingerprint({
@@ -2133,11 +2036,8 @@ async function runMonitorProvisionEnsure({
   if (!callbackContract.ready) blockers.push("callback_contract_missing");
   const qiankunIdentityVerified = storedAccount?.qiankun_identity_status === "verified" &&
     Boolean(clean(storedAccount?.qiankun_account_record_id)) &&
-    Boolean(clean(storedAccount?.qiankun_owner_key));
-  if (manualOverrideEvidence && !manualOverrideBase.scopeMatches) blockers.push("manual_l3_override_scope_mismatch");
-  if (manualOverrideEvidence && manualOverrideBase.scopeMatches && manualOverrideBase.expired) {
-    blockers.push("manual_l3_override_evidence_expired");
-  }
+    Boolean(clean(storedAccount?.qiankun_owner_key)) &&
+    Boolean(clean(storedAccount?.qiankun_agent_id));
   if (!latestRun) blockers.push("monitor_provision_run_missing");
   blockers.push(...attemptPolicy.blockers);
 
@@ -2165,14 +2065,6 @@ async function runMonitorProvisionEnsure({
         exactMonitorMatchingEnabled: readiness.readyForReadonlyReconcile,
         qiankunMonitorConfigStatus: qiankunIdentityVerified ? "verified" : "qiankun_monitor_config_unverified",
         callbackContract
-      },
-      manualL3Override: {
-        confirmValuePresent: manualL3Override.confirmValuePresent,
-        scopeMatches: manualL3Override.scopeMatches,
-        active: manualL3Override.active,
-        evidenceArtifactId: manualL3Override.evidenceArtifactId,
-        validFor: manualL3Override.validFor,
-        monitorCreateApproval: false
       },
       latestRunBeforeCreate: latestRun ? {
         cycleId,
@@ -2221,14 +2113,6 @@ async function runMonitorProvisionEnsure({
       confirmValuePresent,
       provisionValuePresent,
       actionConfirmation,
-      manualL3Override: {
-        confirmValuePresent: manualL3Override.confirmValuePresent,
-        scopeMatches: manualL3Override.scopeMatches,
-        active: manualL3Override.active,
-        evidenceArtifactId: manualL3Override.evidenceArtifactId,
-        validFor: manualL3Override.validFor,
-        monitorCreateApproval: false
-      },
       attemptState: {
         cycleId,
         cycleNo,
@@ -2275,7 +2159,7 @@ async function runMonitorProvisionEnsure({
     } else {
       const accountRow = accountRows[0];
       const resolvedOwnerKey = clean(accountRow.ssoOwnerKey || accountRow.ssoOwner);
-      const qiankunAccountRecordId = clean(storedAccount?.qiankun_account_record_id || accountRow.mediaAccountRecordId || accountRow.id);
+      const qiankunAccountRecordId = clean(accountRow.mediaAccountRecordId || accountRow.id);
       account = {
         technicalAccountRecordId: qiankunAccountRecordId,
         qiankunAccountRecordId,
@@ -2294,19 +2178,15 @@ async function runMonitorProvisionEnsure({
         accessTokenPresent: accountRow.accessTokenPresent === true
       };
       if (resolvedOwnerKey !== effectiveOwnerKey) blockers.push("credential_owner_mismatch");
-      if (manualL3Override.active && qiankunAccountRecordId !== manualL3Override.overrideValues.qiankun_account_record_id) {
-        blockers.push("manual_l3_override_account_record_mismatch");
-      }
-      if (manualL3Override.active && clean(accountRow.agentId) && clean(accountRow.agentId) !== manualL3Override.overrideValues.agent_id) {
-        blockers.push("manual_l3_override_agent_id_mismatch");
-      }
     }
   }
   if (account) {
     const identityChecks = [
       ["advertiser_id", account.advertiserId, target.advertiserId],
-      ["owner", account.ownerKey, effectiveOwnerKey],
+      ["owner_credential", account.ownerKey, effectiveOwnerKey],
+      ["owner_database", account.ownerKey, defaults.monitor_provision.owner],
       ["agent_id", account.agentId, defaults.monitor_provision.agent_id],
+      ["media_account_id", account.mediaAccountId, defaults.monitor_provision.media_account_id],
       ["auth_status", accountAuthStatus(account), "ready"]
     ].map(([field, actual, expected]) => ({
       field,
@@ -2320,7 +2200,26 @@ async function runMonitorProvisionEnsure({
       checks: identityChecks,
       persistedIdentityStatus: qiankunIdentityVerified ? "verified" : clean(storedAccount?.qiankun_identity_status || "observed")
     };
-    if (!identityPreflight.verified) blockers.push("qiankun_account_identity_preflight_failed");
+    if (!identityPreflight.verified) {
+      blockers.push("qiankun_account_identity_changed_since_plan");
+      if (repo) {
+        await repo.updateQiankunAccountIdentity({
+          advertiserId: target.advertiserId,
+          routeId: target.routeId,
+          gameCode: target.gameCode,
+          accountName: account.advertiserName || target.advertiserId,
+          authStatus: account.authStatusName || "unknown",
+          platformStatus: account.status || "unknown",
+          ownerName: account.ownerName || "",
+          qiankunAccountRecordId: account.mediaAccountId,
+          qiankunOwnerKey: account.ownerKey,
+          qiankunAgentId: account.agentId,
+          qiankunMediaMasterId: account.mediaMasterId,
+          qiankunMediaMasterName: account.mediaMasterName,
+          qiankunIdentityStatus: "observed"
+        });
+      }
+    }
   }
 
   let preflightMonitorResult = null;
@@ -2530,15 +2429,6 @@ async function runMonitorProvisionEnsure({
       callbackContract
     },
     manualSuccessContractComparison: manualContractComparison,
-    manualL3Override: {
-      confirmValuePresent: manualL3Override.confirmValuePresent,
-      scopeMatches: manualL3Override.scopeMatches,
-      active: manualL3Override.active,
-      evidenceArtifactId: manualL3Override.evidenceArtifactId,
-      validFor: manualL3Override.validFor,
-      monitorCreateApproval: createCalled === true,
-      overrideFieldsApplied: manualL3Override.active ? ["media_id", "media_name", "monitor_api", "agent_id"] : []
-    },
     account: account ? {
       resolved: true,
       technicalAccountRecordId: account.technicalAccountRecordId,
@@ -2628,35 +2518,6 @@ async function runMonitorProvisionEnsure({
     summary: safeSummary,
     jobId
   });
-  const relationWriteResults = monitor && manualL3Override.active
-    ? await syncManualL3ConfirmedRelations({
-      repo,
-      target,
-      defaults,
-      account,
-      evidenceArtifactId,
-      requestFingerprint,
-      responseHash: readbackResult?.responseHash || preflightMonitorResult?.responseHash || ""
-    })
-    : [];
-  if (repo && monitor && manualL3Override.active && account) {
-    await repo.updateQiankunAccountIdentity({
-      advertiserId: target.advertiserId,
-      routeId: target.routeId,
-      gameCode: target.gameCode,
-      accountName: account.advertiserName || target.advertiserId,
-      authStatus: account.authStatusName || "unknown",
-      platformStatus: account.status || "unknown",
-      ownerName: account.ownerName || "",
-      qiankunAccountRecordId: manualL3Override.overrideValues.qiankun_account_record_id,
-      qiankunOwnerKey: account.ownerKey,
-      qiankunAgentId: manualL3Override.overrideValues.agent_id,
-      qiankunMediaMasterId: account.mediaMasterId,
-      qiankunMediaMasterName: account.mediaMasterName,
-      qiankunIdentityStatus: "verified",
-      qiankunVerifiedAt: new Date().toISOString()
-    });
-  }
   if (createCalled) {
     await repo.completeMonitorProvisionAttempt({
       attemptId: claimedAttempt.attemptId || monitorAttemptId(cycleId, attemptPolicy.nextAttemptNo),
@@ -2714,11 +2575,7 @@ async function runMonitorProvisionEnsure({
     runStatus,
     blockers: [...blockers],
     evidenceArtifactId,
-    writes: {
-      ...writes,
-      manualL3RelationWriteResults: relationWriteResults,
-      manualL3RelationsWritten: relationWriteResults.some((item) => item.inputCount > 0)
-    }
+    writes
   };
   assertNoSensitiveLeak(output);
   return output;
@@ -2749,7 +2606,8 @@ export async function runMonitorProvisionFoundationStatus({
     try {
       defaults = await repo.getMonitorProvisionDefaults({
         routeId: target.routeId,
-        gameCode: target.gameCode
+        gameCode: target.gameCode,
+        advertiserId: target.advertiserId
       });
     } catch (error) {
       defaultsError = clean(error.message || error.code || "defaults_read_failed");
@@ -2769,11 +2627,7 @@ export async function runMonitorProvisionFoundationStatus({
       attemptStateError = clean(error.message || error.code || "attempt_state_read_failed");
     }
   }
-  const compiledDefaults = defaults ? {
-    ...defaults,
-    monitor_provision_present: defaults.monitor_provision_present === true,
-    monitor_provision: monitorPlanConfig(defaults)
-  } : null;
+  const compiledDefaults = defaults ? monitorEffectiveDefaults(defaults) : null;
   const readiness = monitorDefaultsReadiness(compiledDefaults || {});
   const fingerprint = monitorProvisionFingerprint({
     ...target,
@@ -2902,24 +2756,6 @@ async function runMonitorProvisionCommand({
   }
   if (cleanMode === "monitor_ids_readonly") {
     return runMonitorIdsReadonlyVerify({ repo, ownerKey, monitorIds, target });
-  }
-  if (cleanMode === "sync_cate_vest") {
-    return runQiankunCateVestReadonlySync({ repo, ownerKey, target: scopedQiankunTarget(QIANKUN_CATE_VEST_TARGET, target) });
-  }
-  if (cleanMode === "sync_vest_package") {
-    return runQiankunVestPackageReadonlySync({ repo, ownerKey, target: scopedQiankunTarget(QIANKUN_VEST_PACKAGE_TARGET, target) });
-  }
-  if (cleanMode === "sync_package_base_info") {
-    return runQiankunPackageBaseInfoReadonlySync({ repo, ownerKey, target: scopedQiankunTarget(QIANKUN_PACKAGE_BASE_INFO_TARGET, target) });
-  }
-  if (cleanMode === "sync_technical_combination") {
-    return runQiankunMonitorTechnicalCombinationReadonlySync({ repo, ownerKey, target: scopedQiankunTarget(QIANKUN_MONITOR_TECHNICAL_COMBINATION_TARGET, target) });
-  }
-  if (cleanMode === "sync_level3_media_resource") {
-    return runQiankunLevel3MediaResourceReadonlySync({ repo, ownerKey, retryOnce, env, target: scopedQiankunTarget(QIANKUN_LEVEL3_MEDIA_RESOURCE_TARGET, target) });
-  }
-  if (cleanMode === "sync_media_catalog") {
-    return runQiankunMediaCatalogReadonlySync({ repo, ownerKey, target: scopedQiankunTarget(QIANKUN_MEDIA_CATALOG_TARGET, target) });
   }
   throw new Error(`unsupported_monitor_provision_mode:${cleanMode}`);
 }

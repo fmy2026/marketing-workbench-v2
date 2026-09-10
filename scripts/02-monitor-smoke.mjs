@@ -13,7 +13,10 @@ import {
   buildMonitorEnsureExecutionInput,
   executeConfirmedMonitorBootstrap
 } from "../src/workflows/skills/oe3/02-monitor/executor.mjs";
-import { resolveMonitorTouchpointState } from "../src/workflows/skills/oe3/02-monitor/index.mjs";
+import {
+  buildEffectiveMonitorConfig,
+  resolveMonitorTouchpointState
+} from "../src/workflows/skills/oe3/02-monitor/index.mjs";
 
 const target = {
   routeId: "oceanengine_3_byte_mini_game",
@@ -21,24 +24,49 @@ const target = {
   advertiserId: "8990000000001301"
 };
 
-const monitorContract = buildMonitorBootstrapContract({
-  target,
-  account: {
-    qiankunAccountRecordId: "QK-8990000000001301",
-    ownerKey: "synthetic_owner"
-  },
-  technicalConfig: {
+const routeDefaults = {
+  monitor_provision: {
     os: 3,
     package_id: "36820",
     cate_id: "122",
     vest_id: "1414",
     channel: "dymini3k",
     media_id: "310",
-    agent_id: "613",
     monitor_api: "toutiao_wxgame",
     usage: 0,
     num: 1
   },
+  monitor_provision_reference_candidates: {
+    agent_id: "613",
+    media_id: "310",
+    monitor_api: "toutiao_wxgame"
+  },
+  account_identity: {
+    agent_id: "617",
+    media_account_id: "QK-8990000000001301",
+    owner: "synthetic_owner"
+  }
+};
+
+const effective617 = buildEffectiveMonitorConfig({ defaults: routeDefaults });
+assert.equal(effective617.agent_id, "617", "account agent must override any legacy route reference");
+assert.equal(effective617.media_account_id, "QK-8990000000001301");
+assert.equal(effective617.owner, "synthetic_owner");
+assert.equal(JSON.stringify(effective617).includes('"613"'), false, "route agent reference must not enter effective config");
+
+const effective613 = buildEffectiveMonitorConfig({
+  defaults: routeDefaults,
+  accountIdentity: { agent_id: "613", media_account_id: "QK-8990000000001302", owner: "synthetic_owner" }
+});
+assert.equal(effective613.agent_id, "613", "different accounts use the same resolver, not a route branch");
+
+const monitorContract = buildMonitorBootstrapContract({
+  target,
+  account: {
+    qiankunAccountRecordId: "QK-8990000000001301",
+    ownerKey: "synthetic_owner"
+  },
+  technicalConfig: effective617,
   provisionId: "MPR-SYNTHETIC-8990000000001301",
   cycleId: "MPR-SYNTHETIC-8990000000001301-CYCLE-01",
   cycleNo: 1,
@@ -179,6 +207,7 @@ console.log(JSON.stringify({
     "monitor_bootstrap_plan_has_exactly_one_ensure_monitor",
     "standard_plan_does_not_mix_monitor_action",
     "monitor_contract_is_hash_only",
+    "monitor_effective_config_uses_database_account_identity_for_613_and_617",
     "authenticated_owner_key_reaches_monitor_ensure",
     "blocked_authorization_produces_zero_confirmation_or_platform_writes"
   ]

@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `082`、Node/Skill/资源注册表与数据契约 |
+| 校验基线 | 当前代码、Schema migrations 至 `083`、Node/Skill/资源注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 重新校验条件 | Node/Skill、runner mode、资源能力、Plan/确认、Case summary、工作台入口或 Schema/View 变化时 |
 
@@ -42,7 +42,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 阶段 / Node | Skill 组 | 核心职责 → 输出或停止分支 |
 | --- | --- | --- |
 | 准备 01 `launch_intake` | `intake-normalize` | route、game、advertiser 规范化为 intake；缺字段即停止。owner 精确校验发生在建档前，不属于 Node。 |
-| 准备 02 `creation_context` | `context-resolve-*`、`monitor-state-read`；独立 monitor reconcile → Plan → execute → readback 链 | 装配账户、触点、monitor、平台 App；普通 schedule 只读 monitor 状态，缺失 monitor 只能走独立 `monitor_bootstrap` Plan。 |
+| 准备 02 `creation_context` | `context-resolve-*`、`monitor-state-read`；独立 monitor reconcile → Plan → execute → readback 链 | 装配账户、触点、monitor、平台 App；Monitor effective config 只由路线/游戏固定字段加 `advertiser_accounts` 的乾坤账户身份（agent、账户记录、owner）组成。普通 schedule 只读 monitor 状态，缺失 monitor 只能走独立 `monitor_bootstrap` Plan。 |
 | 准备 03 `game_launch_pack` | `launch-pack-resolve-*` | 解析游戏主档、路线默认值、保底物料、备用页与资源蓝图；不从历史账户复制动态资源 ID。 |
 | 就绪 04 `account_resource_prepare` | blueprint bootstrap、目标账户 readonly、抖音授权、资源来源/绑定/事件链与八类 verifier | 产出 `account_ready_report` 和四态资源摘要；只读、来源或合同不完整时 fail-closed，未确认前零平台写入。 |
 | 就绪 05 `std_project_draft_builder` | confirmed resource orchestrator、`payload-build`、`payload-contract`、`duplicate-check`、`create-readiness` | 受控执行已确认资源 Plan，或生成 Draft/hash 并完成字段合同及未删除同名+语义查重；不创建项目。 |
@@ -93,6 +93,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - `Case` 表示持续业务目标，`Job` 表示一次运行；同一 route×game×advertiser 最多一个 active runtime Case，fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
 - monitor、资源准备和项目创建分别确认；资源回查通过后才以 fresh Job/Plan 生成创建确认卡。
 - 确认前重新执行所需 fresh readonly；资源、调用量、Draft/payload hash、授权或重复状态漂移均 fail-closed。
+- Monitor readonly、Plan 和确认后的 fresh preflight 必须复用同一 effective config；fresh `accountIndex` 身份与数据库/Plan 不一致时，旧 Plan 消费但零平台写入，用户只能“重新只读准备”生成 fresh Job、Plan 与确认。
 - 每份确认 Plan 只消费冻结动作一次；写入受理不等于 READY，只有权威只读回查可以写入 verified。
 - 明确失败或修正使用新 Job/Plan/confirmation/Attempt。唯一例外是同一冻结 Create action 收到无对象 ID 的精确 `40100`，可在一个逻辑 action 内按合同错峰物理投递至多三次；其他错误、超时或不明结果不自动重试。
 - OAuth 刷新不属于业务 Plan，其授权和调度只查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)。普通文件、日志和前端只保存脱敏摘要、hash、必要 ID、字段路径与证据引用，禁止保存凭据、完整触点 URL 或 raw request/response。

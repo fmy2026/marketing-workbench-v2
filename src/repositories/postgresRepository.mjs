@@ -1546,29 +1546,6 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async getManualL3OverrideEvidence({ routeId, gameCode, advertiserId, provisionId }) {
-    assertId("route_id", routeId);
-    assertId("game_code", gameCode);
-    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
-    assertId("provision_id", provisionId);
-    return queryJson(`
-      SELECT jsonb_build_object(
-        'artifactId', artifact_id,
-        'target', summary::jsonb->'target',
-        'manualConfirm', summary::jsonb->'manualConfirm',
-        'createdAt', created_at
-      )::text
-      FROM mwb.evidence_artifacts
-      WHERE artifact_type = 'qiankun_manual_l3_confirm'
-        AND summary::jsonb->'target'->>'routeId' = ${sqlLiteral(routeId)}
-        AND summary::jsonb->'target'->>'gameCode' = ${sqlLiteral(gameCode)}
-        AND summary::jsonb->'target'->>'advertiserId' = ${sqlLiteral(advertiserId)}
-        AND summary::jsonb->'target'->>'provisionId' = ${sqlLiteral(provisionId)}
-      ORDER BY created_at DESC
-      LIMIT 1;
-    `, this.database);
-  }
-
   async listWorkflowCaseSummaries({ sourceUsage = "", lifecycleStatus = "", ownerUserId = "" } = {}) {
     if (sourceUsage) assertId("source_usage", sourceUsage);
     if (lifecycleStatus) assertId("lifecycle_status", lifecycleStatus);
@@ -1820,9 +1797,10 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async getMonitorProvisionDefaults({ routeId, gameCode }) {
+  async getMonitorProvisionDefaults({ routeId, gameCode, advertiserId = "" }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
+    if (advertiserId) assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
 
     return queryJson(`
       SELECT jsonb_build_object(
@@ -1832,6 +1810,20 @@ export class PostgresRepository {
         'monitor_provision_present', d.raw_defaults ? 'monitor_provision',
         'monitor_provision', coalesce(d.raw_defaults->'monitor_provision', '{}'::jsonb),
         'monitor_provision_reference_candidates', coalesce(d.raw_defaults->'monitor_provision_reference_candidates', '{}'::jsonb),
+        'account_identity', coalesce((
+          SELECT jsonb_build_object(
+            'agent_id', account.qiankun_agent_id,
+            'media_account_id', account.qiankun_account_record_id,
+            'owner', account.qiankun_owner_key,
+            'identity_status', account.qiankun_identity_status,
+            'verified_at', account.qiankun_verified_at
+          )
+          FROM mwb.advertiser_accounts account
+          WHERE account.advertiser_id = ${advertiserId ? sqlLiteral(advertiserId) : "NULL"}
+            AND account.route_id = d.route_id
+            AND account.game_code = d.game_code
+          LIMIT 1
+        ), '{}'::jsonb),
         'monitor_provision_status', coalesce(d.raw_defaults->>'monitor_provision_status', ''),
         'updated_at', d.updated_at
       )::text

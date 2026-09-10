@@ -976,7 +976,9 @@ import {
       draftCaseId = result.view.caseId;
       setActiveCaseUrl(result.view.caseId);
     }
-    pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
+    pendingConfirmation = Object.prototype.hasOwnProperty.call(result.interaction || {}, "confirmationPreview")
+      ? result.interaction.confirmationPreview
+      : job.confirmationPreview || null;
     if (result.interaction?.parserSource) {
       message("agent", `${parserLabel(result.interaction.parserSource)}。`);
     }

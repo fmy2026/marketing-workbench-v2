@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-AGENT-MODEL-CONFIG-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `082_workbench_agent_model_configs.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-MONITOR-ACCOUNT-IDENTITY-CONFIG-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `083_monitor_account_identity_effective_config.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `082` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 83 个 migration 文件、编号至 `082`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
+结构清单沿用 migration `083` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 84 个 migration 文件、编号至 `083`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -47,7 +47,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `landing_page_assets`、`game_route_resource_blueprints` | 路线×游戏备用页、资源蓝图 | 同上 | Node 03–04 |
 |  | `game_route_launch_links`、`game_route_micro_game_registration_profiles` | 路线×游戏受控启动链接、小游戏注册档案版本 | 同上 | Node 03、Node 05 |
 |  | `dmp_package_sets`、`dmp_package_members` | 路线×游戏 DMP 集合、集合成员 | 同上 | Node 04–05 |
-| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、唯一 `owner_user_id`、受控触点；新 Intake 在 Case/Job 前用当前用户 owner key 执行乾坤 `accountIndex` 精确只读预检，禁止跨 scope 覆盖和自动转移。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed。`platform_status` 是原始诊断值，不决定引导视频分支。`guide_video_required` 默认 false，表示可自动探测；true 仅保留为强制要求，空 probe 不得降级。`video_cover_required` 是独立、默认 false 的显式封面开关 | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | 访问控制、Node 02、Node 04–05、专项 View |
+| L2 账户（5） | `advertiser_accounts`、`account_touchpoints` | route×game×advertiser 账户、唯一 `owner_user_id`、受控触点；新 Intake 在 Case/Job 前用当前用户 owner key 执行乾坤 `accountIndex` 精确只读预检，禁止跨 scope 覆盖和自动转移。`qiankun_agent_id`、`qiankun_account_record_id`、`qiankun_owner_key` 是 Monitor 的账户身份唯一投影；它们只由同一账户的 fresh `accountIndex` 写入，路线默认值不得保存代理或账户记录。`auth_status` 写入时“授权正常”“已授权”“ready”“active”统一为 `ready`，其他值保持原样 fail-closed。`platform_status` 是原始诊断值，不决定引导视频分支。`guide_video_required` 默认 false，表示可自动探测；true 仅保留为强制要求，空 probe 不得降级。`video_cover_required` 是独立、默认 false 的显式封面开关 | 账户维护、Case 入口账户只读预检、monitor readonly reconcile、已授权 monitor 流程 | 访问控制、Node 02、Node 04–05、专项 View |
 |  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。JSZC fresh Job 的 `gameplay/list` 结果仅保存为唯一 `micro_app_instance.metadata.guide_video_readiness`：是否 required、候选数、ID 是否存在、response hash、evidence ref、Job/实例绑定与时间；不保存原始响应。唯一 ID 要求两条 required video 复用；成功空列表允许省略；歧义/失败阻断。视频行不复制动态 ID | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
 | L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；保存 `owner_user_id`、`created_by_user_id` 与 `maximum_create_attempts`（普通 Case 默认 3，获批替代 Case 固定 1）；同一 scope 最多一个 active `runtime_truth` Case | Case / Job 入口、受控替代事务 | Case summary、UI、API、CLI |
@@ -122,7 +122,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
+`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
 
 ## 5. 核心键、时间与去重
 
