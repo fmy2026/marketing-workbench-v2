@@ -1,0 +1,164 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910",
+  "task_ref": "tasks/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.md",
+  "status": "blocked",
+  "created_at": "2026-09-10T03:30:12Z",
+  "updated_at": "2026-09-10T03:33:29Z",
+  "base_revision": "de784418a5f4f841554fc6f385eb653cb28b0aec",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "db/075_case_attempt_limit_replacement_recovery.sql",
+    "db/080_std_project_40100_rate_limit_redelivery.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.json",
+    "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/**"
+  ],
+  "forbidden_actions": [
+    "修改源代码、Schema、payload 默认值或旧 Case 的 action、Plan、confirmation、readback 历史",
+    "对旧 Case 发起第四次创建或创建第二个 replacement Case",
+    "以 CLI 或管理员身份绕过账户 owner、精确 confirmation、Plan binding 或 action grant",
+    "记录 token、Cookie、完整 URL、raw request、raw payload 或 raw response",
+    "对非精确 40100、超时、网络异常或结果不明执行自动重投"
+  ],
+  "stop_conditions": [
+    "当前 Case、owner、最新 Job、耗尽状态或零对象/verified readback 前提不再成立",
+    "服务未加载现行 40100 合同，或 fresh readonly 产生新的 root blocker",
+    "需要修改旧历史、扩大平台写权限、绕过 owner/confirmation 或保存敏感原文"
+  ],
+  "open_gaps": [
+    "Replacement Case CASE-MWBV2-0F11DE6EF5CEB4097B has root blocker guide_video_current_job_readonly_missing after fresh readonly; no Create Plan is eligible until a separately approved diagnosis and correction resolves it."
+  ],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run check:project -- --phase start"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server; verify PID/start time, HTTP health, migration 080 delivery table and system_rate_limited constraint"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "MWBV2_MANUAL_REVIEW_APPROVAL=APPROVE_CASE_MANUAL_REVIEW npm run case:approve-manual-review -- --case-id CASE-MWBV2-FF06CC07F45EE8F4CC --job-id JOB-MWBV2-20260909081433-087541 --fix-version std_project_40100_redelivery_94e22eea --diagnosis-category system_rate_limited --reviewer-ref USR-ZHANGJINGWEI; readonly Postgres verification"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "authenticated owner workbench command 重新只读准备; readonly Postgres verification of replacement Case/Job and fresh readonly outcome"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "readonly verification of new Plan confirmation binding and 40100 redelivery contract; wait for the owner’s exact confirmation before any platform write"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start",
+      "verified_at": "2026-09-10T03:30:12Z",
+      "summary": "Project startup check passed with the new active Task and its declared control-only file changes.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md#ac-01--task-startup"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server; verify PID/start time, authenticated workbench reload, migration 080 delivery table and system_rate_limited constraint",
+      "verified_at": "2026-09-10T03:33:29Z",
+      "summary": "Service restarted to PID 67298 after commit 94e22eea; the authenticated workbench reloaded and the database 40100 delivery contract is present.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md#ac-02--runtime-40100-contract"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "MWBV2_MANUAL_REVIEW_APPROVAL=APPROVE_CASE_MANUAL_REVIEW npm run case:approve-manual-review -- --case-id CASE-MWBV2-FF06CC07F45EE8F4CC --job-id JOB-MWBV2-20260909081433-087541 --fix-version std_project_40100_redelivery_94e22eea --diagnosis-category system_rate_limited --reviewer-ref USR-ZHANGJINGWEI; readonly Postgres verification",
+      "verified_at": "2026-09-10T03:32:05Z",
+      "summary": "Approved redacted manual-review evidence was recorded with zero platform writes; predecessor history retained three create actions, zero objects and zero verified readbacks.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md#ac-03--approved-manual-review"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "authenticated owner workbench command 重新只读准备; readonly Postgres verification of replacement Case/Job and fresh readonly outcome",
+      "verified_at": "2026-09-10T03:33:29Z",
+      "summary": "The owner-bound transaction created exactly one one-attempt replacement Case and ran fresh readonly; it fail-closed on guide_video_current_job_readonly_missing before Node 06.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md#ac-04--replacement-case-fresh-readonly"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "not_run",
+      "command": "readonly verification of new Plan confirmation binding and 40100 redelivery contract; wait for the owner’s exact confirmation before any platform write",
+      "verified_at": "2026-09-10T03:33:29Z",
+      "summary": "No Create Plan was eligible because fresh readonly produced guide_video_current_job_readonly_missing; no confirmation or platform write was attempted.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md#ac-05--create-confirmation-contract"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "This task consumes the approved existing 40100 recovery mechanism and changes no long-term method or contract."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "not_needed",
+      "reason": "No workflow, Gate, Node, Plan or runtime-policy behavior changes."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "No schema, View, storage or reporting-contract changes."
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "The task uses the existing LaunchAgent restart procedure without deployment-configuration changes."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "The approved 40100 recovery mechanism is loaded, manual review was recorded and a one-attempt owner-bound replacement Case was created; its fresh readonly run stopped on guide_video_current_job_readonly_missing before any Create Plan or platform write.",
+    "side_effects": "Restarted the local LAN workbench service; added one redacted manual-review evidence artifact; cancelled the exhausted predecessor and atomically created one active replacement Case/Job. No source, schema, payload-default or historical action modification occurred.",
+    "remaining_risks": [
+      "The replacement Case cannot reach a confirmation card until guide_video_current_job_readonly_missing is diagnosed and corrected under a separate approved Task.",
+      "No external platform create was attempted, so the 40100 bounded-delivery runtime path remains unexercised for this account."
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-FF06CC07F45EE8F4CC",
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-0F11DE6EF5CEB4097B",
+      "postgres:mwb.evidence_artifacts:EV-JOB-MWBV2-20260909081433-087541-MANUAL-REVIEW"
+    ]
+  },
+  "closed_at": null
+}
