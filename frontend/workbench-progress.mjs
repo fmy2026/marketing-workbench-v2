@@ -1,5 +1,11 @@
 export const PROGRESS_REFRESH_INTERVAL_MS = 1200;
 
+const IDENTITY_RECOVERY_BLOCKERS = new Set([
+  "qiankun_account_identity_changed_since_plan",
+  "qiankun_account_identity_preflight_failed",
+  "monitor_fresh_readonly_contract_drift"
+]);
+
 export function progressCount(nodes = []) {
   return nodes.filter((node) => node?.status === "passed").length;
 }
@@ -12,6 +18,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
   const gate = String(caseGate?.currentGate || "").trim();
   const blocker = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   if (gate !== "resolve_case_blocker") return null;
+  if (IDENTITY_RECOVERY_BLOCKERS.has(blocker)) {
+    return {
+      message: "账户监测身份已更新，旧 Plan 已失效；请输入“重新只读准备”。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "guide_video_capability_probe_failed") {
     return {
       message: "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。",

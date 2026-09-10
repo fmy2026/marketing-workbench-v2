@@ -589,7 +589,9 @@ import {
     const missing = job ? [] : missingFields();
     agentStatus.textContent = viewOnly
       ? "历史运行，只读"
-      : job?.headline?.statusLabel || (missing.length ? "等待补齐" : "已规范化");
+      : job
+        ? (job?.caseGate?.progressNarrative?.shortLabel || "等待处理")
+        : (missing.length ? "等待补齐" : "已规范化");
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
@@ -730,9 +732,6 @@ import {
 
     const nodeCount = allNodes().length;
     document.getElementById("workflowHeading").textContent = `Workflow · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
-    document.getElementById("runState").textContent = viewOnly
-      ? "历史运行"
-      : (job?.headline?.statusLabel || (busy ? "运行中" : "等待启动"));
   }
 
   function renderCommand() {

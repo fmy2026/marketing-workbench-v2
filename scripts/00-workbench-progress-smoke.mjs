@@ -122,6 +122,18 @@ assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] }) === null, "unrelated_blocker_must_keep_existing_guidance");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_candidate_ambiguous"] })?.message === "当前阻断：检测到多个引导视频，需先确定唯一玩法。", "guide_video_ambiguous_guidance_message_mismatch");
+const identityRecoveryBlockers = [
+  "qiankun_account_identity_changed_since_plan",
+  "qiankun_account_identity_preflight_failed",
+  "monitor_fresh_readonly_contract_drift"
+];
+for (const blocker of identityRecoveryBlockers) {
+  const guidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: [blocker] });
+  assert(guidance?.message === "账户监测身份已更新，旧 Plan 已失效；请输入“重新只读准备”。", `identity_recovery_message_mismatch:${blocker}`);
+  assert(guidance?.placeholder === "输入“重新只读准备”或“查看状态”…", `identity_recovery_placeholder_mismatch:${blocker}`);
+  assert(!guidance.placeholder.includes("继续执行"), `identity_recovery_placeholder_must_not_continue:${blocker}`);
+  assert(guidance.message !== "流程状态正在更新，请刷新查看。", `identity_recovery_must_not_fall_back_to_refresh:${blocker}`);
+}
 
 const [htmlSource, clientSource, styleSource] = await Promise.all([
   readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),
@@ -131,7 +143,10 @@ const [htmlSource, clientSource, styleSource] = await Promise.all([
 assert(!htmlSource.includes('id="caseGate"'), "duplicate_case_gate_panel_still_present");
 assert(!clientSource.includes("renderCaseGate"), "duplicate_case_gate_renderer_still_present");
 assert(!styleSource.includes(".case-gate"), "duplicate_case_gate_styles_still_present");
+assert(!htmlSource.includes('id="runState"'), "workflow_dynamic_run_state_must_be_removed");
+assert(!clientSource.includes('getElementById("runState")'), "workflow_dynamic_run_state_renderer_must_be_removed");
 assert(clientSource.includes("function operationalMessage()"), "left_conversation_gate_projection_missing");
+assert(clientSource.includes("progressNarrative?.shortLabel || \"等待处理\""), "headline_must_use_compact_gate_status");
 assert(htmlSource.includes('id="progressText"'), "bottom_progress_text_removed");
 assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refresh_removed");
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");

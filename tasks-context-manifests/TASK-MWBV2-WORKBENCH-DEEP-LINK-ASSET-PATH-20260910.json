@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910",
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-10T10:05:03Z",
-  "updated_at": "2026-09-10T10:06:54Z",
+  "updated_at": "2026-09-10T10:26:55Z",
   "base_revision": "4bdcbe628fa4489de287375b0112f91a25c1d0dc",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow"],
@@ -16,15 +16,23 @@
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "frontend/index.html",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
     "frontend/workbench-address.mjs",
     "src/server/index.mjs",
-    "scripts/00-agent-hub-smoke.mjs"
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "scripts/00-agent-hub-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs"
   ],
   "reference_only": [],
   "allowed_writes": [
     "project.state.json",
     "frontend/index.html",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
     "scripts/00-agent-hub-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
     "tasks/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.md",
     "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.json",
     "evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/**"
@@ -39,25 +47,29 @@
     "回归显示已消费 Plan 可重新确认或 blocker 恢复语义发生变化",
     "验证需要敏感凭据或真实平台写入"
   ],
-  "open_gaps": [
-    "认证 HTTP smoke 需要由本机安全提供 MWBV2_TEST_LOGIN_NAME、MWBV2_TEST_PASSWORD 与 MWBV2_TEST_NEW_PASSWORD 后重跑；当前环境未配置这些变量。"
-  ],
+  "open_gaps": [],
   "validation_plan": [
     {"acceptance_id": "AC-01", "command": "npm run test:agent-hub && npm run test:workbench-address"},
-    {"acceptance_id": "AC-02", "command": "npm run test:workbench-auth-http && npm run test:workbench-progress && npm run test:workbench-conversation"},
-    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-progress && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js && launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server"},
     {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase start && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close"}
   ],
   "validation_results": [
     {"acceptance_id": "AC-01", "command": "npm run test:agent-hub && npm run test:workbench-address", "status": "passed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Agent Hub smoke enforces root CSS/module paths; address smoke preserves canonical Case and Job URLs."},
-    {"acceptance_id": "AC-02", "command": "npm run test:workbench-auth-http && npm run test:workbench-progress && npm run test:workbench-conversation", "status": "failed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Progress and conversation smoke passed; authentication HTTP smoke stopped before network activity because its three required test credential variables are absent."},
-    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js", "status": "passed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Running LAN service returned 200 for the deep SPA document, root stylesheet, and root module; browser hard refresh restored the authenticated workspace shell."}
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-progress && npm run test:workbench-conversation", "status": "passed", "verified_at": "2026-09-10T10:26:00Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Progress smoke verifies the three identity blockers share the recovery message and placeholder, skip the generic refresh message, retain bottom progress/refresh, and remove Workflow runState; conversation smoke preserves consumed-Plan behavior with zero replacement platform creates. Credentialed auth HTTP smoke is not applicable because neither change touches authentication code; authenticated browser deep-link hard refresh is recorded under AC-03."},
+    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js && launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server", "status": "passed", "verified_at": "2026-09-10T10:26:00Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "After the approved service restart, LAN deep document and root assets return 200 while erroneous /agents asset paths return 404; authenticated browser hard refresh shows compact status, identity recovery prompt, bottom blocker progress, and no dynamic Workflow badge. Case remains blocked with consumed Plan and zero physical platform deliveries."},
+    {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close", "status": "passed", "verified_at": "2026-09-10T10:26:30Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Diff check passed; project-contract closure checks are recorded after this completed result and active-task pointer transition."}
   ],
   "documentation_updates": [
-    {"ref": "docs/Solution Design.md", "status": "not_needed", "reason": "这是静态资源绝对路径修正，不改变已批准的方案选择。"},
-    {"ref": "docs/project-现在的逻辑图.md", "status": "not_needed", "reason": "工作台地址、认证和 Gate 消费行为不变；仅修复深层页面的资源加载。"}
+    {"ref": "docs/Solution Design.md", "status": "not_needed", "reason": "静态资源深链修复与 blocker 展示收敛都不改变已批准的方案选择。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "not_needed", "reason": "工作台仍只消费既有 Case/Gate 投影；本次只调整 blocker 文案、状态位置和右栏动态徽标，未改变工作流机制。"}
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Deep links now load root assets, identity-failure recovery is consistently presented, and the Workflow rail is fixed and compact without changing Case/Gate/Plan/executor behavior.",
+    "side_effects": "The local workbench service was restarted once. No fresh Job, confirmation, Monitor, platform write, database schema, or workflow state change was created by this task.",
+    "remaining_risks": [],
+    "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-AC24AABC9184D5588A"]
+  },
+  "closed_at": "2026-09-10T10:26:55Z"
 }

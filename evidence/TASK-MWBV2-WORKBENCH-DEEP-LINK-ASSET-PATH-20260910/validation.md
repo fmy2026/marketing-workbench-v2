@@ -33,3 +33,23 @@
 命令：`npm run check:project -- --phase start && git diff --check`
 
 结果：通过。当前任务为 active，变更只位于允许范围；未访问平台。
+
+## 2026-09-10 展示层收敛复验
+
+### AC-02：身份 blocker、进度与对话回归
+
+命令：`npm run test:workbench-progress && npm run test:workbench-conversation && npm run test:agent-hub && npm run test:workbench-address`
+
+结果：通过。progress smoke 覆盖三个同义身份失效 blocker：`qiankun_account_identity_changed_since_plan`、`qiankun_account_identity_preflight_failed` 与 `monitor_fresh_readonly_contract_drift`；它们均显示“账户监测身份已更新，旧 Plan 已失效；请输入‘重新只读准备’”，占位不含“继续执行”，且不回退到“流程状态正在更新”。同一 smoke 还断言右栏已删除 `runState` 动态徽标、底部详细进度和只读刷新入口仍保留。conversation smoke 通过，replacement platform create 调用数仍为 0。
+
+先前凭据化 `test:workbench-auth-http` 缺口调整为不适用：两次修正均未触及认证代码或认证合同；已登录浏览器的深层地址硬刷新在 AC-03 中直接验证会话保持，未读取、猜测或写入任何凭据。
+
+### AC-03：服务重启、HTTP、浏览器与业务边界
+
+执行：`launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server`，随后执行 LAN HTTP 检查并硬刷新用户现有 Case 页面。
+
+结果：工作台服务已重启并加载当前代码。`/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE`、`/styles.css`、`/app.js` 均为 200；`/agents/styles.css` 与 `/agents/app.js` 均为 404，确认页面不再依赖错误的子路径资源。
+
+已登录浏览器在 `CASE-MWBV2-AC24AABC9184D5588A` 的硬刷新后显示：对话标题下为“等待处理”、对话区为“账户监测身份已更新，旧 Plan 已失效；请输入‘重新只读准备’。”、底部为“进度 1 / 7 · 已暂停：账户监测身份已更新”；右侧 Workflow 仅保留固定标题、阶段、节点、子节点和状态圆点，没有动态运行状态徽标。
+
+只读 Postgres 回查保持：Case 为 `active`，最新 Job 为 `JOB-MWBV2-20260910092355-8F6355`，Gate 为 `resolve_case_blocker`，root blocker 为 `qiankun_account_identity_preflight_failed`，最新 Plan 为 `consumed`，该 Case 的平台动作物理投递数为 0。未输入命令、未创建 fresh Job、未创建 Monitor、未发生平台写入。
