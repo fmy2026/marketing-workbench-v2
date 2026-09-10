@@ -32,3 +32,9 @@
 - 回归通过：`test:case-corrective-create`、`test:workbench-conversation`、`test:workflow-case`、`test:payload-contract`、`test:execution-plan`、`check:project -- --phase start` 与 `git diff --check`。corrective smoke 覆盖初次无参数为 Attempt 1、已有一次失败创建后的无参数重跑为 Attempt 2，以及错误显式 Attempt 不产生 Draft、Plan 或平台 action；所有 smoke 的真实平台写入均为零。
 
 - 2026-09-10T13:02:54Z：通过 `com.hys.marketing-workbench.local-server` 重启 LAN 服务；新进程启动于 21:01:59 CST，当前 Case 深层地址经 LAN 直连返回 HTTP 200。部署后 Postgres 仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象；重启没有业务写入。
+
+- 2026-09-10T13:26:08Z：收口 JSZC 成功样本的字段形态校验。获批目标空列表模式只接受精确的 `brand_info` 对象与四个子字段省略账本；校验函数仅在内存中将其投影为历史四字段发送形态后与既有基线比较，实际 Draft、Plan、请求和字段账本不改写。品牌外路径、额外路径或残缺省略仍阻断。
+- 回归通过：`test:payload-contract`（含完整目标空列表 payload contract/preflight、非品牌形态漂移和残缺品牌账本负例）、`test:execution-plan`、`test:execution-grant`、`test:workbench-progress`、`test:workbench-conversation`、`test:workflow-case`、`test:baseline-resource-inheritance`、`test:node4-resource-prep-contracts`、`test:agent-hub`、`test:workbench-address`、`git diff --check` 与 `check:project -- --phase start`。
+- 当前 Case 的强制只读 `prepareStdProjectCreate` 回查返回 `ready=true`、空 blocker、`target_empty_omit_experiment`、`brand_info` 完全省略、payload hash/preflight/wire 均通过。随后计数仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象；未触发确认或平台写入。部署后仍须账户本人输入“重新只读准备”以生成新的 Plan/确认卡。
+
+- 2026-09-10T13:28:32Z：通过 `com.hys.marketing-workbench.local-server` 重启工作台；新 PID 为 `15748`。LAN 深层 Case 地址和 `/workbench-progress.mjs` 均返回 HTTP 200，后者已包含“字段形态校验未通过”的受控提示。重启后只读投影仍是旧 Plan 的 `resolve_case_blocker / jszc_success_profile`，这是尚未重新编译 Plan 的历史投影；Case 计数仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象。未产生业务写入。

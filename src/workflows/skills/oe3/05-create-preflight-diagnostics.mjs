@@ -24,6 +24,9 @@ import {
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_SOURCE,
   JSZC_SUCCESS_PROFILE_VERSION,
+  JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
+  JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT,
+  evaluateJsZcFieldShapeCompatibility,
   evaluateJsZcScheduleTime
 } from "./05-jszc-success-profile.mjs";
 
@@ -801,24 +804,23 @@ function checkNestedFieldContractManifest(manifest = {}) {
 function checkCreateFieldLedger(manifest = {}) {
   const ledger = manifest.createFieldLedger || {};
   const profile = manifest.successProfile || {};
-  const targetEmptyOmit = manifest.brandMode === "target_empty_omit_experiment";
-  const expectedPathCount = targetEmptyOmit
-    ? Number(ledger.checkedPathCount || 0)
-    : Number(profile.expectedLedgerPathCount || 0);
+  const fieldShapeCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: ledger,
+    successProfile: profile,
+    brandMode: manifest.brandMode || ""
+  });
+  const expectedPathCount = fieldShapeCompatibility.expectedEntryCount;
   const entries = Array.isArray(ledger.entries) ? ledger.entries : [];
-  const brandOmitted = targetEmptyOmit && ["brand_info", "brand_info.brand_name_id", "brand_info.cdp_brand_id", "brand_info.cdp_brand_name", "brand_info.yuntu_category_id"]
-    .every((path) => entries.some((entry) => entry.path === path && entry.sendPolicy === "omit" && entry.preCreateStatus === "passed"));
   const passed = ledger.status === "passed" &&
     ledger.ruleVersion === CREATE_FIELD_LEDGER_VERSION &&
     Number(ledger.checkedPathCount || 0) > 0 &&
     Number(ledger.blockedPathCount || 0) === 0 &&
-    Number(ledger.checkedPathCount || 0) === expectedPathCount &&
     entries.length === Number(ledger.checkedPathCount || 0) &&
     /^sha256:[a-f0-9]{64}$/.test(clean(ledger.fieldShapeHash)) &&
     ledger.fieldShapeHash === manifest.fieldShapeHash &&
     entries.every((entry) => entry.rawValueStored === false && entry.preCreateStatus === "passed") &&
     ledger.rawPayloadStored === false &&
-    (!targetEmptyOmit || brandOmitted);
+    fieldShapeCompatibility.status === "passed";
   return diag({
     checkId: "manifest:create_field_ledger",
     fieldPath: "final_payload_manifest.createFieldLedger",
@@ -833,6 +835,7 @@ function checkCreateFieldLedger(manifest = {}) {
       manifestFieldShapeHashMatch: ledger.fieldShapeHash === manifest.fieldShapeHash,
       entriesPresent: entries.length,
       expectedPathCount,
+      fieldShapeCompatibility: fieldShapeCompatibility.status,
       rawPayloadStored: ledger.rawPayloadStored === true
     },
     blockerCode: "create_field_ledger_not_verified",
@@ -842,14 +845,19 @@ function checkCreateFieldLedger(manifest = {}) {
 
 function checkJsZcSuccessProfile(manifest = {}) {
   const profile = manifest.successProfile || {};
-  const targetEmptyOmit = manifest.brandMode === "target_empty_omit_experiment";
   const guideVideoRequired = manifest.guideVideoRequired === true;
+  const videoCoverRequired = manifest.videoCoverRequired === true;
   const expectedShapeHash = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH
+    ? (videoCoverRequired ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH : JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH)
     : JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH;
   const expectedLedgerPathCount = guideVideoRequired
-    ? JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
+    ? (videoCoverRequired ? JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT : JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT)
     : JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT;
+  const fieldShapeCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: manifest.createFieldLedger || {},
+    successProfile: profile,
+    brandMode: manifest.brandMode || ""
+  });
   const passed = manifest.successProfileVersion === JSZC_SUCCESS_PROFILE_VERSION &&
     /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)) &&
     profile.status === "passed" &&
@@ -860,7 +868,7 @@ function checkJsZcSuccessProfile(manifest = {}) {
     Number(profile.expectedLedgerPathCount || 0) === expectedLedgerPathCount &&
     profile.guideVideoRequired === guideVideoRequired &&
     profile.guideVideoPolicy === (guideVideoRequired ? "fresh_gameplay_readonly" : "omit") &&
-    (targetEmptyOmit ? manifest.brandInfoOmitted === true : manifest.fieldShapeHash === expectedShapeHash) &&
+    fieldShapeCompatibility.status === "passed" &&
     profile.filterEventPolicy === "omit" &&
     profile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
     profile.externalUrlMaterialListPolicy === "send" &&
@@ -897,6 +905,7 @@ function checkJsZcSuccessProfile(manifest = {}) {
       guideVideoRequired,
       guideVideoPolicy: profile.guideVideoPolicy || "",
       fieldShapeHashPresent: /^sha256:[a-f0-9]{64}$/.test(clean(manifest.fieldShapeHash)),
+      fieldShapeCompatibility: fieldShapeCompatibility.status,
       filterEventPolicy: profile.filterEventPolicy || "",
       convertedTimeDurationPolicy: profile.convertedTimeDurationPolicy || "",
       externalUrlMaterialListPolicy: profile.externalUrlMaterialListPolicy || "",

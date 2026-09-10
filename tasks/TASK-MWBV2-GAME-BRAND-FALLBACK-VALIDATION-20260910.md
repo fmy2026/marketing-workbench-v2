@@ -22,6 +22,7 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 - 修复 `prepare_corrective_attempt` 对“重新只读准备”的误拒绝：该命令与“继续执行”汇入既有 fresh corrective Attempt 链路，工作台以“重新只读准备”为主提示，不新增 Gate、Plan、写入入口或账户专用分支。
 - 统一 `not_required` 资源状态的消费：Node 04、Node 05、嵌套字段合同与 Execution Plan 复用同一就绪谓词；目标品牌空列表实验只允许整组省略 `brand_info`，不允许空对象或部分字段。
 - 将只读重跑的创建 Attempt 统一从 Case 尝试状态推导；Attempt 2 的未确认 Draft 与项目名 reservation 不得因调用方默认值退回 Attempt 1。
+- 将 JSZC 成功样本的字段形态校验收口为一个纯函数：目标空列表实验仅可将精确的五条品牌省略账本记录投影为历史四字段品牌形态用于比较；payload、payload contract、preflight 和 runner 共用该判定，品牌外任一差异继续阻断。
 
 ## 非目标
 
@@ -45,6 +46,7 @@ Attempt 1 已以游戏维度保底品牌三元组发送完整 `brand_info` 并�
 - AC-10: 在 `prepare_corrective_attempt` 下，“重新只读准备”和“继续执行”得到同一 corrective effect；重复提交只创建或复用一个 fresh Job、仅运行 readonly，且不调用创建 executor。
 - AC-11: 已获当前合同授权的 `not_required/not_required` 资源在所有消费端得到一致判定；目标空列表模式在嵌套合同中要求 `brand_info` 完全缺席，其他模式仍要求完整四字段品牌对象。
 - AC-12: Case 已有失败创建时，无显式 Attempt 的 readonly 重跑使用 `nextCreateAttemptNo`；不匹配的显式 Attempt 在 Draft、Plan 或平台动作前 fail-closed。
+- AC-13: 获批目标空列表模式的真实草稿可通过完整 Node 05、Plan 和正式 prepare 预检；仅品牌省略可偏离历史形态，伪造、残缺或任何非品牌形态漂移均 fail-closed，工作台准确说明系统字段合同阻断。
 
 ## 停止条件
 

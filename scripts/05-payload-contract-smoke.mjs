@@ -3,7 +3,7 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
 import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";
-import { brandIndustryPassed } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
+import { brandIndustryPassed, mockReadyBundle } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { runOe3WorkflowSkills, assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "../src/workflows/skills/oe3/05-std-project-create-wire-body.mjs";
@@ -25,6 +25,7 @@ import {
   JSZC_FALLBACK_GENDER,
   JSZC_FALLBACK_ROI_GOAL,
   JSZC_FALLBACK_SCHEDULE_TIME,
+  evaluateJsZcFieldShapeCompatibility,
   JSZC_SUCCESS_PROFILE_FIXTURE_HASH,
   JSZC_SUCCESS_PROFILE_SOURCE,
   JSZC_SUCCESS_PROFILE_VERSION
@@ -583,7 +584,7 @@ try {
   });
   assert(!fallbackContract.gaps.some((gap) => gap.key === "brand_info_confirmation"), "approved_fallback_brand_must_pass_payload_contract");
 
-  const targetEmptyBundle = structuredClone(fallbackBundle);
+  const targetEmptyBundle = mockReadyBundle(structuredClone(fallbackBundle));
   targetEmptyBundle.case.metadata.brand_empty_omit_experiment = {
     status: "approved_for_single_create_validation",
     case_id: targetEmptyBundle.job.case_id,
@@ -614,17 +615,91 @@ try {
   };
   targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").visibility_status = "not_required";
   targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").readback_status = "not_required";
+  const targetEmptyBackupUrl = "https://example.invalid/mwbv2/mock-backup-landing-page";
+  const targetEmptyMiniProgramUrl = `sslocal://microgame?app_id=${targetEmptyBundle.platformApp.app_id}`;
+  const targetEmptyTouchpointUrl = "https://example.invalid/mwbv2/mock-touchpoint";
   const targetEmptyPayload = buildOe3StdProjectPayload({
     bundle: targetEmptyBundle,
-    touchpointUrl: mock.touchpointVerification.touchpointUrl,
-    backupLandingPageUrl: mock.backupLandingPageUrl,
-    miniProgramLaunchLink: mock.miniProgramLaunchLink
+    touchpointUrl: targetEmptyTouchpointUrl,
+    backupLandingPageUrl: {
+      landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",
+      landing_url: targetEmptyBackupUrl,
+      url_hash: createHash("sha256").update(targetEmptyBackupUrl).digest("hex"),
+      status: "active",
+      resource_visibility_status: "visible",
+      resource_readback_status: "readback_verified",
+      resource_readonly_status: "passed"
+    },
+    miniProgramLaunchLink: {
+      link_ref: "GRLL-JSZC-OE3-BYTE-MINI-GAME-MOCK",
+      platform_app_id: targetEmptyBundle.platformApp.id,
+      app_id: targetEmptyBundle.platformApp.app_id,
+      launch_url: targetEmptyMiniProgramUrl,
+      url_hash: createHash("sha256").update(targetEmptyMiniProgramUrl).digest("hex"),
+      status: "active"
+    }
   });
   assert(!Object.hasOwn(targetEmptyPayload.payload, "brand_info"), "target_empty_brand_mode_must_omit_entire_brand_info");
   assert(targetEmptyPayload.requestFieldManifest.brandMode === "target_empty_omit_experiment", "target_empty_brand_mode_manifest_missing");
   assert(targetEmptyPayload.requestFieldManifest.brandInfoOmitted === true, "target_empty_brand_mode_manifest_not_omitted");
   assert(!targetEmptyPayload.blockers.includes("brand_info_integer_fields_missing"), "target_empty_brand_mode_should_not_require_brand_ids");
   assert(!targetEmptyPayload.blockers.includes("nested_brand_info_contract_invalid"), "target_empty_brand_mode_must_pass_nested_omit_contract");
+  const targetEmptyDraft = structuredClone(mock.bundle.draft);
+  delete targetEmptyDraft.payload_summary.brand_info;
+  targetEmptyDraft.payload_summary.final_payload_manifest = targetEmptyPayload.requestFieldManifest;
+  targetEmptyDraft.payload_summary.final_payload_blockers = targetEmptyPayload.blockers;
+  targetEmptyDraft.payload_summary.final_payload_hash = targetEmptyPayload.payloadHash;
+  targetEmptyDraft.payload_hash = targetEmptyPayload.payloadHash;
+  const targetEmptyCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: targetEmptyPayload.requestFieldManifest.createFieldLedger,
+    successProfile: targetEmptyPayload.requestFieldManifest.successProfile,
+    brandMode: targetEmptyPayload.requestFieldManifest.brandMode
+  });
+  assert(targetEmptyCompatibility.status === "passed", "target_empty_brand_shape_projection_must_match_recorded_baseline");
+  assert(targetEmptyCompatibility.actualEntryCount === 95 && targetEmptyCompatibility.comparativeEntryCount === 94, "target_empty_brand_projection_count_mismatch");
+  const targetEmptyContract = evaluateOe3PayloadContract({
+    bundle: targetEmptyBundle,
+    draft: targetEmptyDraft,
+    touchpointVerification: mock.touchpointVerification
+  });
+  assert(targetEmptyContract.status === "passed", "target_empty_brand_mode_must_pass_complete_payload_contract");
+  const targetEmptyPreflight = evaluateStdProjectCreatePreflight({
+    payload: targetEmptyPayload.payload,
+    requestFieldManifest: targetEmptyPayload.requestFieldManifest,
+    payloadContractStatus: targetEmptyContract.status
+  });
+  assert(targetEmptyPreflight.status === "passed", "target_empty_brand_mode_must_pass_complete_create_preflight");
+  const targetEmptyNonBrandDrift = structuredClone(targetEmptyPayload.requestFieldManifest);
+  targetEmptyNonBrandDrift.createFieldLedger.entries.push({
+    path: "audience.unapproved_drift",
+    group: "audience",
+    sendPolicy: "send",
+    valueType: "string",
+    itemCount: null,
+    enumRule: [],
+    enumMatched: null,
+    preCreateStatus: "passed",
+    rawValueStored: false
+  });
+  targetEmptyNonBrandDrift.createFieldLedger.checkedPathCount += 1;
+  const driftCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: targetEmptyNonBrandDrift.createFieldLedger,
+    successProfile: targetEmptyNonBrandDrift.successProfile,
+    brandMode: targetEmptyNonBrandDrift.brandMode
+  });
+  assert(driftCompatibility.status === "blocked", "target_empty_non_brand_shape_drift_must_block");
+  assert(driftCompatibility.blockers.includes("jszc_success_profile_field_shape_mismatch"), "target_empty_non_brand_shape_drift_code_missing");
+  const targetEmptyBrandDrift = structuredClone(targetEmptyPayload.requestFieldManifest);
+  const omittedBrandName = targetEmptyBrandDrift.createFieldLedger.entries.find((entry) => entry.path === "brand_info.brand_name_id");
+  omittedBrandName.sendPolicy = "send";
+  omittedBrandName.valueType = "number";
+  const brandDriftCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: targetEmptyBrandDrift.createFieldLedger,
+    successProfile: targetEmptyBrandDrift.successProfile,
+    brandMode: targetEmptyBrandDrift.brandMode
+  });
+  assert(brandDriftCompatibility.status === "blocked", "target_empty_partial_brand_ledger_must_block");
+  assert(brandDriftCompatibility.blockers.includes("target_empty_brand_omit_ledger_shape_invalid"), "target_empty_partial_brand_ledger_code_missing");
   const targetEmptyWithBrand = evaluateNestedFieldContract({
     payload: {
       ...targetEmptyPayload.payload,

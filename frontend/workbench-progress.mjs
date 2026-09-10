@@ -36,6 +36,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "jszc_success_profile" || blocker === "create_field_ledger") {
+    return {
+      message: "创建草稿已生成，但字段形态校验未通过；需要修正系统合同校验后重新准备。不会自动确认或创建项目。",
+      placeholder: "输入“查看状态”…"
+    };
+  }
   if (blocker === "guide_video_capability_probe_failed") {
     return {
       message: "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。",

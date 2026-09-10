@@ -21,6 +21,7 @@ import {
   JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT,
   JSZC_SUCCESS_PROFILE_SOURCE,
   JSZC_SUCCESS_PROFILE_VERSION,
+  evaluateJsZcFieldShapeCompatibility,
   JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
   JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT
 } from "./05-jszc-success-profile.mjs";
@@ -442,6 +443,11 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       finalManifest.convertedTimeDurationOmittedByContract === true
     );
   const successProfile = finalManifest.successProfile || {};
+  const fieldShapeCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger: finalManifest.createFieldLedger || {},
+    successProfile,
+    brandMode: finalManifest.brandMode || ""
+  });
   const guideVideoRequired = finalManifest.guideVideoRequired === true;
   const videoCoverRequired = finalManifest.videoCoverRequired === true;
   const expectedFieldShapeHash = videoCoverRequired
@@ -468,7 +474,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       successProfile.guideVideoPolicy === (guideVideoRequired ? "fresh_gameplay_readonly" : "omit") &&
       successProfile.videoCoverRequired === videoCoverRequired &&
       successProfile.videoCoverPolicy === (videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default") &&
-      finalManifest.fieldShapeHash === expectedFieldShapeHash &&
+      fieldShapeCompatibility.status === "passed" &&
       successProfile.filterEventPolicy === "omit" &&
       successProfile.convertedTimeDurationPolicy === "omit_when_no_exclude" &&
       successProfile.externalUrlMaterialListPolicy === "send" &&
@@ -657,7 +663,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       Number(createFieldLedger.blockedPathCount || 0) === 0 &&
       Array.isArray(createFieldLedger.entries) &&
       createFieldLedger.entries.length === Number(createFieldLedger.checkedPathCount || 0) &&
-      Number(createFieldLedger.checkedPathCount || 0) === expectedLedgerPathCount &&
+      fieldShapeCompatibility.status === "passed" &&
       /^sha256:[a-f0-9]{64}$/.test(clean(createFieldLedger.fieldShapeHash)) &&
       createFieldLedger.fieldShapeHash === finalManifest.fieldShapeHash &&
       createFieldLedger.entries.every((entry) => entry.preCreateStatus === "passed" && entry.rawValueStored === false) &&

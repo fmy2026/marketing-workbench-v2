@@ -97,6 +97,21 @@ export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
   dmpExclusions: 10
 });
 
+const BRAND_OMITTED_LEDGER_PATHS = Object.freeze([
+  "brand_info",
+  "brand_info.brand_name_id",
+  "brand_info.cdp_brand_id",
+  "brand_info.cdp_brand_name",
+  "brand_info.yuntu_category_id"
+]);
+
+const BRAND_SENT_LEDGER_SHAPES = Object.freeze([
+  { path: "brand_info.brand_name_id", valueType: "number" },
+  { path: "brand_info.cdp_brand_id", valueType: "number" },
+  { path: "brand_info.cdp_brand_name", valueType: "string" },
+  { path: "brand_info.yuntu_category_id", valueType: "number" }
+]);
+
 function clean(value) {
   return String(value ?? "").trim();
 }
@@ -200,6 +215,107 @@ export function evaluateJsZcSuccessProfile(bundle = {}) {
     videoCoverRequired,
     videoCoverPolicy: videoCoverRequired ? "required_explicit_current_job_readonly" : "optional_platform_default",
     blockers,
+    rawPayloadStored: false
+  };
+}
+
+function ledgerShape(entry = {}) {
+  return {
+    path: entry.path || "",
+    group: entry.group || "",
+    sendPolicy: entry.sendPolicy || "",
+    valueType: entry.valueType || "",
+    itemCount: entry.itemCount ?? null,
+    enumRule: Array.isArray(entry.enumRule) ? entry.enumRule : [],
+    enumMatched: entry.enumMatched ?? null,
+    preCreateStatus: entry.preCreateStatus || ""
+  };
+}
+
+function projectedSentBrandShape({ path, valueType }) {
+  return {
+    path,
+    group: "brand",
+    sendPolicy: "send",
+    valueType,
+    itemCount: null,
+    enumRule: [],
+    enumMatched: null,
+    preCreateStatus: "passed"
+  };
+}
+
+/**
+ * Validates one narrow, approved deviation from the recorded JSZC success
+ * shape. The Draft retains the factual five omitted brand paths; only this
+ * in-memory comparison projects them back to the four historical send paths.
+ */
+export function evaluateJsZcFieldShapeCompatibility({
+  createFieldLedger = {},
+  successProfile = {},
+  brandMode = ""
+} = {}) {
+  const entries = Array.isArray(createFieldLedger.entries) ? createFieldLedger.entries : [];
+  const expectedHash = String(successProfile.goldenFieldShapeHash || "");
+  const expectedCount = Number(successProfile.expectedLedgerPathCount || 0);
+  const isTargetEmptyOmit = brandMode === "target_empty_omit_experiment";
+  const brandEntries = entries.filter((entry) => entry.group === "brand");
+  const exactOmittedBrandShape = isTargetEmptyOmit &&
+    brandEntries.length === BRAND_OMITTED_LEDGER_PATHS.length &&
+    BRAND_OMITTED_LEDGER_PATHS.every((path) => brandEntries.some((entry) =>
+      entry.path === path &&
+      entry.sendPolicy === "omit" &&
+      entry.valueType === "absent" &&
+      entry.itemCount === null &&
+      Array.isArray(entry.enumRule) && entry.enumRule.length === 0 &&
+      entry.enumMatched === null &&
+      entry.preCreateStatus === "passed" && entry.rawValueStored === false
+    ));
+  const projectedShapes = isTargetEmptyOmit && exactOmittedBrandShape
+    ? [
+        ...[
+          ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy !== "omit").map(ledgerShape),
+          ...BRAND_SENT_LEDGER_SHAPES.map(projectedSentBrandShape)
+        ].sort((left, right) => left.path.localeCompare(right.path)),
+        ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy === "omit").map(ledgerShape)
+      ]
+    : entries.map(ledgerShape);
+  const comparativeShapeHash = hashValue(projectedShapes);
+  const comparativeEntryCount = projectedShapes.length;
+  const blockers = [
+    ...(!expectedHash ? ["jszc_success_profile_expected_shape_missing"] : []),
+    ...(expectedCount < 1 ? ["jszc_success_profile_expected_ledger_count_missing"] : []),
+    ...(isTargetEmptyOmit && !exactOmittedBrandShape ? ["target_empty_brand_omit_ledger_shape_invalid"] : []),
+    ...(comparativeShapeHash !== expectedHash ? ["jszc_success_profile_field_shape_mismatch"] : []),
+    ...(comparativeEntryCount !== expectedCount ? ["jszc_success_profile_ledger_path_count_mismatch"] : [])
+  ];
+  return {
+    status: blockers.length ? "blocked" : "passed",
+    mode: isTargetEmptyOmit ? "target_empty_omit_projection" : "strict_recorded_shape",
+    actualEntryCount: entries.length,
+    comparativeEntryCount,
+    expectedEntryCount: expectedCount,
+    actualFieldShapeHash: String(createFieldLedger.fieldShapeHash || ""),
+    comparativeFieldShapeHash: comparativeShapeHash,
+    expectedFieldShapeHash: expectedHash,
+    exactOmittedBrandShape,
+    blockers,
+    rawPayloadStored: false
+  };
+}
+
+export function jszcFieldShapeCompatibilityManifest(result = {}) {
+  return {
+    status: result.status || "blocked",
+    mode: result.mode || "strict_recorded_shape",
+    actualEntryCount: Number(result.actualEntryCount || 0),
+    comparativeEntryCount: Number(result.comparativeEntryCount || 0),
+    expectedEntryCount: Number(result.expectedEntryCount || 0),
+    actualFieldShapeHash: result.actualFieldShapeHash || "",
+    comparativeFieldShapeHash: result.comparativeFieldShapeHash || "",
+    expectedFieldShapeHash: result.expectedFieldShapeHash || "",
+    exactOmittedBrandShape: result.exactOmittedBrandShape === true,
+    blockers: Array.isArray(result.blockers) ? result.blockers : [],
     rawPayloadStored: false
   };
 }

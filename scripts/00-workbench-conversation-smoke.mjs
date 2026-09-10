@@ -50,6 +50,10 @@ assert(
   presentRootBlocker("brand_info_confirmation").title === "品牌候选创建前校验未通过",
   "brand_confirmation_blocker_must_have_controlled_presentation"
 );
+assert(
+  presentRootBlocker("jszc_success_profile").title === "创建字段形态合同未通过",
+  "field_shape_blocker_must_have_controlled_presentation"
+);
 
 const bundle = {
   job: { advertiser_id: "1871922175825993" },

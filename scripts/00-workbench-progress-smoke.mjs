@@ -129,6 +129,9 @@ const brandConfirmationGuidance = readonlyRecoveryGuidance({ currentGate: "resol
 assert(brandConfirmationGuidance?.message.includes("品牌候选创建前校验未通过"), "brand_confirmation_guidance_missing");
 assert(brandConfirmationGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_confirmation_placeholder_mismatch");
 assert(!brandConfirmationGuidance.placeholder.includes("继续执行"), "brand_confirmation_placeholder_must_not_continue");
+const fieldShapeGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["jszc_success_profile"] });
+assert(fieldShapeGuidance?.message.includes("字段形态校验未通过"), "field_shape_contract_guidance_missing");
+assert(fieldShapeGuidance?.placeholder === "输入“查看状态”…", "field_shape_contract_guidance_must_not_request_repeated_readonly");
 const genericBlockerGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["resource_contract_missing"] });
 assert(genericBlockerGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "generic_blocker_placeholder_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");

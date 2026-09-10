@@ -36,8 +36,10 @@ import {
   JSZC_FALLBACK_GENDER,
   JSZC_FALLBACK_ROI_GOAL,
   JSZC_FALLBACK_SCHEDULE_TIME_DIGEST,
+  evaluateJsZcFieldShapeCompatibility,
   evaluateJsZcScheduleTime,
   evaluateJsZcSuccessProfile,
+  jszcFieldShapeCompatibilityManifest,
   jszcSuccessProfileManifest
 } from "./05-jszc-success-profile.mjs";
 
@@ -457,6 +459,11 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
 } = {}) {
   const brandMode = brandInfoMode(bundle);
   const brandInfoOmitted = brandMode === "target_empty_omit_experiment";
+  const fieldShapeCompatibility = evaluateJsZcFieldShapeCompatibility({
+    createFieldLedger,
+    successProfile,
+    brandMode
+  });
   const microGameByteGame = clean(payload.landing_type) === "MICRO_GAME" && clean(payload.delivery_medium) === "BYTE_GAME";
   const miniProgramUrlRequired = microGameByteGame;
   const externalUrlMaterialListPolicy = routeNestedSendPolicy(bundle, "project_materials.external_url_material_list", "send");
@@ -540,8 +547,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPolicy !== "omit_when_no_exclude" ? ["converted_time_duration_policy_invalid_for_no_exclude"] : []),
     ...(clean(payload.audience?.hide_if_converted) === "NO_EXCLUDE" && convertedTimeDurationPresent ? ["converted_time_duration_must_be_omitted_for_no_exclude"] : []),
     ...(successProfile.status === "passed" ? [] : (successProfile.blockers || ["jszc_success_profile_not_verified"])),
-    ...(brandInfoOmitted ? [] : (createFieldLedger.fieldShapeHash === successProfile.goldenFieldShapeHash ? [] : ["jszc_success_profile_field_shape_mismatch"])),
-    ...(brandInfoOmitted ? [] : (Number(createFieldLedger.checkedPathCount || 0) === Number(successProfile.expectedLedgerPathCount || 0) ? [] : ["jszc_success_profile_ledger_path_count_mismatch"])),
+    ...(fieldShapeCompatibility.status === "passed" ? [] : fieldShapeCompatibility.blockers),
     ...((payload.audience?.retargeting_tags_exclude || []).length < 10 ? ["dmp_custom_audience_ids_below_jszc_baseline"] : []),
     ...((payload.audience?.retargeting_tags_exclude || []).some((value) => !Number.isInteger(value)) ? ["dmp_custom_audience_ids_not_integer_array"] : []),
     ...(nestedFieldContract.blockers || []),
@@ -751,6 +757,11 @@ function fieldManifest(payload = {}, blockers = [], {
     },
     nestedFieldContract: nestedFieldContractManifest(nestedFieldContract),
     createFieldLedger: createFieldLedgerManifest(createFieldLedger),
+    fieldShapeCompatibility: jszcFieldShapeCompatibilityManifest(evaluateJsZcFieldShapeCompatibility({
+      createFieldLedger,
+      successProfile,
+      brandMode
+    })),
     successProfileVersion: successProfile.version || "",
     fieldShapeHash: createFieldLedger.fieldShapeHash || "",
     successProfile: jszcSuccessProfileManifest(successProfile),

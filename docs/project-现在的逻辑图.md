@@ -73,7 +73,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 是资源能力、动作顺序、调用量与证据要求的唯一来源。当前可受控准备前五类；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时不自动创建，其中备用页只允许既定人工共享后的只读核验。引导视频/封面等账户 capability 与动态 ID 存储只查[数据契约](project-数据与报表契约.md#配置与资源来源)及对应 verifier，不在本总览复制。
 
-`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。游戏维度候选仅保留为已消费历史 Plan 的解释证据，不能被新 Draft 复用。当前唯一的空列表实验是：fresh 目标账户品牌接口成功返回空列表，且 Case JSON 一次性授权精确绑定 Case、route、game、fresh Job 与最多一次 create 时，Node 04 将品牌资源表示为 `not_required/not_required`。Node 04 的 `resourceReady` 是资源状态唯一判定：显式省略还必须同时具备有效只读证据；Node 05、嵌套字段合同和 Execution Plan 均复用它。品牌权限仍由 `brandInfoMode` 的完整范围合同判定。该模式下嵌套合同、payload 和 preflight 共同要求整个 `brand_info` 顶层对象不存在；其他模式仍要求完整四字段对象。回查失败、不完整、不明或授权不匹配均保持 `BLOCKED`。字段账本记录四个品牌路径从 `send` 到 `omit`，成功后的权威回查才允许升级为账户通用 capability。
+`brand_info` 默认只接受目标账户的 fresh 品牌/行业回查。游戏维度候选仅保留为已消费历史 Plan 的解释证据，不能被新 Draft 复用。当前唯一的空列表实验是：fresh 目标账户品牌接口成功返回空列表，且 Case JSON 一次性授权精确绑定 Case、route、game、fresh Job 与最多一次 create 时，Node 04 将品牌资源表示为 `not_required/not_required`。Node 04 的 `resourceReady` 是资源状态唯一判定：显式省略还必须同时具备有效只读证据；Node 05、嵌套字段合同和 Execution Plan 均复用它。品牌权限仍由 `brandInfoMode` 的完整范围合同判定。该模式下嵌套合同、payload 和 preflight 共同要求整个 `brand_info` 顶层对象不存在；其他模式仍要求完整四字段对象。字段形态也由单一纯函数消费：空列表模式只能具备精确的“对象＋四子字段”省略账本，函数仅在内存中将其投影为历史四字段发送形态并比较现有基线；品牌外形态、额外路径和残缺省略一律阻断，事实账本与请求不被改写。回查失败、不完整、不明或授权不匹配均保持 `BLOCKED`。成功后的权威回查才允许升级为账户通用 capability。
 
 ## 4. Plan、确认与执行不变量
 

@@ -785,6 +785,16 @@ export function presentRootBlocker(code = "") {
       title: "品牌候选创建前校验未通过",
       reason: "当前品牌资源未能同时满足统一资格合同与 Draft 一致性校验。",
       nextActionLabel: "请输入“重新只读准备”生成 fresh Job；不会复用旧 Plan 或自动创建项目。"
+    },
+    jszc_success_profile: {
+      title: "创建字段形态合同未通过",
+      reason: "草稿已生成，但其字段形态与当前 JSZC 成功合同尚未一致。",
+      nextActionLabel: "修正合同校验后重新准备；不会自动确认或创建项目。"
+    },
+    create_field_ledger: {
+      title: "创建字段账本未通过",
+      reason: "草稿字段账本未能证明所有发送和省略路径符合当前合同。",
+      nextActionLabel: "修正合同校验后重新准备；不会自动确认或创建项目。"
     }
   };
   return { code, ...(catalog[code] || {

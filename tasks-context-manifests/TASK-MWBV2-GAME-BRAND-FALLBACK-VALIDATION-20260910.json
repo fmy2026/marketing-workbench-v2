@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
   "status": "active",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T13:02:54Z",
+  "updated_at": "2026-09-10T13:28:32Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -125,6 +125,7 @@
     ,{"acceptance_id": "AC-10", "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:case-corrective-create; verify both corrective commands share one effect and that repeated requests use the existing atomic corrective Job claim."}
     ,{"acceptance_id": "AC-11", "command": "npm run test:node4-resource-prep-contracts && npm run test:execution-plan && npm run test:payload-contract && npm run test:workbench-progress"}
     ,{"acceptance_id": "AC-12", "command": "npm run test:case-corrective-create && npm run test:workbench-conversation && npm run test:workflow-case"}
+    ,{"acceptance_id": "AC-13", "command": "npm run test:payload-contract && npm run test:execution-plan && npm run test:execution-grant && npm run test:workbench-progress && npm run test:workbench-conversation; run read-only prepareStdProjectCreate against the current Draft and verify ready=true with no platform write."}
   ],
   "validation_results": [
     {
@@ -222,18 +223,26 @@
       "verified_at": "2026-09-10T13:01:28Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
       "summary": "runJob now derives the create Attempt from Postgres Case state and rejects an explicit mismatch before any Draft, Plan or platform action. The Postgres smoke covers both first-attempt defaulting and an Attempt 2 reservation/Draft binding."
+    },
+    {
+      "acceptance_id": "AC-13",
+      "command": "npm run test:payload-contract && npm run test:execution-plan && npm run test:execution-grant && npm run test:workbench-progress && npm run test:workbench-conversation; PGOPTIONS='-c default_transaction_read_only=on' node --input-type=module prepareStdProjectCreate(current Job)",
+      "status": "passed",
+      "verified_at": "2026-09-10T13:28:32Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "The single shape predicate accepts only the exact five-path target-empty omission projection. Payload, Plan and workbench smokes pass; forced read-only prepare for the current Attempt 2 Draft returns ready=true with no blocker, no platform write and no action-count change. The LAN workbench was restarted after deployment; the current persisted summary remains the expected stale V4 projection until the owner explicitly re-prepares the current Job."
     }
   ],
   "documentation_updates": [
     {
       "ref": "docs/Solution Design.md",
       "status": "updated",
-      "reason": "Records the approved experimental decision and its fail-closed conditions."
+      "reason": "Records the approved experimental decision and the single in-memory shape projection boundary."
     },
     {
       "ref": "docs/project-现在的逻辑图.md",
       "status": "updated",
-      "reason": "Defines the single experimental brand readiness path without adding a Node, Gate, Plan or executor."
+      "reason": "Defines the single experimental brand readiness and field-shape consumption path without adding a Node, Gate, Plan or executor."
     },
     {
       "ref": "docs/project-数据与报表契约.md",
