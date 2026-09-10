@@ -41,6 +41,8 @@ const [serverSource, appSource, html] = await Promise.all([
 ]);
 assert(serverSource.includes('pathname === "/" && (url.searchParams.has("case_id") || url.searchParams.has("job_id"))'), "legacy_case_job_redirect_missing");
 assert(serverSource.includes("isRegisteredAgentPath(pathname)"), "registered_agent_spa_guard_missing");
+assert(html.includes('href="/styles.css"') && !html.includes('href="./styles.css"'), "deep_link_stylesheet_must_use_root_path");
+assert(html.includes('src="/app.js"') && !html.includes('src="./app.js"'), "deep_link_module_must_use_root_path");
 assert(appSource.includes("passwordChangeForced") && appSource.includes("Escape"), "password_or_menu_interaction_missing");
 assert(html.includes("数字员工广场") && html.includes("数据统计") && !html.includes(">SOP<"), "agent_shell_labels_incorrect");
 

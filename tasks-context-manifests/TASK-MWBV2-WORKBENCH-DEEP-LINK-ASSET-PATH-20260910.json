@@ -1,0 +1,63 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.md",
+  "status": "active",
+  "created_at": "2026-09-10T10:05:03Z",
+  "updated_at": "2026-09-10T10:06:54Z",
+  "base_revision": "4bdcbe628fa4489de287375b0112f91a25c1d0dc",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "frontend/index.html",
+    "frontend/workbench-address.mjs",
+    "src/server/index.mjs",
+    "scripts/00-agent-hub-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "frontend/index.html",
+    "scripts/00-agent-hub-smoke.mjs",
+    "tasks/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910.json",
+    "evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/**"
+  ],
+  "forbidden_actions": [
+    "任何真实平台写入、Monitor 创建、自动重试或当前 Case 的业务状态修改",
+    "修改 3 阶段 7 Node、Gate、Plan、确认、executor、数据库或账户身份机制",
+    "输出、保存或传播密码、会话、token、Cookie、完整触点 URL、原始请求或响应"
+  ],
+  "stop_conditions": [
+    "修复需要超出批准范围的地址、认证、Workflow 或数据库修改",
+    "回归显示已消费 Plan 可重新确认或 blocker 恢复语义发生变化",
+    "验证需要敏感凭据或真实平台写入"
+  ],
+  "open_gaps": [
+    "认证 HTTP smoke 需要由本机安全提供 MWBV2_TEST_LOGIN_NAME、MWBV2_TEST_PASSWORD 与 MWBV2_TEST_NEW_PASSWORD 后重跑；当前环境未配置这些变量。"
+  ],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:agent-hub && npm run test:workbench-address"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-auth-http && npm run test:workbench-progress && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js"},
+    {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase start && npm run check:project -- --phase before-close && npm run check:project -- --phase after-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id": "AC-01", "command": "npm run test:agent-hub && npm run test:workbench-address", "status": "passed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Agent Hub smoke enforces root CSS/module paths; address smoke preserves canonical Case and Job URLs."},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-auth-http && npm run test:workbench-progress && npm run test:workbench-conversation", "status": "failed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Progress and conversation smoke passed; authentication HTTP smoke stopped before network activity because its three required test credential variables are absent."},
+    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/agents/launch-creation?case_id=CASE-MWBV2-DEEP-LINK-SMOKE && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/styles.css && curl --noproxy '*' --max-time 3 -s -o /dev/null -w '%{http_code} %{content_type}' http://192.168.42.7:3000/app.js", "status": "passed", "verified_at": "2026-09-10T10:06:54Z", "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-DEEP-LINK-ASSET-PATH-20260910/validation.md"], "summary": "Running LAN service returned 200 for the deep SPA document, root stylesheet, and root module; browser hard refresh restored the authenticated workspace shell."}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "not_needed", "reason": "这是静态资源绝对路径修正，不改变已批准的方案选择。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "not_needed", "reason": "工作台地址、认证和 Gate 消费行为不变；仅修复深层页面的资源加载。"}
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}
