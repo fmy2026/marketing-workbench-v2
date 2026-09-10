@@ -2,6 +2,7 @@ import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   ACTION_STD_PROJECT_CREATE,
+  STD_PROJECT_40100_REDELIVERY_CONTRACT,
   buildExecutionPlanFromBundle,
   compileAndSaveExecutionPlan,
   evaluateSingleVariableLedgerDiff,
@@ -173,6 +174,13 @@ try {
   assert(boundBundleAfterPlan.draft?.payload_summary?.derived_from_plan_hash === second.plan.planHash, "ready_plan_draft_hash_binding_missing");
   assert(boundBundleAfterPlan.draft?.payload_summary?.plan_derivation_status === "passed", "ready_plan_draft_derivation_not_passed");
   assert(actionTypes(second.plan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_not_planned");
+  const standardCreateAction = second.plan.plannedActions.find((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
+  const standardCreateGrant = second.plan.metadata.execution_scope.action_grants?.[ACTION_STD_PROJECT_CREATE] || {};
+  assert(standardCreateAction?.maximum_platform_calls === 3, "std_project_create_delivery_cap_not_frozen");
+  assert(JSON.stringify(standardCreateAction?.rate_limit_redelivery) === JSON.stringify(STD_PROJECT_40100_REDELIVERY_CONTRACT), "std_project_create_action_rate_limit_contract_missing");
+  assert(JSON.stringify(standardCreateGrant.rate_limit_redelivery) === JSON.stringify(STD_PROJECT_40100_REDELIVERY_CONTRACT), "std_project_create_grant_rate_limit_contract_missing");
+  assert(JSON.stringify(second.plan.metadata.execution_scope.rate_limit_redelivery) === JSON.stringify(STD_PROJECT_40100_REDELIVERY_CONTRACT), "std_project_create_scope_rate_limit_contract_missing");
+  assert(second.plan.metadata.execution_scope.retry_allowed === false, "std_project_create_general_retry_must_remain_disabled");
   assert(second.plan.metadata.success_profile?.success_profile_version === JSZC_SUCCESS_PROFILE_VERSION, "success_profile_version_not_in_plan_metadata");
   assert(/^sha256:[a-f0-9]{64}$/.test(second.plan.metadata.success_profile?.field_shape_hash || ""), "field_shape_hash_not_in_plan_metadata");
   assert(second.plan.metadata.success_profile?.filter_event_policy === "omit", "filter_event_policy_not_in_plan_metadata");

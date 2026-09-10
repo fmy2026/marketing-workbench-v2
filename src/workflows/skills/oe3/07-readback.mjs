@@ -105,6 +105,8 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     const responseConfirmed = realCreateAction.action_status === "succeeded" && realCreateAction.object_id_present === true;
     const responseUnknown = responseUnknownCreateAction(realCreateAction);
     if (!responseConfirmed && !responseUnknown) {
+      const rateLimitExhausted = realCreateAction.error_category === "system_rate_limited" &&
+        Number(realCreateAction.response_summary?.delivery_count || realCreateAction.responseSummary?.delivery_count || 0) === 3;
       const planId = latestBundle.executionPlan?.plan_id || "";
       if (planId && typeof repo.finalizeConfirmedStdProjectCreatePlanAfterAction === "function") {
         await repo.finalizeConfirmedStdProjectCreatePlanAfterAction({ jobId: latestBundle.job.job_id, planId });
@@ -120,7 +122,9 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
           realPlatformReadbackCalled: false,
           createResponseConfirmed: false,
           responseAnomalyPreserved: false,
-          userVisibleSummary: "创建请求已被平台明确拒绝，已停止且禁止自动重试。"
+          userVisibleSummary: rateLimitExhausted
+            ? "平台连续三次明确返回系统级限流，已耗尽本逻辑动作的错峰投递额度。"
+            : "创建请求已被平台明确拒绝，已停止且禁止自动重试。"
         }
       };
     }

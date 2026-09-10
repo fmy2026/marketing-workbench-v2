@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { STD_PROJECT_40100_REDELIVERY_CONTRACT } from "./executionPlan.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 export const DEFAULT_PROJECT_STATE_PATH = join(rootDir, "project.state.json");
@@ -26,6 +27,19 @@ function planKind(plan = {}) {
 function blockerCodes(plan = {}) {
   const values = plan.blocker_codes || plan.blockerCodes || [];
   return Array.isArray(values) ? values : [];
+}
+
+function sameRateLimitRedeliveryContract(value = {}) {
+  const expected = STD_PROJECT_40100_REDELIVERY_CONTRACT;
+  return value &&
+    value.endpoint === expected.endpoint &&
+    value.api_code === expected.api_code &&
+    Number(value.maximum_delivery_calls) === expected.maximum_delivery_calls &&
+    Array.isArray(value.scheduled_offsets_ms) &&
+    value.scheduled_offsets_ms.length === expected.scheduled_offsets_ms.length &&
+    value.scheduled_offsets_ms.every((offset, index) => Number(offset) === expected.scheduled_offsets_ms[index]) &&
+    Number(value.jitter_max_ms) === expected.jitter_max_ms &&
+    Number(value.maximum_total_elapsed_ms) === expected.maximum_total_elapsed_ms;
 }
 
 export async function readProjectControlState(projectStatePath = DEFAULT_PROJECT_STATE_PATH) {
@@ -98,6 +112,9 @@ export async function evaluatePlanBoundWriteAuthorization({
     ...(scope.target_plan_id === currentPlanId ? [] : ["platform_write_scope_plan_id_mismatch"]),
     ...(scope.target_plan_hash === currentPlanHash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
     ...(scope.retry_allowed === false && policy.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(planKind(plan) !== "std_project_create" || sameRateLimitRedeliveryContract(scope.rate_limit_redelivery)
+      ? []
+      : ["std_project_rate_limit_redelivery_scope_invalid"]),
     ...(Number(policy.maximum_confirmations_per_plan) === 1 ? [] : ["workbench_runtime_confirmation_limit_invalid"])
   ];
   return {

@@ -20,4 +20,4 @@
 
 ## AC-05
 
-尚待账户所有者张境威在当前 Case 输入一次“继续执行”。该操作只能创建 fresh readonly Attempt 3；完成后再读取 Case 汇总与计数，未达唯一确认卡则保持 fail-closed。
+2026-09-09：账户所有者已在当前 Case 完成 Attempt 3。Postgres 汇总显示该 Attempt 的 `std_project_create` Plan 为 `V3 / consumed`，且该 Job 只记录一条创建 action；Case 聚合为 `3/3`，没有 created object，随后按既有 fail-closed 合同进入人工复盘。该验收证明 fresh Job/Plan 的单次确认边界，没有声称平台项目已创建成功。

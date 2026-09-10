@@ -249,6 +249,11 @@ function modeForStatus(status) {
 }
 
 function nextActionForBundle(bundle = {}) {
+  const deliveries = bundle.platformAction?.delivery_summary || bundle.platformAction?.deliverySummary || {};
+  if (bundle.platformAction?.action_status === "started" && deliveries.latest_delivery_status === "rate_limited") {
+    const nextDelivery = Math.min(Number(deliveries.delivery_count || 0) + 1, Number(deliveries.maximum_delivery_calls || 3));
+    return `平台限流，正在等待第 ${nextDelivery}/${Number(deliveries.maximum_delivery_calls || 3)} 次错峰投递。`;
+  }
   if (bundle.job?.job_status === "failed_waiting_manual_review") {
     return "禁止重试；修 brand_industry fresh readback，或新建 fresh runtime job。";
   }
@@ -262,6 +267,7 @@ function nextActionForBundle(bundle = {}) {
 
 function executionView(bundle = {}) {
   const action = bundle.platformAction || {};
+  const deliveries = action.delivery_summary || action.deliverySummary || {};
   const createdObject = bundle.createdObject || {};
   const readback = bundle.readback || {};
   const readbackIsPlaceholder = readback.readback_status === "placeholder_recorded" ||
@@ -273,6 +279,11 @@ function executionView(bundle = {}) {
     statusLabel: statusLabel(status),
     apiCode: action.api_code || "",
     objectIdPresent: Boolean(action.object_id_present || createdObject.object_id),
+    deliveryCount: Number(deliveries.delivery_count || 0),
+    latestDeliveryNo: Number(deliveries.latest_delivery_no || 0),
+    latestDeliveryStatus: deliveries.latest_delivery_status || "",
+    rateLimitedDeliveryCount: Number(deliveries.rate_limited_delivery_count || 0),
+    maximumDeliveryCalls: Number(deliveries.maximum_delivery_calls || action.response_summary?.maximum_delivery_calls || action.responseSummary?.maximum_delivery_calls || 1),
     readbackStatus,
     readbackStatusLabel: statusLabel(readbackStatus),
     retryAllowed: false
@@ -318,6 +329,7 @@ function summaryFieldsView(bundle = {}, execution = {}) {
     { label: "查重状态", value: bundle.draft?.duplicate_status || "", visible: true },
     { label: "执行状态", value: execution.statusLabel || "", visible: true },
     { label: "api_code", value: execution.apiCode || "", visible: Boolean(execution.apiCode) },
+    { label: "错峰投递", value: `${execution.deliveryCount}/${execution.maximumDeliveryCalls}`, visible: execution.maximumDeliveryCalls > 1 },
     { label: "readback", value: execution.readbackStatusLabel || execution.readbackStatus || "", visible: true },
     { label: "对象 ID", value: execution.objectIdPresent ? "已返回" : "未返回", visible: true },
     { label: "允许重试", value: execution.retryAllowed ? "是" : "否", visible: true }
@@ -1577,6 +1589,8 @@ export async function runJob(repo, jobId, options = {}) {
     grantSource: options.grantSource || "",
     executionGrantId: options.executionGrantId || "",
     fetchImpl: options.fetchImpl || globalThis.fetch,
+    deliveryWait: options.deliveryWait,
+    deliveryNowMs: options.deliveryNowMs,
     env: options.env || process.env,
     allowedPlanActions: options.allowedPlanActions || [],
     mockMonitorEnsure: options.mockMonitorEnsure === true,

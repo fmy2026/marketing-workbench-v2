@@ -41,6 +41,8 @@ npm run setup:qiankun-user -- --user zhangchaobo --gui
 
 把 [nginx 配置](nginx/marketing-workbench.conf.example) 中的占位值替换后启用，并把 [服务 LaunchAgent](launchd/com.hys.marketing-workbench.plist.example) 中的 `WORKBENCH_PUBLIC_ORIGIN` 设为同一个 `https://` 地址。代理必须把原始 `Host` 传给 Node。
 
+现有 `proxy_read_timeout` / `proxy_send_timeout` 均为 70 秒。标准项目创建的已确认 `40100` 例外只会在同一 HTTP 请求内按最长约 49 秒的调用点完成三次投递，执行器总预算为 65 秒；不得把它改造成后台队列，也不得扩大代理窗口来容纳额外重试。
+
 应用目录、日志目录和配置完成后，安装与启动示例：
 
 ```sh
@@ -67,7 +69,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 2. 三人各提交一句完整 Intake，确认本人广告账户进入原有七 Node；他人账户在 Case/Job 创建前返回归属冲突。
 3. 修改 `case_id`、`job_id`、`advertiser_id` 请求他人数据，确认统一返回不可见。
 4. 管理员查看人员汇总和个人明细，再尝试打开或确认他人 Job，确认仍被拒绝。
-5. 按 [确认记录合同](../docs/project-数据与报表契约.md#2-基础表契约36-张) 与 [人员指标口径](../docs/project-数据与报表契约.md#6-view-去重与人员指标口径) 核对确认人和报表结果。
+5. 按 [确认记录合同](../docs/project-数据与报表契约.md#2-基础表契约37-张) 与 [人员指标口径](../docs/project-数据与报表契约.md#6-view-去重与人员指标口径) 核对确认人和报表结果。
 6. 执行 `npm run test:workbench-user-isolation`、`npm run test:workbench-auth-http` 和既有工作流回归。
 
 上线前按 [数据库备份说明](../docs/project-数据与报表契约.md#备份与定时执行) 完成备份，再在每台试用电脑通过最终 HTTPS 域名完成以上浏览器验收。

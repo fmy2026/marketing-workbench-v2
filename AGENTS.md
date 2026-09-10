@@ -86,7 +86,7 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 - `project.state.json.guardrails` 只提供全局边界。真实平台写入还必须精确匹配当前 Job、冻结 Plan、confirmation、action grant 与调用上限，并且只能由 active Task scope 或已启用的工作台 runtime policy 之一授权。
 - 工作台用户只能读取、启动、运行和确认本人账户；管理员可以管理用户和读取授权报表，但不得代操作他人账户。
 - 只有 `prepare_supported=true` 的资源可生成 `ensure_resource:*`；其他缺失资源只形成 blocker。
-- 每份确认 Plan 只能按冻结动作消费一次；失败或修正必须使用新 Plan、hash、confirmation 和 attempt，禁止自动重试。
+- 每份确认 Plan 只能按冻结动作消费一次；失败或修正必须使用新 Plan、hash、confirmation 和 attempt。唯一例外是冻结 `std_project_create` action 收到无对象 ID 的精确 `40100` 后，可依同一 confirmation 在动作内最多三次错峰物理投递；其他错误、超时或结果不明一律禁止自动重试。
 - 创建或写入响应不等于 READY；只有权威只读回查通过才能写入 verified。
 - 动态运行授权只写 Postgres confirmation/action/readback；开发、迁移和专项人工写入必须使用 Task/Manifest 与相应 Guardrail scope。
 - 数据存储规则查 [数据契约的字段约定](docs/project-数据与报表契约.md#字段与存储约定)。

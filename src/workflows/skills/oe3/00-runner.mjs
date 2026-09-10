@@ -800,7 +800,9 @@ async function executeSkill({ repo, context, skillKey }) {
           confirmVariableValue: context.confirmVariableValue || "",
           grantSource: context.grantSource || "",
           executionGrantId: context.executionGrantId || "",
-          fetchImpl: context.fetchImpl || globalThis.fetch
+          fetchImpl: context.fetchImpl || globalThis.fetch,
+          deliveryWait: context.deliveryWait,
+          deliveryNowMs: context.deliveryNowMs
         });
   } else if (skillKey === "readback-std-project") {
     result = await runReadbackSkill({
@@ -1105,6 +1107,8 @@ export async function runOe3WorkflowSkills({
   grantSource = "",
   executionGrantId = "",
   fetchImpl = globalThis.fetch,
+  deliveryWait,
+  deliveryNowMs,
   env = process.env,
   allowedPlanActions = [],
   mockMonitorEnsure = false,
@@ -1191,6 +1195,8 @@ export async function runOe3WorkflowSkills({
     grantSource,
     executionGrantId,
     fetchImpl,
+    deliveryWait,
+    deliveryNowMs,
     env,
     allowedPlanActions,
     mockMonitorEnsure,

@@ -3,7 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
-import { STD_PROJECT_CREATE_CONFIRM_VALUE } from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
+import {
+  STD_PROJECT_CREATE_CONFIRM_VALUE,
+  stdProjectRateLimitRedeliverySchedule
+} from "../src/platforms/oceanengineStdProjectCreateExecutor.mjs";
 import { evaluateStdProjectCreatePreflight } from "../src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs";
 import { compileAndSaveExecutionPlan } from "../src/workflows/executionPlan.mjs";
 import {
@@ -63,9 +66,11 @@ function fakeFetchFactory({
   listProjectId = projectId,
   createApiCode = "0",
   createObjectIdPresent = true,
+  createResponses = [],
   listMatch = true,
   createMessage = "",
   createTransportThrows = false,
+  createTimeoutThrows = false,
   numericProjectIdTokens = false
 }) {
   const calls = [];
@@ -83,15 +88,31 @@ function fakeFetchFactory({
     });
     if (href.includes("/std_project/create/")) {
       if (createTransportThrows) throw new Error("synthetic_create_transport_error");
+      if (createTimeoutThrows) {
+        const error = new Error("synthetic_create_timeout");
+        error.name = "PlatformDeadlineError";
+        error.code = "ETIMEDOUT";
+        error.platformDeadlineExceeded = true;
+        throw error;
+      }
+      const responseIndex = calls.filter((call) => call.href.includes("/std_project/create/")).length - 1;
+      const configured = createResponses[responseIndex] || createResponses.at(-1) || {};
+      const effectiveCode = configured.apiCode ?? createApiCode;
+      const effectiveProjectId = configured.projectId ?? projectId;
+      const effectiveObjectIdPresent = configured.objectIdPresent ?? createObjectIdPresent;
+      const effectiveMessage = configured.message ?? createMessage;
+      if (typeof configured.rawBody === "string") {
+        return new Response(configured.rawBody, { status: 200, headers: { "content-type": "application/json" } });
+      }
       if (numericProjectIdTokens && createObjectIdPresent) {
-        return new Response(`{"code":${JSON.stringify(createApiCode)},"request_id":"fake-request-create","data":{"project_id":${String(projectId)}}}`,
+        return new Response(`{"code":${JSON.stringify(effectiveCode)},"request_id":"fake-request-create","data":{"project_id":${String(effectiveProjectId)}}}`,
           { status: 200, headers: { "content-type": "application/json" } });
       }
       return new Response(JSON.stringify({
-        code: createApiCode,
+        code: effectiveCode,
         request_id: "fake-request-create",
-        ...(createMessage ? { message: createMessage } : {}),
-        data: createObjectIdPresent ? { project_id: projectId } : {}
+        ...(effectiveMessage ? { message: effectiveMessage } : {}),
+        data: effectiveObjectIdPresent ? { project_id: effectiveProjectId } : {}
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (href.includes("/std_project/list/")) {
@@ -199,6 +220,12 @@ function latestSkill(view, skillKey) {
 }
 
 try {
+  const scheduleActionId = "ACTION-STD-PROJECT-40100-SCHEDULE-SMOKE";
+  const schedule = stdProjectRateLimitRedeliverySchedule(scheduleActionId);
+  assert(JSON.stringify(schedule) === JSON.stringify(stdProjectRateLimitRedeliverySchedule(scheduleActionId)), "rate_limit_schedule_must_be_deterministic");
+  assert(schedule[0] === 0, "rate_limit_first_delivery_must_start_immediately");
+  assert(schedule[1] >= 20000 && schedule[1] <= 24000, "rate_limit_second_delivery_window_invalid");
+  assert(schedule[2] >= 45000 && schedule[2] <= 49000, "rate_limit_third_delivery_window_invalid");
   const invalidShapePreflight = evaluateStdProjectCreatePreflight({
     payload: {
       advertiser_id: "1871922175825993",
@@ -673,6 +700,102 @@ try {
   assert(callCount(preGateFetch, "/std_project/list/") === 0, "pre-create gate should not call readback");
   assert(nodeStatuses(preGate).std_project_create_executor === "blocked", "pre-create gate should block node 6");
 
+  async function runRateLimitSequence(label, createResponses, expectedCreateCalls, expectedNodeStatus) {
+    const view = await createReadyTestJob(`execution-grant-smoke:${label}`);
+    const state = await writeProjectStateForScope(view);
+    let logicalNow = 0;
+    const waits = [];
+    const fetch = fakeFetchFactory({
+      projectId: `9999${String(createdJobIds.length).padStart(5, "0")}`,
+      createResponses,
+      listMatch: createResponses.at(-1)?.objectIdPresent === true
+    });
+    const result = await executeConfirmedLaunch({
+      repo,
+      jobId: view.jobId,
+      grantSource: "test_fake_transport",
+      executionIntent: EXECUTION_GRANT_INTENT,
+      fetchImpl: fetch,
+      projectStatePath: state,
+      deliveryWait: async (delayMs) => { waits.push(delayMs); logicalNow += delayMs; },
+      deliveryNowMs: () => logicalNow
+    });
+    const audit = await repo.getLaunchJobBundle(view.jobId);
+    const actionState = await repo.getCreateAttemptState(view.jobId);
+    assert(callCount(fetch, "/std_project/create/") === expectedCreateCalls, `${label}: physical create call count mismatch`);
+    assert(Number(actionState.createActionCount) === 1, `${label}: logical create action must count once`);
+    assert(nodeStatuses(result).std_project_create_executor === expectedNodeStatus, `${label}: node 6 status mismatch`);
+    assert(audit.platformAction?.metadata?.delivery_count === expectedCreateCalls, `${label}: delivery audit count mismatch`);
+    assert(audit.platformAction?.metadata?.maximum_delivery_calls === 3, `${label}: delivery cap must be frozen at three`);
+    assert(waits.every((delayMs) => delayMs >= 0), `${label}: schedule must use non-negative absolute waits`);
+    return { result, fetch, audit, waits };
+  }
+
+  const rateLimitThenSuccess = await runRateLimitSequence(
+    "rate-limit-then-success",
+    [
+      { apiCode: "40100", objectIdPresent: false },
+      { apiCode: "0", objectIdPresent: true }
+    ],
+    2,
+    "passed"
+  );
+  assert(rateLimitThenSuccess.result.executionGrant.createCalled === true, "40100 then success should retain one logical action");
+  assert(callCount(rateLimitThenSuccess.fetch, "/std_project/list/") === 1, "40100 then success should run one readback");
+
+  const twoRateLimitsThenSuccess = await runRateLimitSequence(
+    "rate-limit-rate-limit-success",
+    [
+      { apiCode: "40100", objectIdPresent: false },
+      { apiCode: "40100", objectIdPresent: false },
+      { apiCode: "0", objectIdPresent: true }
+    ],
+    3,
+    "passed"
+  );
+  assert(twoRateLimitsThenSuccess.audit.platformAction?.metadata?.rate_limited_delivery_count === 2, "two 40100 results must be audited");
+
+  const rateLimitExhausted = await runRateLimitSequence(
+    "rate-limit-exhausted",
+    Array.from({ length: 3 }, () => ({ apiCode: "40100", objectIdPresent: false })),
+    3,
+    "failed"
+  );
+  assert(rateLimitExhausted.audit.platformAction?.error_category === "system_rate_limited", "40100 must be classified as system_rate_limited");
+  assert(rateLimitExhausted.audit.platformAction?.api_code === "40100", "exhausted rate limit API code missing");
+  assert(callCount(rateLimitExhausted.fetch, "/std_project/list/") === 0, "explicit 40100 exhaustion must not read back a nonexistent object");
+
+  const badJsonView = await createReadyTestJob("execution-grant-smoke:create-bad-json");
+  const badJsonState = await writeProjectStateForScope(badJsonView);
+  const badJsonFetch = fakeFetchFactory({
+    projectId: "999900013",
+    createResponses: [{ rawBody: "{not-json" }]
+  });
+  await executeConfirmedLaunch({
+    repo,
+    jobId: badJsonView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: badJsonFetch,
+    projectStatePath: badJsonState
+  });
+  assert(callCount(badJsonFetch, "/std_project/create/") === 1, "bad JSON must not redeliver");
+  assert(callCount(badJsonFetch, "/std_project/list/") === 0, "bad JSON must not read back an unconfirmed response");
+
+  const timeoutView = await createReadyTestJob("execution-grant-smoke:create-timeout");
+  const timeoutState = await writeProjectStateForScope(timeoutView);
+  const timeoutFetch = fakeFetchFactory({ projectId: "999900014", createTimeoutThrows: true, listMatch: false });
+  await executeConfirmedLaunch({
+    repo,
+    jobId: timeoutView.jobId,
+    grantSource: "test_fake_transport",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    fetchImpl: timeoutFetch,
+    projectStatePath: timeoutState
+  });
+  assert(callCount(timeoutFetch, "/std_project/create/") === 1, "timeout must not redeliver");
+  assert(callCount(timeoutFetch, "/std_project/list/") === 1, "timeout must use only the existing readonly recovery path");
+
   const second = await executeConfirmedLaunch({
     repo,
     jobId: successView.jobId,
@@ -799,6 +922,7 @@ try {
     preCreateGateBlockedWithoutCalls: true,
     verificationSeriesCountedAcrossFreshJobs: true,
     verificationSeriesLockedAfterSuccess: true,
+    rateLimitRedeliveryBoundedAndAudited: true,
     createFieldLedgerAttested: true,
     node6Status: statuses.std_project_create_executor,
     node7Status: statuses.readback_closer,

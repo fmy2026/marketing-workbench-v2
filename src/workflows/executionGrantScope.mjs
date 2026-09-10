@@ -6,6 +6,7 @@ import {
   ACTION_STD_PROJECT_CREATE,
   PLAN_KIND_MONITOR_BOOTSTRAP,
   PLAN_KIND_RESOURCE_PREPARE,
+  STD_PROJECT_40100_REDELIVERY_CONTRACT,
   resolveFreshResourceActionCallLimits,
   validateExecutionPlanActionScope
 } from "./executionPlan.mjs";
@@ -69,6 +70,39 @@ function actionMaximumPlatformCalls(action = {}) {
 function actionGrantMaximumPlatformCalls(scope = {}, actionType = "") {
   const grant = scope.action_grants?.[actionType] || scope.actionGrants?.[actionType] || {};
   return Number(grant.maximum_platform_calls ?? grant.maximumPlatformCalls ?? 0);
+}
+
+function sameRateLimitRedeliveryContract(value = {}) {
+  const expected = STD_PROJECT_40100_REDELIVERY_CONTRACT;
+  return value &&
+    value.endpoint === expected.endpoint &&
+    value.api_code === expected.api_code &&
+    Number(value.maximum_delivery_calls) === expected.maximum_delivery_calls &&
+    Array.isArray(value.scheduled_offsets_ms) &&
+    value.scheduled_offsets_ms.length === expected.scheduled_offsets_ms.length &&
+    value.scheduled_offsets_ms.every((offset, index) => Number(offset) === expected.scheduled_offsets_ms[index]) &&
+    Number(value.jitter_max_ms) === expected.jitter_max_ms &&
+    Number(value.maximum_total_elapsed_ms) === expected.maximum_total_elapsed_ms;
+}
+
+function stdProjectCreateDeliveryContractBlockers({ scope = {}, createAction = {} } = {}) {
+  const actionGrant = scope.action_grants?.[ACTION_STD_PROJECT_CREATE] ||
+    scope.actionGrants?.[ACTION_STD_PROJECT_CREATE] || {};
+  const policy = scope.rate_limit_redelivery;
+  return [
+    ...(sameRateLimitRedeliveryContract(policy) ? [] : ["std_project_rate_limit_redelivery_scope_invalid"]),
+    ...(sameRateLimitRedeliveryContract(createAction.rate_limit_redelivery) ? [] : ["std_project_rate_limit_redelivery_action_invalid"]),
+    ...(sameRateLimitRedeliveryContract(actionGrant.rate_limit_redelivery) ? [] : ["std_project_rate_limit_redelivery_grant_invalid"]),
+    ...(actionMaximumPlatformCalls(createAction) === STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
+      ? []
+      : ["std_project_rate_limit_redelivery_action_call_limit_invalid"]),
+    ...(actionGrantMaximumPlatformCalls(scope, ACTION_STD_PROJECT_CREATE) === STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
+      ? []
+      : ["std_project_rate_limit_redelivery_grant_call_limit_invalid"]),
+    ...(Number(scope.maximum_platform_calls) === STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
+      ? []
+      : ["std_project_rate_limit_redelivery_scope_call_limit_invalid"])
+  ];
 }
 
 export async function validateWriteScope({ repo, bundle, projectStatePath = defaultProjectStatePath }) {
@@ -175,6 +209,7 @@ export async function validatePlanConfirmationScope({
   const actions = plan?.planned_actions || plan?.plannedActions || [];
   const blockerCodes = plan?.blocker_codes || plan?.blockerCodes || [];
   const createActions = actions.filter((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
+  const createAction = createActions[0] || {};
   const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
     ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
     : null;
@@ -197,6 +232,7 @@ export async function validatePlanConfirmationScope({
     ...(Number(scope.maximum_actions) === actions.length && actions.length > 0 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
     ...(createActions.length === 1 ? [] : ["execution_plan_create_action_count_invalid"]),
     ...(Number(scope.maximum_create_calls) === 1 ? [] : ["execution_plan_create_call_limit_invalid"]),
+    ...stdProjectCreateDeliveryContractBlockers({ scope, createAction }),
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : []),
     ...(Number(attemptState.createActionCount || 0) === 0 ? [] : ["std_project_create_action_already_recorded"]),
@@ -218,6 +254,8 @@ export async function validatePlanConfirmationScope({
       blockerCount: blockerCodes.length,
       actionCount: actions.length,
       createActionCount: createActions.length,
+      maximumPlatformCalls: actionMaximumPlatformCalls(createAction),
+      rateLimitRedeliveryAuthorized: sameRateLimitRedeliveryContract(scope.rate_limit_redelivery),
       existingConfirmation: Boolean(existingConfirmation),
       retryAllowed: scope.retry_allowed === true
     }

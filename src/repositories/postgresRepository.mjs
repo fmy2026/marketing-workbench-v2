@@ -1144,6 +1144,17 @@ export class PostgresRepository {
             'offending_field_path', pa.offending_field_path,
             'request_field_manifest', pa.request_field_manifest,
             'response_summary', pa.response_summary,
+            'delivery_summary', (
+              SELECT jsonb_build_object(
+                'delivery_count', count(*),
+                'latest_delivery_no', coalesce(max(pad.delivery_no), 0),
+                'latest_delivery_status', coalesce((array_agg(pad.delivery_status ORDER BY pad.delivery_no DESC))[1], ''),
+                'rate_limited_delivery_count', count(*) FILTER (WHERE pad.delivery_status = 'rate_limited'),
+                'maximum_delivery_calls', 3
+              )
+              FROM mwb.platform_action_deliveries pad
+              WHERE pad.action_id = pa.action_id
+            ),
             'metadata', pa.metadata,
             'started_at', pa.started_at,
             'finished_at', pa.finished_at
@@ -4946,6 +4957,57 @@ export class PostgresRepository {
         response_summary = EXCLUDED.response_summary,
         metadata = EXCLUDED.metadata,
         finished_at = EXCLUDED.finished_at;
+    `, this.database);
+  }
+
+  async upsertStdProjectCreateDelivery(delivery = {}) {
+    assertId("delivery_id", delivery.deliveryId);
+    assertId("action_id", delivery.actionId);
+    const deliveryNo = Number(delivery.deliveryNo);
+    const scheduledOffsetMs = Number(delivery.scheduledOffsetMs);
+    if (!Number.isInteger(deliveryNo) || deliveryNo < 1 || deliveryNo > 3) throw new Error("invalid_std_project_delivery_no");
+    if (!Number.isInteger(scheduledOffsetMs) || scheduledOffsetMs < 0 || scheduledOffsetMs > 49000) {
+      throw new Error("invalid_std_project_delivery_scheduled_offset");
+    }
+    const statuses = new Set(["started", "rate_limited", "succeeded", "failed", "failed_or_unconfirmed"]);
+    if (!statuses.has(delivery.deliveryStatus)) throw new Error("invalid_std_project_delivery_status");
+    await runPsql(`
+      INSERT INTO mwb.platform_action_deliveries (
+        delivery_id, action_id, delivery_no, delivery_status, scheduled_offset_ms,
+        scheduled_at, started_at, finished_at, request_hash, response_hash,
+        http_status, api_code, request_id_present, object_id_present,
+        error_category, error_summary, metadata
+      ) VALUES (
+        ${sqlLiteral(delivery.deliveryId)},
+        ${sqlLiteral(delivery.actionId)},
+        ${deliveryNo},
+        ${sqlLiteral(delivery.deliveryStatus)},
+        ${scheduledOffsetMs},
+        ${sqlLiteral(delivery.scheduledAt)}::timestamptz,
+        ${delivery.startedAt ? `${sqlLiteral(delivery.startedAt)}::timestamptz` : "NULL"},
+        ${delivery.finishedAt ? `${sqlLiteral(delivery.finishedAt)}::timestamptz` : "NULL"},
+        ${sqlLiteral(delivery.requestHash || "")},
+        ${sqlLiteral(delivery.responseHash || "")},
+        ${delivery.httpStatus === null || delivery.httpStatus === undefined ? "NULL" : Number(delivery.httpStatus)},
+        ${sqlLiteral(delivery.apiCode || "")},
+        ${delivery.requestIdPresent === true ? "true" : "false"},
+        ${delivery.objectIdPresent === true ? "true" : "false"},
+        ${sqlLiteral(delivery.errorCategory || "")},
+        ${sqlLiteral(delivery.errorSummary || "")},
+        ${sqlJson(delivery.metadata || {})}
+      )
+      ON CONFLICT (action_id, delivery_no) DO UPDATE SET
+        delivery_status = EXCLUDED.delivery_status,
+        started_at = coalesce(mwb.platform_action_deliveries.started_at, EXCLUDED.started_at),
+        finished_at = EXCLUDED.finished_at,
+        response_hash = EXCLUDED.response_hash,
+        http_status = EXCLUDED.http_status,
+        api_code = EXCLUDED.api_code,
+        request_id_present = EXCLUDED.request_id_present,
+        object_id_present = EXCLUDED.object_id_present,
+        error_category = EXCLUDED.error_category,
+        error_summary = EXCLUDED.error_summary,
+        metadata = EXCLUDED.metadata;
     `, this.database);
   }
 

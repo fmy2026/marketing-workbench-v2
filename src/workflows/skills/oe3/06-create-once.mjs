@@ -42,7 +42,9 @@ export async function runCreateOnceSkill({
   confirmVariableValue = "",
   grantSource = "",
   executionGrantId = "",
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  deliveryWait,
+  deliveryNowMs
 } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
   const canMockCreate = mode === "execute_once" &&
@@ -60,11 +62,14 @@ export async function runCreateOnceSkill({
       grantSource,
       executionGrantId,
       readiness,
-      fetchImpl
+      fetchImpl,
+      ...(typeof deliveryWait === "function" ? { wait: deliveryWait } : {}),
+      ...(typeof deliveryNowMs === "function" ? { nowMs: deliveryNowMs } : {})
     });
     const skillStatus = {
       created_pending_readback: "passed",
       create_failed_stop_for_manual_review: "failed",
+      create_rate_limit_retry_exhausted: "failed",
       blocked_before_create: "blocked"
     }[result.status] || "blocked";
     return {
@@ -78,6 +83,9 @@ export async function runCreateOnceSkill({
         realPlatformWriteCalled: result.createCalled === true,
         objectIdPresent: Boolean(result.stdProjectId),
         retryAllowed: false,
+        deliveryCount: Number(result.deliveryCount || 0),
+        rateLimitedDeliveryCount: Number(result.rateLimitedDeliveryCount || 0),
+        maximumDeliveryCalls: Number(result.maximumDeliveryCalls || 1),
         nextConfirmationRequired: false,
         httpStatus: result.httpStatus || null,
         apiCode: result.apiCode || "",
@@ -92,6 +100,8 @@ export async function runCreateOnceSkill({
           ? "创建前 gate 未满足或本任务未开放网络写入。"
           : result.status === "create_failed_stop_for_manual_review"
             ? "真实创建已调用一次但平台未确认成功，禁止自动重试。"
+            : result.status === "create_rate_limit_retry_exhausted"
+              ? "平台连续三次明确返回系统级限流，已耗尽本逻辑动作的错峰投递额度。"
             : "真实创建已完成，等待回查。"
       }
     };

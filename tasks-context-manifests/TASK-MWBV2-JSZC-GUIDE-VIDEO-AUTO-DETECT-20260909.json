@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909",
   "task_ref": "tasks/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-09T07:41:02Z",
-  "updated_at": "2026-09-09T07:41:02Z",
+  "updated_at": "2026-09-09T10:45:42Z",
   "base_revision": "cce0d5ebf15107818f4c6de560dd9d630d54d606",
   "baseline_dirty_files": {
     "project.state.json": "sha256:91c0bae53f554b541cb769206696a7e342b04980a3c6c72a2ae87e522a1ddc76",
@@ -86,7 +86,7 @@
     "需要放宽 Node 05 fail-closed 合同、创建新 workflow/Gate/Plan/action 或改变未经批准的业务字段",
     "需要真实平台写入或账户所有者尚未自行发起工作台 readonly 恢复"
   ],
-  "open_gaps": ["target_account_owner_fresh_readonly_recovery_required"],
+  "open_gaps": [],
   "validation_plan": [
     {"acceptance_id": "AC-01", "command": "npm run test:guide-video-readonly"},
     {"acceptance_id": "AC-02", "command": "npm run test:guide-video-payload && npm run test:payload-contract && npm run test:std-project-readback && npm run test:std-project-create-wire-body"},
@@ -126,6 +126,14 @@
       "verified_at": "2026-09-09T08:11:06Z",
       "summary": "备份、幂等 migration、会话 smoke、项目检查和格式检查通过；服务已从提交 e70ece2 重启。开发过程未新增平台对象、确认或真实平台写入。",
       "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-04"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "账户所有者在 CASE-MWBV2-FF06CC07F45EE8F4CC 输入一次‘继续执行’，随后只读查询 mwb.workflow_case_summary、latest Job/Plan/action/object counts",
+      "verified_at": "2026-09-09T10:45:42Z",
+      "summary": "Attempt 3 的 Create Plan 为 consumed，当前 Job 只有一条 std_project_create action；Case 聚合为 3/3、没有 created object，旧单次创建合同按 fail-closed 进入人工复盘。",
+      "evidence_refs": ["evidence/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909/validation.md#ac-05"]
     }
   ],
   "documentation_updates": [
@@ -134,6 +142,11 @@
     {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "登记 route policy、账户兼容强制与当前 Job metadata 保存边界。"}
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "JSZC 引导视频已改为 fresh readonly 自动识别；账户所有者完成了受控 Attempt 3，旧单次创建合同正确 fail-closed。",
+    "side_effects": "只更新路线默认合同、canonical readiness、相关文档与验证证据；本 Task 未新增平台对象、确认或真实平台写入。",
+    "remaining_risks": ["当前 Case 的第三次创建被平台 40100 系统限流明确拒绝，需由后续限流重投 Task 处理。"],
+    "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-FF06CC07F45EE8F4CC"]
+  },
+  "closed_at": "2026-09-09T10:45:42Z"
 }

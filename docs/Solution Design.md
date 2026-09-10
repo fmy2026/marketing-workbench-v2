@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `078`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
+| 校验基线 | 当前代码、SQL migrations 至 `080`；资源动作精确调用量任务 `TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -31,6 +31,7 @@
 | 资源动作精确调用量 | 资源 executor 的 fresh readonly 结果是该动作唯一调用量来源：0 表示已满足、不生成写动作；正整数同时冻结在 planned action、action grant 与 Plan 总调用量。确认前重新计算；任一数量或授权不一致均在 confirmation claim 前 fail-closed，必须走 fresh Job/Plan，不能改写旧 Plan | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md)、[当前逻辑](project-现在的逻辑图.md) |
 | 事件配置最终一致性 | 所有写入成功后采用有界只读回查窗口吸收可见性延迟，失败不重试创建 | [回查窗口任务](../tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md) |
 | 平台响应与完成判定 | 受理不等于 verified；统一错误分类、HTTP deadline 和严格 finalizer，避免误成功或悬挂 | [终态任务](../tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md)、[回查收口任务](../tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md) |
+| 标准项目 `40100` 有界错峰投递 | 一个冻结 Create Plan、payload/hash、confirmation 与逻辑 action 只能在精确 `std_project/create + 40100 + 无对象 ID` 下投递至多三次；调用点为 `0 / 20–24 / 45–49` 秒，抖动由 action ID 确定。其他业务码、HTTP 429、超时、网络/解析不明均 fail-closed；物理投递写入脱敏 delivery 审计，Case Attempt 仍只计该一个逻辑 action | [本次批准任务](../tasks/TASK-MWBV2-STD-PROJECT-40100-RATE-LIMIT-REDELIVERY-20260909.md)、migration `080`、[当前逻辑](project-现在的逻辑图.md) |
 | 尝试次数与安全重开 | Case 跨 Job 计数，耗尽先人工诊断；获批后由本人建立单次替代 Case，不复制旧授权 | [次数与恢复任务](../tasks/TASK-MWBV2-CASE-ATTEMPT-LIMIT-RECOVERY-20260908.md) |
 | 个体事实数据化、运行机制能力化 | 账户差异只作为 Postgres 的通用 capability（例如 `video_cover_required`）参与既有合同；耗尽重开只依据 owner、Case/Gate、批准 evidence、零创建对象和零 verified readback。runtime 不以内嵌账户/Case/Job/user ID 作为默认目标或分支；同类问题扩展既有能力并验证开/关正反例 | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RUNTIME-MECHANISM-20260908.md)、[启动协议](../AGENTS.md)、[当前逻辑](project-现在的逻辑图.md) |
 | 引导视频能力自动识别 | JSZC 每个 fresh Job 在唯一已核验小游戏实例上仅作一次 `gameplay/list` readonly；唯一非空 ID 要求每条 required video 复用它，空列表允许省略，多候选或 probe 失败 fail-closed。账户 `guide_video_required=true` 仅为兼容性强制要求，不能将空结果降级；动态 ID 仅保存在当前 Job 绑定的资源 metadata。`platform_status` 不参与此分支 | [本次批准任务](../tasks/TASK-MWBV2-JSZC-GUIDE-VIDEO-AUTO-DETECT-20260909.md)、migration `079`、[当前逻辑](project-现在的逻辑图.md) |

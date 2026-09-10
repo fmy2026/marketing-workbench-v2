@@ -46,11 +46,12 @@ const landingUrlInvalid = safePlatformErrorSummary({
 });
 assert(landingUrlInvalid.error_category === "landing_url_invalid", "landing URL classification should be preserved");
 
-const permissionDenied = safePlatformErrorSummary({
+const systemRateLimited = safePlatformErrorSummary({
   code: "40100",
   message: "permission denied"
 });
-assert(permissionDenied.error_category === "permission_denied", "permission classification should be preserved");
+assert(systemRateLimited.error_category === "system_rate_limited", "exact 40100 must classify as system_rate_limited");
+assert(systemRateLimited.safe_error_text === "platform_system_rate_limited", "40100 must use the safe rate-limit diagnostic");
 
 console.log(JSON.stringify({
   status: "passed",
@@ -59,7 +60,7 @@ console.log(JSON.stringify({
     "filter_event_canonical_invalid_field",
     "generic_event_resource_preserved",
     "landing_url_preserved",
-    "permission_preserved",
+    "system_rate_limited_preserved",
     "raw_error_not_exposed",
     "complete_request_id_not_retained",
     "validated_request_id_retained_only_at_action_boundary",

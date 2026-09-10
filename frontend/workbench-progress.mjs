@@ -37,6 +37,7 @@ export function progressPresentation({
   confirmationPreview = null,
   executionAvailability = {},
   headline = {},
+  execution = {},
   busy = false,
   viewOnly = false
 } = {}) {
@@ -45,6 +46,10 @@ export function progressPresentation({
   const prefix = `进度 ${completed} / ${total}`;
   if (viewOnly) return `${prefix} · 历史 Job，只读查看`;
   if (caseGate?.currentGate === "first_std_project_create_completed") return `${prefix} · 已完成`;
+  if (execution?.status === "started" && execution?.latestDeliveryStatus === "rate_limited") {
+    const nextDelivery = Math.min(Number(execution.deliveryCount || 0) + 1, Number(execution.maximumDeliveryCalls || 3));
+    return `${prefix} · 平台限流，正在等待第 ${nextDelivery}/${Number(execution.maximumDeliveryCalls || 3)} 次错峰投递`;
+  }
   if (busy) return `${prefix} · 正在处理`;
   const blockerCode = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   const blockerTitle = blockerCode ? String(caseGate?.rootBlocker?.title || blockerCode).trim() : "";

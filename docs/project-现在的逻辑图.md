@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `078`、Node 注册表与数据契约 |
+| 校验基线 | 当前代码、Schema migrations 至 `080`、Node 注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 权威来源 | 实现查注册表/代码/SQL，业务事实查 Postgres；本文只解释静态机制与消费者边界 |
 | 重新校验条件 | 7 Node 注册表、资源能力、Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
@@ -44,7 +44,7 @@
 - 账户归属在 Case/Job 前精确校验；普通用户只能读取、运行和确认本人账户，管理员不代操作他人账户。
 - `Case` 表示持续业务目标，`Job` 表示一次运行；同一 `route × game × advertiser` 最多一个 active runtime Case，fresh Job 不继承旧确认或动作。
 - 未确认前只读或编译 Plan；资源准备与标准项目创建始终是两份独立 Plan，monitor 是 Node 02 的独立 bootstrap。
-- 每份确认 Plan 只消费冻结动作一次；失败、漂移或修正必须使用 fresh Job/Plan/confirmation，禁止自动重试。
+- 每份确认 Plan 只消费冻结动作一次；失败、漂移或修正必须使用 fresh Job/Plan/confirmation。唯一窄化例外：冻结的标准项目创建 action 收到无对象 ID 的精确 `40100` 时，可在同一 action 内最多三次错峰物理投递；其他错误、超时和不明响应均禁止自动重试。
 - 平台受理或界面显示不等于 verified；只有权威只读回查通过，才能把资源或创建对象标为 verified。
 - OAuth 凭据刷新不属于业务 Plan：仅授权的 `oceanengine-v2-token-refresh` cron 可在每天 12:01（Asia/Shanghai）执行一次刷新。它不调用业务 API；成功或失败仅写入受控凭据和脱敏 audit，失败不自动重试。
 
@@ -59,7 +59,7 @@
 | 准备 | 03 `game_launch_pack` | 主档、默认值、物料、备用页、资源蓝图 → 游戏保底包 | 不从历史账户复制动态资源 ID |
 | 就绪 | 04 `account_resource_prepare` | 目标账户 fresh readonly、资源蓝图 → `account_ready_report`、资源 Plan 输入 | 未确认前零平台写入 |
 | 就绪 | 05 `std_project_draft_builder` | 已验证资源、字段合同、未删除同名与语义标的/竞价策略查重 → Draft、payload hash、创建就绪 | 不创建项目；列表字段或分页不完整时 fail-closed |
-| 创建执行 | 06 `std_project_create_executor` | 已确认 Create Plan → 创建动作与对象记录 | 一份 Create Plan 仅一次 `std_project/create` |
+| 创建执行 | 06 `std_project_create_executor` | 已确认 Create Plan → 一个逻辑创建动作、至多三条脱敏 delivery 审计与对象记录 | 常规仅一次 `std_project/create`；仅 `40100` 且无对象 ID 可在同一 action 按 `0 / 20–24 / 45–49` 秒投递至多三次，Case Attempt 不随物理投递累加 |
 | 创建执行 | 07 `readback_closer` | 创建对象、Draft → verified readback 与证据 | 不以补发 create 修复回查问题 |
 
 运行模式共有六类：`dry_run` 与 `draft_readiness` 不写平台；`planned_actions` 只编译明确计划动作；`execute_once` 只能消费已确认 Plan；`readback_only` 绝不创建；`aweme_auth_readonly` 仅运行至 Node 04 的抖音号授权只读核验，不生成 Draft 或 Plan。

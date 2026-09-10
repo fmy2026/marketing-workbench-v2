@@ -35,6 +35,18 @@ assert(
   progressPresentation({ nodes, busy: true }) === "进度 1 / 7 · 正在处理",
   "busy_progress_copy_mismatch"
 );
+assert(
+  progressPresentation({
+    nodes,
+    execution: {
+      status: "started",
+      latestDeliveryStatus: "rate_limited",
+      deliveryCount: 1,
+      maximumDeliveryCalls: 3
+    }
+  }) === "进度 1 / 7 · 平台限流，正在等待第 2/3 次错峰投递",
+  "rate_limit_redelivery_progress_copy_mismatch"
+);
 const interruptedNodes = nodes.map((node, index) => index < 4 ? { ...node, status: "passed" } : node);
 assert(
   progressPresentation({
@@ -131,6 +143,7 @@ assert(clientSource.includes("当前 Attempt 已失败并安全结束。输入�
 assert(clientSource.includes("输入“继续执行”重新准备下一 Attempt，或输入“查看状态”"), "corrective_gate_input_copy_missing");
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
+assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 
 console.log(JSON.stringify({
   status: "passed",

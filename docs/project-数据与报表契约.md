@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-SEMANTIC-DUPLICATE-COMMENT-20260909`；Postgres 36 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `078_semantic_duplicate_comment_defaults.sql` |
+| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-STD-PROJECT-40100-RATE-LIMIT-REDELIVERY-20260909`；Postgres 37 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `080_std_project_40100_rate_limit_redelivery.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `078` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 79 个 migration 文件、编号至 `078`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 36 表、7 View 与 24 列合同。
+结构清单沿用 migration `080` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 81 个 migration 文件、编号至 `080`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 37 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 
@@ -37,7 +37,7 @@ L6 当前运营状态只读投影
 workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 ```
 
-## 2. 基础表契约（36 张）
+## 2. 基础表契约（37 张）
 
 | 层 | 表 | 行粒度 / 主关联 | 写入者 | 主要消费者 |
 | --- | --- | --- | --- | --- |
@@ -55,8 +55,8 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（6） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation 保存真实 `confirmed_by_user_id`。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
-|  | `platform_actions`、`created_objects` | 外部 action×attempt、创建对象 | executor / create result mapping | Node 06–07、Case summary |
+| L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation 保存真实 `confirmed_by_user_id`。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
+|  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于精确 `std_project/create + 40100 + 无对象 ID`，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查、脱敏证据 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
 ### 核心关联
@@ -137,7 +137,7 @@ route_id + game_code
 | Job / Node / Skill | `job_id` / `node_run_id` / `skill_run_id`；Node 唯一 job×node_key，Skill 唯一 job×skill_key×attempt_no | Job 建档/更新时间、Node/Skill 开始/结束时间分别保存；不得把新 readonly 结果改写成历史运行证据 |
 | Draft / 名称预留 | `draft_id` / `reservation_id`；名称预留有 job 唯一及 scope×序号、scope×名称约束 | fresh Job 不继承旧确认；runtime 名称占用保留，测试占用单独清理 |
 | Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation 按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，授权消费留在数据库审计 |
-| Action / 创建对象 | `action_id` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合；外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
+| Action / delivery / 创建对象 | `action_id` / `(action_id, delivery_no)` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；delivery 序号限定 1–3；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合且只按逻辑 action 计数；`40100` 的物理 delivery 不增加 Attempt。外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
 | Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
 | Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
 | 用户 / 会话 / 用户审计 | `user_id` / `session_id` / `audit_event_id`；登录名与 owner key 大小写归一后唯一，会话 token hash 唯一 | 会话到期/撤销与用户变更审计独立；报表读取权限不能推导为账户操作权限 |

@@ -162,6 +162,11 @@ import {
   }
 
   function operationalMessage() {
+    const execution = job?.execution || {};
+    if (execution.status === "started" && execution.latestDeliveryStatus === "rate_limited") {
+      const nextDelivery = Math.min(Number(execution.deliveryCount || 0) + 1, Number(execution.maximumDeliveryCalls || 3));
+      return `平台限流，正在等待第 ${nextDelivery}/${Number(execution.maximumDeliveryCalls || 3)} 次错峰投递。`;
+    }
     if (!job?.caseGate?.currentGate) return "";
     const gate = job.caseGate;
     if (job.isLatestCaseJob && !viewOnly && gate.currentGate === "manual_review_after_attempt_limit") {
@@ -365,6 +370,7 @@ import {
       caseGate: job?.caseGate,
       confirmationPreview: preview,
       executionAvailability: job?.executionAvailability,
+      execution: job?.execution,
       headline: job?.headline,
       busy,
       viewOnly

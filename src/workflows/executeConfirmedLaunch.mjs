@@ -76,7 +76,9 @@ export async function executeConfirmedLaunch({
   projectStatePath,
   confirmedByUserId = "",
   getJobViewFn = getJobView,
-  runJobFn = runJob
+  runJobFn = runJob,
+  deliveryWait,
+  deliveryNowMs
 } = {}) {
   if (!repo) throw new Error("repo_required");
   if (!jobId) throw new Error("job_id_required");
@@ -202,6 +204,8 @@ export async function executeConfirmedLaunch({
   const currentPlanId = latestBundleBeforeCreate.executionPlan?.plan_id || "";
   const currentPlanHash = latestBundleBeforeCreate.executionPlan?.plan_hash || "";
   const singleVariableExperiment = planMetadata.single_variable_experiment || {};
+  const rateLimitRedelivery = planMetadata.execution_scope?.rate_limit_redelivery || {};
+  const maximumDeliveryCalls = Number(rateLimitRedelivery.maximum_delivery_calls || 1);
   try {
     if (planBound) {
       const planningIntent = planMetadata.planning_intent || {};
@@ -224,6 +228,8 @@ export async function executeConfirmedLaunch({
           advertiser_id: latestBundleBeforeCreate.job.advertiser_id,
           allowed_actions: latestBundleBeforeCreate.executionPlan?.planned_actions?.map((action) => action.action_type) || [],
           maximum_create_calls: 1,
+          maximum_delivery_calls: maximumDeliveryCalls,
+          rate_limit_redelivery: rateLimitRedelivery,
           retry_allowed: false,
           raw_payload_stored: false,
           raw_response_stored: false
@@ -264,6 +270,8 @@ export async function executeConfirmedLaunch({
       confirmedPlanExecution: Boolean(currentPlanId && currentPlanHash),
       projectStatePath,
       fetchImpl,
+      deliveryWait,
+      deliveryNowMs,
       includeExecutionSummary: true
     });
     const view = runResult?.view || runResult;
@@ -302,6 +310,7 @@ export async function executeConfirmedLaunch({
         executionGrantId,
         createCalled: localCreateCalled,
         maximumActions: 1,
+        maximumDeliveryCalls,
         retryAllowed: false,
         ...(finalizedPrewriteBlock.finalized === true ? { blockers: [prewriteBlocker] } : {})
       }

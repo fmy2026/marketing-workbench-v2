@@ -25,6 +25,15 @@ const CREATE_ENDPOINT = "/open_api/v3.0/std_project/create/";
 const LIST_ENDPOINT = "/open_api/v3.0/std_project/list/";
 const MATERIAL_GET_ENDPOINT = "/open_api/v3.0/oc_project/material/get/";
 
+export const STD_PROJECT_40100_REDELIVERY_POLICY = Object.freeze({
+  endpoint: CREATE_ENDPOINT,
+  api_code: "40100",
+  maximum_delivery_calls: 3,
+  scheduled_offsets_ms: Object.freeze([0, 20000, 45000]),
+  jitter_max_ms: 4000,
+  maximum_total_elapsed_ms: 65000
+});
+
 export const STD_PROJECT_CREATE_CONFIRM_ENV = "MWBV2_OE_STD_PROJECT_CREATE_CONFIRM";
 export const STD_PROJECT_CREATE_CONFIRM_VALUE = "CREATE_ONE_STD_PROJECT";
 
@@ -138,6 +147,7 @@ function safeOffendingFieldPath(text = "") {
 }
 
 function safeErrorCategory({ text = "", fieldPath = "", apiCode = "" } = {}) {
+  if (apiCode === "40100") return "system_rate_limited";
   const normalized = clean(text).toLowerCase();
   if (/permission|authorize|authorization|scope|无权限|权限/.test(normalized)) return "permission_denied";
   if (/landing|external_url_material_list|落地页|链接/.test(normalized)) return "landing_url_invalid";
@@ -151,11 +161,43 @@ function safeDiagnosticErrorText({ errorCategory = "", offendingFieldPath = "" }
   const categoryLabel = {
     permission_denied: "platform_permission_denied",
     landing_url_invalid: "platform_landing_link_rejected",
+    system_rate_limited: "platform_system_rate_limited",
     invalid_field: "platform_field_validation_rejected",
     resource_not_eligible: "platform_resource_eligibility_rejected",
     unclassified: "platform_rejected_without_safe_detail"
   }[errorCategory] || "platform_response_not_confirmed";
   return offendingFieldPath ? `${categoryLabel};field=${offendingFieldPath}` : categoryLabel;
+}
+
+function sameRateLimitRedeliveryPolicy(policy = {}) {
+  const offsets = Array.isArray(policy.scheduled_offsets_ms) ? policy.scheduled_offsets_ms.map(Number) : [];
+  const expected = STD_PROJECT_40100_REDELIVERY_POLICY;
+  return policy.endpoint === expected.endpoint &&
+    String(policy.api_code || "") === expected.api_code &&
+    Number(policy.maximum_delivery_calls) === expected.maximum_delivery_calls &&
+    Number(policy.jitter_max_ms) === expected.jitter_max_ms &&
+    Number(policy.maximum_total_elapsed_ms) === expected.maximum_total_elapsed_ms &&
+    JSON.stringify(offsets) === JSON.stringify(expected.scheduled_offsets_ms);
+}
+
+function redeliveryPolicyFromBundle(bundle = {}) {
+  const scope = bundle.executionPlan?.metadata?.execution_scope || {};
+  const action = (bundle.executionPlan?.planned_actions || bundle.executionPlan?.plannedActions || [])
+    .find((item) => item.action_type === "std_project_create") || {};
+  const grant = scope.action_grants?.std_project_create || scope.actionGrants?.std_project_create || {};
+  const valid = sameRateLimitRedeliveryPolicy(scope.rate_limit_redelivery) &&
+    sameRateLimitRedeliveryPolicy(action.rate_limit_redelivery) &&
+    sameRateLimitRedeliveryPolicy(grant.rate_limit_redelivery) &&
+    Number(action.maximum_platform_calls ?? action.maximumPlatformCalls) === STD_PROJECT_40100_REDELIVERY_POLICY.maximum_delivery_calls &&
+    Number(grant.maximum_platform_calls ?? grant.maximumPlatformCalls) === STD_PROJECT_40100_REDELIVERY_POLICY.maximum_delivery_calls &&
+    Number(scope.maximum_platform_calls) === STD_PROJECT_40100_REDELIVERY_POLICY.maximum_delivery_calls;
+  return valid ? STD_PROJECT_40100_REDELIVERY_POLICY : null;
+}
+
+export function stdProjectRateLimitRedeliverySchedule(actionId, policy = STD_PROJECT_40100_REDELIVERY_POLICY) {
+  const seed = Number.parseInt(sha256(actionId).slice(0, 8), 16);
+  const jitter = Number.isFinite(seed) ? seed % (Number(policy.jitter_max_ms) + 1) : 0;
+  return policy.scheduled_offsets_ms.map((offset, index) => index === 0 ? 0 : Number(offset) + jitter);
 }
 
 export function safePlatformErrorSummary(payload = {}) {
@@ -497,7 +539,9 @@ export async function createStdProjectForTargetOnce({
   confirmVariableValue = process.env[STD_PROJECT_CREATE_CONFIRM_ENV] || "",
   grantSource = "",
   executionGrantId = "",
-  readiness: readinessOverride = null
+  readiness: readinessOverride = null,
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  nowMs = () => Date.now()
 } = {}) {
   if (!target?.jobId) throw new Error("target_required");
   const bundle = await repo.getLaunchJobBundle(target.jobId);
@@ -508,6 +552,9 @@ export async function createStdProjectForTargetOnce({
     ? await repo.getLaunchConfirmationForPlan(runtimeTarget.planId)
     : null;
   const planBound = existingPlanConfirmation?.confirmation_status === "confirmed_for_execution_plan";
+  const scope = bundle.executionPlan?.metadata?.execution_scope || {};
+  const rateLimitRedeliveryPolicy = redeliveryPolicyFromBundle(bundle);
+  const rateLimitContractPresent = Object.hasOwn(scope, "rate_limit_redelivery");
   const fakeTransport = grantSource === "test_fake_transport";
   const credentialSummary = fakeTransport ? { status: "valid", blockers: [] } : getOceanEngineCredentialSummary();
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
@@ -552,6 +599,7 @@ export async function createStdProjectForTargetOnce({
     ...(planBound &&
       bundle.draft?.payload_summary?.plan_derivation_status !== "passed"
       ? ["final_draft_plan_derivation_not_passed"] : []),
+    ...(rateLimitContractPresent && !rateLimitRedeliveryPolicy ? ["rate_limit_redelivery_contract_invalid"] : []),
     ...(!fakeTransport && !prepared.ready ? prepared.blockers : []),
     ...(!allowNetworkWrite ? ["network_write_not_enabled_by_caller"] : [])
   ];
@@ -610,6 +658,10 @@ export async function createStdProjectForTargetOnce({
         attempt_no: runtimeTarget.createAttemptNo,
         maximum_total_attempts: runtimeTarget.maximumCreateAttempts,
         retry_allowed: false,
+        rate_limit_redelivery: rateLimitRedeliveryPolicy ? {
+          api_code: rateLimitRedeliveryPolicy.api_code,
+          maximum_delivery_calls: rateLimitRedeliveryPolicy.maximum_delivery_calls
+        } : {},
         verification_series_id: runtimeTarget.verificationSeriesId || "",
         verification_task_ref: runtimeTarget.verificationTaskRef || "",
         raw_payload_stored: false,
@@ -634,6 +686,10 @@ export async function createStdProjectForTargetOnce({
         raw_payload_stored: false,
         raw_response_stored: false,
         retry_allowed: false,
+        rate_limit_redelivery: rateLimitRedeliveryPolicy ? {
+          api_code: rateLimitRedeliveryPolicy.api_code,
+          maximum_delivery_calls: rateLimitRedeliveryPolicy.maximum_delivery_calls
+        } : {},
         attempt_no: runtimeTarget.createAttemptNo,
         create_wire_body_hash: requestHash,
         verification_series_id: runtimeTarget.verificationSeriesId || "",
@@ -654,103 +710,133 @@ export async function createStdProjectForTargetOnce({
     };
   }
 
+  const deliveryPolicy = rateLimitRedeliveryPolicy;
+  const deliveryOffsets = deliveryPolicy ? stdProjectRateLimitRedeliverySchedule(actionId, deliveryPolicy) : [0];
+  const deliveryStartedAtMs = nowMs();
+  const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
   let response = null;
   let text = "";
-  try {
-    response = await fetchWithDeadline(fetchImpl, `${API_BASE}${CREATE_ENDPOINT}`, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
-      body: wireBody.body
-    }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
-    text = await response.text();
-  } catch (error) {
-    const timedOut = isPlatformDeadlineError(error);
-    const responseHash = `sha256:${sha256(canonicalJson({
-      request_hash: requestHash,
-      outcome: "transport_unconfirmed",
-      retry_allowed: false
-    }))}`;
-    const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
-    await repo.upsertPlatformAction({
-      actionId,
-      jobId: runtimeTarget.jobId,
-      confirmationId,
-      planId: runtimeTarget.planId,
-      actionType: "oceanengine_std_project_create",
-      endpoint: CREATE_ENDPOINT,
-      method: "POST",
-      actionStatus: "failed_or_unconfirmed",
-      attemptNo: runtimeTarget.createAttemptNo,
-      requestHash,
-      responseHash,
-      httpStatus: null,
-      apiCode: timedOut ? "timeout" : "transport_error",
-      requestIdPresent: false,
-      objectIdPresent: false,
-      errorSummary: "platform_create_transport_not_confirmed",
-      requestId: "",
-      errorCategory: "unclassified",
-      offendingFieldPath: "",
-      idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
-      responseSummary: {
-        api_code: timedOut ? "timeout" : "transport_error",
-        request_id_present: false,
-        object_id_present: false,
-        error_category: "unclassified",
-        offending_field_path: "",
-        transport_unconfirmed: true,
-        outcome_category: "platform_response_unknown",
-        timeout: timedOut,
-        response_hash_present: true,
-        raw_response_stored: false
-      },
-      finishedAt: new Date().toISOString(),
-      metadata: {
-        target_project_name: runtimeTarget.projectName,
-        raw_payload_stored: false,
-        raw_response_stored: false,
-        retry_allowed: false,
-        attempt_no: runtimeTarget.createAttemptNo,
-        verification_series_id: runtimeTarget.verificationSeriesId || "",
-        verification_task_ref: runtimeTarget.verificationTaskRef || ""
-      }
-    });
-    await repo.upsertEvidence({
-      artifactId: evidenceRef,
-      jobId: runtimeTarget.jobId,
-      artifactType: "std_project_create_once_transport_unconfirmed",
-      title: "std_project create once transport unconfirmed",
-      summary: "endpoint=std_project/create transport_status=unconfirmed request_id_present=false std_project_id_present=false response_hash_present=true retry_allowed=false",
-      contentHash: responseHash,
-      storageRef: "postgres:evidence_artifacts:redacted_summary_only",
-      sourceRef: `oceanengine:${CREATE_ENDPOINT}`,
-      sourceUsage: "runtime_truth"
-    });
-    return {
-      status: "create_failed_stop_for_manual_review",
-      createCalled: true,
-      httpStatus: null,
-      apiCode: timedOut ? "timeout" : "transport_error",
-      requestIdPresent: false,
-      stdProjectId: "",
-      evidenceRef
-    };
-  }
   let payload = {};
-  try {
-    payload = parseOceanEngineStdProjectResponse(text);
-  } catch {
+  let apiCode = "";
+  let requestId = "";
+  let requestIdPresent = false;
+  let persistedRequestId = "";
+  let stdProjectId = "";
+  let safeErrorSummary = safePlatformErrorSummary({});
+  let responseHash = "";
+  let passed = false;
+  let deliveryCount = 0;
+  let rateLimitedDeliveryCount = 0;
+
+  for (let index = 0; index < deliveryOffsets.length; index += 1) {
+    const deliveryNo = index + 1;
+    const scheduledOffsetMs = deliveryOffsets[index];
+    const remainingDelayMs = Math.max(0, deliveryStartedAtMs + scheduledOffsetMs - nowMs());
+    if (remainingDelayMs > 0) await wait(remainingDelayMs);
+    const scheduledAt = new Date(deliveryStartedAtMs + scheduledOffsetMs).toISOString();
+    const deliveryId = `${actionId}-DELIVERY-${String(deliveryNo).padStart(2, "0")}`;
+    const deliveryStartedAt = new Date(nowMs()).toISOString();
+    if (typeof repo.upsertStdProjectCreateDelivery === "function") {
+      await repo.upsertStdProjectCreateDelivery({
+        deliveryId,
+        actionId,
+        deliveryNo,
+        deliveryStatus: "started",
+        scheduledOffsetMs,
+        scheduledAt,
+        startedAt: deliveryStartedAt,
+        requestHash,
+        metadata: { payload_stored: false, response_stored: false, retry_allowed: false }
+      });
+    }
+    try {
+      response = await fetchWithDeadline(fetchImpl, `${API_BASE}${CREATE_ENDPOINT}`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "Access-Token": env.OCEANENGINE_ACCESS_TOKEN },
+        body: wireBody.body
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
+      text = await response.text();
+    } catch (error) {
+      const timedOut = isPlatformDeadlineError(error);
+      responseHash = `sha256:${sha256(canonicalJson({ request_hash: requestHash, outcome: "transport_unconfirmed", retry_allowed: false }))}`;
+      if (typeof repo.upsertStdProjectCreateDelivery === "function") {
+        await repo.upsertStdProjectCreateDelivery({
+          deliveryId,
+          actionId,
+          deliveryNo,
+          deliveryStatus: "failed_or_unconfirmed",
+          scheduledOffsetMs,
+          scheduledAt,
+          startedAt: deliveryStartedAt,
+          finishedAt: new Date(nowMs()).toISOString(),
+          requestHash,
+          responseHash,
+          apiCode: timedOut ? "timeout" : "transport_error",
+          errorCategory: "unclassified",
+          errorSummary: "platform_create_transport_not_confirmed",
+          metadata: { payload_stored: false, response_stored: false, retry_allowed: false }
+        });
+      }
+      await repo.upsertPlatformAction({
+        actionId, jobId: runtimeTarget.jobId, confirmationId, planId: runtimeTarget.planId,
+        actionType: "oceanengine_std_project_create", endpoint: CREATE_ENDPOINT, method: "POST",
+        actionStatus: "failed_or_unconfirmed", attemptNo: runtimeTarget.createAttemptNo, requestHash, responseHash,
+        httpStatus: null, apiCode: timedOut ? "timeout" : "transport_error", requestIdPresent: false,
+        objectIdPresent: false, errorSummary: "platform_create_transport_not_confirmed", requestId: "",
+        errorCategory: "unclassified", offendingFieldPath: "", idempotencyKey: runtimeTarget.planStdProjectCreateIdempotencyKey,
+        responseSummary: {
+          api_code: timedOut ? "timeout" : "transport_error", request_id_present: false, object_id_present: false,
+          error_category: "unclassified", offending_field_path: "", transport_unconfirmed: true,
+          outcome_category: "platform_response_unknown", timeout: timedOut, response_hash_present: true, raw_response_stored: false
+        },
+        finishedAt: new Date(nowMs()).toISOString(),
+        metadata: {
+          target_project_name: runtimeTarget.projectName, raw_payload_stored: false, raw_response_stored: false,
+          retry_allowed: false, attempt_no: runtimeTarget.createAttemptNo, delivery_count: deliveryNo,
+          rate_limited_delivery_count: rateLimitedDeliveryCount, verification_series_id: runtimeTarget.verificationSeriesId || "",
+          verification_task_ref: runtimeTarget.verificationTaskRef || ""
+        }
+      });
+      await repo.upsertEvidence({
+        artifactId: evidenceRef, jobId: runtimeTarget.jobId, artifactType: "std_project_create_once_transport_unconfirmed",
+        title: "std_project create transport unconfirmed",
+        summary: `endpoint=std_project/create delivery_count=${deliveryNo} transport_status=unconfirmed request_id_present=false std_project_id_present=false response_hash_present=true retry_allowed=false`,
+        contentHash: responseHash, storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+        sourceRef: `oceanengine:${CREATE_ENDPOINT}`, sourceUsage: "runtime_truth"
+      });
+      return { status: "create_failed_stop_for_manual_review", createCalled: true, httpStatus: null,
+        apiCode: timedOut ? "timeout" : "transport_error", requestIdPresent: false, stdProjectId: "",
+        deliveryCount: deliveryNo, rateLimitedDeliveryCount, maximumDeliveryCalls: deliveryPolicy?.maximum_delivery_calls || 1, evidenceRef };
+    }
+
     payload = {};
+    try { payload = parseOceanEngineStdProjectResponse(text); } catch { payload = {}; }
+    apiCode = extractApiCode(payload);
+    requestId = extractRequestId(payload);
+    requestIdPresent = Boolean(requestId);
+    // Delivery/action audits retain only whether a request ID was present.
+    // The ID itself is platform-response data and is not needed for recovery.
+    persistedRequestId = "";
+    stdProjectId = extractStdProjectId(payload);
+    safeErrorSummary = safePlatformErrorSummary(payload);
+    responseHash = `sha256:${sha256(text)}`;
+    passed = response.ok && (apiCode === "0" || apiCode === "") && Boolean(stdProjectId);
+    const rateLimited = apiCode === STD_PROJECT_40100_REDELIVERY_POLICY.api_code && !stdProjectId;
+    deliveryCount = deliveryNo;
+    if (rateLimited) rateLimitedDeliveryCount += 1;
+    if (typeof repo.upsertStdProjectCreateDelivery === "function") {
+      await repo.upsertStdProjectCreateDelivery({
+        deliveryId, actionId, deliveryNo, scheduledOffsetMs, scheduledAt, startedAt: deliveryStartedAt,
+        finishedAt: new Date(nowMs()).toISOString(), requestHash, responseHash, httpStatus: response.status,
+        apiCode: apiCode || "unknown", requestIdPresent, objectIdPresent: Boolean(stdProjectId),
+        deliveryStatus: passed ? "succeeded" : rateLimited ? "rate_limited" : "failed",
+        errorCategory: passed ? "" : safeErrorSummary.error_category,
+        errorSummary: passed ? "" : safeErrorSummary.safe_error_text,
+        metadata: { payload_stored: false, response_stored: false, retry_allowed: false }
+      });
+    }
+    if (!(rateLimited && deliveryPolicy && deliveryNo < deliveryOffsets.length)) break;
   }
-  const apiCode = extractApiCode(payload);
-  const requestId = extractRequestId(payload);
-  const requestIdPresent = Boolean(requestId);
-  const persistedRequestId = safePersistedRequestId(requestId);
-  const stdProjectId = extractStdProjectId(payload);
-  const safeErrorSummary = safePlatformErrorSummary(payload);
-  const responseHash = `sha256:${sha256(text)}`;
-  const passed = response.ok && (apiCode === "0" || apiCode === "") && Boolean(stdProjectId);
-  const evidenceRef = `EV-${runtimeTarget.jobId}-STD-PROJECT-CREATE-A${attemptLabel}`;
   await repo.upsertPlatformAction({
     actionId,
     jobId: runtimeTarget.jobId,
@@ -776,15 +862,21 @@ export async function createStdProjectForTargetOnce({
       ...safeErrorSummary,
       request_id_saved: Boolean(persistedRequestId),
       object_id_present: Boolean(stdProjectId),
+      delivery_count: deliveryCount,
+      rate_limited_delivery_count: rateLimitedDeliveryCount,
+      maximum_delivery_calls: deliveryPolicy?.maximum_delivery_calls || 1,
       response_hash_present: true
     },
-    finishedAt: new Date().toISOString(),
+    finishedAt: new Date(nowMs()).toISOString(),
     metadata: {
       target_project_name: runtimeTarget.projectName,
       raw_payload_stored: false,
       raw_response_stored: false,
       retry_allowed: false,
       attempt_no: runtimeTarget.createAttemptNo,
+      delivery_count: deliveryCount,
+      rate_limited_delivery_count: rateLimitedDeliveryCount,
+      maximum_delivery_calls: deliveryPolicy?.maximum_delivery_calls || 1,
       verification_series_id: runtimeTarget.verificationSeriesId || "",
       verification_task_ref: runtimeTarget.verificationTaskRef || ""
     }
@@ -792,9 +884,11 @@ export async function createStdProjectForTargetOnce({
   await repo.upsertEvidence({
     artifactId: evidenceRef,
     jobId: runtimeTarget.jobId,
-    artifactType: passed ? "std_project_create_once" : "std_project_create_once_failed",
+    artifactType: passed ? "std_project_create_once" : rateLimitedDeliveryCount === deliveryCount && deliveryCount === 3
+      ? "std_project_create_rate_limit_retry_exhausted"
+      : "std_project_create_once_failed",
     title: "std_project create once",
-    summary: `endpoint=std_project/create http=${response.status} api_code=${apiCode || "unknown"} request_id_present=${requestIdPresent} request_id_saved=${Boolean(persistedRequestId)} safe_error=${passed ? "none" : safeErrorSummary.safe_error_text} std_project_id_present=${Boolean(stdProjectId)} response_hash_present=true`,
+    summary: `endpoint=std_project/create delivery_count=${deliveryCount} rate_limited_delivery_count=${rateLimitedDeliveryCount} http=${response.status} api_code=${apiCode || "unknown"} request_id_present=${requestIdPresent} request_id_saved=${Boolean(persistedRequestId)} safe_error=${passed ? "none" : safeErrorSummary.safe_error_text} std_project_id_present=${Boolean(stdProjectId)} response_hash_present=true`,
     contentHash: responseHash,
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: `oceanengine:${CREATE_ENDPOINT}`,
@@ -802,7 +896,20 @@ export async function createStdProjectForTargetOnce({
   });
 
   if (!passed) {
-    return { status: "create_failed_stop_for_manual_review", createCalled: true, httpStatus: response.status, apiCode, requestIdPresent, stdProjectId: "", evidenceRef };
+    return {
+      status: rateLimitedDeliveryCount === deliveryCount && deliveryCount === 3
+        ? "create_rate_limit_retry_exhausted"
+        : "create_failed_stop_for_manual_review",
+      createCalled: true,
+      httpStatus: response.status,
+      apiCode,
+      requestIdPresent,
+      stdProjectId: "",
+      deliveryCount,
+      rateLimitedDeliveryCount,
+      maximumDeliveryCalls: deliveryPolicy?.maximum_delivery_calls || 1,
+      evidenceRef
+    };
   }
 
   await repo.upsertReadbackRecord({
@@ -846,6 +953,9 @@ export async function createStdProjectForTargetOnce({
     httpStatus: response.status,
     apiCode,
     requestIdPresent,
+    deliveryCount,
+    rateLimitedDeliveryCount,
+    maximumDeliveryCalls: deliveryPolicy?.maximum_delivery_calls || 1,
     stdProjectId,
     projectName: runtimeTarget.projectName,
     evidenceRef

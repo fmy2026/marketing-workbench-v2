@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { validatePlanConfirmationScope, validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "../src/workflows/executeConfirmedLaunch.mjs";
 import { evaluatePlanBoundWriteAuthorization } from "../src/workflows/workbenchRuntimeWritePolicy.mjs";
+import { STD_PROJECT_40100_REDELIVERY_CONTRACT } from "../src/workflows/executionPlan.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -16,7 +17,7 @@ const caseId = "CASE-WORKBENCH-RUNTIME-POLICY-SMOKE";
 const advertiserId = "1871922434025472";
 const planId = `PLAN-${jobId}-V1`;
 const planHash = `sha256:${"a".repeat(64)}`;
-const actions = [{ action_type: "ensure_resource:avatar", status: "planned" }];
+const actions = [{ action_type: "ensure_resource:avatar", status: "planned", maximum_platform_calls: 2 }];
 const plan = {
   plan_id: planId,
   plan_hash: planHash,
@@ -33,6 +34,10 @@ const plan = {
       target_plan_hash: planHash,
       allowed_actions: actions.map((action) => action.action_type),
       maximum_actions: 1,
+      maximum_platform_calls: 2,
+      action_grants: {
+        "ensure_resource:avatar": { maximum_platform_calls: 2, retry_allowed: false }
+      },
       maximum_create_calls: 0,
       retry_allowed: false
     }
@@ -137,7 +142,12 @@ try {
     plan_kind: "std_project_create",
     plan_status: "ready",
     blocker_codes: [],
-    planned_actions: [{ action_type: "std_project_create", status: "planned" }],
+    planned_actions: [{
+      action_type: "std_project_create",
+      status: "planned",
+      maximum_platform_calls: 3,
+      rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT }
+    }],
     metadata: {
       planning_intent: {
         project_name: "WORKBENCH_RUNTIME_POLICY_SMOKE",
@@ -153,7 +163,16 @@ try {
         target_plan_hash: createPlanHash,
         allowed_actions: ["std_project_create"],
         maximum_actions: 1,
+        maximum_platform_calls: 3,
         maximum_create_calls: 1,
+        rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT },
+        action_grants: {
+          std_project_create: {
+            maximum_platform_calls: 3,
+            retry_allowed: false,
+            rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT }
+          }
+        },
         retry_allowed: false
       }
     }

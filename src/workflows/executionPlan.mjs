@@ -40,6 +40,14 @@ export const PLAN_KIND_MONITOR_BOOTSTRAP = "monitor_bootstrap";
 export const PLAN_KIND_RESOURCE_PREPARE = "resource_prepare";
 export const PLAN_KIND_STD_PROJECT_CREATE = "std_project_create";
 export const PLAN_KIND_READINESS_BLOCKED = "readiness_blocked";
+export const STD_PROJECT_40100_REDELIVERY_CONTRACT = Object.freeze({
+  endpoint: "/open_api/v3.0/std_project/create/",
+  api_code: "40100",
+  maximum_delivery_calls: 3,
+  scheduled_offsets_ms: Object.freeze([0, 20000, 45000]),
+  jitter_max_ms: 4000,
+  maximum_total_elapsed_ms: 65000
+});
 
 const SINGLE_VARIABLE_CANDIDATE_RULES = Object.freeze({
   "audience.filter_event": Object.freeze({
@@ -72,7 +80,9 @@ function compactAction(action) {
     module_ref: action.module_ref,
     depends_on: action.depends_on || [],
     writes_to: action.writes_to || [],
-    reason: action.reason || ""
+    reason: action.reason || "",
+    maximum_platform_calls: Number(action.maximum_platform_calls || 0),
+    rate_limit_redelivery: action.rate_limit_redelivery || {}
   };
 }
 
@@ -196,7 +206,7 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
     [EVENT_CONFIGS_PROVISION_ACTION]: 6,
     "ensure_resource:video_asset": 1,
     "ensure_resource:product_image": 1,
-    [ACTION_STD_PROJECT_CREATE]: 1
+    [ACTION_STD_PROJECT_CREATE]: STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
   })[actionType] || 1;
   const maximumPlatformCalls = Number(configuredLimit);
   const officialContracts = {
@@ -682,7 +692,8 @@ function compilePlannedActions(bundle = {}, {
       depends_on: ["payload_hash_latest", ...dependencyForCreate],
       writes_to: ["launch_confirmations", "platform_actions", "created_objects"],
       reason: draftReady(bundle) ? "draft_ready_for_single_create" : "final_draft_pending_confirmed_resource_actions",
-      maximum_platform_calls: grant.maximum_platform_calls
+      maximum_platform_calls: grant.maximum_platform_calls,
+      rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT }
     });
   } else if (blockers.length > 0 && draft?.draft_id) {
     blockers.push("draft_not_ready_for_std_project_create");
@@ -807,11 +818,17 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
         maximum_platform_calls: maximumPlatformCalls,
         action_grants: Object.fromEntries(plannedActions.map((action) => [
           action.action_type,
-          actionGrantDefaults(action.action_type, {
-            [action.action_type]: Number(action.maximum_platform_calls || 0)
-          })
+          {
+            ...actionGrantDefaults(action.action_type, {
+              [action.action_type]: Number(action.maximum_platform_calls || 0)
+            }),
+            ...(action.action_type === ACTION_STD_PROJECT_CREATE
+              ? { rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT } }
+              : {})
+          }
         ])),
         maximum_create_calls: hasCreateAction ? 1 : 0,
+        ...(hasCreateAction ? { rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT } } : {}),
         retry_allowed: false
       },
       root_blocker_codes: rootBlockerCodes,
