@@ -1,0 +1,150 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910",
+  "task_ref": "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md",
+  "status": "completed",
+  "created_at": "2026-09-10T02:13:34Z",
+  "updated_at": "2026-09-10T02:21:43Z",
+  "base_revision": "94e22eea0a908bb6782746092c9b9628115c365d",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "docs/qiankun-api-docs-20260827.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910/**"
+  ],
+  "forbidden_actions": [
+    "真实平台写入、OAuth 刷新、数据库写入或外部资产操作",
+    "修改现有 Case、Job、Plan、资源、action、confirmation、readback 或账户能力动态事实",
+    "修改 Node、Skill、Gate、Plan/action 类型、确认短语、写入入口或平台调用逻辑",
+    "在项目文件保存 token、secret、Cookie、auth_code、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "精简需要改变既有 Node、Skill、Gate、Plan、资源能力或运行时安全边界",
+    "当前权威实现、数据契约与文档无法确定相同的静态机制",
+    "验证需要连接业务数据库、调用真实平台或扩大文件修改范围"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "人工核对 docs/project-现在的逻辑图.md 的单一闭环、真值分工、正式写入链、消费者边界与篇幅"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run smoke:workflow-skills && npm run test:resource-action-registry && npm run test:execution-plan"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "人工对照 mwb.workflow_case_summary 合同、Gate Action Policy 与文档核心情况矩阵"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:workflow-case && npm run test:workbench-conversation && git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "人工核对 docs/project-现在的逻辑图.md 的单一闭环、真值分工、正式写入链、消费者边界与篇幅",
+      "verified_at": "2026-09-10T02:20:35Z",
+      "summary": "当前逻辑图已精简为 132 行的静态机制总览；唯一闭环、真值所有者、正式写入链和工作台只消费 summary 的边界均只解释一次，未复制动态状态、SQL 优先级或接口参数。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910/validation.md#ac-01"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run smoke:workflow-skills && npm run test:resource-action-registry && npm run test:execution-plan",
+      "verified_at": "2026-09-10T02:20:35Z",
+      "summary": "三组测试通过；文档覆盖 7 Node、六种 mode、八类资源、四种聚合状态、三类可确认 Plan 和不可执行的 readiness_blocked，且按核心场景归纳 Skill。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910/validation.md#ac-02"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "人工对照 mwb.workflow_case_summary 合同、Gate Action Policy 与文档核心情况矩阵",
+      "verified_at": "2026-09-10T02:20:35Z",
+      "summary": "核心矩阵覆盖当前十种 Case Gate，只规定消费者允许动作；精确优先级仍明确唯一属于 SQL View，monitor 专链与通用 runner 边界清楚。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910/validation.md#ac-03"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:workflow-case && npm run test:workbench-conversation && git diff --check",
+      "verified_at": "2026-09-10T02:20:35Z",
+      "summary": "Case 与工作台测试及 diff 检查通过；Solution Design 仅收紧既有决策行，测试未发生真实平台写入。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910/validation.md#ac-04"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "重构为 Workflow Skill、Case Gate、Plan-bound 执行与权威回查的唯一静态底层机制总览。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "收紧既有当前逻辑图分层决策，不新增重复决策。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "未改变数据库结构、字段、来源、读写责任、View 或报表口径。"
+    },
+    {
+      "ref": "docs/qiankun-api-docs-20260827.md",
+      "status": "not_needed",
+      "reason": "未改变乾坤接口、参数、响应合同或平台适配器。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "未改变部署、网络、凭据录入或 OAuth 运维行为。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "当前逻辑图已精简为从 Workflow Skill 到 Case Gate、确认执行和权威回查的唯一静态底层机制，并完整覆盖核心运行情况。",
+    "side_effects": "仅修改静态 Markdown、任务合同和验证证据；未连接业务数据库，未调用 OAuth、真实平台或外部资产操作。",
+    "remaining_risks": [
+      "Node/Skill、runner mode、资源 capability、Plan/确认合同或 workflow_case_summary 变化时，必须重新校验本总览。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T02:21:43Z"
+}

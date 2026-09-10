@@ -1,153 +1,132 @@
-# marketing-workbench-v2｜当前逻辑图与执行 Gate
+# marketing-workbench-v2｜唯一底层机制：Workflow Skill → Case Gate → 执行闭环
 
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
-| 最后更新时间 | 2026-09-09 CST |
-| 校验基线 | 当前代码、Schema migrations 至 `080`、Node 注册表与数据契约 |
+| 最后更新时间 | 2026-09-10 CST |
+| 校验基线 | 当前代码、Schema migrations 至 `080`、Node/Skill/资源注册表与数据契约 |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
-| 权威来源 | 实现查注册表/代码/SQL，业务事实查 Postgres；本文只解释静态机制与消费者边界 |
-| 重新校验条件 | 7 Node 注册表、资源能力、Plan/确认规则、`workflow_case_summary` Gate 优先级、工作台 Case/Job 入口或 Schema/View 变化时 |
+| 重新校验条件 | Node/Skill、runner mode、资源能力、Plan/确认、Case summary、工作台入口或 Schema/View 变化时 |
 
-> 本机制在当前 OE3 字节小游戏路线内通用，并非跨平台、跨路线的抽象承诺。路线差异必须进入配置、资源注册表、字段合同或平台适配器，不能变成账户、Case、Job 或用户 ID 特例。
+> “唯一”指每类事实只有一个权威所有者，不表示本路线机制可直接泛化到其他平台。本文不保存任何账户、Case、Job、Plan、资源、确认或平台动作的当前状态；动态业务事实只查 Postgres。
 
-> 本文不保存账户、Case、Job、Plan、资源、确认或平台动作当前状态。它们的唯一运行真值是 Postgres；消费者只读 `mwb.workflow_case_summary`。
-
-## 1. 总机制：真值、主链与不变量
-
-### 1.1 五个维度与唯一所有者
-
-| 要回答的问题 | 机制维度 | 唯一所有者 | 消费原则 |
-| --- | --- | --- | --- |
-| 项目允许做什么 | 控制面、任务范围、全局 Guardrail | `AGENTS.md`、`project.state.json`、active Task/Manifest | 不保存业务动态事实 |
-| 当前事实是什么 | 配置、账户、Case、Job、Plan、动作与证据 | Postgres `marketing_workbench_v2.mwb` | 代码与 Markdown 不复制当前状态 |
-| 流程由哪些模块组成 | 3 阶段 7 Node、Skill、runner | `00-workflow-node-registry.mjs`、`00-contracts.mjs`、`00-runner.mjs` | Node 是模块结构，不是动态事实 |
-| 平台写入是否被允许 | 冻结 Plan、确认、action grant 与调用上限 | Execution Plan 合同与 runtime policy | 缺一不可，不能用 CLI 绕过 |
-| 现在下一步是什么 | Gate、唯一 root blocker、建议动作 | `mwb.workflow_case_summary` | 前端/API/CLI 只读投影，不自行推导 |
+## 1. 唯一闭环与真值分工
 
 ```text
-本人输入 route + game + advertiser
-→ 账户 owner 精确只读校验
-→ active Case + fresh runtime Job
-→ Node 01–04：发现、核验、Plan 编译
-→ BLOCKED / Resource Plan ready / Create Plan ready
-→ 精确 plan_id + plan_hash 人工确认
-→ Plan-bound executor 单次写入
+本人作用域 Intake
+→ active Case + fresh Job
+→ runner 按 3 阶段 7 Node 调度 Workflow Skill
+→ monitor / 账户资源 / Draft 就绪判定
+→ BLOCKED、WAITING 或冻结 Plan
+→ plan_id + plan_hash + 本人精确确认 + action grant
+→ 有界 Plan-bound executor
 → 权威只读回查与脱敏证据
-→ workflow_case_summary 投影唯一 Gate、blocker 与下一步
+→ workflow_case_summary 投影唯一 Gate、root blocker、next action
+→ 工作台只消费投影，不自行计算状态
 ```
 
-正式业务写入只有一条链：`工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories`。CLI 只能用于 dry-run、状态、readback 和明确标注的安全诊断，不能成为旁路写入入口。
-
-### 1.2 不变量
-
-- 账户归属在 Case/Job 前精确校验；普通用户只能读取、运行和确认本人账户，管理员不代操作他人账户。
-- `Case` 表示持续业务目标，`Job` 表示一次运行；同一 `route × game × advertiser` 最多一个 active runtime Case，fresh Job 不继承旧确认或动作。
-- 未确认前只读或编译 Plan；资源准备与标准项目创建始终是两份独立 Plan，monitor 是 Node 02 的独立 bootstrap。
-- 每份确认 Plan 只消费冻结动作一次；失败、漂移或修正必须使用 fresh Job/Plan/confirmation。唯一窄化例外：冻结的标准项目创建 action 收到无对象 ID 的精确 `40100` 时，可在同一 action 内最多三次错峰物理投递；其他错误、超时和不明响应均禁止自动重试。
-- 平台受理或界面显示不等于 verified；只有权威只读回查通过，才能把资源或创建对象标为 verified。
-- OAuth 凭据刷新不属于业务 Plan：仅授权的 `oceanengine-v2-token-refresh` cron 可在每天 12:01（Asia/Shanghai）执行一次刷新。它不调用业务 API；成功或失败仅写入受控凭据和脱敏 audit，失败不自动重试。
-
-## 2. 流程模块：三阶段七 Node
-
-节点定义只来自 `src/workflows/skills/oe3/00-workflow-node-registry.mjs`。下表说明模块责任；动态进度、子节点结果和等待态仍以 Job 与 Case summary 为准。
-
-| 阶段 | Node | 输入 → 输出 | 固定边界 |
-| --- | --- | --- | --- |
-| 准备 | 01 `launch_intake` | route、game、advertiser → 规范化 intake | 不访问平台；owner 校验属于建档前访问控制，不是 Node |
-| 准备 | 02 `creation_context` | 账户、触点、monitor、平台 App → 创建上下文 | monitor 只能由独立 `monitor_bootstrap` Plan 创建，不混入项目创建 |
-| 准备 | 03 `game_launch_pack` | 主档、默认值、物料、备用页、资源蓝图 → 游戏保底包 | 不从历史账户复制动态资源 ID |
-| 就绪 | 04 `account_resource_prepare` | 目标账户 fresh readonly、资源蓝图 → `account_ready_report`、资源 Plan 输入 | 未确认前零平台写入 |
-| 就绪 | 05 `std_project_draft_builder` | 已验证资源、字段合同、未删除同名与语义标的/竞价策略查重 → Draft、payload hash、创建就绪 | 不创建项目；列表字段或分页不完整时 fail-closed |
-| 创建执行 | 06 `std_project_create_executor` | 已确认 Create Plan → 一个逻辑创建动作、至多三条脱敏 delivery 审计与对象记录 | 常规仅一次 `std_project/create`；仅 `40100` 且无对象 ID 可在同一 action 按 `0 / 20–24 / 45–49` 秒投递至多三次，Case Attempt 不随物理投递累加 |
-| 创建执行 | 07 `readback_closer` | 创建对象、Draft → verified readback 与证据 | 不以补发 create 修复回查问题 |
-
-运行模式共有六类：`dry_run` 与 `draft_readiness` 不写平台；`planned_actions` 只编译明确计划动作；`execute_once` 只能消费已确认 Plan；`readback_only` 绝不创建；`aweme_auth_readonly` 仅运行至 Node 04 的抖音号授权只读核验，不生成 Draft 或 Plan。
-
-## 3. 状态维度：资源就绪与 Case Gate
-
-### 3.1 Node 04 资源状态
-
-资源状态不是另一套流程，Node 04 用它决定能否继续、能否编译资源 Plan：
-
-| 状态 | 含义 | 后续 |
+| 问题 | 唯一所有者 | 消费边界 |
 | --- | --- | --- |
-| `READY` | 目标账户唯一命中、字段合同与权威回查均通过 | 可进入 Node 05 |
-| `PLANNED` | 资源缺失，但 `prepare_supported=true` 且执行器、调用上限与回查合同齐全 | 仅进入 Resource Plan 确认卡 |
-| `BLOCKED` | 只读失败、多候选、来源/合同/执行器缺失或回查失败 | 形成唯一 root blocker，零平台写入 |
+| 项目和任务允许什么 | `AGENTS.md`、`project.state.json`、active Task/Manifest | 不保存业务动态事实 |
+| 当前业务事实是什么 | Postgres `marketing_workbench_v2.mwb` | Markdown、前端和代码不复制当前状态 |
+| Workflow 如何组成和调度 | Node 注册表、Skill 合同、runner | Node 是模块结构；Skill run 才是 Job 过程事实 |
+| 平台动作是否可执行 | 冻结 Plan、confirmation、action grant、runtime policy | 缺一不可，CLI 不得旁路写入 |
+| Case 现在该做什么 | `mwb.workflow_case_summary` | 每个 Case 只投影一个 Gate、零或一个 root blocker 和一个 next action |
 
-当前 OE3 资源能力由 [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 定义：可受控准备的是 `avatar`、`dmp_audience_package`、`event_asset`、`video_asset`、`product_image`；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时只形成 blocker。`micro_app_instance` 的等待状态与事件链、逐资源证据、动作顺序和调用量只查该注册表及其引用合同。
+正式业务写入只有 `工作台 / HTTP API → 通用 Plan-bound executor → platforms / repositories` 一条链。CLI 只允许 dry-run、状态、readback 和明确标注的安全诊断。
 
-视频引导与显式封面是独立 capability。JSZC 的 route policy 要求每个 fresh Job 在唯一已核验小游戏实例上调用一次 `gameplay/list`：唯一非空 `guide_video_id` 时将同一 ID 写入每条 required video；成功空列表时省略；多个不同 ID 或 probe 失败时停止。`guide_video_required=true` 是兼容性强制要求，空列表仍必须阻断；`video_cover_required=true` 才额外要求每条视频有当前 Job 已核验的 `video_cover_id`。动态 ID 只保存在 `micro_app_instance.metadata.guide_video_readiness` 的当前 Job 事实中，不能进入路线默认值、账户特例代码或视频行。`auth_status=ready` 判断授权就绪；`platform_status` 只作诊断，不参与此分支。
+## 2. Workflow Skill：三阶段七 Node
 
-### 3.2 当前 Case Gate
+Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-registry.mjs) 定义；Skill 的依赖、输入、输出、停止条件与写入责任查 [Skill 合同](../src/workflows/skills/oe3/00-contracts.mjs)；mode 的实际顺序只查 [runner](../src/workflows/skills/oe3/00-runner.mjs)。
 
-`workflow_case_summary` 每个 Case 只给出一个 `current_gate`、零或一个 `root_blocker_codes` 与一个 `suggested_next_action`。SQL View 决定精确优先级；下表只按消费者行为分组，不复制第二套 Gate 规则。
+| 阶段 / Node | Skill 组 | 核心职责 → 输出或停止分支 |
+| --- | --- | --- |
+| 准备 01 `launch_intake` | `intake-normalize` | route、game、advertiser 规范化为 intake；缺字段即停止。owner 精确校验发生在建档前，不属于 Node。 |
+| 准备 02 `creation_context` | `context-resolve-*`、`monitor-state-read`；独立 monitor reconcile → Plan → execute → readback 链 | 装配账户、触点、monitor、平台 App；普通 schedule 只读 monitor 状态，缺失 monitor 只能走独立 `monitor_bootstrap` Plan。 |
+| 准备 03 `game_launch_pack` | `launch-pack-resolve-*` | 解析游戏主档、路线默认值、保底物料、备用页与资源蓝图；不从历史账户复制动态资源 ID。 |
+| 就绪 04 `account_resource_prepare` | blueprint bootstrap、目标账户 readonly、抖音授权、资源来源/绑定/事件链与八类 verifier | 产出 `account_ready_report` 和四态资源摘要；只读、来源或合同不完整时 fail-closed，未确认前零平台写入。 |
+| 就绪 05 `std_project_draft_builder` | confirmed resource orchestrator、`payload-build`、`payload-contract`、`duplicate-check`、`create-readiness` | 受控执行已确认资源 Plan，或生成 Draft/hash 并完成字段合同及未删除同名+语义查重；不创建项目。 |
+| 创建执行 06 `std_project_create_executor` | execution grant、`create-once`、持久化结果 | 只消费已确认 Create Plan，记录一个逻辑创建 action 与结果；授权或绑定漂移即停止。 |
+| 创建执行 07 `readback_closer` | `readback-std-project`、一致性与证据投影 | 以对象 ID/名称和字段回查决定 verified、等待或 blocker；不得补发 create 修复回查。 |
 
-| Gate | 消费端可做的事 |
+注册 Skill 不等于都进入每种 schedule：monitor 后四步由 Gate/Plan 专链调用；小程序实例 authority Skill 是诊断入口；事件配置 baseline 是资源动作依赖。它们仍归属对应 Node，但不能被通用 runner 当成自动平台写入。
+
+| runner mode | 范围与写入边界 |
 | --- | --- |
-| `first_std_project_create_completed` | 只读完成投影；必须已有完整 verified 创建与回查证据 |
-| `review_latest_job` | 只读查看终态或不完整证据；不展示确认或重试入口 |
-| `run_readback_only` | 只执行权威只读回查，绝不再次创建 |
-| `prepare_corrective_attempt` / `manual_review_after_attempt_limit` | 明确创建失败后先按 Case 尝试次数处理；新 Attempt 或替代 Case 都须 fresh readonly，不能重放旧授权 |
-| `run_monitor_readonly` / `resolve_case_blocker` | 处理 monitor、上下文、资源或 Plan 的唯一 blocker；只允许 Gate Policy 精确放行的恢复性 readonly |
-| `await_job_write_authorization` | 只展示与当前 ready Plan 精确绑定的确认卡 |
-| `run_fresh_readiness` | 继续当前 Job 的只读就绪检查，编译或复用后续 Plan |
+| `dry_run` | 运行只读就绪与 Node 05，编译当前 Plan；不写平台。 |
+| `draft_readiness` | 运行同一就绪 Skill 并生成 Draft/就绪结果；runner 不编译或执行平台 Plan。 |
+| `planned_actions` | 运行至 Node 04 并编译资源状态/动作；不生成 Draft，不执行动作。 |
+| `execute_once` | 仅在确认上下文锁定后重核并消费对应 Plan；资源 Plan 与 Create Plan 走各自执行器。 |
+| `readback_only` | 只运行 Node 07 权威回查，绝不创建。 |
+| `aweme_auth_readonly` | 只运行至 Node 04 的抖音号授权核验，不生成 Draft 或 Plan。 |
 
-## 4. 执行维度：Plan、确认、单次写入与回查
+## 3. 核心情况：账户资源四态
 
-### 4.1 三类可确认 Plan
+Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_asset`、`video_asset`、`product_image`、`brand_info`、`micro_app_instance`、`backup_landing_page`。
 
-| Plan | 仅可包含 | 产生位置 | 不可包含 |
+| 聚合状态 | 含义 | 唯一后续 |
+| --- | --- | --- |
+| `READY` | 目标账户唯一命中且合同、可见性和所需回查通过 | 可进入 Node 05；不生成资源动作 |
+| `WAITING` | 资源正在等待已知依赖，如事件资产或 baseline 事件配置 | 由依赖资源的既有 Plan/action 推进；自身不伪造写动作或 blocker |
+| `PLANNED` | 缺失或未就绪，但 `prepare_supported=true` 且执行器、调用量和回查合同完整 | 只能生成 `resource_prepare` 确认卡 |
+| `BLOCKED` | 只读失败、多候选、来源/合同缺失，或资源不支持自动准备 | 形成候选 root blocker，零平台写入 |
+
+[资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) 是资源能力、动作顺序、调用量与证据要求的唯一来源。当前可受控准备前五类；`brand_info`、`micro_app_instance`、`backup_landing_page` 缺失时不自动创建，其中备用页只允许既定人工共享后的只读核验。引导视频/封面等账户 capability 与动态 ID 存储只查[数据契约](project-数据与报表契约.md#配置与资源来源)及对应 verifier，不在本总览复制。
+
+## 4. Plan、确认与执行不变量
+
+| Plan kind | 唯一内容 | 产生条件 | 明确禁止 |
 | --- | --- | --- | --- |
-| `monitor_bootstrap` | 一次 `ensure_monitor` | Node 02 monitor 缺失且合同完整 | 资源动作、项目创建 |
-| `resource_prepare` | 注册表支持的 `ensure_resource:*` 及其受控依赖动作 | Node 04 存在 `PLANNED` 资源 | `std_project_create` |
-| `std_project_create` | 一次 `std_project_create` | Node 05 Draft、字段合同和查重均通过 | monitor 或资源准备动作 |
-
-`readiness_blocked` 仅表达不可执行的就绪检查结果，不能确认或写平台。每份可执行 Plan 都冻结 `case_id`、`job_id`、`advertiser_id`、`plan_id`、`plan_hash`、版本、动作、调用上限、资源状态、blocker 与必要的 Draft/payload hash。
+| `monitor_bootstrap` | 一次 `ensure_monitor` | Node 02 fresh readonly 证明缺失且合同完整 | 资源动作、项目创建 |
+| `resource_prepare` | 注册表支持的有序、定量资源动作及依赖动作 | Node 04 存在 `PLANNED` | `std_project_create` |
+| `std_project_create` | 一个逻辑 `std_project_create` | Node 05 Draft、字段合同、查重和资源均通过 | monitor 或资源准备动作 |
+| `readiness_blocked` | blocker 与就绪快照 | 任一前提不满足 | confirmation 与平台写入 |
 
 ```text
 全局 Guardrail
-        + 同一 plan_id + plan_hash 的本人 confirmation
-        + action grant / execution scope 的目标、动作与调用次数校验
-        = 唯一允许的平台写入
++ 当前 latest Job 的 ready Plan 与精确 plan_id / plan_hash
++ 账户本人的单次 confirmation
++ action grant 的目标、动作、顺序与 maximum_platform_calls
+= 唯一可执行的平台写入
 ```
 
-确认前会重新执行所需 fresh readonly；任一资源、调用量、hash、授权或标准项目重复状态漂移都会停止当前 Plan。Node 05 的重复判定始终排除 `PROJECT_STATUS_DELETE`，并同时检查名称与路线合同指定的语义标的字段；任一列表分页、状态过滤或比较字段不可靠均不得确认创建。写入后必须原子记录动作，并以权威只读回查决定 READY、verified、waiting readback 或 blocker。HTTP deadline、幂等键、事件配置顺序、字段编码和最终一致性窗口是执行合同，分别查 `executionPlan.mjs`、资源执行器与数据契约，不在本总览重复。
+- `Case` 表示持续业务目标，`Job` 表示一次运行；同一 route×game×advertiser 最多一个 active runtime Case，fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
+- monitor、资源准备和项目创建分别确认；资源回查通过后才以 fresh Job/Plan 生成创建确认卡。
+- 确认前重新执行所需 fresh readonly；资源、调用量、Draft/payload hash、授权或重复状态漂移均 fail-closed。
+- 每份确认 Plan 只消费冻结动作一次；写入受理不等于 READY，只有权威只读回查可以写入 verified。
+- 明确失败或修正使用新 Job/Plan/confirmation/Attempt。唯一例外是同一冻结 Create action 收到无对象 ID 的精确 `40100`，可在一个逻辑 action 内按合同错峰物理投递至多三次；其他错误、超时或不明结果不自动重试。
+- OAuth 刷新不属于业务 Plan，其授权和调度只查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)。普通文件、日志和前端只保存脱敏摘要、hash、必要 ID、字段路径与证据引用，禁止保存凭据、完整触点 URL 或 raw request/response。
 
 ## 5. 当前 Case Gate 与工作台
 
-工作台是机制的消费者，不是 Gate 计算器：
+`mwb.workflow_case_summary` 的 SQL View 决定精确优先级；同一 Case 即使同时满足多个描述，也只输出一个 `current_gate`。下表只定义消费者行为，不构成第二套 Gate 计算规则。
 
-```text
-用户消息
-→ allowlist Intent Resolver（只识别意图与输入槽位）
-→ Gate Action Policy（只读 summary）
-→ 状态说明 / safe readonly / 脱敏确认卡
-→ 已确认 Plan 才进入通用 executor
-```
+| 核心情况 | 投影 Gate | 唯一允许动作 |
+| --- | --- | --- |
+| active Case 尚无 Job | `create_fresh_job` | 建立 fresh Job 后从 readonly 开始 |
+| monitor/触点需要 fresh 查询 | `run_monitor_readonly` | 只读 reconcile；若确证缺失才编译 monitor Plan |
+| latest Job 可继续只读就绪 | `run_fresh_readiness` | 运行当前 Job 的安全 readonly/Plan 编译 |
+| 任一 ready monitor、资源或创建 Plan | `await_job_write_authorization` | 只展示与 Plan ID/hash 绑定的确认卡；“继续执行”不写平台 |
+| monitor 终态、上下文、资源或 Plan 有唯一当前阻断 | `resolve_case_blocker` | 展示 root blocker；只允许 Gate Policy 明示的恢复性 readonly |
+| 已有创建对象但未完成 verified 回查 | `run_readback_only` | 只读回查，绝不再次 create |
+| 明确创建失败且 Case 尚有次数 | `prepare_corrective_attempt` | 新建同 Case fresh Job/Attempt，重新 readonly 后再确认 |
+| Case 已达 `maximum_create_attempts` | `manual_review_after_attempt_limit` | 禁止重试；复盘批准后才可建立独立的一次性替代 Case |
+| 创建对象和回查证据完整 | `first_std_project_create_completed` | 只读完成投影并收口 Case |
+| 非 active 且没有精确完成证据，或其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试入口 |
 
-- 根页保持 idle，只读列出 active runtime Case；`?case_id=` 恢复该 Case 的最新 Job，`?job_id=` 只读查看历史 Job。无效、越权或冲突的 scope fail-closed，不回退到其他账户。
-- Node 面板固定投影 3 阶段 7 Node；动态 Gate、唯一 blocker 和下一步只来自 `workflow_case_summary`。对话、前端、API、CLI 和任务卡不得保存 raw transcript、写回状态或自行计算下一步。
-- 工作台仅将通用 blocker 映射为用户可执行文案；例如目标账户共享站点只读核验未完成时，显示“重新只读准备”的只读恢复提示，不展示 Gate、blocker 或 action 内部码。
-- “继续执行”只能触发当前 Gate 允许的只读流程；只有精确“确认准备资源”“确认创建”或“确认创建 monitor”且 Plan ID/hash 未漂移，才能消费对应 Plan。
-- 已停止的资源或 monitor Plan 只能通过 Gate Policy 允许的 fresh readonly 恢复，不复用旧 Plan、confirmation、action grant 或 idempotency key；所有特殊恢复分支以 [Gate Action Policy](../src/workflows/gateActionPolicy.mjs) 为准。
+工作台链路固定为 `allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan executor`。Intent Resolver 只识别意图和槽位；Gate Policy 只读 summary；历史 Job 始终只读；无效、越权或冲突 scope 均 fail-closed，不回退到其他账户。
 
-普通项目文件、日志、API 和前端只可保存脱敏摘要、hash、必要 ID、状态、字段路径和证据引用；禁止保存 token、secret、Cookie、auth_code、密码、完整触点 URL、raw request、raw payload 或 raw response。
+## 6. 权威来源索引
 
-## 6. 路线适配与权威引用
-
-下列细节必须在其唯一位置维护；新增能力应扩展合同或注册表，而不是扩写本总览或加入账户特例。
-
-| 需要确认的内容 | 唯一或优先读取位置 |
+| 要核对的细节 | 唯一或优先来源 |
 | --- | --- |
-| 项目启动、任务范围、全局 Guardrail、归档边界 | `AGENTS.md`、`project.state.json`、active Task/Manifest |
-| 方案方法与已批准关键选择 | [Solution Design](Solution%20Design.md) |
-| Node、Skill、子流程与模块归属 | `00-workflow-node-registry.mjs`、`00-contracts.mjs`、`00-runner.mjs` |
-| 资源类型、prepare 支持、动作顺序、证据与调用量 | [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
-| Plan 编译、hash/binding、确认范围与执行约束 | [Execution Plan](../src/workflows/executionPlan.mjs) 与执行 scope |
-| Case 当前 Gate、blocker、下一步及字段含义 | `mwb.workflow_case_summary`、[数据与报表契约 §4](project-数据与报表契约.md#4-workflow_case_summary-合同) |
-| 路线默认值、字段账本、资源来源、长 ID 存储 | [数据与报表契约](project-数据与报表契约.md) |
-| 对话命令与恢复性只读行为 | [Gate Action Policy](../src/workflows/gateActionPolicy.mjs) |
-| 乾坤接口参数、响应与平台细节 | [当前乾坤 API 文档](qiankun-api-docs-20260827.md) |
-| 网络、部署、启动与凭据录入 | [部署说明](../deploy/README.md) |
+| 启动、任务范围、全局 Guardrail、归档 | `AGENTS.md`、`project.state.json`、active Task/Manifest |
+| 已批准方法与关键选择 | [Solution Design](Solution%20Design.md) |
+| Node、Skill、子流程与 mode 顺序 | [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-registry.mjs)、[Skill 合同](../src/workflows/skills/oe3/00-contracts.mjs)、[runner](../src/workflows/skills/oe3/00-runner.mjs) |
+| 资源 capability、动作顺序、调用量与证据 | [资源动作注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
+| Plan 编译、hash/binding 与执行 scope | [Execution Plan](../src/workflows/executionPlan.mjs)及对应 executor |
+| Gate、root blocker、next action 与数据字段 | `mwb.workflow_case_summary`、[数据契约 §4](project-数据与报表契约.md#4-workflow_case_summary-合同) |
+| 对话命令与恢复性 readonly | [Gate Action Policy](../src/workflows/gateActionPolicy.mjs)、[工作台对话](../src/workflows/workbenchConversation.mjs) |
+| 路线字段、资源来源和账户 capability | [数据契约](project-数据与报表契约.md) |
+| 乾坤接口参数与响应 | [当前乾坤 API 文档](qiankun-api-docs-20260827.md) |
+| 网络、启动、凭据录入与 OAuth 运维 | [部署说明](../deploy/README.md) |

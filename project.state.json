@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-10T02:00:00Z",
+  "updated_at": "2026-09-10T02:21:43Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,7 +10,7 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-STD-PROJECT-40100-RATE-LIMIT-REDELIVERY-20260909.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {
