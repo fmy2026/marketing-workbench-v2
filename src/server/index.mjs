@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
-import { parseLaunchIntake } from "../agents/launchAgent.mjs";
 import {
   getPublicAgent,
   isRegisteredAgentPath,
@@ -20,7 +19,11 @@ import {
   normalizeOpenAiCompatibleModelConfig,
   testOpenAiCompatibleModelConfig
 } from "../agents/openaiCompatibleModelConfigTest.mjs";
-import { createConversationIntentResolver, createOpenAiCompatibleIntentAdapter } from "../agents/conversationIntentResolver.mjs";
+import {
+  createConversationIntentResolver,
+  createOpenAiCompatibleIntentAdapter,
+  resolveExplicitLaunchIntake
+} from "../agents/conversationIntentResolver.mjs";
 import { resolveWorkflowStatisticsScope } from "../agents/agentWorkspaceScopes.mjs";
 import {
   buildWorkbenchView,
@@ -479,20 +482,8 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && pathname === "/api/launch/intake") {
     const body = await readBody(req);
     const message = body.user_intent || body.userIntent || "";
-    const deterministic = parseLaunchIntake(message);
-    if (deterministic.route_id || deterministic.game_code || deterministic.advertiser_id) {
-      return sendJson(res, 200, { ...deterministic, parseSource: "rules" });
-    }
     const resolver = await resolverForCurrentUser(auth.user.user_id);
-    if (!resolver) return sendJson(res, 200, { ...deterministic, parseSource: "rules" });
-    const intent = await resolver.resolve({ message, jobView: {} });
-    return sendJson(res, 200, {
-      ...deterministic,
-      route_id: intent.slots?.route_id || "", game_code: intent.slots?.game_code || "", advertiser_id: intent.slots?.advertiser_id || "",
-      routeId: intent.slots?.route_id || "", gameCode: intent.slots?.game_code || "", advertiserId: intent.slots?.advertiser_id || "",
-      missing_fields: ["route_id", "game_code", "advertiser_id"].filter((key) => !intent.slots?.[key]),
-      parseSource: intent.source?.startsWith("llm:") ? "llm" : "rules"
-    });
+    return sendJson(res, 200, await resolveExplicitLaunchIntake({ message, resolver }));
   }
 
   if (req.method === "POST" && pathname === "/api/launch/jobs") {

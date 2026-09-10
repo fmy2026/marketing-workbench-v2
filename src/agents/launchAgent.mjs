@@ -2,6 +2,21 @@ import { createHash } from "node:crypto";
 
 const DEFAULT_ROUTE_ID = "oceanengine_3_byte_mini_game";
 
+export const LAUNCH_INTAKE_FIELDS = Object.freeze(["route_id", "game_code", "advertiser_id"]);
+
+const MODEL_EXPLICIT_ALIASES = Object.freeze({
+  route_id: Object.freeze([
+    Object.freeze({ value: DEFAULT_ROUTE_ID, aliases: Object.freeze(["抖小", "OE3", "OE3字节小游戏", "字节小游戏", "巨量小游戏", "穿山甲小游戏", "oceanengine_3_byte_mini_game"]) })
+  ]),
+  game_code: Object.freeze([
+    Object.freeze({ value: "JSZC", aliases: Object.freeze(["巨兽战场", "JSZC", "jushou hunt", "jushou-hunt"]) })
+  ])
+});
+
+function normalizedText(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function firstMatch(text, pattern) {
   const match = text.match(pattern);
   return match ? match[1] || match[0] : "";
@@ -21,6 +36,47 @@ function normalizeGameCode(text) {
 
 function normalizeAdvertiserId(text) {
   return firstMatch(text, /(?:advertiser_id|广告账户|账户|账号|advertiser)\s*[:：]?\s*(\d{8,24})/i) || firstMatch(text, /\b(\d{12,24})\b/);
+}
+
+function camelKey(key) {
+  return String(key).replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function messageIncludesEvidence(message = "", evidence = "") {
+  const source = normalizedText(message);
+  const quoted = normalizedText(evidence);
+  return Boolean(source && quoted && source.includes(quoted));
+}
+
+export function explicitLaunchIntakeSlotSchema() {
+  return Object.freeze({
+    route_id: MODEL_EXPLICIT_ALIASES.route_id.map((entry) => ({ value: entry.value, aliases: [...entry.aliases] })),
+    game_code: MODEL_EXPLICIT_ALIASES.game_code.map((entry) => ({ value: entry.value, aliases: [...entry.aliases] })),
+    advertiser_id: { pattern: "8-24 digits explicitly present in the user message" }
+  });
+}
+
+export function normalizeExplicitLaunchSlot({ key = "", value = "", evidence = "", message = "" } = {}) {
+  const slot = String(key || "").trim();
+  const candidate = String(value || "").trim();
+  const quoted = String(evidence || "").trim();
+  if (!LAUNCH_INTAKE_FIELDS.includes(slot) || !messageIncludesEvidence(message, quoted)) return "";
+  if (slot === "advertiser_id") {
+    const ids = String(message).match(/\b\d{8,24}\b/g) || [];
+    return /^\d{8,24}$/.test(candidate) && ids.includes(candidate) && quoted === candidate ? candidate : "";
+  }
+  const entry = (MODEL_EXPLICIT_ALIASES[slot] || []).find((item) =>
+    item.aliases.some((alias) => normalizedText(alias) === normalizedText(quoted))
+  );
+  return entry?.value === candidate ? candidate : "";
+}
+
+export function launchIntakeFieldValue(intake = {}, key = "") {
+  return String(intake?.[key] || intake?.[camelKey(key)] || "").trim();
+}
+
+export function hasCompleteLaunchIntake(intake = {}) {
+  return LAUNCH_INTAKE_FIELDS.every((key) => Boolean(launchIntakeFieldValue(intake, key)));
 }
 
 export function hashText(value) {

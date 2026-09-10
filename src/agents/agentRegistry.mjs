@@ -23,6 +23,18 @@ const LAUNCH_CREATION_KNOWLEDGE_TOPICS = Object.freeze([
   Object.freeze({ title: "安全边界", description: "模型只识别意图和槽位；Gate、下一步、权限与平台动作由确定性机制和权威回查决定。" })
 ]);
 
+const LAUNCH_CREATION_CONVERSATION_PRESETS = Object.freeze({
+  intake: Object.freeze([
+    Object.freeze({ key: "route_oe3", label: "OE3 字节小游戏", message: "路线：oceanengine_3_byte_mini_game" }),
+    Object.freeze({ key: "game_jszc", label: "巨兽战场（JSZC）", message: "游戏：JSZC" })
+  ]),
+  active: Object.freeze([
+    Object.freeze({ key: "status", label: "查看当前进度", message: "查看状态" }),
+    Object.freeze({ key: "blocker", label: "为什么卡住", message: "为什么卡住" }),
+    Object.freeze({ key: "next", label: "下一步是什么", message: "下一步是什么" })
+  ])
+});
+
 const AGENTS = Object.freeze([
   Object.freeze({
     agentKey: "launch_creation",
@@ -31,6 +43,7 @@ const AGENTS = Object.freeze([
     status: "available",
     modelConfigurable: true,
     modules: LAUNCH_CREATION_MODULES,
+    conversationPresets: LAUNCH_CREATION_CONVERSATION_PRESETS,
     knowledgeTopics: LAUNCH_CREATION_KNOWLEDGE_TOPICS,
     capabilitySummary: Object.freeze({
       workflowNodeCount: WORKFLOW_NODES.length,
@@ -61,6 +74,10 @@ function publicAgent(agent) {
     status: agent.status,
     modelConfigurable: agent.modelConfigurable,
     modules: agent.modules.map(({ key, label }) => ({ key, label })),
+    conversationPresets: Object.fromEntries(Object.entries(agent.conversationPresets || {}).map(([group, presets]) => [
+      group,
+      presets.map((preset) => ({ ...preset }))
+    ])),
     capabilitySummary: { ...agent.capabilitySummary }
   };
 }

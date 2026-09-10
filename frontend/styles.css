@@ -557,6 +557,30 @@ p {
   border-top: 1px solid var(--line);
 }
 
+.conversation-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.conversation-preset {
+  border: 1px solid #d8e1fa;
+  border-radius: 999px;
+  background: #f7f9ff;
+  color: #4053b9;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.conversation-preset:disabled {
+  color: #9ba5bf;
+  cursor: not-allowed;
+}
+
 .chat-form input {
   min-width: 0;
   height: 40px;

@@ -120,7 +120,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 工作区的“记忆”只从本人 `runtime_truth` Case 的当前投影读取最近 Job、路线/游戏、脱敏账户、Gate、唯一 blocker、更新时间和受控证据引用；它不保存或回放聊天原文。知识库、技能只从公开 Agent 注册表和固定 Node 投影渲染，不上传、不编辑、不开关技能。“数据统计”复用 `v_user_workflow_summary` 与 `v_user_workflow_case_detail`：普通用户固定本人范围，管理员默认本人、仅在显式选择全部用户后才读取全量只读报表，任何范围都不授予账户操作权限。
 
-大模型配置也属于工作区壳层：配置只按当前用户和 Agent 读取，连接测试只发送固定 Schema，不携带 Intake、Case、Job、账户、资源、Plan 或原始对话。该配置的启用状态不能改变上述工作台链路；Intent Resolver 仅在规则没有准确命中且配置已测试启用时调用模型。精确确认、取消、状态、继续和 readonly 恢复始终先由规则处理；模型只接收脱敏后的用户输入及允许的 intent/slot Schema，不接收 Case、Job、Gate、Plan 或账户运行状态。它只能返回 allowlist intent、confidence、`route_id`、`game_code`、`advertiser_id`，任一超时、非 JSON、低置信或非法输出都退回规则解析，随后仍由 Gate Action Policy 决定下一步。
+大模型配置也属于工作区壳层：配置只按当前用户和 Agent 读取，连接测试只发送固定 Schema，不携带 Intake、Case、Job、账户、资源、Plan 或原始对话。该配置的启用状态不能改变上述工作台链路；完整的三项规则 Intake 永远直接使用规则结果，只有规则已识别部分 Intake 且配置已测试启用时，Intent Resolver 才可请求模型补空位。精确确认、取消、状态、继续和 readonly 恢复始终先由规则处理；模型只接收脱敏后的本句用户输入及允许的 intent/slot Schema，不接收 Case、Job、Gate、Plan 或账户运行状态。模型候选必须为每个非空槽位提供本句原文证据：路线和游戏仅可由受控别名映射为规范值，账户 ID 必须与本句数字完全一致；规则值不可被覆盖，未提及字段不得默认填入。任一超时、非 JSON、低置信、无证据或非法输出都保留规则结果并安全回退，随后仍由 Gate Action Policy 决定下一步。用户可见的进度、唯一卡点、下一步和确认提示只由 `workflow_case_summary` 的受控投影和确定性中文模板生成；模型输出、内部 Gate/blocker code 与预计耗时不作为对话主文案。
 
 ## 6. 权威来源索引
 

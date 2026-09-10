@@ -1,6 +1,13 @@
-import { parseLaunchIntake } from "./launchAgent.mjs";
+import {
+  LAUNCH_INTAKE_FIELDS,
+  explicitLaunchIntakeSlotSchema,
+  hasCompleteLaunchIntake,
+  launchIntakeFieldValue,
+  normalizeExplicitLaunchSlot,
+  parseLaunchIntake
+} from "./launchAgent.mjs";
 
-export const CONVERSATION_INTENT_SCHEMA_VERSION = "2026-08-31.conversation-intent-v1";
+export const CONVERSATION_INTENT_SCHEMA_VERSION = "2026-09-10.conversation-intent-v2";
 export const CONVERSATION_INTENTS = Object.freeze([
   "intake_update",
   "continue_workflow",
@@ -38,11 +45,24 @@ function redactForProvider(value) {
 }
 
 function safeSlots(value = {}) {
-  const fields = ["route_id", "game_code", "advertiser_id"];
+  const fields = LAUNCH_INTAKE_FIELDS;
   return Object.fromEntries(fields.map((key) => [
     key,
-    boundedText(value[key] || value[key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())])
+    boundedText(slotCandidate(value, key).value)
   ]));
+}
+
+function slotCandidate(value = {}, key = "") {
+  const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  const raw = value?.[key] ?? value?.[camelKey] ?? "";
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return { value: raw.value ?? raw.id ?? "", evidence: raw.evidence ?? raw.quote ?? "" };
+  }
+  return { value: raw, evidence: value?.slotEvidence?.[key] ?? value?.slot_evidence?.[key] ?? "" };
+}
+
+function safeSlotEvidence(value = {}) {
+  return Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, boundedText(slotCandidate(value, key).evidence)]));
 }
 
 function unknownIntent({ source = "deterministic", issue = "unrecognized" } = {}) {
@@ -69,7 +89,13 @@ export function buildIntentContext({ message = "" } = {}) {
     schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION,
     userMessage: redactForProvider(message),
     availableIntents: CONVERSATION_INTENTS,
-    slots: ["route_id", "game_code", "advertiser_id"]
+    slots: LAUNCH_INTAKE_FIELDS,
+    explicitSlotSchema: explicitLaunchIntakeSlotSchema(),
+    rules: [
+      "Only extract information explicitly present in userMessage.",
+      "For each supplied slot, quote exact evidence from userMessage.",
+      "Never infer, default, select, or invent a route, game, advertiser, budget, bid, Gate, Plan, action, confirmation, or platform instruction."
+    ]
   };
 }
 
@@ -92,7 +118,7 @@ export function deterministicIntent({ message = "" } = {}) {
   if (["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_confirmation", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
-  if (/^(状态|当前状态|查看状态|进度|卡点|查看卡点)$/.test(command)) {
+  if (/^(状态|当前状态|查看状态|进度|卡点|查看卡点|现在到哪一步了|为什么卡住|下一步是什么|还缺什么)$/.test(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_status", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   const intake = parseLaunchIntake(text);
@@ -120,11 +146,17 @@ export function validateIntent(candidate, { source = "adapter" } = {}) {
   if (!Number.isFinite(confidence) || confidence < MIN_CONFIDENCE || confidence > 1) {
     return unknownIntent({ source, issue: "confidence_not_accepted" });
   }
+  const rawSlots = candidate.slots || candidate;
+  const slotEvidence = safeSlotEvidence({
+    ...rawSlots,
+    slotEvidence: candidate.slotEvidence || candidate.slot_evidence || rawSlots.slotEvidence || rawSlots.slot_evidence || {}
+  });
   return {
     schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION,
     intent,
     confidence,
-    slots: safeSlots(candidate.slots || {}),
+    slots: safeSlots(rawSlots),
+    slotEvidence,
     source: clean(candidate.source) || source,
     issues: []
   };
@@ -164,9 +196,12 @@ export function createConversationIntentResolver({ provider, model, apiBase, ada
   return {
     provider: selectedProvider,
     configuration,
-    async resolve({ message, jobView }) {
+    async resolve({ message, jobView, allowPartialIntakeAssistance = false }) {
       const deterministic = deterministicIntent({ message });
-      if (deterministic.confidence === 1) return deterministic;
+      const partialIntake = deterministic.intent === "intake_update" &&
+        !hasCompleteLaunchIntake(deterministic.slots) &&
+        LAUNCH_INTAKE_FIELDS.some((key) => Boolean(launchIntakeFieldValue(deterministic.slots, key)));
+      if (deterministic.confidence === 1 && !(allowPartialIntakeAssistance && partialIntake)) return deterministic;
       try {
         const result = await adapter.resolve(buildIntentContext({ message, jobView }), configuration);
         return validateIntent(result, { source: `llm:${selectedProvider}` });
@@ -199,7 +234,7 @@ export function createOpenAiCompatibleIntentAdapter({ apiKey, fetchFn = globalTh
           body: JSON.stringify({
             model: clean(configuration.model), temperature: 0, response_format: { type: "json_object" },
             messages: [
-              { role: "system", content: "Return JSON only: {intent,confidence,slots:{route_id,game_code,advertiser_id}}. intent must be one allowed intent. Never return Gate, Plan, action, confirmation, budget, bid, or platform instruction." },
+              { role: "system", content: "Return JSON only: {intent,confidence,slots:{route_id:{value,evidence},game_code:{value,evidence},advertiser_id:{value,evidence}}}. intent must be one allowed intent. Every non-empty slot requires an exact evidence quote from userMessage. Never infer, default, select, or invent a missing value. Never return a Gate, Plan, action, confirmation, budget, bid, or platform instruction." },
               { role: "user", content: JSON.stringify(context) }
             ]
           }), signal: controller.signal
@@ -215,15 +250,60 @@ export function createOpenAiCompatibleIntentAdapter({ apiKey, fetchFn = globalTh
   };
 }
 
-export async function resolveConversationIntent({ message = "", jobView = {}, resolver } = {}) {
+export async function resolveConversationIntent({ message = "", jobView = {}, resolver, allowPartialIntakeAssistance = false } = {}) {
   const effectiveResolver = resolver || createConversationIntentResolver();
   try {
-    return validateIntent(await effectiveResolver.resolve({ message: boundedText(message), jobView }), {
+    return validateIntent(await effectiveResolver.resolve({ message: boundedText(message), jobView, allowPartialIntakeAssistance }), {
       source: effectiveResolver.provider || "resolver"
     });
   } catch {
     return unknownIntent({ source: "deterministic_fallback", issue: "intent_resolver_failed" });
   }
+}
+
+export async function resolveExplicitLaunchIntake({ message = "", resolver } = {}) {
+  const deterministic = parseLaunchIntake(message);
+  const values = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, launchIntakeFieldValue(deterministic, key)]));
+  const slotSources = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, values[key] ? "rules" : "missing"]));
+  if (hasCompleteLaunchIntake(values)) {
+    return { ...deterministic, ...values, parseSource: "rules", slotSources };
+  }
+  if (!resolver) return { ...deterministic, ...values, parseSource: "rules", slotSources };
+
+  const intent = await resolveConversationIntent({
+    message,
+    resolver,
+    allowPartialIntakeAssistance: true
+  });
+  let accepted = false;
+  if (intent.intent === "intake_update" && intent.source.startsWith("llm:")) {
+    for (const key of LAUNCH_INTAKE_FIELDS) {
+      if (values[key]) continue;
+      const normalized = normalizeExplicitLaunchSlot({
+        key,
+        value: intent.slots?.[key],
+        evidence: intent.slotEvidence?.[key],
+        message
+      });
+      if (!normalized) continue;
+      values[key] = normalized;
+      slotSources[key] = "llm";
+      accepted = true;
+    }
+  }
+  const failed = intent.source === "deterministic_fallback" ||
+    (intent.source.startsWith("llm:") && !accepted);
+  return {
+    ...deterministic,
+    ...values,
+    routeId: values.route_id,
+    gameCode: values.game_code,
+    advertiserId: values.advertiser_id,
+    missing_fields: LAUNCH_INTAKE_FIELDS.filter((key) => !values[key]),
+    missingFields: LAUNCH_INTAKE_FIELDS.filter((key) => !values[key]),
+    parseSource: accepted ? "llm_assisted" : failed ? "rules_fallback" : "rules",
+    slotSources
+  };
 }
 
 export function isExplicitCreateConfirmation(message = "") {

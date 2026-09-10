@@ -1,0 +1,76 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910",
+  "task_ref": "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
+  "status": "active",
+  "created_at": "2026-09-10T09:18:10Z",
+  "updated_at": "2026-09-10T09:18:10Z",
+  "base_revision": "296d25e0286f58139262fe1f33b5c481928fbb48",
+  "baseline_dirty_files": {
+    "docs/Solution Design.md": "sha256:a6308e649a7274c599a839c5cd4bddd0c0803894b60914d336eaf23b10689e99",
+    "docs/project-现在的逻辑图.md": "sha256:5a6095abbf634dec379815be5b36de082686b634a04ee238da371e9c87a4bf4d",
+    "evidence/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910/validation.md": "sha256:43f5c9e7cc32727b455c577a463da1ee9d4f9ab2833264c9348e6da9b0eb4015",
+    "frontend/app.js": "sha256:9321ea1bc40bc49b39acfbc53bf88a3e976f81672f3e92dbc852f7ed2e957ab6",
+    "frontend/index.html": "sha256:e81e25a6fdcefb4ccf756ad37b837e34e042283b42e21f3fe2cc39c61b016137",
+    "frontend/styles.css": "sha256:64a2bda67c81bf118f8f21649f672e79662d17334efbff3f482b54e92fc3a3de",
+    "package.json": "sha256:d89306f20a74e6391dd4f7eb7f18daa03e5a3576077c265cabd338c3b1dfcf24",
+    "project.state.json": "sha256:2aa4ef7b67eda90f1fed4c979905fef1b56701b5a560f3095811d8218798d8e4",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs": "sha256:5240767245f49d4520514a6e8e81a4a71397cc5e5f569bb37f579f82828d88e6",
+    "scripts/00-workbench-progress-smoke.mjs": "sha256:5ea9ddc13c5e02a59a7540a93f5111bbcdafa6cb23805da05b7c275ab1d3b4eb",
+    "src/agents/agentRegistry.mjs": "sha256:cd30cd7a3afc308aaf0ec8c63d052836adce6f1e5b3cec3536879d837a302dba",
+    "src/agents/conversationIntentResolver.mjs": "sha256:8c64b017972aab3e6cec0edb8ff37e2665b68a32f57ef0a82838ad44a883c3e3",
+    "src/agents/launchAgent.mjs": "sha256:157eb26614d243437dd9ac2c195c2cc3107ffaee3fa3158ac3af58277f3ee2d1",
+    "src/server/index.mjs": "sha256:62f31c1dcada7897ba7c122f15959e1e4bcee83e102842eaeb79af87b1ea750a",
+    "src/workflows/gateActionPolicy.mjs": "sha256:25279a3e9c2ee47ca690f4fc1cd633fc8082cd254c62ebecf5ed19957c7f14e2",
+    "src/workflows/launchWorkflow.mjs": "sha256:0fd86ca153f16b183b52bf93d84fa09acc1d6fcf06b6b3e64d7c34d7bc43d52d",
+    "src/workflows/workbenchConversation.mjs": "sha256:24568ae9e9a71d04c496fd04bee913be6b286fc1bac40e6022bc510ce4729d20",
+    "src/workflows/workbenchProgressNarrative.mjs": "sha256:a38c88c9a7552444fd85b678faecb7f18787cf38ad07792db640a0eb24d6c16c",
+    "tasks-context-manifests/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.json": "sha256:f68eb65b6ad5ae3c2207bdf4614f0fb6d01a893237bf1f9e24df6031bc44cb48",
+    "tasks/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.md": "sha256:00ff4c5b8d3e2683ab945aa379dee8815e90dd232e7e4b8165ac3fdf53410e45"
+  },
+  "domains": ["control"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.json",
+    "docs/Solution Design.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.json",
+    "evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/**"
+  ],
+  "forbidden_actions": [
+    "修改既有产品实现、数据库、Workflow、平台账户或凭据",
+    "历史改写、强制推送或真实平台写入"
+  ],
+  "stop_conditions": [
+    "远端不能快进推送",
+    "复验失败或发现范围外/敏感改动"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    { "acceptance_id": "AC-01", "command": "npm run test:llm-explicit-intake-progress && npm run test:workbench-conversation && git diff --check" },
+    { "acceptance_id": "AC-02", "command": "git commit && git push origin main" },
+    { "acceptance_id": "AC-03", "command": "npm run check:project -- --phase before-close && npm run check:project -- --phase after-close" }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:llm-explicit-intake-progress && npm run test:workbench-conversation && git diff --check",
+      "verified_at": "2026-09-10T09:18:10Z",
+      "summary": "Both mock-only workflow tests and whitespace validation passed with no real platform write.",
+      "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/publish.md"]
+    }
+  ],
+  "documentation_updates": [
+    { "ref": "docs/Solution Design.md", "status": "not_needed", "reason": "This task only publishes an already approved and documented implementation." }
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

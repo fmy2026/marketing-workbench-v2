@@ -12,6 +12,7 @@ import {
 } from "./skills/oe3/02-monitor/index.mjs";
 import { getExecutionGrantAvailability } from "./executionGrantScope.mjs";
 import { buildConfirmationPreview, requiresFreshReadonlyRecovery } from "./gateActionPolicy.mjs";
+import { presentWorkflowProgress } from "./workbenchProgressNarrative.mjs";
 import {
   compileAndSaveMonitorBootstrapExecutionPlan,
   PLAN_KIND_MONITOR_BOOTSTRAP,
@@ -895,6 +896,11 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
   const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
+  caseGate.progressNarrative = presentWorkflowProgress({
+    caseGate,
+    confirmationPreview,
+    isLatestCaseJob: caseGate.isLatestCaseJob
+  });
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
   const completedCase = caseGate.isLatestCaseJob && caseGate.currentGate === "first_std_project_create_completed";
   const headline = {

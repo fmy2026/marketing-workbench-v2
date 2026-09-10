@@ -114,12 +114,17 @@ export async function handleWorkbenchCommand({
     intent,
     message,
     caseSummary,
+    caseGate: view.caseGate,
     isLatestCaseJob: caseSummary?.latest_job_id === jobId,
     confirmationPreview,
     explicitConfirmation: clean(message) === clean(confirmationPreview?.confirmationPhrase),
     manualReviewApproved: bundle.case?.metadata?.manual_review?.approved === true
   });
-  interaction.parserSource = intent.source?.startsWith("llm:") ? "llm" : "rules";
+  interaction.parserSource = intent.source?.startsWith("llm:")
+    ? "llm_assisted"
+    : intent.source === "deterministic_fallback"
+      ? "rules_fallback"
+      : "rules";
 
   if (interaction.effect === "run_dry_run") {
     const nextView = await runWorkbenchInitialReadonlyFn(repo, jobId, {

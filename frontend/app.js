@@ -542,17 +542,28 @@ import {
     }
     const readonlyRecovery = readonlyRecoveryGuidance(gate);
     if (job.isLatestCaseJob && !viewOnly && readonlyRecovery) return readonlyRecovery.message;
-    const blockerTitle = gate.rootBlockerCodes?.[0]
-      ? (gate.rootBlocker?.title || gate.rootBlockerCodes[0])
-      : "";
-    const blocker = blockerTitle ? `；唯一阻断：${blockerTitle}` : "";
-    if (job.isLatestCaseJob && !viewOnly) {
-      const nextAction = gate.currentGate === "first_std_project_create_completed"
-        ? "已完成，无需继续执行"
-        : gate.suggestedNextAction || "等待后端更新";
-      return `当前 Gate：${gate.currentGate}${blocker}；下一步：${nextAction}`;
+    return gate.progressNarrative?.message || "流程状态正在更新，请刷新查看。";
+  }
+
+  function parserLabel(source = "rules") {
+    if (source === "llm" || source === "llm_assisted") return "已使用模型辅助解析";
+    if (source === "rules_fallback") return "模型不可用或结果未通过校验，已回退规则解析";
+    return "已使用规则解析";
+  }
+
+  function renderConversationPresets() {
+    const container = document.getElementById("conversationPresets");
+    const presets = agentProfile?.conversationPresets?.[job ? "active" : "intake"] || [];
+    container.innerHTML = "";
+    container.hidden = presets.length === 0;
+    const disabled = busy || viewOnly || Boolean(job && !job.isLatestCaseJob);
+    for (const preset of presets) {
+      const button = el("button", "conversation-preset", preset.label);
+      button.type = "button";
+      button.disabled = disabled;
+      button.addEventListener("click", () => submitConversationInput(preset.message));
+      container.append(button);
     }
-    return `历史运行，只读查看。当前 Case Gate：${gate.currentGate}${blocker}`;
   }
 
   function renderChat() {
@@ -771,6 +782,7 @@ import {
     renderIntake();
     renderActiveCases();
     renderChat();
+    renderConversationPresets();
     renderWorkflow();
     renderCommand();
     refreshIcons();
@@ -966,7 +978,7 @@ import {
     }
     pendingConfirmation = result.interaction?.confirmationPreview || job.confirmationPreview || null;
     if (result.interaction?.parserSource) {
-      message("agent", result.interaction.parserSource === "llm" ? "本次已使用大模型解析。" : "本次已使用规则解析。");
+      message("agent", `${parserLabel(result.interaction.parserSource)}。`);
     }
     if (result.interaction?.message) message("agent", result.interaction.message);
     renderAll();
@@ -1210,34 +1222,42 @@ import {
       event.preventDefault();
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (!text || busy || viewOnly) return;
       input.value = "";
-      message("user", text);
+      await submitConversationInput(text);
+    });
+    document.getElementById("startWorkflowButton").addEventListener("click", () => {
+      startWorkflow();
+    });
+  }
+
+  async function submitConversationInput(text) {
+      const normalized = String(text || "").trim();
+      if (!normalized || busy || viewOnly) return;
+      message("user", normalized);
       setBusy(true);
       try {
         if (job) {
-          await submitJobCommand(text);
+          await submitJobCommand(normalized);
           return;
         }
         const intake = await api("/api/launch/intake", {
           method: "POST",
-          body: JSON.stringify({ user_intent: text })
+          body: JSON.stringify({ user_intent: normalized })
         });
         mergeIntake(intake);
         const missing = missingFields();
-        const parserLabel = intake.parseSource === "llm" ? "已使用大模型解析" : "已使用规则解析";
-        message("agent", missing.length
-          ? `${parserLabel}，已识别 ${requiredFields().length - missing.length}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
-          : `${parserLabel}，三项输入已规范化；请核对后点击“启动流程”。`);
+        const label = parserLabel(intake.parseSource);
+        const identified = requiredFields().length - missing.length;
+        message("agent", identified === 0
+          ? "我只处理推广路线、游戏标识和账户 ID；请补充所需信息。"
+          : (missing.length
+            ? `${label}，已识别 ${identified}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
+            : `${label}，三项输入已规范化；请核对后点击“启动流程”。`));
       } catch (error) {
         showError(error);
       } finally {
         setBusy(false);
       }
-    });
-    document.getElementById("startWorkflowButton").addEventListener("click", () => {
-      startWorkflow();
-    });
   }
 
   function bindShellInteractions() {

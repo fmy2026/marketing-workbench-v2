@@ -137,7 +137,8 @@ assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refre
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");
 assert(clientSource.includes("withProgressPolling"), "command_progress_polling_missing");
 assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_switch_missing");
-assert(clientSource.includes("已完成，无需继续执行"), "completed_gate_next_action_copy_missing");
+assert(clientSource.includes("progressNarrative?.message"), "deterministic_progress_narrative_not_rendered");
+assert(!clientSource.includes("当前 Gate：${gate.currentGate}"), "raw_gate_must_not_be_primary_conversation_copy");
 assert(clientSource.includes("已完成，可输入“查看状态”"), "completed_gate_input_copy_missing");
 assert(clientSource.includes("当前 Attempt 已失败并安全结束。输入“继续执行”可重新只读准备下一 Attempt"), "corrective_gate_operational_copy_missing");
 assert(clientSource.includes("输入“继续执行”重新准备下一 Attempt，或输入“查看状态”"), "corrective_gate_input_copy_missing");

@@ -17,6 +17,7 @@
     "test:workbench-address": "node scripts/00-workbench-address-smoke.mjs",
     "test:agent-hub": "node scripts/00-agent-hub-smoke.mjs",
     "test:agent-model-config": "node scripts/00-agent-model-config-smoke.mjs",
+    "test:llm-explicit-intake-progress": "node scripts/00-llm-explicit-intake-progress-smoke.mjs",
     "test:agent-readonly-modules": "node scripts/00-agent-readonly-modules-smoke.mjs",
     "test:workbench-network-policy": "node scripts/00-workbench-network-policy-smoke.mjs",
     "test:workbench-progress": "node scripts/00-workbench-progress-smoke.mjs",

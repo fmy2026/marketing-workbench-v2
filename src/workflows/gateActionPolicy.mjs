@@ -5,6 +5,7 @@ import {
   PLAN_KIND_RESOURCE_PREPARE
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
+import { presentWorkflowProgress } from "./workbenchProgressNarrative.mjs";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -128,11 +129,12 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
   };
 }
 
-export function evaluateGateAction({ intent = {}, message = "", caseSummary = null, isLatestCaseJob = false, confirmationPreview = null, explicitConfirmation = false, manualReviewApproved = false } = {}) {
+export function evaluateGateAction({ intent = {}, message = "", caseSummary = null, caseGate = null, isLatestCaseJob = false, confirmationPreview = null, explicitConfirmation = false, manualReviewApproved = false } = {}) {
   const currentGate = clean(caseSummary?.current_gate);
   const nextAction = clean(caseSummary?.suggested_next_action);
   const blocker = clean((caseSummary?.root_blocker_codes || [])[0]);
   const base = { currentGate, nextAction, blocker };
+  const progressCaseGate = caseGate || { currentGate, rootBlocker: {} };
   if (!isLatestCaseJob) {
     return { ...base, effect: "history_readonly", message: "这是历史运行，只读查看；请通过当前 Case 继续。" };
   }
@@ -140,7 +142,7 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "cancelled", message: "已取消本次对话操作，流程状态未改变。" };
   }
   if (intent.intent === "unknown") {
-    return { ...base, effect: "clarify", message: "我只理解：继续执行、重新只读准备、查看状态、确认创建或取消。" };
+    return { ...base, effect: "clarify", message: "我只处理投放创建所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
   }
   if (intent.intent === "intake_update") {
     return { ...base, effect: "intake_not_applicable", message: "当前流程已有 Job；请使用“继续执行”或查看当前状态。" };
@@ -153,7 +155,12 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
       return { ...base, effect: "status", message: attemptLimitReviewMessage(manualReviewApproved) };
     }
     const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
-    return { ...base, effect: "status", message: blocker ? `当前卡点：${blocker}；下一步：${nextAction || "等待后端更新"}。${hint}` : `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
+    const progress = presentWorkflowProgress({
+      caseGate: progressCaseGate,
+      confirmationPreview,
+      isLatestCaseJob
+    });
+    return { ...base, effect: "status", message: `${progress.message}${hint ? ` ${hint}` : ""}` };
   }
   if (intent.intent === "request_confirmation") {
     if (!explicitConfirmation) {
@@ -229,12 +236,15 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
       return { ...base, effect: "manual_confirmation_required", message: "当前 Plan 需要受控授权，但该动作暂不支持在工作台对话中执行。" };
     }
     if (currentGate === "resolve_case_blocker") {
-      return { ...base, effect: "blocker", message: `当前卡点：${blocker || "未归类"}；下一步：${nextAction || "等待人工处理"}。${terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob })}` };
+      const progress = presentWorkflowProgress({ caseGate: progressCaseGate, confirmationPreview, isLatestCaseJob });
+      const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
+      return { ...base, effect: "blocker", message: `${progress.message}${hint ? ` ${hint}` : ""}` };
     }
     if (currentGate === "first_std_project_create_completed") {
       return { ...base, effect: "completed", message: "该 Case 已完成首次项目创建并通过回查。" };
     }
-    return { ...base, effect: "status", message: `当前 Gate：${currentGate || "未投影"}；下一步：${nextAction || "等待后端更新"}。` };
+    const progress = presentWorkflowProgress({ caseGate: progressCaseGate, confirmationPreview, isLatestCaseJob });
+    return { ...base, effect: "status", message: progress.message };
   }
-  return { ...base, effect: "clarify", message: "请使用“继续执行”、“重新只读准备”、查看状态、确认创建或取消。" };
+  return { ...base, effect: "clarify", message: "我只处理投放创建所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
 }
