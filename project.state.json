@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-10T08:26:32Z",
+  "updated_at": "2026-09-10T08:36:03Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,12 +9,8 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": {
-    "id": "TASK-MWBV2-PUBLISH-AGENT-P0-20260910",
-    "task_ref": "tasks/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.json"
-  },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md",
+  "active_task": null,
+  "last_closed_task_ref": "tasks/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-PUBLISH-AGENT-P0-20260910",
   "task_ref": "tasks/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-10T08:26:32Z",
-  "updated_at": "2026-09-10T08:26:32Z",
+  "updated_at": "2026-09-10T08:36:03Z",
   "base_revision": "530f6a8b6a14644418326c90949678bd652025bf",
   "baseline_dirty_files": {
     "db/082_workbench_agent_model_configs.sql": "sha256:853b51ff2036c7e4ae392f565e53b32738b86bdfc8659e6628ec2cf7c86f5380",
@@ -45,20 +45,41 @@
     "tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md": "sha256:f00e3d7053db7bafa11cb991f7dd22ecbf59df0a9c2da9005d841b88b66f91d4",
     "tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md": "sha256:720ae5bd3664137e9136ff111d8e8d6669cf15cc2de7fa388e6bd1bb639d5e94"
   },
-  "domains": ["control"],
+  "domains": ["control", "workflow", "data", "deploy", "security"],
   "read_order": [
     "AGENTS.md",
     "project.state.json",
     "tasks/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.md",
     "tasks-context-manifests/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.json",
-    "docs/Solution Design.md"
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md"
   ],
   "reference_only": [],
   "allowed_writes": [
     "project.state.json",
-    "tasks/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.md",
-    "tasks-context-manifests/TASK-MWBV2-PUBLISH-AGENT-P0-20260910.json",
-    "evidence/TASK-MWBV2-PUBLISH-AGENT-P0-20260910/**"
+    "tasks/**",
+    "tasks-context-manifests/**",
+    "evidence/**",
+    "db/082_workbench_agent_model_configs.sql",
+    "deploy/README.md",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "frontend/**",
+    "package.json",
+    "scripts/00-agent-hub-smoke.mjs",
+    "scripts/00-agent-model-config-smoke.mjs",
+    "scripts/00-agent-readonly-modules-smoke.mjs",
+    "scripts/00-workbench-address-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-user-isolation-smoke.mjs",
+    "src/agents/**",
+    "src/repositories/postgresRepository.mjs",
+    "src/security/workbenchAgentModelCredentialStore.mjs",
+    "src/server/index.mjs",
+    "src/workflows/workbenchConversation.mjs"
   ],
   "forbidden_actions": ["修改业务代码、数据、凭据、平台权限或改写 Git 历史", "强制推送"],
   "stop_conditions": ["发现未确认的无关改动、远端非快进冲突、认证失败或需要强制覆盖时停止"],
@@ -68,9 +89,23 @@
     { "acceptance_id": "AC-02", "command": "git diff --cached --check && git show --stat --oneline HEAD" },
     { "acceptance_id": "AC-03", "command": "git push origin main && git status --short" }
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    { "acceptance_id": "AC-01", "status": "passed", "command": "git diff --check && npm run check:project -- --phase start", "verified_at": "2026-09-10T08:33:53Z", "summary": "P0 工作树与发布 Task 启动合同均通过校验。", "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-AGENT-P0-20260910/validation.md#ac-01"] },
+    { "acceptance_id": "AC-02", "status": "passed", "command": "git diff --cached --check && git show --stat --oneline HEAD", "verified_at": "2026-09-10T08:33:53Z", "summary": "提交 23ba55d 包含已核对的 P0 实现与已关闭任务材料。", "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-AGENT-P0-20260910/validation.md#ac-02"] },
+    { "acceptance_id": "AC-03", "status": "passed", "command": "git push origin main && git status --short", "verified_at": "2026-09-10T08:33:53Z", "summary": "origin/main 已快进至 23ba55d，未使用强制推送。", "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-AGENT-P0-20260910/validation.md#ac-03"] }
+  ],
+  "documentation_updates": [
+    { "ref": "docs/Solution Design.md", "status": "not_needed", "reason": "本 Task 仅发布既有已批准方案，不改变方案方法或产品合同。" },
+    { "ref": "docs/project-现在的逻辑图.md", "status": "not_needed", "reason": "本 Task 不改变 Workflow、Gate、Node、Plan 或运行机制。" },
+    { "ref": "docs/project-数据与报表契约.md", "status": "not_needed", "reason": "本 Task 不改变数据结构、来源、读写责任或报表口径。" },
+    { "ref": "deploy/README.md", "status": "not_needed", "reason": "本 Task 不改变部署、网络或凭据运维行为。" }
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "投放创建 Agent P0 已提交并推送至 origin/main。",
+    "side_effects": "仅产生 Git 提交与远端快进；未修改业务数据、凭据、平台权限或执行任何平台动作。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T08:36:03Z"
 }
