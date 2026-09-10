@@ -34,3 +34,9 @@ All timestamps below are UTC. Evidence stores only IDs, hashes, statuses and saf
 - Verified at: `2026-09-10T03:33:29Z`
 - Not run: the replacement summary is `resolve_case_blocker`, not `await_job_write_authorization`; no new confirmation card or external platform create action exists.
 - Stop enforced: no confirmation, action grant, Plan consumption, delivery or retry was initiated for the replacement Case.
+
+## Task closure
+
+- Verified at: `2026-09-10T03:42:16Z`
+- `npm run check:project -- --phase before-close --outcome cancelled` passed.
+- The Task is cancelled because its declared stop condition occurred: fresh readonly found the new root blocker `guide_video_current_job_readonly_missing`. AC-01 through AC-04 remain valid; AC-05 remains not run. The successor Task will correct the generic current-Job cache binding without changing this Task's facts.

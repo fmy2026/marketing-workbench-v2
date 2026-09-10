@@ -1,0 +1,103 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910",
+  "task_ref": "tasks/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.md",
+  "status": "active",
+  "created_at": "2026-09-10T03:42:16Z",
+  "updated_at": "2026-09-10T03:42:16Z",
+  "base_revision": "5959699fbf5b7d4bb655623314df7eb64fe8c7a6",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910/validation.md": "sha256:ff1e1d55d419fd882ccea18db02c4070a399ef6ec89e00e77062d272789ab8e8",
+    "project.state.json": "sha256:a91f817dfaec3feb992acd7918f4702e359bd95d819f0ee9d99c8164192a5e4a",
+    "tasks-context-manifests/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.json": "sha256:879b0a0b3007c54c7fd59d36845b0ca219ffaff108cb8df82bc6fa89621fcf61"
+  },
+  "domains": [
+    "control",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/qiankun-api-docs-20260827.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "scripts/04-guide-video-readonly-smoke.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/gateActionPolicy.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910.json",
+    "evidence/TASK-MWBV2-GUIDE-VIDEO-CURRENT-JOB-CACHE-BINDING-20260910/**",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "scripts/04-guide-video-readonly-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "修改公开 API、Schema、账户 capability、payload 默认值、Node、Gate、Plan 类型或确认短语",
+    "直接修改资源 metadata、复制旧 Job guide video ID、修改旧 Case/Job/Plan/confirmation/action/readback 历史或创建第二个 replacement Case",
+    "确认、创建、重试或以 CLI/管理员身份绕过账户 owner、Plan binding、action grant 或平台回查",
+    "记录 token、Cookie、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "当前 Case、Job、owner、一次逻辑 Attempt 或零平台 action 前提改变",
+    "缓存绑定修正不能通过自动测试，或只读结果产生新的真实 blocker",
+    "需要修改旧历史、直接写 metadata、扩大平台写权限或绕过 owner/confirmation"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run check:project -- --phase start"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:guide-video-readonly && npm run test:guide-video-payload && npm run smoke:workflow-skills && npm run check:runtime-consistency && npm run db:contract-check"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server; verify PID/start time after fix commit and HTTP health"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "authenticated owner workbench command 重新只读准备; readonly Postgres verification of current-job guide-video evidence, metadata binding, skill source and case blocker"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "readonly Postgres verification of higher-version Plan, Gate, action count, logical attempt and zero platform writes; stop on a new real blocker"
+    }
+  ],
+  "validation_results": [],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "The approved current-Job-only guide-video readonly mechanism remains unchanged; this repair makes the cache obey it."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "not_needed",
+      "reason": "No Node, Gate, Plan, public workflow or runtime-policy behavior is added or changed."
+    },
+    {
+      "ref": "docs/qiankun-api-docs-20260827.md",
+      "status": "not_needed",
+      "reason": "The existing gameplay/list readonly endpoint and its request contract are reused unchanged."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "No schema, storage field, View or reporting contract changes."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

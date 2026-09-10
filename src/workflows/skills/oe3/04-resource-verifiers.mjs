@@ -53,7 +53,8 @@ export function canonicalGuideVideoReadiness(bundle = {}) {
       guideVideoId: "",
       instanceId: "",
       instanceResource: null,
-      readiness: {}
+      readiness: {},
+      currentJobBound: false
     };
   }
 
@@ -67,7 +68,8 @@ export function canonicalGuideVideoReadiness(bundle = {}) {
       guideVideoId: "",
       instanceId: "",
       instanceResource: null,
-      readiness: {}
+      readiness: {},
+      currentJobBound: false
     };
   }
 
@@ -89,6 +91,7 @@ export function canonicalGuideVideoReadiness(bundle = {}) {
     instanceId,
     instanceResource,
     readiness,
+    currentJobBound,
     policy
   };
 }

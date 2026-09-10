@@ -68,7 +68,7 @@ function summarizeGameplay(payload = {}) {
 
 function cachedGuideVideoReadiness(bundle = {}) {
   const canonical = canonicalGuideVideoReadiness(bundle);
-  if (!canonical.readiness?.verified_by_job_id) return null;
+  if (canonical.currentJobBound !== true) return null;
   const state = canonical.readiness || {};
   return {
     required: canonical.required === true,

@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910",
   "task_ref": "tasks/TASK-MWBV2-ACCOUNT-1867508116186632-40100-RECOVERY-20260910.md",
-  "status": "blocked",
+  "status": "cancelled",
   "created_at": "2026-09-10T03:30:12Z",
-  "updated_at": "2026-09-10T03:33:29Z",
+  "updated_at": "2026-09-10T03:42:16Z",
   "base_revision": "de784418a5f4f841554fc6f385eb653cb28b0aec",
   "baseline_dirty_files": {},
   "domains": [
@@ -160,5 +160,5 @@
       "postgres:mwb.evidence_artifacts:EV-JOB-MWBV2-20260909081433-087541-MANUAL-REVIEW"
     ]
   },
-  "closed_at": null
+  "closed_at": "2026-09-10T03:42:16Z"
 }

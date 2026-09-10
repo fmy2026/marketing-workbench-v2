@@ -6,7 +6,19 @@ function assert(condition, message) {
 
 const GUIDE_VIDEO_ID = "guide-video-smoke";
 
-function bundle({ required = true, autoDetect = false, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, instanceSourceAsset = "APP-1" } = {}) {
+function bundle({
+  required = true,
+  autoDetect = false,
+  coverRequired = false,
+  videoCount = 2,
+  staleVideoGuide = false,
+  canonicalGuide = false,
+  canonicalGuideJobId = "",
+  canonicalGuideInstanceId = "",
+  canonicalGuideStatus = "passed",
+  canonicalGuideBlocker = "",
+  instanceSourceAsset = "APP-1"
+} = {}) {
   const jobId = "JOB-GUIDE-VIDEO-READONLY-SMOKE";
   const videos = Array.from({ length: videoCount }, (_, index) => `VIDEO-${index + 1}`);
   return {
@@ -62,16 +74,17 @@ function bundle({ required = true, autoDetect = false, coverRequired = false, vi
           readonly_check: { status: "passed" },
           ...(canonicalGuide ? {
             guide_video_readiness: {
-              status: "passed",
-              required: true,
-              guide_video_id: GUIDE_VIDEO_ID,
-              verified_by_job_id: jobId,
-              verified_instance_id: "7434750138926546994",
+              status: canonicalGuideStatus,
+              required: canonicalGuideStatus === "passed",
+              guide_video_id: canonicalGuideStatus === "passed" ? GUIDE_VIDEO_ID : "",
+              verified_by_job_id: canonicalGuideJobId || jobId,
+              verified_instance_id: canonicalGuideInstanceId || "7434750138926546994",
               approved_gameplay_count: 1,
               distinct_guide_video_count: 1,
               request_id_present: true,
               response_hash: "sha256:guide-video-response-smoke",
-              evidence_ref: "EV-GUIDE-CACHED"
+              evidence_ref: "EV-GUIDE-CACHED",
+              blocker: canonicalGuideBlocker
             }
           } : {})
         }
@@ -158,7 +171,20 @@ function clientFor(guideVideoIds, { missingTargetCover = "" } = {}) {
   };
 }
 
-async function run(guideVideoIds, { required = true, autoDetect = false, coverRequired = false, videoCount = 2, staleVideoGuide = false, canonicalGuide = false, instanceSourceAsset = "APP-1", missingTargetCover = "" } = {}) {
+async function run(guideVideoIds, {
+  required = true,
+  autoDetect = false,
+  coverRequired = false,
+  videoCount = 2,
+  staleVideoGuide = false,
+  canonicalGuide = false,
+  canonicalGuideJobId = "",
+  canonicalGuideInstanceId = "",
+  canonicalGuideStatus = "passed",
+  canonicalGuideBlocker = "",
+  instanceSourceAsset = "APP-1",
+  missingTargetCover = ""
+} = {}) {
   const resourceWrites = [];
   const evidenceWrites = [];
   const repo = {
@@ -169,7 +195,19 @@ async function run(guideVideoIds, { required = true, autoDetect = false, coverRe
   const client = clientFor(guideVideoIds, { missingTargetCover });
   const result = await runVideoMaterialReadonlyGate({
     repo,
-    bundle: bundle({ required, autoDetect, coverRequired, videoCount, staleVideoGuide, canonicalGuide, instanceSourceAsset }),
+    bundle: bundle({
+      required,
+      autoDetect,
+      coverRequired,
+      videoCount,
+      staleVideoGuide,
+      canonicalGuide,
+      canonicalGuideJobId,
+      canonicalGuideInstanceId,
+      canonicalGuideStatus,
+      canonicalGuideBlocker,
+      instanceSourceAsset
+    }),
     client,
     allowReadonlyDependency: true
   });
@@ -206,6 +244,53 @@ const cached = await run([], { canonicalGuide: true });
 assert(cached.result.status === "passed", "current_job_canonical_guide_must_be_reusable");
 assert(cached.client.calls.length === 0, "same_job_canonical_guide_must_not_repeat_gameplay_query");
 assert(cached.resourceWrites.length === 0, "same_job_canonical_guide_must_not_repeat_resource_write");
+
+const staleJobPassed = await run([GUIDE_VIDEO_ID], {
+  canonicalGuide: true,
+  canonicalGuideJobId: "JOB-GUIDE-VIDEO-READONLY-PREVIOUS"
+});
+assert(staleJobPassed.result.status === "passed", "previous_job_passed_cache_must_refresh");
+assert(staleJobPassed.client.calls.length === 1, "previous_job_passed_cache_must_query_gameplay_once");
+assert(staleJobPassed.resourceWrites.length === 1, "previous_job_passed_cache_must_persist_current_job");
+assert(staleJobPassed.result.outputSummary.guideVideoReadiness?.source === "fresh_gameplay_readonly", "previous_job_passed_cache_must_not_report_current_job_cache");
+
+const staleJobBlocked = await run([GUIDE_VIDEO_ID], {
+  canonicalGuide: true,
+  canonicalGuideJobId: "JOB-GUIDE-VIDEO-READONLY-PREVIOUS",
+  canonicalGuideStatus: "blocked",
+  canonicalGuideBlocker: "guide_video_capability_probe_failed"
+});
+assert(staleJobBlocked.result.status === "passed", "previous_job_blocked_cache_must_refresh");
+assert(staleJobBlocked.client.calls.length === 1, "previous_job_blocked_cache_must_query_gameplay_once");
+assert(staleJobBlocked.resourceWrites.length === 1, "previous_job_blocked_cache_must_persist_current_job");
+
+const staleInstance = await run([GUIDE_VIDEO_ID], {
+  canonicalGuide: true,
+  canonicalGuideInstanceId: "7434750138926546995"
+});
+assert(staleInstance.result.status === "passed", "wrong_instance_cache_must_refresh");
+assert(staleInstance.client.calls.length === 1, "wrong_instance_cache_must_query_gameplay_once");
+assert(staleInstance.resourceWrites.length === 1, "wrong_instance_cache_must_persist_current_job");
+
+const cachedNotRequired = await run([], {
+  required: false,
+  autoDetect: true,
+  canonicalGuide: true,
+  canonicalGuideStatus: "not_required"
+});
+assert(cachedNotRequired.result.status === "passed", "current_job_not_required_cache_must_be_reusable");
+assert(cachedNotRequired.client.calls.length === 0, "current_job_not_required_cache_must_not_repeat_gameplay_query");
+assert(cachedNotRequired.resourceWrites.length === 0, "current_job_not_required_cache_must_not_repeat_resource_write");
+
+const cachedBlocked = await run([], {
+  canonicalGuide: true,
+  canonicalGuideStatus: "blocked",
+  canonicalGuideBlocker: "guide_video_capability_probe_failed"
+});
+assert(cachedBlocked.result.status === "blocked", "current_job_blocked_cache_must_be_reused");
+assert(cachedBlocked.result.blockers.includes("guide_video_capability_probe_failed"), "current_job_blocked_cache_must_keep_blocker");
+assert(cachedBlocked.client.calls.length === 0, "current_job_blocked_cache_must_not_repeat_gameplay_query");
+assert(cachedBlocked.resourceWrites.length === 0, "current_job_blocked_cache_must_not_repeat_resource_write");
 
 const missing = await run([]);
 assert(missing.result.status === "blocked", "zero_guide_video_candidates_must_block");
@@ -257,6 +342,10 @@ console.log(JSON.stringify({
   hundredVideoResourceWrites: hundred.resourceWrites.length,
   sameJobCachedGameplayCalls: cached.client.calls.length,
   sameJobCachedResourceWrites: cached.resourceWrites.length,
+  staleJobGameplayCalls: staleJobPassed.client.calls.length,
+  staleInstanceGameplayCalls: staleInstance.client.calls.length,
+  sameJobNotRequiredGameplayCalls: cachedNotRequired.client.calls.length,
+  sameJobBlockedGameplayCalls: cachedBlocked.client.calls.length,
   missingBlocker: missing.result.blockers[0],
   ambiguousBlocker: ambiguous.result.blockers[0],
   ordinaryGameplayCalls: ordinary.client.calls.length,
