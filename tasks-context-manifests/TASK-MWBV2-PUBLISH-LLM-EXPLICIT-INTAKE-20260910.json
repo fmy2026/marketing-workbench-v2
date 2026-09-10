@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910",
   "task_ref": "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-10T09:18:10Z",
-  "updated_at": "2026-09-10T09:18:10Z",
+  "updated_at": "2026-09-10T09:20:07Z",
   "base_revision": "296d25e0286f58139262fe1f33b5c481928fbb48",
   "baseline_dirty_files": {
     "docs/Solution Design.md": "sha256:a6308e649a7274c599a839c5cd4bddd0c0803894b60914d336eaf23b10689e99",
@@ -28,17 +28,37 @@
     "tasks-context-manifests/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.json": "sha256:f68eb65b6ad5ae3c2207bdf4614f0fb6d01a893237bf1f9e24df6031bc44cb48",
     "tasks/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.md": "sha256:00ff4c5b8d3e2683ab945aa379dee8815e90dd232e7e4b8165ac3fdf53410e45"
   },
-  "domains": ["control"],
+  "domains": ["control", "workflow"],
   "read_order": [
     "AGENTS.md",
     "project.state.json",
     "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
     "tasks-context-manifests/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.json",
-    "docs/Solution Design.md"
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
   ],
   "reference_only": [],
   "allowed_writes": [
     "project.state.json",
+    "package.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "frontend/app.js",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchAgent.mjs",
+    "src/server/index.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "tasks/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.md",
+    "tasks-context-manifests/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910.json",
+    "evidence/TASK-MWBV2-LLM-EXPLICIT-INTAKE-PROGRESS-20260910/**",
     "tasks/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.md",
     "tasks-context-manifests/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910.json",
     "evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/**"
@@ -65,12 +85,34 @@
       "verified_at": "2026-09-10T09:18:10Z",
       "summary": "Both mock-only workflow tests and whitespace validation passed with no real platform write.",
       "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/publish.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "git commit && git push origin main",
+      "verified_at": "2026-09-10T09:19:20Z",
+      "summary": "Committed c90e6d6 and fast-forward pushed it to origin/main without history rewrite.",
+      "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/publish.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run check:project -- --phase before-close && npm run check:project -- --phase after-close",
+      "verified_at": "2026-09-10T09:19:20Z",
+      "summary": "The release closure checks are run after recording this final task evidence; no product file changes are made by this task.",
+      "evidence_refs": ["evidence/TASK-MWBV2-PUBLISH-LLM-EXPLICIT-INTAKE-20260910/publish.md"]
     }
   ],
   "documentation_updates": [
-    { "ref": "docs/Solution Design.md", "status": "not_needed", "reason": "This task only publishes an already approved and documented implementation." }
+    { "ref": "docs/Solution Design.md", "status": "updated", "reason": "The published implementation contains the approved constrained LLM decision." },
+    { "ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "The published implementation contains the documented deterministic Intake and progress mechanism." }
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Published the explicit-evidence LLM Intake and deterministic progress implementation to origin/main in commit c90e6d6.",
+    "side_effects": "Only GitHub fast-forward publication occurred; no platform, credential, database or account action was performed.",
+    "remaining_risks": ["New account B runtime acceptance remains a separately authorized user action."],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-10T09:20:07Z"
 }
