@@ -43,7 +43,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 就绪 04 `account_resource_prepare` | 输出 `account_ready_report` 与资源四态；同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
 | 就绪 05 `std_project_draft_builder` | 执行已确认资源 Plan，或生成 Draft/hash、字段合同、查重和创建就绪；不创建项目。 |
 | 创建执行 06 `std_project_create_executor` | 只消费已确认 Create Plan；绑定或授权漂移即停止。 |
-| 创建执行 07 `readback_closer` | 以官方 `project_ids` 精确只读回查；无对象 ID 的不明创建才按名称恢复性查询，空或不一致均停止且不得补发 create。 |
+| 创建执行 07 `readback_closer` | 仅以官方 `project_ids` 精确回查项目 ID 与 Draft 名称；二者一致即完成。无对象 ID 的不明创建才按名称恢复性查询，空或不一致均停止且不得补发 create；不再创建后查询素材详情。 |
 
 注册 Skill 不表示进入每个 schedule：monitor reconcile、资源执行和回查均由对应 Gate/Plan 专链调用，通用 runner 不会自动写平台。
 
@@ -96,9 +96,10 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 - Case 是持续目标，Job 是一次运行；fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
 - monitor、资源准备、项目创建分别确认；确认前必须 fresh readonly，资源、调用量、Draft/hash、授权、重复或 effective config 漂移均 fail-closed。
-- 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY，只有权威回查可写入 verified。
+- 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY。标准项目的权威完成回查仅核验项目 ID 与 Draft 名称；素材、封面和引导视频合同在 Node 04、Node 05 与 preflight 完成。
 - 创建 Attempt 由 Case 的 `nextCreateAttemptNo` 推导；失败或修正使用新 Job/Plan/confirmation/Attempt。
 - 唯一重投例外是无对象 ID 的精确 `40100`，同一冻结 Create action 最多三次错峰物理投递；其余错误、超时或不明结果不自动重试。OAuth 与存储边界分别查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)和数据契约。
+- Node 05 查重唯一只读限流例外是首次 `GET std_project/list` 的 `HTTP 200 + api_code=40100`：完全相同参数在 Job 确定的 `20–24` 秒后最多重试一次；第二次 `40100` 以 `duplicate_readonly_rate_limited` 停止，其他错误零重试。该 GET 不产生 Plan、confirmation、action 或 Attempt；证据仅记录调用次数、最终业务码与是否恢复。
 
 ## 5. Case Gate 与工作台
 

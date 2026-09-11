@@ -492,7 +492,7 @@ export async function handleWorkbenchCommand({
               })()
             : (() => {
                 const readback = nextView?.execution?.readbackStatus || nextView?.readback?.readback_status || "";
-                return ["readback_verified", "created_pending_readback", "not_found_after_create", "project_id_mismatch", "project_name_mismatch", "guide_video_material_pending", "confirmed_create_object_id_missing"].includes(readback)
+                return ["readback_verified", "created_pending_readback", "not_found_after_create", "project_id_mismatch", "project_name_mismatch", "confirmed_create_object_id_missing"].includes(readback)
                   ? "单次创建已提交，已按结果进入只读回查。"
                   : "单次创建请求已结束；未开始只读回查，请按当前状态查看结果。";
               })()

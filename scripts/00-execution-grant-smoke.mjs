@@ -75,7 +75,6 @@ function fakeFetchFactory({
 }) {
   const calls = [];
   let createdProjectName = "";
-  let createdVideoMaterials = [];
   async function fakeFetch(url, options = {}) {
     const href = String(url);
     const bodyText = String(options.body || "");
@@ -92,9 +91,6 @@ function fakeFetchFactory({
       try {
         const createPayload = JSON.parse(bodyText);
         createdProjectName = createPayload.name || createdProjectName;
-        createdVideoMaterials = Array.isArray(createPayload.project_materials?.video_material_list)
-          ? createPayload.project_materials.video_material_list
-          : createdVideoMaterials;
       } catch {
         // The actual create contract owns parsing; the test transport only
         // needs its already-sent draft name for a subsequent ID readback.
@@ -125,13 +121,6 @@ function fakeFetchFactory({
         request_id: "fake-request-create",
         ...(effectiveMessage ? { message: effectiveMessage } : {}),
         data: effectiveObjectIdPresent ? { project_id: effectiveProjectId } : {}
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (href.includes("/oc_project/material/get/")) {
-      return new Response(JSON.stringify({
-        code: "0",
-        request_id: "fake-request-material-readback",
-        data: { video_material_list: createdVideoMaterials }
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (href.includes("/std_project/list/")) {

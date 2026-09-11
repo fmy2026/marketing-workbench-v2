@@ -77,25 +77,29 @@ function repoStub() {
   };
 }
 
-function clientStub({ nameItems = [], semanticPages = [[]], queryLog = [] } = {}) {
+function clientStub({ nameItems = [], semanticPages = [[]], nameResponses = [], queryLog = [] } = {}) {
+  let nameCall = 0;
   let semanticPage = 0;
   return {
     credentialState() { return { status: "ready", blockers: [] }; },
     async get({ query, summarize }) {
       queryLog.push(query);
       const filtering = JSON.parse(query.filtering);
-      const items = filtering.name
-        ? nameItems
-        : semanticPages[semanticPage++] || [];
-      const summary = summarize({ code: "0", data: { list: items } });
+      const response = filtering.name
+        ? (nameResponses[nameCall++] || { items: nameItems })
+        : { items: semanticPages[semanticPage++] || [] };
+      const apiCode = Object.hasOwn(response, "apiCode") ? response.apiCode : "0";
+      const payload = { code: apiCode, data: { list: response.items || [] } };
+      const summary = summarize(payload);
       return {
         endpoint: "std_project/list",
-        status: "passed",
-        httpStatus: 200,
-        apiCode: "0",
+        status: response.status || (apiCode === "0" ? "passed" : "blocked"),
+        httpStatus: response.httpStatus ?? 200,
+        apiCode,
         requestIdPresent: true,
         responseHash: "sha256:duplicate-semantic-smoke",
-        summary
+        summary,
+        gap: response.gap || "平台只读 API 返回非通过状态."
       };
     }
   };
@@ -104,13 +108,15 @@ function clientStub({ nameItems = [], semanticPages = [[]], queryLog = [] } = {}
 async function runCase(options) {
   const repo = repoStub();
   const queryLog = [];
+  const waits = [];
   const result = await runDuplicateReadonlyCheck({
     repo,
     bundle: bundle(),
     client: clientStub({ ...options, queryLog }),
-    allowReadonlyDependency: true
+    allowReadonlyDependency: true,
+    wait: async (delayMs) => { waits.push(delayMs); }
   });
-  return { repo, result, queryLog };
+  return { repo, result, queryLog, waits };
 }
 
 const nameDuplicate = await runCase({ nameItems: [semanticItem({ name: "semantic-smoke-new-name" })] });
@@ -142,6 +148,49 @@ assert.equal(paginated.queryLog.length, 3);
 assert.equal(paginated.result.outputSummary.semanticCandidateCount, 100);
 assert(paginated.repo.state.evidence.every((entry) => entry.summary.includes("response_body_stored=false")));
 
+const rateLimitRecovered = await runCase({
+  nameResponses: [{ apiCode: "40100" }, { items: [] }],
+  semanticPages: [[]]
+});
+assert.equal(rateLimitRecovered.result.status, "passed");
+assert.equal(rateLimitRecovered.queryLog.length, 3);
+assert.deepEqual(rateLimitRecovered.queryLog[0], rateLimitRecovered.queryLog[1]);
+assert.equal(rateLimitRecovered.waits.length, 1);
+assert(rateLimitRecovered.waits[0] >= 20_000 && rateLimitRecovered.waits[0] <= 24_000);
+assert.equal(rateLimitRecovered.result.outputSummary.recoveredAfterRateLimit, true);
+assert.equal(rateLimitRecovered.result.outputSummary.probeAttemptCount, 3);
+assert.equal(rateLimitRecovered.result.outputSummary.rateLimitedCount, 1);
+assert(rateLimitRecovered.repo.state.evidence[0].summary.includes("recovered_after_rate_limit=true"));
+
+const rateLimitExhausted = await runCase({
+  nameResponses: [{ apiCode: "40100" }, { apiCode: "40100" }]
+});
+assert.equal(rateLimitExhausted.result.status, "blocked");
+assert.deepEqual(rateLimitExhausted.result.blockers, ["duplicate_readonly_rate_limited"]);
+assert.equal(rateLimitExhausted.result.outputSummary.apiCode, "40100");
+assert.equal(rateLimitExhausted.result.outputSummary.finalApiCode, "40100");
+assert.equal(rateLimitExhausted.queryLog.length, 2);
+assert.equal(rateLimitExhausted.waits.length, 1);
+
+const nonRateLimit = await runCase({ nameResponses: [{ apiCode: "40000" }] });
+assert.equal(nonRateLimit.result.status, "blocked");
+assert.deepEqual(nonRateLimit.result.blockers, ["duplicate_readonly_probe_not_passed"]);
+assert.equal(nonRateLimit.queryLog.length, 1);
+assert.equal(nonRateLimit.waits.length, 0);
+
+for (const response of [
+  { apiCode: "40100", httpStatus: 429 },
+  { apiCode: "", httpStatus: 504, status: "error" },
+  { apiCode: "", httpStatus: null, status: "error" },
+  { apiCode: "", httpStatus: 200, status: "error" }
+]) {
+  const nonRetryableFailure = await runCase({ nameResponses: [response] });
+  assert.equal(nonRetryableFailure.result.status, "blocked");
+  assert.deepEqual(nonRetryableFailure.result.blockers, ["duplicate_readonly_probe_not_passed"]);
+  assert.equal(nonRetryableFailure.queryLog.length, 1);
+  assert.equal(nonRetryableFailure.waits.length, 0);
+}
+
 console.log(JSON.stringify({
   status: "passed",
   nameDuplicateBlocked: true,
@@ -149,5 +198,9 @@ console.log(JSON.stringify({
   deletedExcluded: true,
   incompleteCandidateFailClosed: true,
   paginatedReadonly: true,
+  rateLimitRecovered: true,
+  rateLimitExhaustedFailClosed: true,
+  nonRateLimitNotRetried: true,
+  timeoutNetworkParseFailuresNotRetried: true,
   platformWrites: 0
 }));

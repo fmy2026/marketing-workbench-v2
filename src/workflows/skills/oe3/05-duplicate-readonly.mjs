@@ -16,6 +16,33 @@ const SEMANTIC_FIELDS = Object.freeze([
 ]);
 const SEMANTIC_PAGE_SIZE = 100;
 const SEMANTIC_MAX_PAGES = 20;
+const RATE_LIMIT_RETRY_BASE_DELAY_MS = 20_000;
+const RATE_LIMIT_RETRY_JITTER_MAX_MS = 4_000;
+
+function defaultWait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function rateLimitRetryDelayMs(jobId = "", label = "") {
+  const digest = clean(hashValue({ jobId, label })).replace(/^sha256:/, "");
+  const seed = Number.parseInt(digest.slice(0, 8), 16);
+  const jitter = Number.isFinite(seed) ? seed % (RATE_LIMIT_RETRY_JITTER_MAX_MS + 1) : 0;
+  return RATE_LIMIT_RETRY_BASE_DELAY_MS + jitter;
+}
+
+function isExactRateLimit(probe = {}) {
+  return probe?.httpStatus === 200 && clean(probe?.apiCode) === "40100";
+}
+
+function recoverySummary(recovery = {}, probe = null) {
+  return {
+    probeAttemptCount: Number(recovery.probeAttemptCount || 0),
+    rateLimitedCount: Number(recovery.rateLimitedCount || 0),
+    retryDelayMs: Number(recovery.retryDelayMs || 0),
+    recoveredAfterRateLimit: recovery.recoveredAfterRateLimit === true,
+    finalApiCode: clean(probe?.apiCode)
+  };
+}
 
 function objectName(item = {}) {
   return clean(item.name || item.project_name || item.std_project_name);
@@ -117,6 +144,10 @@ async function recordDuplicateEvidence({ repo, bundle, draft, status, probe, sum
     `semantic_candidate_count=${Number(summary.semanticCandidateCount || 0)}`,
     `semantic_candidate_incomplete_count=${Number(summary.semanticCandidateIncompleteCount || 0)}`,
     `matched_object_id_present=${Boolean(summary.matchedObjectId)}`,
+    `probe_attempt_count=${Number(summary.probeAttemptCount || 0)}`,
+    `rate_limited_count=${Number(summary.rateLimitedCount || 0)}`,
+    `recovered_after_rate_limit=${summary.recoveredAfterRateLimit === true}`,
+    `final_api_code=${summary.finalApiCode || probe?.apiCode || "none"}`,
     "response_body_stored=false"
   ].join("; ");
   await repo.upsertEvidence({
@@ -152,7 +183,8 @@ async function failClosed({ repo, bundle, draft, status, probe = null, summary =
       reason,
       httpStatus: probe?.httpStatus ?? null,
       apiCode: probe?.apiCode || "",
-      requestIdPresent: Boolean(probe?.requestIdPresent)
+      requestIdPresent: Boolean(probe?.requestIdPresent),
+      ...recoverySummary(summary, probe)
     }
   });
 }
@@ -162,10 +194,38 @@ export async function runDuplicateReadonlyCheck({
   bundle,
   client = createOceanEngineReadonlyClient(),
   mockReady = false,
-  allowReadonlyDependency = false
+  allowReadonlyDependency = false,
+  wait = defaultWait
 } = {}) {
   const draft = bundle.draft || {};
   const projectName = clean(draft.project_name);
+  const recovery = {
+    probeAttemptCount: 0,
+    rateLimitedCount: 0,
+    retryDelayMs: 0,
+    recoveredAfterRateLimit: false,
+    retryUsed: false
+  };
+  const runProbe = async ({ label, request }) => {
+    let probe = await request();
+    recovery.probeAttemptCount += 1;
+    if (!isExactRateLimit(probe)) return { probe, rateLimitExhausted: false };
+
+    recovery.rateLimitedCount += 1;
+    if (recovery.retryUsed) return { probe, rateLimitExhausted: true };
+
+    recovery.retryUsed = true;
+    recovery.retryDelayMs = rateLimitRetryDelayMs(bundle.job?.job_id, label);
+    await wait(recovery.retryDelayMs);
+    probe = await request();
+    recovery.probeAttemptCount += 1;
+    if (isExactRateLimit(probe)) {
+      recovery.rateLimitedCount += 1;
+      return { probe, rateLimitExhausted: true };
+    }
+    recovery.recoveredAfterRateLimit = probe.status === "passed";
+    return { probe, rateLimitExhausted: false };
+  };
 
   if (mockReady) {
     await repo.updateDraftDuplicateStatus(draft.draft_id, "platform_not_duplicate");
@@ -217,26 +277,32 @@ export async function runDuplicateReadonlyCheck({
     });
   }
 
-  const nameProbe = await client.get({
+  const nameResult = await runProbe({
     label: "std_project_duplicate_name",
-    endpoint: "/open_api/v3.0/std_project/list/",
-    query: {
-      advertiser_id: clean(bundle.job.advertiser_id),
-      filtering: JSON.stringify({ name: projectName, status_first: contract.statusFirst }),
-      page: "1",
-      page_size: "20"
-    },
-    summarize: (payload) => summarizeNamePage(payload, projectName)
+    request: () => client.get({
+      label: "std_project_duplicate_name",
+      endpoint: "/open_api/v3.0/std_project/list/",
+      query: {
+        advertiser_id: clean(bundle.job.advertiser_id),
+        filtering: JSON.stringify({ name: projectName, status_first: contract.statusFirst }),
+        page: "1",
+        page_size: "20"
+      },
+      summarize: (payload) => summarizeNamePage(payload, projectName)
+    })
   });
+  const nameProbe = nameResult.probe;
   const nameSummary = nameProbe.summary || {};
   if (nameProbe.status !== "passed") {
     return failClosed({
       repo, bundle, draft,
-      status: "platform_duplicate_check_failed",
+      status: nameResult.rateLimitExhausted ? "duplicate_readonly_rate_limited" : "platform_duplicate_check_failed",
       probe: nameProbe,
-      summary: {},
-      blockers: ["duplicate_readonly_probe_not_passed"],
-      reason: nameProbe.gap || "平台同名查重未确认通过"
+      summary: recoverySummary(recovery, nameProbe),
+      blockers: [nameResult.rateLimitExhausted ? "duplicate_readonly_rate_limited" : "duplicate_readonly_probe_not_passed"],
+      reason: nameResult.rateLimitExhausted
+        ? "平台查重暂时限流，请稍后重新只读准备"
+        : (nameProbe.gap || "平台同名查重未确认通过")
     });
   }
 
@@ -248,7 +314,8 @@ export async function runDuplicateReadonlyCheck({
       summary: {
         nameDuplicateFound: true,
         matchedObjectId: nameSummary.matchedObjectId || "",
-        matchMode: "name"
+        matchMode: "name",
+        ...recoverySummary(recovery, nameProbe)
       },
       blockers: ["platform_duplicate_found"],
       reason: "平台 std_project/list 发现未删除同名项目"
@@ -259,25 +326,31 @@ export async function runDuplicateReadonlyCheck({
   let semanticProbe = null;
   let semanticPageComplete = false;
   for (let page = 1; page <= SEMANTIC_MAX_PAGES; page += 1) {
-    semanticProbe = await client.get({
+    const semanticResult = await runProbe({
       label: "std_project_duplicate_semantic",
-      endpoint: "/open_api/v3.0/std_project/list/",
-      query: {
-        advertiser_id: clean(bundle.job.advertiser_id),
-        filtering: JSON.stringify({ status_first: contract.statusFirst }),
-        page: String(page),
-        page_size: String(SEMANTIC_PAGE_SIZE)
-      },
-      summarize: (payload) => summarizeSemanticPage(payload, contract.fields)
+      request: () => client.get({
+        label: "std_project_duplicate_semantic",
+        endpoint: "/open_api/v3.0/std_project/list/",
+        query: {
+          advertiser_id: clean(bundle.job.advertiser_id),
+          filtering: JSON.stringify({ status_first: contract.statusFirst }),
+          page: String(page),
+          page_size: String(SEMANTIC_PAGE_SIZE)
+        },
+        summarize: (payload) => summarizeSemanticPage(payload, contract.fields)
+      })
     });
+    semanticProbe = semanticResult.probe;
     if (semanticProbe.status !== "passed") {
       return failClosed({
         repo, bundle, draft,
-        status: "platform_duplicate_check_failed",
+        status: semanticResult.rateLimitExhausted ? "duplicate_readonly_rate_limited" : "platform_duplicate_check_failed",
         probe: semanticProbe,
-        summary: { semanticCandidateCount: candidates.length },
-        blockers: ["duplicate_readonly_probe_not_passed"],
-        reason: semanticProbe.gap || "平台语义查重未确认通过"
+        summary: { semanticCandidateCount: candidates.length, ...recoverySummary(recovery, semanticProbe) },
+        blockers: [semanticResult.rateLimitExhausted ? "duplicate_readonly_rate_limited" : "duplicate_readonly_probe_not_passed"],
+        reason: semanticResult.rateLimitExhausted
+          ? "平台查重暂时限流，请稍后重新只读准备"
+          : (semanticProbe.gap || "平台语义查重未确认通过")
       });
     }
     const pageCandidates = semanticProbe.summary?.candidates || [];
@@ -295,7 +368,8 @@ export async function runDuplicateReadonlyCheck({
     semanticCandidateIncompleteCount: incompleteCandidates.length,
     semanticDuplicateFound: Boolean(semanticMatch),
     matchedObjectId: semanticMatch?.objectId || "",
-    matchMode: semanticMatch ? "semantic" : ""
+    matchMode: semanticMatch ? "semantic" : "",
+    ...recoverySummary(recovery, semanticProbe)
   };
   if (!semanticPageComplete || incompleteCandidates.length) {
     return failClosed({
@@ -345,7 +419,8 @@ export async function runDuplicateReadonlyCheck({
       reason: "平台 std_project/list 未发现未删除同名或同语义标的项目",
       httpStatus: semanticProbe?.httpStatus ?? null,
       apiCode: semanticProbe?.apiCode || "",
-      requestIdPresent: Boolean(semanticProbe?.requestIdPresent)
+      requestIdPresent: Boolean(semanticProbe?.requestIdPresent),
+      ...recoverySummary(recovery, semanticProbe)
     }
   });
 }

@@ -1,0 +1,139 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911",
+  "task_ref": "tasks/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T04:47:00Z",
+  "updated_at": "2026-09-11T04:59:43Z",
+  "base_revision": "6596a4f53e69f73a23d7ac123c0d2326fe295a01",
+  "baseline_dirty_files": {
+    "docs/Solution Design.md": "sha256:08d1d34492a6bb1a34c034ff52ea31c479338f8bf72c461c637a6e6b9b238397",
+    "docs/project-现在的逻辑图.md": "sha256:8eb867b4f9dfbaaa5395b9fbbf46a3a068317c39aa470eab059b805f35e68fd6",
+    "frontend/workbench-progress.mjs": "sha256:7770487d7b8f591e5debca68032c2070e1e3a6f7319e37f2d305ed53d149bed6",
+    "project.state.json": "sha256:47f547032af28fa097fc311da68174dce389014c3723d5d3d8dff396965bab2b",
+    "scripts/00-duplicate-semantic-readonly-smoke.mjs": "sha256:d0deeeefd5f9e91e754055b5eae364ef107d4ca6fc4cda3232ddcb8235105775",
+    "scripts/00-workbench-progress-smoke.mjs": "sha256:34acb6d50af8207468fbea2c7d85372cc0446b3571b526def5d0d97f60bd055b",
+    "src/workflows/launchWorkflow.mjs": "sha256:7dab67008c68487f3753644cdc7e22111d39c4ede411a4a3e8f4fbc86f011f4f",
+    "src/workflows/skills/oe3/05-duplicate-readonly.mjs": "sha256:faf9ca52a621d993e99af1fda5615546b68252f8548a7119adfb12041224e505",
+    "tasks-context-manifests/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.json": "sha256:76a897a03916245b6ac5421ea121fe248b02c8e1b20d58663e818412cedaf5cc",
+    "tasks/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.md": "sha256:0d6860c92c1ba62093e2580d4fb7bf86ae578359ea6ab6b7af2ca5e56c261983"
+  },
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-case-corrective-create-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.json",
+    "src/platforms/oceanengineStdProjectCreateExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/workflows/skills/oe3/07-readback.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "scripts/00-std-project-readback-schedule-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-case-corrective-create-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "forbidden_actions": [
+    "任何平台创建、确认、资源写入、凭据刷新或账户 owner 代操作",
+    "修改 Schema、数据库运行数据、Node、Gate、Plan、后台调度或公开 HTTP API",
+    "修改历史 Task、历史 evidence 或本任务基线中的 Node 05 未提交改动",
+    "保存 token、Cookie、secret、完整 URL、raw request、raw payload 或 raw response"
+  ],
+  "stop_conditions": [
+    "项目身份回查不能单独保持精确 ID、名称与 fail-closed 合同",
+    "实现需要增加平台写入、Schema、Gate/Plan/Node 或后台任务",
+    "现有基线脏文件发生非本任务预期变化"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:std-project-readback"},
+    {"acceptance_id": "AC-02", "command": "npm run test:std-project-readback && npm run test:execution-grant && npm run test:case-corrective-create"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation && npm run test:workbench-progress"},
+    {"acceptance_id": "AC-04", "command": "npm run smoke:workflow-skills && npm run check:runtime-consistency && git diff --check && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:std-project-readback",
+      "verified_at": "2026-09-11T04:59:00Z",
+      "summary": "A guide-video and cover-required account reaches readback_verified and consumes its waiting_readback Plan after exact project ID and Draft-name match; the material-details endpoint is called zero times.",
+      "evidence_refs": [
+        "scripts/00-std-project-readback-schedule-smoke.mjs",
+        "src/platforms/oceanengineStdProjectCreateExecutor.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:std-project-readback && npm run test:execution-grant && npm run test:case-corrective-create",
+      "verified_at": "2026-09-11T04:59:00Z",
+      "summary": "Five bounded list checks remain; project-not-found, ID mismatch, name mismatch and transport failure remain fail-closed, and execution/corrective-create coverage confirms one create and zero material-detail reads.",
+      "evidence_refs": [
+        "scripts/00-std-project-readback-schedule-smoke.mjs",
+        "scripts/00-execution-grant-smoke.mjs",
+        "scripts/00-case-corrective-create-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-progress",
+      "verified_at": "2026-09-11T04:59:00Z",
+      "summary": "The workbench describes only project ID and name confirmation for run_readback_only; no material-association completion state is exposed.",
+      "evidence_refs": [
+        "src/workflows/workbenchConversation.mjs",
+        "src/workflows/workbenchProgressNarrative.mjs",
+        "scripts/00-workbench-conversation-smoke.mjs",
+        "scripts/00-workbench-progress-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run smoke:workflow-skills && npm run check:runtime-consistency && git diff --check && npm run check:project -- --phase before-close",
+      "verified_at": "2026-09-11T04:59:43Z",
+      "summary": "Workflow smoke passed the 7-Node mock execution through Node 07 without a real platform write or token refresh; runtime consistency, whitespace and before-close project-contract checks passed.",
+      "evidence_refs": [
+        "scripts/00-oe3-workflow-skills-smoke.mjs",
+        "scripts/00-runtime-consistency-check.mjs",
+        "project.state.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "明确 Node 07 的最终完成标准仅为项目 ID 与 Draft 名称，并移除创建后素材详情验收。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "明确 Node 07 仅做项目身份回查，素材、封面与引导视频合同保留在 Node 04、Node 05 与 preflight。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Node 07 now closes a standard-project Case once the authoritative list returns the created project ID with the Draft name. It no longer calls or evaluates project material details.",
+    "side_effects": "Only Node 07 readback, its readonly allowlist, workbench wording, smoke coverage, current mechanism documents and task coordination files changed. No schema, platform write, new Node, Gate, Plan, background task or public API changed.",
+    "remaining_risks": [
+      "The current Case must be resumed by its authenticated account owner using “继续执行” after local deployment; this task does not impersonate the owner or create a project.",
+      "A list result that is absent, mismatched, unavailable or unparsable remains deliberately fail-closed and never triggers another create."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T04:59:43Z"
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911",
+  "task_ref": "tasks/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T03:41:28Z",
+  "updated_at": "2026-09-11T04:21:00Z",
+  "base_revision": "6596a4f53e69f73a23d7ac123c0d2326fe295a01",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/workflows/skills/oe3/05-duplicate-readonly.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-DUPLICATE-READONLY-40100-RECOVERY-20260911.json",
+    "src/workflows/skills/oe3/05-duplicate-readonly.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "forbidden_actions": [
+    "任何真实平台创建、confirmation、action grant、资源写入或凭据刷新",
+    "修改通用 OceanEngine readonly client、Node、Gate、Plan、数据库 Schema 或公开 HTTP API",
+    "新增账户、Case、Job 或用户专用 runtime 分支",
+    "保存 token、Cookie、secret、完整 URL、raw request、raw payload、raw response 或平台消息"
+  ],
+  "stop_conditions": [
+    "需要超过一次只读重试、通用 client 重试、后台队列或真实平台写入",
+    "不能证明非 40100 分支保持单次 fail-closed",
+    "任何 Plan、确认、创建次数或脱敏边界发生漂移"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:duplicate-semantic-readonly"},
+    {"acceptance_id": "AC-02", "command": "npm run test:duplicate-semantic-readonly && npm run smoke:workflow-skills"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress"},
+    {"acceptance_id": "AC-04", "command": "npm run check:runtime-consistency && git diff --check && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:duplicate-semantic-readonly",
+      "verified_at": "2026-09-11T04:19:57Z",
+      "summary": "Covers exact 40100 to 0 with one identical-parameter retry in 20–24 seconds, exact 40100 to 40100 with the dedicated blocker, and records only the allowed redacted recovery fields.",
+      "evidence_refs": [
+        "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+        "src/workflows/skills/oe3/05-duplicate-readonly.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:duplicate-semantic-readonly && npm run smoke:workflow-skills",
+      "verified_at": "2026-09-11T04:19:24Z",
+      "summary": "Non-40100, HTTP mismatch, timeout, network and parse-style failures make one request and remain fail-closed; existing name, semantic, pagination and incomplete-field protections pass. Workflow smoke reports no real platform write or token refresh.",
+      "evidence_refs": [
+        "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+        "scripts/00-oe3-workflow-skills-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:workbench-progress",
+      "verified_at": "2026-09-11T04:17:31Z",
+      "summary": "The workbench maps the dedicated blocker to a clear later-retry readonly prompt, and the progress smoke verifies the copy without exposing an action that can create a project.",
+      "evidence_refs": [
+        "frontend/workbench-progress.mjs",
+        "src/workflows/launchWorkflow.mjs",
+        "scripts/00-workbench-progress-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run check:runtime-consistency && git diff --check",
+      "verified_at": "2026-09-11T04:19:57Z",
+      "summary": "Runtime consistency passed with 7 Nodes, zero create actions, zero confirmations and zero created objects; whitespace validation passed. The before-close and after-close contract checks are recorded separately at closure.",
+      "evidence_refs": [
+        "scripts/00-runtime-consistency-check.mjs",
+        "project.state.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "新增 Node 05 精确 40100 的一次只读恢复边界及不产生写入状态的约束。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "写入 Node 05 的有界限流恢复、停止条件和脱敏证据边界。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Node 05 now recovers once from the exact HTTP 200 plus 40100 list-query limit using identical parameters and a deterministic 20–24 second delay. A second 40100 is a dedicated readonly blocker; all other errors remain single-request fail-closed.",
+    "side_effects": "Only Node 05 readonly logic, its smoke coverage, workbench blocker copy, current mechanism documentation and task coordination files changed. No platform write, confirmation, create action, migration, schema or public API changed.",
+    "remaining_risks": [
+      "The affected Case still requires its authenticated account owner to use “重新只读准备” after deployment; this task does not impersonate the owner or create a project.",
+      "A platform limit that persists beyond the one allowed retry remains intentionally fail-closed."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T04:21:00Z"
+}

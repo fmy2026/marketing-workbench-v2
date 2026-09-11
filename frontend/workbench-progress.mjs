@@ -24,6 +24,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "duplicate_readonly_rate_limited") {
+    return {
+      message: "当前阻断：平台查重暂时限流，请稍后输入“重新只读准备”；不会确认或创建项目。",
+      placeholder: "稍后输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "brand_info_not_ready") {
     return {
       message: "当前阻断：目标账户品牌/行业尚未满足当前创建前合同。请输入“重新只读准备”重新核验；不会自动确认或创建项目。",

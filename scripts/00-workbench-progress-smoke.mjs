@@ -134,6 +134,9 @@ assert(fieldShapeGuidance?.message.includes("字段形态校验未通过"), "fie
 assert(fieldShapeGuidance?.placeholder === "输入“查看状态”…", "field_shape_contract_guidance_must_not_request_repeated_readonly");
 const genericBlockerGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["resource_contract_missing"] });
 assert(genericBlockerGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "generic_blocker_placeholder_mismatch");
+const duplicateRateLimitGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["duplicate_readonly_rate_limited"] });
+assert(duplicateRateLimitGuidance?.message === "当前阻断：平台查重暂时限流，请稍后输入“重新只读准备”；不会确认或创建项目。", "duplicate_rate_limit_guidance_message_mismatch");
+assert(duplicateRateLimitGuidance?.placeholder === "稍后输入“重新只读准备”或“查看状态”…", "duplicate_rate_limit_guidance_placeholder_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_capability_probe_failed"] })?.message === "当前阻断：无法确认本账户的引导视频能力，请重新只读核验。", "guide_video_probe_guidance_message_mismatch");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["guide_video_candidate_ambiguous"] })?.message === "当前阻断：检测到多个引导视频，需先确定唯一玩法。", "guide_video_ambiguous_guidance_message_mismatch");
 const identityRecoveryBlockers = [
@@ -149,11 +152,14 @@ for (const blocker of identityRecoveryBlockers) {
   assert(guidance.message !== "流程状态正在更新，请刷新查看。", `identity_recovery_must_not_fall_back_to_refresh:${blocker}`);
 }
 
-const [htmlSource, clientSource, styleSource] = await Promise.all([
+const [htmlSource, clientSource, styleSource, workflowSource] = await Promise.all([
   readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),
   readFile(new URL("../frontend/app.js", import.meta.url), "utf8"),
-  readFile(new URL("../frontend/styles.css", import.meta.url), "utf8")
+  readFile(new URL("../frontend/styles.css", import.meta.url), "utf8"),
+  readFile(new URL("../src/workflows/launchWorkflow.mjs", import.meta.url), "utf8")
 ]);
+assert(workflowSource.includes("duplicate_readonly_rate_limited"), "duplicate_rate_limit_root_blocker_copy_missing");
+assert(workflowSource.includes("平台查重暂时限流"), "duplicate_rate_limit_root_blocker_title_missing");
 assert(!htmlSource.includes('id="caseGate"'), "duplicate_case_gate_panel_still_present");
 assert(!clientSource.includes("renderCaseGate"), "duplicate_case_gate_renderer_still_present");
 assert(!styleSource.includes(".case-gate"), "duplicate_case_gate_styles_still_present");

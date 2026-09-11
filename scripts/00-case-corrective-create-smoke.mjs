@@ -18,7 +18,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresent = true, videoMaterials = [] } = {}) {
+function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresent = true } = {}) {
   const calls = [];
   async function fakeFetch(url, options = {}) {
     const href = String(url);
@@ -40,13 +40,6 @@ function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresen
         data: { list: [{ project_id: projectId, name, status: "ENABLE" }] }
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
-    if (href.includes("/oc_project/material/get/")) {
-      return new Response(JSON.stringify({
-        code: "0",
-        request_id: "fake-request-project-materials",
-        data: { video_material_list: videoMaterials }
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
     throw new Error(`unexpected_fake_fetch_url:${href}`);
   }
   fakeFetch.calls = calls;
@@ -55,19 +48,6 @@ function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresen
 
 function callCount(fakeFetch, fragment) {
   return fakeFetch.calls.filter((call) => call.href.includes(fragment)).length;
-}
-
-function expectedProjectVideoMaterials(bundle = {}) {
-  const guideVideoId = String((bundle.resources || [])
-    .find((item) => item.resource_type === "micro_app_instance")?.metadata?.guide_video_readiness?.guide_video_id || "").trim();
-  return (bundle.materialPack?.items || [])
-    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
-    .map((entry) => ({
-      video_id: String(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id || "").trim(),
-      video_cover_id: String(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "").trim(),
-      ...(guideVideoId ? { guide_video_id: guideVideoId } : {})
-    }))
-    .filter((item) => item.video_id);
 }
 
 const repo = new PostgresRepository();
@@ -181,10 +161,8 @@ try {
 
   const second = await createReadyJob({ caseId: first.caseId, attemptNo: 2, deriveAttemptNo: true });
   const secondState = await writePlanBoundState(second);
-  const secondBundle = await repo.getLaunchJobBundle(second.jobId);
   const secondFetch = fakeFetchFactory({
     projectId: "999901002",
-    videoMaterials: expectedProjectVideoMaterials(secondBundle)
   });
   const secondResult = await executeConfirmedLaunch({
     repo,
@@ -196,7 +174,7 @@ try {
   });
   assert(callCount(secondFetch, "/std_project/create/") === 1, "attempt_2_create_call_count_invalid");
   assert(callCount(secondFetch, "/std_project/list/") === 1, "attempt_2_readback_call_count_invalid");
-  assert(callCount(secondFetch, "/oc_project/material/get/") <= 1, "attempt_2_material_readback_call_count_invalid");
+  assert(callCount(secondFetch, "/oc_project/material/get/") === 0, "attempt_2_must_not_call_material_readback");
   assert(secondResult.executionGrant.createCalled === true, "attempt_2_create_not_recorded");
   assert(secondResult.headline.status === "created", "attempt_2_not_verified");
 

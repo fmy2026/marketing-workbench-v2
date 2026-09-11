@@ -137,22 +137,17 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
     });
     const projectIdMismatch = readback.status === "project_id_mismatch";
     const projectNameMismatch = readback.status === "project_name_mismatch";
-    const guideVideoMaterialPending = readback.status === "guide_video_material_pending";
     const confirmedObjectIdMissing = readback.status === "confirmed_create_object_id_missing";
     const identityMismatch = projectIdMismatch || projectNameMismatch;
     const recoveredByReadback = readback.status === "readback_verified" && responseUnknown;
-    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" &&
-      responseUnknown &&
-      !guideVideoMaterialPending;
+    const readbackMissAfterUnconfirmedCreate = readback.status !== "readback_verified" && responseUnknown;
     const readbackBlockers = readback.status === "readback_verified"
       ? []
       : projectIdMismatch
         ? ["readback_project_id_mismatch"]
         : projectNameMismatch
           ? ["readback_project_name_mismatch"]
-          : guideVideoMaterialPending
-            ? ["guide_video_material_readback_pending"]
-            : confirmedObjectIdMissing
+          : confirmedObjectIdMissing
               ? ["confirmed_create_object_id_missing"]
               : readbackMissAfterUnconfirmedCreate
                 ? ["create_response_unconfirmed_readback_not_found"]
@@ -163,9 +158,7 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         ? "project_id_mismatch"
         : projectNameMismatch
           ? "project_name_mismatch"
-          : guideVideoMaterialPending
-            ? "guide_video_material_pending"
-            : confirmedObjectIdMissing
+          : confirmedObjectIdMissing
               ? "confirmed_create_object_id_missing"
               : readbackMissAfterUnconfirmedCreate
                 ? "create_unconfirmed_readback_not_found"
@@ -203,9 +196,7 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
             ? "创建响应与回查项目 ID 不一致，已停止且禁止自动重试。"
             : projectNameMismatch
               ? "创建响应与回查项目名称不一致，已停止且禁止自动重试。"
-              : guideVideoMaterialPending
-                ? "项目已出现，等待素材只读确认推广视频均关联本轮引导视频。"
-                : confirmedObjectIdMissing
+              : confirmedObjectIdMissing
                   ? "创建响应已确认但本地对象 ID 缺失，已停止且不会按名称猜测或再次创建。"
                   : readbackMissAfterUnconfirmedCreate
                     ? "本轮创建未确认成功，已停止；重新发送需求可开启新轮次。"

@@ -30,7 +30,7 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
     create_fresh_job: "已收到完整需求，正在建立本次流程。",
     run_monitor_readonly: "正在核对这个账户的监测配置，目前不会创建任何对象。",
     run_fresh_readiness: "正在核对账户资源并准备创建草稿，目前不会创建项目。",
-    run_readback_only: "平台已受理，正在核对项目 ID 和名称；不会重复创建。",
+    run_readback_only: "项目已创建，正在确认项目 ID 和名称；不会重复创建。",
     first_std_project_create_completed: "项目已通过平台回查，本次创建流程已完成。"
   };
   if (messages[currentGate]) return Object.freeze({ shortLabel: "流程进行中", message: messages[currentGate] });

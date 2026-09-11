@@ -11,9 +11,6 @@ const PROJECT_ID = "7680763113444425770";
 const PROJECT_NAME = "JSZC_STD_READBACK_SCHEDULE_SMOKE";
 const EXPECTED_SCHEDULE = [0, 3000, 5000, 8000, 10000];
 const EXPECTED_WAIT_WINDOWS = [0, 3000, 2000, 3000, 2000];
-const GUIDE_VIDEO_ID = "guide-video-smoke";
-const VIDEO_IDS = ["video-smoke-1", "video-smoke-2"];
-const VIDEO_COVER_IDS = ["video-cover-smoke-1", "video-cover-smoke-2"];
 
 function bundle({ guideRequired = false, coverRequired = false, createResponseUnknown = false, createdObjectId = PROJECT_ID } = {}) {
   return {
@@ -25,38 +22,6 @@ function bundle({ guideRequired = false, coverRequired = false, createResponseUn
       guide_video_required: guideRequired,
       video_cover_required: coverRequired
     },
-    materialPack: {
-      items: VIDEO_IDS.map((videoId, index) => ({
-        item: { item_type: "video_asset", required: true, asset_id: `VIDEO-SMOKE-${index + 1}` },
-        asset: { metadata: { video_id: videoId, video_cover_id: VIDEO_COVER_IDS[index] } }
-      }))
-    },
-    resources: [
-      {
-        resource_type: "micro_app_instance",
-        source_asset_id: "MICRO-APP-SMOKE",
-        platform_resource_id: "7434750138926546994",
-        visibility_status: "visible",
-        readback_status: "readback_verified",
-        metadata: {
-          guide_video_readiness: {
-          status: "passed",
-          required: true,
-          guide_video_id: GUIDE_VIDEO_ID,
-          verified_by_job_id: "JOB-STD-PROJECT-READBACK-SCHEDULE-SMOKE",
-          verified_instance_id: "7434750138926546994"
-          }
-        }
-      },
-      ...VIDEO_IDS.map((videoId, index) => ({
-        resource_type: "video_asset",
-        source_asset_id: `VIDEO-SMOKE-${index + 1}`,
-        platform_resource_id: videoId,
-        visibility_status: "visible",
-        readback_status: "readback_verified",
-        metadata: {}
-      }))
-    ],
     draft: {
       project_name: PROJECT_NAME
     },
@@ -99,8 +64,6 @@ async function runScenario({
   transportError = false,
   guideRequired = false,
   coverRequired = false,
-  guideBindingMatch = true,
-  coverBindingMatch = true,
   createResponseUnknown = false,
   createdObjectId = PROJECT_ID,
   observationId = "readback-smoke-observation",
@@ -150,17 +113,7 @@ async function runScenario({
     fetchImpl: async (requestUrl) => {
       if (String(requestUrl).includes("/oc_project/material/get/")) {
         materialCallCount += 1;
-        return jsonResponse({
-          code: 0,
-          request_id: `material-request-${materialCallCount}`,
-          data: {
-            video_material_list: VIDEO_IDS.map((videoId, index) => ({
-              video_id: videoId,
-              video_cover_id: coverBindingMatch || index > 0 ? VIDEO_COVER_IDS[index] : "different-video-cover",
-              guide_video_id: guideBindingMatch || index > 0 ? GUIDE_VIDEO_ID : "different-guide-video"
-            }))
-          }
-        });
+        throw new Error("material_readback_must_not_be_called");
       }
       listCallCount += 1;
       requestTimes.push(now);
@@ -248,44 +201,17 @@ assert(nameMismatch.result.status === "project_name_mismatch", "name_mismatch_mu
 assert(nameMismatch.listCallCount === 3, "name_mismatch_must_stop_immediately_after_visible_object");
 assert(nameMismatch.readbackRecords.at(-1)?.readbackStatus === "project_name_mismatch", "name_mismatch_record_missing");
 
-const guideMatched = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true });
-assert(guideMatched.result.status === "readback_verified", "video_cover_and_guide_material_match_must_verify");
-assert(guideMatched.materialCallCount === 1, "video_cover_and_guide_material_readback_must_call_once");
-assert(guideMatched.result.guideVideoMaterialReadback?.matchedVideoCount === 2, "both_video_bindings_must_match");
-assert(guideMatched.result.guideVideoMaterialReadback?.matchedCoverCount === 2, "both_video_cover_bindings_must_match");
-assert(guideMatched.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 2, "both_guide_video_bindings_must_match");
-
-const guideOnlyMatched = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: false, coverBindingMatch: false });
-assert(guideOnlyMatched.result.status === "readback_verified", "guide_only_material_match_must_verify_with_platform_default_cover");
-assert(guideOnlyMatched.materialCallCount === 1, "guide_only_material_readback_must_call_once");
-assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedVideoCount === 2, "guide_only_all_video_bindings_must_match");
-assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 2, "guide_only_all_guide_video_bindings_must_match");
-assert(guideOnlyMatched.result.guideVideoMaterialReadback?.matchedCoverCount === 2, "guide_only_cover_must_not_be_required_for_match");
-
-const guideMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true, guideBindingMatch: false });
-assert(guideMismatch.result.status === "guide_video_material_pending", "guide_video_material_mismatch_must_remain_pending");
-assert(guideMismatch.materialCallCount === 1, "guide_video_material_mismatch_must_not_retry_read");
-assert(guideMismatch.readbackRecords.at(-1)?.readbackStatus === "guide_video_material_pending", "guide_video_pending_record_missing");
-assert(JSON.stringify(guideMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "guide_video_pending_plan_must_not_be_consumed");
-
-const guideOnlyMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: false, guideBindingMatch: false });
-assert(guideOnlyMismatch.result.status === "guide_video_material_pending", "guide_only_video_material_mismatch_must_remain_pending");
-assert(guideOnlyMismatch.result.guideVideoMaterialReadback?.matchedGuideVideoCount === 1, "guide_only_guide_video_mismatch_count_must_be_visible");
-assert(JSON.stringify(guideOnlyMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "guide_only_pending_plan_must_not_be_consumed");
-
-const coverMismatch = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true, coverBindingMatch: false });
-assert(coverMismatch.result.status === "guide_video_material_pending", "video_cover_material_mismatch_must_remain_pending");
-assert(coverMismatch.materialCallCount === 1, "video_cover_material_mismatch_must_not_retry_read");
-assert(coverMismatch.result.guideVideoMaterialReadback?.matchedCoverCount === 1, "video_cover_mismatch_count_must_be_visible");
-assert(coverMismatch.readbackRecords.at(-1)?.readbackStatus === "guide_video_material_pending", "video_cover_pending_record_missing");
-assert(JSON.stringify(coverMismatch.planTransitions) === JSON.stringify(["waiting_readback"]), "video_cover_pending_plan_must_not_be_consumed");
+const guideAndCoverRequired = await runScenario({ matchAt: 1, guideRequired: true, coverRequired: true });
+assert(guideAndCoverRequired.result.status === "readback_verified", "guide_and_cover_required_identity_match_must_verify");
+assert(guideAndCoverRequired.materialCallCount === 0, "identity_readback_must_not_call_material_endpoint");
+assert(JSON.stringify(guideAndCoverRequired.planTransitions) === JSON.stringify(["waiting_readback", "consumed"]), "guide_and_cover_identity_match_must_consume_plan");
 
 console.log(JSON.stringify({
   status: "passed",
   absoluteScheduleMs: EXPECTED_SCHEDULE,
   maximumListCalls: 5,
-  guideVideoMaterialCallsPerReadback: 1,
+  guideVideoMaterialCallsPerReadback: 0,
   createCalls: 0,
   verifiedLifecycle: fifthMatch.planTransitions,
-  mismatchOutcomes: [idMismatch.result.status, nameMismatch.result.status, guideMismatch.result.status, guideOnlyMismatch.result.status, coverMismatch.result.status]
+  mismatchOutcomes: [idMismatch.result.status, nameMismatch.result.status]
 }, null, 2));

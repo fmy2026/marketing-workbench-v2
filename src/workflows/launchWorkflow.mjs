@@ -726,6 +726,16 @@ export function presentRootBlocker(code = "") {
       reason: "当前只读校验无法继续；若已有已确认资源 Plan，旧 Plan 不可重试。",
       nextActionLabel: "凭据恢复后输入“重新只读准备”，以 fresh Job 重新核验；不会确认或创建平台对象。"
     },
+    duplicate_readonly_rate_limited: {
+      title: "平台查重暂时限流",
+      reason: "标准项目查重已在一次有界只读重试后仍被平台限流；未确认或创建项目。",
+      nextActionLabel: "请稍后输入“重新只读准备”；系统只会重新核验，不会自动创建项目。"
+    },
+    duplicate_readonly_probe_not_passed: {
+      title: "平台查重只读失败",
+      reason: "标准项目列表未能确认通过，系统已在创建前停止。",
+      nextActionLabel: "请检查当前提示后输入“重新只读准备”；不会自动创建项目。"
+    },
     guide_video_capability_probe_failed: {
       title: "无法确认本账户的引导视频能力",
       reason: "当前 Job 的引导视频只读核验未获得可用结果。",
