@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911",
   "task_ref": "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-11T11:10:00Z",
-  "updated_at": "2026-09-11T11:10:00Z",
+  "updated_at": "2026-09-11T11:20:00Z",
   "base_revision": "e975b830d68196851c8b3de442e3b631367e654f",
   "baseline_dirty_files": {
     "project.state.json": "sha256:91ed6c5dbff640892bcfb185ad96a6591d91c4ea8e4c961664708cdb8e301d8c",
@@ -25,6 +25,9 @@
   ],
   "reference_only": [],
   "allowed_writes": [
+    "scripts/04-video-material-executor-smoke.mjs",
+    "tasks/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.json",
     "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md",
     "tasks-context-manifests/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.json",
     "project.state.json"
@@ -50,9 +53,42 @@
       "command": "npm run test:video-material-executor && launchctl kickstart -k gui/501/com.hys.marketing-workbench.local-server && curl -sSfI --noproxy '*' http://192.168.42.7:3000/"
     }
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "git push origin main",
+      "verified_at": "2026-09-11T11:15:00Z",
+      "summary": "Commit 91b6898 was accepted by origin/main, advancing the remote from e975b83 to 91b6898.",
+      "evidence_refs": [
+        "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && launchctl kickstart -k gui/501/com.hys.marketing-workbench.local-server && curl --noproxy '*' -sS -o /dev/null -w '%{http_code}\\n' http://192.168.42.7:3000/",
+      "verified_at": "2026-09-11T11:15:00Z",
+      "summary": "The video executor smoke passed, the existing LaunchAgent restarted the server with PID 99157 listening on 192.168.42.7:3000, and the LAN root endpoint returned HTTP 200.",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs",
+        "deploy/README.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "Publishing the existing smoke-fixture fix and restarting the existing service do not change a design decision or runtime contract."
+    }
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Published the verified video-executor smoke fixture fix to origin/main and restarted the existing LAN workbench service from that checkout.",
+    "side_effects": "Created and pushed commit 91b6898; restarted only com.hys.marketing-workbench.local-server. No database, platform, OAuth, or business workflow operation occurred.",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T11:20:00Z"
 }
