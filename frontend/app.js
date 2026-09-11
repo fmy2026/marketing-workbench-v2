@@ -53,11 +53,13 @@ import {
   }
 
   async function api(path, options = {}) {
+    const { diagnosticStage = "", ...requestOptions } = options;
     const response = await fetch(path, {
-      ...options,
+      ...requestOptions,
       headers: {
         "content-type": "application/json",
-        ...(options.headers || {})
+        ...(requestOptions.headers || {}),
+        ...(diagnosticStage ? { "x-workbench-diagnostic-stage": diagnosticStage } : {})
       }
     });
     const body = await response.json();
@@ -793,9 +795,11 @@ import {
     renderAll();
   }
 
-  function showError(error) {
+  function showError(error, { stage = "" } = {}) {
     if (error?.status >= 500 || error?.message === "internal_error") {
-      message("agent", "本次处理未完成，请刷新后重试；未执行新的确认或创建动作。");
+      const fingerprint = String(error.details?.diagnostic_fingerprint || "");
+      const diagnosticCode = /^sha256:[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "未返回";
+      message("agent", `启动流程在“${stage || "服务处理"}”阶段未完成；未执行确认或平台创建动作。诊断码：${diagnosticCode}。请记录诊断码后暂停重复提交。`);
       return;
     }
     const owner = error.details?.ownerDisplayName ? `；账户归属人：${error.details.ownerDisplayName}` : "";
@@ -855,11 +859,12 @@ import {
     return `/api/launch/jobs/${encodeURIComponent(jobId)}${view}`;
   }
 
-  async function runWorkflow(jobId) {
+  async function runWorkflow(jobId, { diagnosticStage = "" } = {}) {
     return withProgressPolling(async () => {
       await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
         method: "POST",
-        body: JSON.stringify({ mode: "dry_run" })
+        body: JSON.stringify({ mode: "dry_run" }),
+        diagnosticStage
       });
     });
   }
@@ -875,11 +880,12 @@ import {
     return draftCaseKey;
   }
 
-  async function ensureWorkflowCase() {
+  async function ensureWorkflowCase({ diagnosticStage = "" } = {}) {
     if (draftCaseId) return { caseId: draftCaseId, reusedActiveCase: false };
     try {
       const workflowCase = await api("/api/workflow-cases", {
         method: "POST",
+        diagnosticStage,
         body: JSON.stringify({
           case_key: createCaseKey(),
           route_id: draftIntake.route_id,
@@ -910,14 +916,16 @@ import {
   async function startWorkflow() {
     if (busy || viewOnly || job || missingFields().length) return;
     setBusy(true);
+    let startupStage = "创建 Case";
     try {
-      const selectedCase = await ensureWorkflowCase();
+      const selectedCase = await ensureWorkflowCase({ diagnosticStage: "start_workflow_create_case" });
       if (selectedCase.approvedReplacementCase && selectedCase.replacementJobId) {
+        startupStage = "启动 readonly";
         setJobView(await api(jobViewPath(selectedCase.replacementJobId)));
         setActiveCaseUrl(selectedCase.caseId);
         if (selectedCase.requiresInitialReadonly) {
           message("agent", "已建立唯一的一次性替代 Case 与 fresh Job，开始重新核验视频、封面和引导视频。");
-          await runWorkflow(selectedCase.replacementJobId);
+          await runWorkflow(selectedCase.replacementJobId, { diagnosticStage: "start_workflow_run_readonly" });
         }
         if (selectedCase.requiresReadonlyRecovery) {
           message("agent", "三项输入已确认；将通过既有恢复链路建立或复用 fresh Job，仅重新执行 readonly 核验，不确认或创建平台对象。");
@@ -930,8 +938,10 @@ import {
         window.location.assign(workbenchCaseUrl(selectedCase.caseId));
         return;
       }
+      startupStage = "创建 fresh Job";
       const created = await api("/api/launch/jobs", {
         method: "POST",
+        diagnosticStage: "start_workflow_create_job",
         body: JSON.stringify({
           route_id: draftIntake.route_id,
           game_code: draftIntake.game_code,
@@ -943,11 +953,12 @@ import {
       });
       setJobView(created);
       setActiveCaseUrl(job.caseId);
+      startupStage = "启动 readonly";
       await refreshProgress();
       message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
-      await runWorkflow(job.jobId);
+      await runWorkflow(job.jobId, { diagnosticStage: "start_workflow_run_readonly" });
     } catch (error) {
-      showError(error);
+      showError(error, { stage: startupStage });
     } finally {
       setBusy(false);
     }

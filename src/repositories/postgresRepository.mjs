@@ -731,13 +731,13 @@ export class PostgresRepository {
         'materialSourceResources', (
           SELECT coalesce(jsonb_agg(to_jsonb(source_ar) ORDER BY source_ar.resource_id), '[]'::jsonb)
           FROM mwb.account_resources source_ar
-          WHERE source_ar.route_id = j.route_id
-            AND source_ar.game_code = j.game_code
+          WHERE source_ar.route_id = r.route_id
+            AND source_ar.game_code = g.game_code
             AND source_ar.resource_type = 'video_asset'
             AND source_ar.advertiser_id = coalesce((
               SELECT d.raw_defaults #>> '{material_source_account,advertiser_id}'
               FROM mwb.game_route_defaults d
-              WHERE d.route_id = j.route_id AND d.game_code = j.game_code
+              WHERE d.route_id = r.route_id AND d.game_code = g.game_code
               LIMIT 1
             ), '')
         ),

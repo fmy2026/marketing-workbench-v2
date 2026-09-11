@@ -14,6 +14,7 @@ const target = {
 
 const context = await repo.getCoreContext(target);
 assert(context, "core_context_missing");
+assert(Array.isArray(context.materialSourceResources), "material_source_resources_not_array");
 assert(context.defaults?.raw_defaults?.aweme_id_baseline?.source === "tools/aweme_auth_list", "aweme_baseline_missing");
 assert(context.defaults.raw_defaults.aweme_id_baseline.fallback_forbidden === true, "aweme_baseline_fallback_not_forbidden");
 assert(context.defaults.raw_defaults.aweme_id_baseline.verification_strategy === "fixed_game_default_account_verify", "jszc_aweme_fixed_default_strategy_missing");

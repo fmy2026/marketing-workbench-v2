@@ -1,4 +1,4 @@
-import { publicErrorResponse } from "../src/server/publicError.mjs";
+import { internalErrorDiagnostic, publicErrorResponse } from "../src/server/publicError.mjs";
 
 const origin = process.env.MWBV2_TEST_ORIGIN || "http://127.0.0.1:3000";
 const loginName = process.env.MWBV2_TEST_LOGIN_NAME || "";
@@ -17,6 +17,23 @@ const internalText = JSON.stringify(internal.body);
 assert(internal.statusCode === 500 && internal.body.error === "internal_error", "internal_error_not_normalized");
 assert(/^sha256:[a-f0-9]{64}$/.test(internal.body.details?.diagnostic_fingerprint || ""), "internal_error_fingerprint_missing");
 assert(!/relation|constraint|account_resources|failing row/i.test(internalText), "internal_error_leaks_database_details");
+const diagnostic = internalErrorDiagnostic({
+  error: Object.assign(new Error("postgres://user:secret@db.internal/account_resources?token=raw-token"), {
+    code: "57P01",
+    stack: "Error: postgres://user:secret@db.internal/account_resources?token=raw-token\n    at protectedFrame (file:///srv/workbench/server.mjs?token=raw-token)\n    at nextFrame (file:///srv/workbench/router.mjs)"
+  }),
+  method: "post",
+  pathname: "/api/workflow-cases?case_key=raw-input",
+  stage: "start_workflow_create_case"
+});
+const diagnosticText = JSON.stringify(diagnostic);
+assert(diagnostic.event === "workbench_internal_request_error", "internal_diagnostic_event_missing");
+assert(diagnostic.method === "POST" && diagnostic.pathname === "/api/workflow-cases", "internal_diagnostic_request_fields_invalid");
+assert(diagnostic.stage === "start_workflow_create_case" && diagnostic.error_code === "57P01", "internal_diagnostic_stage_or_code_invalid");
+assert(/^sha256:[a-f0-9]{64}$/.test(diagnostic.diagnostic_fingerprint), "internal_diagnostic_fingerprint_missing");
+assert(Array.isArray(diagnostic.stack_frames) && diagnostic.stack_frames.length === 2, "internal_diagnostic_stack_frames_missing");
+assert(!/secret|raw-token|postgres:|account_resources|Error:/i.test(diagnosticText), "internal_diagnostic_leaks_sensitive_error_content");
+assert(internalErrorDiagnostic({ stage: "untrusted_stage" }).stage === "", "internal_diagnostic_untrusted_stage_allowed");
 const conflict = publicErrorResponse(Object.assign(new Error("workflow_case_key_already_exists"), {
   statusCode: 409,
   details: { caseId: "CASE-SMOKE" }
@@ -28,6 +45,7 @@ if (!loginName || !password || !nextPassword) {
     console.log(JSON.stringify({
       status: "passed",
       internalErrorBoundary: true,
+      internalDiagnosticLogBoundary: true,
       authenticatedFlow: "not_run_missing_test_credentials"
     }, null, 2));
     process.exit(0);

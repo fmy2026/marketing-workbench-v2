@@ -54,7 +54,7 @@ import {
   verifyPassword
 } from "../security/workbenchAuth.mjs";
 import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
-import { publicErrorResponse } from "./publicError.mjs";
+import { internalErrorDiagnostic, publicErrorResponse } from "./publicError.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
@@ -93,8 +93,11 @@ function sendJson(res, statusCode, body, headers = {}) {
   res.end(payload);
 }
 
-function sendError(res, error) {
+function sendError(res, error, { method = "", pathname = "", stage = "" } = {}) {
   const response = publicErrorResponse(error);
+  if (response.statusCode >= 500) {
+    console.error(JSON.stringify(internalErrorDiagnostic({ error, method, pathname, stage })));
+  }
   sendJson(res, response.statusCode, response.body);
 }
 
@@ -620,11 +623,13 @@ async function handleApi(req, res, url) {
 }
 
 const server = createServer(async (req, res) => {
+  let pathname = "";
   try {
     const requestUrl = req.url || "/";
     const host = String(req.headers.host || "").toLowerCase();
     if (host && !acceptedHosts.has(host)) throw requestError("workbench_host_not_allowed", 421);
     const url = new URL(requestUrl, publicOrigin);
+    pathname = url.pathname;
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res, url);
       return;
@@ -640,7 +645,11 @@ const server = createServer(async (req, res) => {
     }
     await serveStatic(req, res, url.pathname);
   } catch (error) {
-    sendError(res, error);
+    sendError(res, error, {
+      method: req.method,
+      pathname,
+      stage: String(req.headers["x-workbench-diagnostic-stage"] || "")
+    });
   }
 });
 

@@ -121,6 +121,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试 |
 
 - 工作台固定为 `allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；历史 Job 只读，越权或冲突 scope fail-closed。
+- “启动流程”在创建 Case、创建 fresh Job 与启动 readonly 任一阶段遇到未分类 5xx 时，只显示该阶段与脱敏诊断码；服务端只写本地受控诊断（方法、路径、阶段、指纹、受控错误码和不含错误消息的栈帧）。它不是业务 blocker，不触发自动重试、confirmation 或平台创建。
 - Agent 壳层、右侧 Workflow 和统计只消费受控投影：壳层不计算 Gate、blocker、next action、Plan 或执行动作；普通用户仅本人范围，管理员读取全量报表也不获得账户操作权。
 - 模型仅在规则未完整识别 Intake 且本人配置已测试启用时补槽位；确认、取消、状态和恢复始终规则优先。模型不接收运行状态或原始对话，用户可见进度与提示只来自 Summary 投影和确定性模板。
 

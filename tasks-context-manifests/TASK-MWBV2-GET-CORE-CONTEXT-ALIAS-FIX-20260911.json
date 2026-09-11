@@ -1,0 +1,121 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911",
+  "task_ref": "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T12:00:00Z",
+  "updated_at": "2026-09-11T12:11:00Z",
+  "base_revision": "e20b39242a6f4d1339b7253d8f5ae36e3b5d6f59",
+  "baseline_dirty_files": {
+    "docs/project-现在的逻辑图.md": "sha256:894a16ac9fc07be4ebc32db7044e66eb597c75e4666e352036f558593afb6c3e",
+    "evidence/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911/ac-03-startup-diagnostic.md": "sha256:97189e0fc86ff0084ae57d2ec1e7c92dbfab5b73e6639cb7c8be13ec0e3d4165",
+    "frontend/app.js": "sha256:71b01fe595b5985bb657b84e729ab5dccf7a0766a0f92c0dbb63e683048e00a2",
+    "project.state.json": "sha256:1352ba260e6507513b5caaf619fd039249599d937a1689ee1e3d1bf9544e09d0",
+    "scripts/00-workbench-auth-http-smoke.mjs": "sha256:c1a474986f8018df135e7ffc7a4f0ea9e238c9bd8eda0b04bf0d3428ad11d757",
+    "scripts/00-workbench-progress-smoke.mjs": "sha256:225e5e65fa95c6543ff79e3b53016da63e5cbdc6b6d05e331072836d7cde75a6",
+    "src/server/index.mjs": "sha256:cda43e7a71738ff04d83dc0076086c76b552beb6db6e47919d17a871b628b0d2",
+    "src/server/publicError.mjs": "sha256:4b42f44fd4077fc0e18a9e8e4a157132ed8976e2a33a7f9809ff07692560ff52",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.json": "sha256:66508e9d1e8b7c21362a75c62c458cefe56f42da9d8629f713b693927668eca3",
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md": "sha256:c285707c0daedb3d4bb7e444e36438fd5c48c5baf745d8d751ab119f2cf1ca12"
+  },
+  "domains": ["control", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "src/repositories/postgresRepository.mjs",
+    "scripts/00-schema-validation-smoke.mjs",
+    "evidence/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911/**",
+    "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "修改数据库 Schema、迁移或动态业务数据",
+    "改变素材来源、Case/Job、Gate、Plan、confirmation 或平台写入语义",
+    "再次通过工作台提交启动流程、执行平台写入或刷新 OAuth",
+    "记录或暴露 token、Cookie、完整 URL、原始数据库或平台错误"
+  ],
+  "stop_conditions": [
+    "修复需要超出 SQL 别名作用域的机制或数据变更",
+    "验证需要新的业务写入或平台调用"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run validate:schemas"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:video-material-executor && npm run test:workbench-progress && MWBV2_AUTH_HTTP_ASSERTIONS_ONLY=true npm run test:workbench-auth-http && git diff --check"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "Restart com.hys.marketing-workbench.local-server and verify http://192.168.42.7:3000/agents/launch-creation returns 200."
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run validate:schemas",
+      "verified_at": "2026-09-11T12:07:00Z",
+      "summary": "Passed with the local PostgreSQL socket: getCoreContext returned a real context and the smoke now asserts materialSourceResources is an array.",
+      "evidence_refs": [
+        "scripts/00-schema-validation-smoke.mjs",
+        "src/repositories/postgresRepository.mjs",
+        "evidence/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911/validation.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && npm run test:workbench-progress && MWBV2_AUTH_HTTP_ASSERTIONS_ONLY=true npm run test:workbench-auth-http && git diff --check",
+      "verified_at": "2026-09-11T12:07:00Z",
+      "summary": "Passed: verified video mapping, workbench progress, and 5xx redaction contracts remain unchanged; no whitespace errors were found.",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs",
+        "scripts/00-workbench-progress-smoke.mjs",
+        "scripts/00-workbench-auth-http-smoke.mjs",
+        "evidence/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911/validation.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "Restart com.hys.marketing-workbench.local-server and verify http://192.168.42.7:3000/agents/launch-creation returns 200.",
+      "verified_at": "2026-09-11T12:09:00Z",
+      "summary": "Passed: the restarted local workbench returned HTTP 200 at the existing LAN entry without a new workflow submission.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911/validation.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "The repair restores the existing repository-query implementation without changing an approved method or decision."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "No table, view, field, data source, write responsibility, or database operation contract changed."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Restored getCoreContext by correcting the out-of-scope SQL aliases used to read verified material-source video resources.",
+    "side_effects": "Restarted the local workbench after read-only verification; no database mutation, Case, Job, confirmation, platform action, or OAuth refresh occurred.",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T12:11:00Z"
+}

@@ -1,0 +1,117 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T11:30:00Z",
+  "updated_at": "2026-09-11T11:51:00Z",
+  "base_revision": "e20b39242a6f4d1339b7253d8f5ae36e3b5d6f59",
+  "baseline_dirty_files": {},
+  "domains": [
+    "workflow",
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "frontend/app.js",
+    "src/server/index.mjs",
+    "src/server/publicError.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911/**",
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "改变账户归属、Case/Job、Node、Gate、Plan、确认或平台写入机制",
+    "暴露错误消息、请求体、Cookie、凭据、完整 URL 或原始平台数据",
+    "自动重试、确认、创建平台对象或刷新 OAuth"
+  ],
+  "stop_conditions": [
+    "实现需要扩大业务行为或泄露敏感信息",
+    "截图账户启动将执行范围外操作"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:workbench-progress"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "MWBV2_AUTH_HTTP_ASSERTIONS_ONLY=true npm run test:workbench-auth-http && git diff --check"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "Restart the existing local workbench, submit the screenshot account once through the UI, and inspect only the local safe diagnostic log."
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:workbench-progress",
+      "verified_at": "2026-09-11T11:43:00Z",
+      "summary": "Passed: the frontend smoke verifies all three startup phases, controlled diagnostic-code copy, and removal of the legacy refresh-only 5xx copy.",
+      "evidence_refs": [
+        "scripts/00-workbench-progress-smoke.mjs",
+        "frontend/app.js"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "MWBV2_AUTH_HTTP_ASSERTIONS_ONLY=true npm run test:workbench-auth-http && git diff --check",
+      "verified_at": "2026-09-11T11:43:00Z",
+      "summary": "Passed: 5xx response remains internal_error while the local diagnostic fixture contains only controlled request fields and stack frames without the message, query, credential, or database text; diff check passed.",
+      "evidence_refs": [
+        "scripts/00-workbench-auth-http-smoke.mjs",
+        "src/server/publicError.mjs",
+        "src/server/index.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "Restart the existing local workbench, submit the screenshot account once through the UI, and inspect only the local safe diagnostic log.",
+      "verified_at": "2026-09-11T11:47:00Z",
+      "summary": "Passed: one authenticated UI start produced the controlled create-Case diagnostic and a matching local safe log entry. The first getCoreContext read query failed before any Case write, so no Case, fresh Job, confirmation, or platform object was created.",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911/ac-03-startup-diagnostic.md",
+        "src/workflows/launchWorkflow.mjs"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "Documents the controlled startup 5xx diagnostic boundary and its no-retry/no-write semantics."
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "The approved diagnostic visibility change does not alter the established workflow method or key decision set."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Implemented controlled startup 5xx diagnostics in the workbench, service boundary, tests, and workflow documentation; the authorized single UI attempt identified an early read-query failure without business writes.",
+    "side_effects": "Restarted the local workbench service and submitted one authenticated startup request. No confirmation, Case, Job, or platform object was created because the initial getCoreContext read query failed first.",
+    "remaining_risks": [
+      "The underlying getCoreContext database-query failure is not an existing expected blocker and requires a separate minimal data/query diagnostic Task."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T11:51:00Z"
+}

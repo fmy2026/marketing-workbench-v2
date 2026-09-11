@@ -183,7 +183,12 @@ assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_inp
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 assert(clientSource.includes("preview.targetEmptyBrandOmit.label"), "target_empty_brand_confirmation_label_missing");
 assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");
-assert(clientSource.includes("本次处理未完成，请刷新后重试；未执行新的确认或创建动作。"), "internal_error_ui_copy_missing");
+assert(clientSource.includes('启动流程在“${stage || "服务处理"}”阶段未完成'), "internal_error_stage_copy_missing");
+assert(clientSource.includes("诊断码：${diagnosticCode}"), "internal_error_diagnostic_code_missing");
+assert(clientSource.includes("start_workflow_create_case"), "create_case_diagnostic_stage_missing");
+assert(clientSource.includes("start_workflow_create_job"), "create_job_diagnostic_stage_missing");
+assert(clientSource.includes("start_workflow_run_readonly"), "run_readonly_diagnostic_stage_missing");
+assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "legacy_internal_error_refresh_copy_still_present");
 assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");
 
 console.log(JSON.stringify({
