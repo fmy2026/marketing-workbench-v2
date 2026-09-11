@@ -1,0 +1,7 @@
+{
+  "schema_version": "2026-09-11.project-archive-doc-v1",
+  "migrated_at": "2026-09-11T00:00:00Z",
+  "source_path": "docs/qiankun-api-docs-20260827.md",
+  "current_replacement": "docs/qiankun-api-docs-20260911.md",
+  "description": "20260827 版乾坤 API 文档按归档流程移入 .archive 后保留。"
+}

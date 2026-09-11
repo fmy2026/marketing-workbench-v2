@@ -17,7 +17,7 @@ import {
 export const EXPLICIT_ACCOUNT_SCOPE_BLOCKER = "explicit_account_scope_required";
 
 export { MONITOR_MAX_ATTEMPTS, MONITOR_RETRY_INTERVAL_SECONDS } from "./cycle-policy.mjs";
-export const QIANKUN_CURRENT_API_DOC_REF = "docs/qiankun-api-docs-20260827.md";
+export const QIANKUN_CURRENT_API_DOC_REF = "docs/qiankun-api-docs-20260911.md";
 const MONITOR_CREATE_EXPLICIT_EMPTY_FIELDS = new Set(["package_download_url"]);
 
 

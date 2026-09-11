@@ -79,7 +79,7 @@
 | OE3 外部给定 3.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0-waibugei` |
 | OE3 官方 2.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
 | OE3 官方 2.0 copy | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
-| 乾坤接口 | [当前 API 文档](qiankun-api-docs-20260827.md) |
+| 乾坤接口 | [当前 API 文档](qiankun-api-docs-20260911.md) |
 
 OE3 按上表顺序查证：3.0 资料不足时才补查 2.0，关键版本冲突转为人工决策。需要的官方具体文件按任务加入读取清单，避免整个知识库成为默认必读。
 

@@ -29,7 +29,7 @@ function fixture() {
   git("config", "user.email", "fixture@example.invalid");
   for (const ref of ["AGENTS.md", "schemas/project-state.schema.json", "schemas/context-manifest.schema.json"]) write(ref, readFileSync(resolve(source, ref), "utf8"));
   for (const ref of ["docs/Solution Design.md", "docs/project-现在的逻辑图.md", "docs/project-数据与报表契约.md", "deploy/README.md"]) write(ref, "# Current contract\n\n## Evidence\n\nStatic rule.\n");
-  write("docs/qiankun-api-docs-20260827.md", "# Qiankun API\n\nCurrent interface reference.\n");
+  write("docs/qiankun-api-docs-20260911.md", "# Qiankun API\n\nCurrent interface reference.\n");
   write("package.json", { scripts: {} });
   write(".archive/manifest.json", {
     schema_version: "2026-09-08.project-archive-index-v1",
@@ -159,7 +159,7 @@ try {
     f.write("frontend/runtime-account-condition.ts", "if (input.advertiser_id === \"1871922346964041\") return true;\n");
     assert.throws(() => validateProjectStructure(f.root), /runtime_account_identifier_forbidden/u);
   });
-  rejects("missing_current_qiankun_doc_is_rejected", (f) => { rmSync(resolve(f.root, "docs/qiankun-api-docs-20260827.md")); }, "current_qiankun_doc_missing");
+  rejects("missing_current_qiankun_doc_is_rejected", (f) => { rmSync(resolve(f.root, "docs/qiankun-api-docs-20260911.md")); }, "current_qiankun_doc_missing");
   rejects("stale_qiankun_doc_ref_is_rejected", (f) => { f.write("docs/current.md", "See docs/.乾坤系统/api-docs-20260827.md\n"); }, "stale_qiankun_doc_ref");
   rejects("stale_qiankun_task_context_is_rejected", (f) => {
     f.manifest.reference_only.push({ ref: "docs/.乾坤系统/api-docs-20260827.md", reason: "Stale fixture." });

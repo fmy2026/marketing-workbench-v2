@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 export const MANIFEST_VERSION = "2026-09-08.task-context-manifest-v2";
 export const ARCHIVE_INDEX_VERSION = "2026-09-08.project-archive-index-v1";
-export const QIANKUN_API_DOC_REF = "docs/qiankun-api-docs-20260827.md";
+export const QIANKUN_API_DOC_REF = "docs/qiankun-api-docs-20260911.md";
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TERMINAL = new Set(["completed", "cancelled"]);
 const HISTORICAL_MIGRATION_015 = new Set([

@@ -26,7 +26,7 @@
 | 方案方法、重要调整与人工决策 | `docs/Solution Design.md` |
 | 当前流程、Node、Gate、Plan 与工作台机制 | `docs/project-现在的逻辑图.md` |
 | 数据库结构、字段、来源、读写责任、报表及数据库运维 | `docs/project-数据与报表契约.md` |
-| 乾坤当前 API 接口依据 | `docs/qiankun-api-docs-20260827.md` |
+| 乾坤当前 API 接口依据 | `docs/qiankun-api-docs-20260911.md` |
 | 已验证且可复用的经验 | `docs/project-lessons.md` |
 | 应用部署、网络、启动、凭据录入与非数据库运维 | `deploy/README.md` |
 | 当前任务的范围、允许写入、验证与停止条件 | active Task / Context Manifest |
@@ -39,7 +39,7 @@
 | 领域 | 变更路径 | 必读与回写文档 |
 | --- | --- | --- |
 | control | AGENTS.md;project.state.json;package.json;schemas/**;tasks/**;tasks-context-manifests/**;.archive/**;scripts/00-project-contract-check*.mjs | docs/Solution Design.md |
-| workflow | src/workflows/**;src/agents/**;src/platforms/**;src/server/**;frontend/**;docs/project-现在的逻辑图.md;docs/qiankun-api-docs-20260827.md | docs/project-现在的逻辑图.md |
+| workflow | src/workflows/**;src/agents/**;src/platforms/**;src/server/**;frontend/**;docs/project-现在的逻辑图.md;docs/qiankun-api-docs-20260911.md | docs/project-现在的逻辑图.md |
 | data | db/**;src/repositories/**;docs/project-数据与报表契约.md;deploy/backup-postgres.sh;deploy/launchd/com.hys.marketing-workbench-backup.plist.example | docs/project-数据与报表契约.md |
 | deploy | deploy/** | deploy/README.md |
 | security | src/security/**;src/workflows/*Scope.mjs;src/workflows/*Grant.mjs;src/workflows/workbenchRuntimeWritePolicy.mjs;src/platforms/*CredentialStore.mjs;src/platforms/oceanengineTokenRefresh.mjs | docs/project-现在的逻辑图.md;deploy/README.md |

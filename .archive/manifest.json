@@ -47,7 +47,13 @@
       "path": ".archive/20260908-project-structure-cleanup",
       "kind": "archive_group",
       "reason": "已被当前部署和机制文档替代的根目录文件。",
-      "current_replacement": "deploy、当前逻辑图、数据契约与 docs/qiankun-api-docs-20260827.md。"
+      "current_replacement": "deploy、当前逻辑图、数据契约与 docs/qiankun-api-docs-20260911.md。"
+    },
+    {
+      "path": ".archive/20260911-qiankun-api-docs-retire",
+      "kind": "archive_group",
+      "reason": "旧版乾坤 API 文档归档，切换当前文档版本。",
+      "current_replacement": "docs/qiankun-api-docs-20260911.md。"
     },
     {
       "path": ".archive/frontend",

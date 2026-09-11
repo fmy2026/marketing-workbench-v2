@@ -134,4 +134,4 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | Gate、blocker、next action 与数据字段 | `mwb.workflow_case_summary`、[数据契约 §4](project-数据与报表契约.md#4-workflow_case_summary-合同) |
 | 对话命令与恢复性 readonly | [Gate Action Policy](../src/workflows/gateActionPolicy.mjs)、[工作台对话](../src/workflows/workbenchConversation.mjs) |
 | 路线字段、资源来源、Schema 版本 | [数据契约](project-数据与报表契约.md) |
-| 平台接口与运维 | [乾坤 API 文档](qiankun-api-docs-20260827.md)、[部署说明](../deploy/README.md) |
+| 平台接口与运维 | [乾坤 API 文档](qiankun-api-docs-20260911.md)、[部署说明](../deploy/README.md) |
