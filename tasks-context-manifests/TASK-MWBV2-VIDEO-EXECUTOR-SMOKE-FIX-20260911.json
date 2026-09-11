@@ -1,0 +1,84 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911",
+  "task_ref": "tasks/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T10:55:00Z",
+  "updated_at": "2026-09-11T11:05:00Z",
+  "base_revision": "e975b830d68196851c8b3de442e3b631367e654f",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.json",
+    "docs/Solution Design.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "scripts/04-video-material-executor-smoke.mjs",
+    "tasks/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "修改生产运行时、数据库、工作台或平台接口",
+    "调用 OceanEngine、乾坤或 Postgres",
+    "引入未验证映射或旧字段回退"
+  ],
+  "stop_conditions": [
+    "修复需要改动生产运行时、数据库、工作台、平台调用或旧字段回退",
+    "定向 smoke 无法以 verified 映射 fixture 通过"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:video-material-executor"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:video-material-executor && git diff --check"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:video-material-executor",
+      "verified_at": "2026-09-11T11:00:00Z",
+      "summary": "The single- and two-video fixtures now provide only verified material-source mappings; the smoke generated the expected bind plans and retained existing batch assertions.",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && git diff --check",
+      "verified_at": "2026-09-11T11:00:00Z",
+      "summary": "The targeted smoke passed with no real platform write or token refresh, and the approved diff has no whitespace errors.",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "Only the smoke fixture changed to match the already-approved verified material-source mapping contract; runtime behavior and design decisions are unchanged."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Aligned the video-material executor smoke fixture with the verified material-source video mapping contract and restored the targeted smoke.",
+    "side_effects": "Only the smoke fixture and task-coordination files changed; no database, platform, token, runtime, or workbench operation occurred.",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T11:05:00Z"
+}

@@ -32,20 +32,32 @@ const secondSourceAssetId = "JSZC-HUNT-4GE6-14";
 const videoId = "v02033g10000smoke";
 const secondVideoId = "v02033g10000smoke2";
 
-function videoEntry(id, platformVideoId, { withCover = false } = {}) {
+function videoEntry(id, { withCover = false } = {}) {
   return {
     item: { item_type: "video_asset", required: true, asset_id: id },
     asset: {
       asset_id: id,
       asset_name: `smoke video ${id}`,
       metadata: {
-        video_id: platformVideoId,
         ...(withCover ? { video_cover_id: `img-${id}` } : {}),
         local_file: {
           path: "/tmp/smoke.mp4",
           sha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           size_bytes: 100
         }
+      }
+    }
+  };
+}
+
+function materialSourceResourceEntry(id, platformVideoId) {
+  return {
+    resource_type: "video_asset",
+    source_asset_id: id,
+    metadata: {
+      oceanengine_video_mapping: {
+        status: "verified",
+        oceanengine_video_id: platformVideoId
       }
     }
   };
@@ -70,11 +82,13 @@ function resourceEntry(id) {
 }
 
 function bundle({ twoVideos = false, withCover = false } = {}) {
-  const entries = [videoEntry(sourceAssetId, videoId, { withCover })];
+  const entries = [videoEntry(sourceAssetId, { withCover })];
   const resources = [resourceEntry(sourceAssetId)];
+  const materialSourceResources = [materialSourceResourceEntry(sourceAssetId, videoId)];
   if (twoVideos) {
-    entries.push(videoEntry(secondSourceAssetId, secondVideoId, { withCover }));
+    entries.push(videoEntry(secondSourceAssetId, { withCover }));
     resources.push(resourceEntry(secondSourceAssetId));
+    materialSourceResources.push(materialSourceResourceEntry(secondSourceAssetId, secondVideoId));
   }
   return {
     job: {
@@ -95,6 +109,7 @@ function bundle({ twoVideos = false, withCover = false } = {}) {
     materialPack: {
       items: entries
     },
+    materialSourceResources,
     resources,
     executionPlan: {
       plan_id: `PLAN-${jobId}-V1`,
@@ -168,6 +183,7 @@ assert(requestPlan.requestHash.startsWith("sha256:"), "video_bind_request_hash_m
 const plan = buildVideoMaterialPreparePlan({ bundle: bundle() });
 assert(plan.bindActionCount === 1, "video_prepare_bind_count_wrong");
 assert(plan.bindBatchCount === 1, "video_prepare_batch_count_wrong");
+assert(plan.items[0].videoIdPresent === true, "video_prepare_verified_mapping_not_used");
 assert(plan.items[0].requestHash === requestPlan.requestHash, "video_prepare_request_hash_mismatch");
 assert(plan.items[0].targetAdvertiserId === targetAdvertiserId, "video_prepare_target_should_come_from_job");
 

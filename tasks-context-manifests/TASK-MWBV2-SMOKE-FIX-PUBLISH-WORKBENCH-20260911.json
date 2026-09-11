@@ -1,0 +1,58 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911",
+  "task_ref": "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md",
+  "status": "active",
+  "created_at": "2026-09-11T11:10:00Z",
+  "updated_at": "2026-09-11T11:10:00Z",
+  "base_revision": "e975b830d68196851c8b3de442e3b631367e654f",
+  "baseline_dirty_files": {
+    "project.state.json": "sha256:91ed6c5dbff640892bcfb185ad96a6591d91c4ea8e4c961664708cdb8e301d8c",
+    "scripts/04-video-material-executor-smoke.mjs": "sha256:cc3d0eb3e65a5047f6f5953c44aa1acec79a4876e4bf325b6c309b3a448f5a6e",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.json": "sha256:a6f5ebaf754bf2863133de43c6aab6f957c09bb79d01dfe7a62aa491d353a6b0",
+    "tasks/TASK-MWBV2-VIDEO-EXECUTOR-SMOKE-FIX-20260911.md": "sha256:2873fd7e5d76748859f87886a09b6c4724b5c34fc733e8a5a3703aa0b6485e3c"
+  },
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.json",
+    "docs/Solution Design.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-SMOKE-FIX-PUBLISH-WORKBENCH-20260911.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "修改运行时代码、部署配置、数据库或业务数据",
+    "执行新账户流程、平台写入或 OAuth 刷新",
+    "改变工作台访问权限或安全策略"
+  ],
+  "stop_conditions": [
+    "远端拒绝推送",
+    "服务重启后未能响应",
+    "操作需要修改部署或安全配置"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "git status --short && git push origin main && git ls-remote origin refs/heads/main"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:video-material-executor && launchctl kickstart -k gui/501/com.hys.marketing-workbench.local-server && curl -sSfI --noproxy '*' http://192.168.42.7:3000/"
+    }
+  ],
+  "validation_results": [],
+  "documentation_updates": [],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}
