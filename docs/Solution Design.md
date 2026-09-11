@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
-| 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | 当前代码、SQL migrations 至 `083`；逻辑图精简任务 `TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910` |
+| 最后更新时间 | 2026-09-11 CST |
+| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。

@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-10 CST |
-| 校验基线 | Git 当前 HEAD + `TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；最新 migration `084_target_empty_brand_omit_experiment.sql` |
+| 最后更新时间 | 2026-09-11 CST |
+| 校验基线 | 静态核验 Task `TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 共 86 个文件、编号至 `085`，最新为 `085_target_empty_brand_omit_general_capability.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -13,7 +13,7 @@
 
 本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
 
-结构清单沿用 migration `084` 的已核验基线；连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 当前共有 85 个 migration 文件、编号至 `084`，作为不可拆除的 Schema 演进历史保留；文件数不等于当前表数。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
+连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 是不可拆除的 Schema 演进历史，文件数不等于当前表数；精确基线见上表。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
 
 ## 1. 六层数据流
 

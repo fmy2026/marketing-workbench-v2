@@ -1,0 +1,140 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911",
+  "task_ref": "tasks/TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T03:05:04Z",
+  "updated_at": "2026-09-11T03:09:13Z",
+  "base_revision": "a9a26114bc7e2e14a3f58c6d6b3ae959a87083e5",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-contracts.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/server/index.mjs",
+    "db/085_target_empty_brand_omit_general_capability.sql"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "tasks/TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911.json"
+  ],
+  "forbidden_actions": [
+    "修改运行代码、Schema、Postgres 运行数据、部署配置、测试或平台执行入口",
+    "任何外部平台读取、写入、确认、创建、重试或业务数据修改",
+    "记录或传播动态账户、Case、Job、Plan、凭据、原始请求或响应",
+    "新增自动化校验器或长期经验"
+  ],
+  "stop_conditions": [
+    "需要修改运行代码、Schema、Postgres 数据、平台授权或外部平台才能让文档成立",
+    "核验发现当前 7 Node、mode、资源能力、Gate 或 Schema 事实与批准范围无法兼容",
+    "内容需要记录动态业务事实或敏感信息"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "Manual review plus node registry, runner, resource registry, execution Plan, Gate Policy, workbench conversation and HTTP route inspection; confirm the concise logic graph retains the approved stable mechanism and no duplicate state machine."
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "rg -n 'migration|migrations|083|084|085|86 个' docs/Solution Design.md docs/project-现在的逻辑图.md docs/project-数据与报表契约.md && find db -maxdepth 1 -type f -name '*.sql' | wc -l"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "Run node registry/schedule inspection; read-only Postgres summary checks; npm run test:resource-action-registry; npm run test:workbench-progress; npm run test:std-project-readback; local-link check; git diff --check; npm run check:project -- --phase start/before-close/after-close."
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Manual review plus node registry, runner, resource registry, execution Plan, Gate Policy, workbench conversation and HTTP route inspection; confirm the concise logic graph retains the approved stable mechanism and no duplicate state machine.",
+      "verified_at": "2026-09-11T03:08:42Z",
+      "summary": "The logic graph retains the one-way truth chain, seven Nodes, six modes, resource four-state aggregation, four Plan kinds, the complete Gate consumer table and source index. It now names the unified Plan-bound execution layer and routes its three Plan kinds without presenting a second state machine.",
+      "evidence_refs": [
+        "docs/project-现在的逻辑图.md",
+        "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+        "src/workflows/skills/oe3/00-runner.mjs",
+        "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+        "src/workflows/workbenchConversation.mjs",
+        "src/server/index.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "rg -n 'migration|migrations|083|084|085|86 个' docs/Solution Design.md docs/project-现在的逻辑图.md docs/project-数据与报表契约.md && find db -maxdepth 1 -type f -name '*.sql' | wc -l",
+      "verified_at": "2026-09-11T03:08:42Z",
+      "summary": "Solution Design and the logic graph no longer declare a current Schema migration baseline. The data contract is the sole current baseline holder and records 86 SQL files, numbering through 085 and the 085 target-empty-brand capability migration.",
+      "evidence_refs": [
+        "docs/Solution Design.md",
+        "docs/project-现在的逻辑图.md",
+        "docs/project-数据与报表契约.md",
+        "db/085_target_empty_brand_omit_general_capability.sql"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "Node registry/schedule inspection; read-only Postgres summary checks; npm run test:resource-action-registry; npm run test:workbench-progress; npm run test:std-project-readback; local-link check; git diff --check; npm run check:project -- --phase start.",
+      "verified_at": "2026-09-11T03:08:42Z",
+      "summary": "Registry reports 7 Nodes, 6 modes and 8 resources with 5 prepare-supported and 3 prepare-unsupported. Read-only Postgres reports 38 tables, 7 Views, 24 summary columns and zero missing Gate/next action or multi-blocker rows. All 17 logic-graph links, all three smoke tests, diff check and start-phase project contract check passed; no platform call occurred.",
+      "evidence_refs": [
+        "scripts/04-resource-action-registry-smoke.mjs",
+        "scripts/00-workbench-progress-smoke.mjs",
+        "scripts/00-std-project-readback-schedule-smoke.mjs",
+        "docs/project-现在的逻辑图.md",
+        "project.state.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "Removed the duplicate volatile migration baseline and linked Schema version ownership to the data contract."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "Condensed the current mechanism into stable ownership, workflow, resource, Plan, Gate and workbench boundaries."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "Made this document the sole current Schema baseline and corrected its migration facts to 86 files through 085."
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Current mechanism documentation is concise and internally consistent: Schema facts have one owner, the logic graph names the unified execution layer, and the stable workflow contract is retained.",
+    "side_effects": "Only current documentation, project task coordination files and the active task pointer changed. No runtime code, Schema, Postgres business data or platform operation changed.",
+    "remaining_risks": [
+      "Future Schema changes still require the data contract baseline to be refreshed in the same approved documentation task.",
+      "Future Node, Plan, Gate or workbench boundary changes require revalidation of the logic graph."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T03:09:13Z"
+}
