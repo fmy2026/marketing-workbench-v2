@@ -458,7 +458,7 @@ function finalPayloadBlockers(payload = {}, bundle = {}, {
   successProfile = {}
 } = {}) {
   const brandMode = brandInfoMode(bundle);
-  const brandInfoOmitted = brandMode === "target_empty_omit_experiment";
+  const brandInfoOmitted = brandMode === "target_empty_omit";
   const fieldShapeCompatibility = evaluateJsZcFieldShapeCompatibility({
     createFieldLedger,
     successProfile,
@@ -609,10 +609,10 @@ function fieldManifest(payload = {}, blockers = [], {
   return {
     kind: "oe3_std_project_final_payload_manifest",
     requiredFieldsPresent: REQUIRED_CREATE_FIELDS
-      .filter((field) => field !== "brand_info" || brandMode !== "target_empty_omit_experiment")
+      .filter((field) => field !== "brand_info" || brandMode !== "target_empty_omit")
       .every((field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== ""),
     brandMode,
-    brandInfoOmitted: brandMode === "target_empty_omit_experiment" && !Object.hasOwn(payload, "brand_info"),
+    brandInfoOmitted: brandMode === "target_empty_omit" && !Object.hasOwn(payload, "brand_info"),
     advertiserIdType: typeof payload.advertiser_id,
     advertiserIdStorageType: typeof advertiserIdStorageText,
     advertiserIdTransportType: typeof payload.advertiser_id,
@@ -848,7 +848,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
       retargeting_tags_exclude: dmpIds,
       interest_action_mode: clean(requiredConfigValue(payloadDefaults, "targeting.interest_action_mode", configBlockers))
     },
-    ...(brandMode === "target_empty_omit_experiment" ? {} : { brand_info: brand }),
+    ...(brandMode === "target_empty_omit" ? {} : { brand_info: brand }),
     project_materials: {
       title_material_list: titleMaterialResult.items || [],
       video_material_list: videoMaterials(bundle),
@@ -895,7 +895,7 @@ export function buildOe3StdProjectPayload({ bundle, touchpointUrl = "", backupLa
     externalUrlMaterialListPolicy,
     filterEventPolicy,
     convertedTimeDurationPolicy,
-    brandInfoPolicy: brandMode === "target_empty_omit_experiment" ? "omit" : "send"
+    brandInfoPolicy: brandMode === "target_empty_omit" ? "omit" : "send"
   });
   const configSource = {
     businessDefaultsSource: "postgres:mwb.game_route_defaults.raw_defaults.payload_defaults",

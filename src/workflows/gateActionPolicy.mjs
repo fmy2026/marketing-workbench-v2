@@ -96,21 +96,13 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       : "确认创建";
   const actionGrants = scope.action_grants || scope.actionGrants || {};
   const brandOfficial = (bundle.resources || []).find((item) => item.resource_type === "brand_info")?.metadata?.brand_info_official || {};
-  const brandFallbackExperiment = isSingleCreatePlan &&
-    clean(brandOfficial.source) === "game_route_fallback_experiment" &&
-    clean(brandOfficial.readback_status) === "experimental_pending_create"
+  const targetEmptyBrandOmit = isSingleCreatePlan &&
+    clean(brandOfficial.source) === "live_target_account_empty_brand_list" &&
+    clean(brandOfficial.readback_status) === "target_brand_list_empty" &&
+    Number(brandOfficial.brand_list_count) === 0
     ? {
-      source: "game_route_fallback_experiment",
-      label: "游戏维度保底候选；目标账户可投品牌列表为空；本次为验证创建",
-      tupleHash: clean(brandOfficial.tuple_hash)
-    }
-    : null;
-  const targetEmptyBrandOmitExperiment = isSingleCreatePlan &&
-    clean(brandOfficial.source) === "target_empty_omit_experiment" &&
-    clean(brandOfficial.readback_status) === "target_empty_omit_experiment"
-    ? {
-      source: "target_empty_omit_experiment",
-      label: "品牌模式：目标账户品牌列表为空；创建字段：整组省略 brand_info；游戏维度保底候选：不使用；本次仅允许一次 std_project_create"
+      source: "target_empty_omit",
+      label: "品牌模式：目标账户品牌列表为空；创建字段整组省略 brand_info"
     }
     : null;
   const actionLimits = actionTypes.map((type) => ({
@@ -139,8 +131,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),
     planHash: clean(plan.plan_hash),
-    brandFallbackExperiment,
-    targetEmptyBrandOmitExperiment,
+    targetEmptyBrandOmit,
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),

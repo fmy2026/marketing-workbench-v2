@@ -486,8 +486,7 @@ import {
       ["账户", preview.advertiser || "已脱敏"],
       [callLimitLabel, `${preview.maximumPlatformCalls || 1} 次`],
       ...(preview.planKind === "std_project_create" ? [["Case 创建上限", `${preview.maximumCreateAttempts || 1} 次`]] : []),
-      ...(preview.brandFallbackExperiment ? [["品牌来源", preview.brandFallbackExperiment.label]] : []),
-      ...(preview.targetEmptyBrandOmitExperiment ? [["品牌模式", preview.targetEmptyBrandOmitExperiment.label]] : []),
+      ...(preview.targetEmptyBrandOmit ? [["品牌模式", preview.targetEmptyBrandOmit.label]] : []),
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
       ["Plan", preview.planId || "未生成"],
       ["Hash", preview.planHash || "未生成"]

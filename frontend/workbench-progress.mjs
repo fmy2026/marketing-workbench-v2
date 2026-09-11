@@ -32,7 +32,7 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
   }
   if (blocker === "brand_info_confirmation") {
     return {
-      message: "当前阻断：品牌候选创建前校验未通过。请输入“重新只读准备”；不会复用旧 Plan 或创建项目。",
+      message: "当前阻断：品牌创建前校验未通过。请输入“重新只读准备”；不会复用旧 Plan 或创建项目。",
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }

@@ -515,7 +515,7 @@ export function evaluateNestedFieldContract({
   });
 
   const brandMode = brandInfoMode(bundle);
-  const brandInfoOmittedByContract = brandMode === "target_empty_omit_experiment";
+  const brandInfoOmittedByContract = brandMode === "target_empty_omit";
   const brandInfoPresent = Object.hasOwn(payload, "brand_info");
   const brand = payload.brand_info || {};
   addCheck(checks, {

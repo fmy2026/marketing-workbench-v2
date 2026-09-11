@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 export const REQUIRED_RESOURCE_TYPES = [
   "avatar",
   "dmp_audience_package",
@@ -21,8 +19,6 @@ const RESOURCE_LABELS = {
 };
 
 const EVENT_ASSET_TYPE = "MINI_PROGRAME";
-const BRAND_FALLBACK_MAX_EVIDENCE_AGE_DAYS = 30;
-
 function compact(value) {
   return String(value ?? "").trim();
 }
@@ -38,9 +34,13 @@ function arrayFrom(value) {
 
 function readyResource(resource) {
   const readonlyStatus = compact(resource?.metadata?.readonly_check?.status);
-  return resource?.visibility_status === "visible" &&
+  const visibleAndVerified = resource?.visibility_status === "visible" &&
     (resource?.readback_status === "readback_verified" || resource?.readback_status === "not_required") &&
     (!readonlyStatus || ["passed", "passed_by_manual_confirmation"].includes(readonlyStatus));
+  const explicitlyNotRequired = resource?.visibility_status === "not_required" &&
+    resource?.readback_status === "not_required" &&
+    readonlyStatus === "passed";
+  return visibleAndVerified || explicitlyNotRequired;
 }
 
 function check(status, key, summary, detail = {}) {
@@ -216,10 +216,12 @@ function brandContract(bundle = {}) {
 }
 
 function summarizeBrand(payload = {}, expectedBrandName = "") {
-  const matches = brandList(payload).filter((item) => brandMatchesExpected(item, expectedBrandName));
+  const list = brandList(payload);
+  const matches = list.filter((item) => brandMatchesExpected(item, expectedBrandName));
   const brand = matches[0] || {};
   const brandNameId = outerBrandIdFromBrand(brand);
   return {
+    brandListCount: list.length,
     matchedBrandCount: matches.length,
     outerBrandId: brandNameId,
     brandNameId,
@@ -291,141 +293,18 @@ function brandOfficialMatchesExpected(brandSummary = {}, industrySummary = {}, c
     industrySummary.industryMatched === true;
 }
 
-function candidateTuple(candidate = {}) {
-  return {
-    brand_name_id: compact(candidate.brand_name_id),
-    cdp_brand_id: compact(candidate.cdp_brand_id),
-    cdp_brand_name: compact(candidate.cdp_brand_name),
-    yuntu_category_id: compact(candidate.yuntu_category_id),
-    matched_industry_path: compact(candidate.matched_industry_path)
-  };
-}
-
-function candidateHash(candidate = {}) {
-  return `sha256:${createHash("sha256").update(JSON.stringify(candidateTuple(candidate))).digest("hex")}`;
-}
-
-function evidenceAgeValid(checkedAt = "") {
-  const timestamp = Date.parse(checkedAt);
-  return Number.isFinite(timestamp) && Date.now() - timestamp <= BRAND_FALLBACK_MAX_EVIDENCE_AGE_DAYS * 86400000;
-}
-
-export function buildGameBrandFallbackCandidate({ bundle = {}, evidence = [] } = {}) {
-  const contract = brandContract(bundle);
-  const eligibleEvidence = (Array.isArray(evidence) ? evidence : [])
-    .filter((source) => compact(source.source) === "live_target_account_readback")
-    .filter((source) => ["fresh_target_brand_industry_readback_passed", "target_account_fresh_brand_industry_readback_passed"].includes(compact(source.readback_status)))
-    .filter((source) => evidenceAgeValid(source.checked_at))
-    .filter((source) => validBrandTuple(source))
-    .filter((source) => compact(source.cdp_brand_name) === compact(contract.brandName) &&
-      compact(source.matched_industry_path) === compact(contract.industryPath));
-  const eligible = eligibleEvidence.map(candidateTuple);
-  const variants = [...new Map(eligible.map((item) => [JSON.stringify(item), item])).values()];
-  const evidenceRefs = [...new Set(eligibleEvidence.flatMap((item) => Array.isArray(item.evidence_refs) ? item.evidence_refs : [] ).map(compact).filter(Boolean))];
-  if (!contract.valid || eligible.length < 2 || variants.length !== 1 || evidenceRefs.length < 2) {
-    return {
-      status: "unavailable",
-      route_id: compact(bundle.job?.route_id),
-      game_code: compact(bundle.job?.game_code),
-      brand_blueprint_id: compact(contract.blueprintId),
-      supporting_account_count: eligible.length,
-      distinct_tuple_count: variants.length,
-      evidence_refs: evidenceRefs,
-      blockers: [...(contract.blockers || []), ...(eligible.length < 2 ? ["brand_fallback_insufficient_verified_accounts"] : []), ...(variants.length > 1 ? ["brand_fallback_tuple_ambiguous"] : [])]
-    };
-  }
-  const tuple = variants[0];
-  return {
-    status: "candidate",
-    route_id: compact(bundle.job?.route_id),
-    game_code: compact(bundle.job?.game_code),
-    brand_blueprint_id: compact(contract.blueprintId),
-    ...tuple,
-    tuple_hash: candidateHash(tuple),
-    supporting_account_count: eligible.length,
-    distinct_tuple_count: variants.length,
-    evidence_refs: evidenceRefs
-  };
-}
-
-function approvedGameBrandFallback(bundle = {}) {
-  const candidate = bundle.gameBrandFallbackCandidate || {};
-  const approval = bundle.case?.metadata?.brand_fallback_experiment || {};
-  const contract = brandContract(bundle);
-  const matches = candidate.status === "candidate" &&
-    approval.status === "approved_for_single_create_validation" &&
-    compact(approval.case_id) === compact(bundle.job?.case_id) &&
-    compact(approval.tuple_hash) === compact(candidate.tuple_hash) &&
-    compact(approval.route_id) === compact(bundle.job?.route_id) &&
-    compact(approval.game_code) === compact(bundle.job?.game_code) &&
-    compact(approval.brand_blueprint_id) === compact(contract.blueprintId) &&
-    Number(approval.maximum_create_calls) === 1 && approval.retry_allowed === false &&
-    compact(candidate.route_id) === compact(bundle.job?.route_id) &&
-    compact(candidate.game_code) === compact(bundle.job?.game_code) &&
-    compact(candidate.brand_blueprint_id) === compact(contract.blueprintId) &&
-    validBrandTuple(candidate) &&
-    compact(candidate.cdp_brand_name) === compact(contract.brandName) &&
-    compact(candidate.matched_industry_path) === compact(contract.industryPath) &&
-    Number(candidate.supporting_account_count) >= 2 && Number(candidate.distinct_tuple_count) === 1;
-  return { approved: matches, candidate, contract };
-}
-
-function approvedTargetEmptyBrandOmitExperiment(bundle = {}) {
-  const approval = bundle.case?.metadata?.brand_empty_omit_experiment || {};
-  const matches = compact(approval.status) === "approved_for_single_create_validation" &&
-    compact(approval.case_id) === compact(bundle.job?.case_id) &&
-    compact(approval.route_id) === compact(bundle.job?.route_id) &&
-    compact(approval.game_code) === compact(bundle.job?.game_code) &&
-    Number(approval.maximum_create_calls) === 1 && approval.retry_allowed === false;
-  return { approved: matches, approval };
-}
-
 function targetEmptyBrandOmitMetadata({ bundle = {}, probe = {} } = {}) {
   return {
     brand_info_official: {
-      source: "target_empty_omit_experiment",
-      readback_status: "target_empty_omit_experiment",
-      validation_status: "experimental_pending_create",
-      used_for_create_gate: true,
-      matched_brand_count: 0
-    },
-    target_empty_omit_experiment: {
-      status: "experimental_pending_create",
-      case_id: compact(bundle.job?.case_id),
-      route_id: compact(bundle.job?.route_id),
-      game_code: compact(bundle.job?.game_code),
-      job_id: compact(bundle.job?.job_id),
+      source: "live_target_account_empty_brand_list",
+      readback_status: "target_brand_list_empty",
+      validation_status: "not_required",
+      verified_by_job_id: compact(bundle.job?.job_id),
+      brand_list_count: 0,
       matched_brand_count: 0,
       // The client persists only a response hash; no raw response or account data is retained.
-      empty_list_evidence_ref: compact(probe.responseHash),
-      maximum_create_calls: 1,
-      retry_allowed: false
+      response_hash: compact(probe.responseHash)
     }
-  };
-}
-
-function manualBrandConfirmation(resource = {}, contract = {}) {
-  const official = resource?.metadata?.brand_info_official || {};
-  const readonlyStatus = compact(resource?.metadata?.readonly_check?.status);
-  const matches = validBrandTuple(official) &&
-    compact(official.cdp_brand_name) === compact(contract.brandName) &&
-    compact(official.matched_industry_path) === compact(contract.industryPath) &&
-    official.used_for_create_gate === true;
-  return { confirmed: matches && ["passed_by_manual_confirmation", "passed"].includes(readonlyStatus), official };
-}
-
-function fallbackOfficial(candidate = {}) {
-  return {
-    ...candidateTuple(candidate),
-    readback_status: "experimental_pending_create",
-    source: "game_route_fallback_experiment",
-    used_for_create_gate: true,
-    validation_status: "experimental_pending_create",
-    tuple_hash: compact(candidate.tuple_hash),
-    brand_blueprint_id: compact(candidate.brand_blueprint_id),
-    supporting_account_count: Number(candidate.supporting_account_count),
-    distinct_tuple_count: Number(candidate.distinct_tuple_count),
-    evidence_refs: Array.isArray(candidate.evidence_refs) ? candidate.evidence_refs : []
   };
 }
 
@@ -528,7 +407,6 @@ function materialCheck(probe, key, resourceType, missingSummary) {
 export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {}) {
   const advertiserId = compact(bundle?.job?.advertiser_id);
   const contract = brandContract(bundle);
-  const fallback = approvedGameBrandFallback(bundle);
   const projectName = compact(draft?.projectName || draft?.project_name || bundle?.draft?.project_name);
   const probes = [];
   const credential = client?.credentialState?.() || { status: "credential_required", blockers: ["client_missing"] };
@@ -609,10 +487,6 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
     },
     summarize: (payload) => summarizeBrand(payload, contract.brandName)
   });
-  const brandResource = resourceByType(bundle, "brand_info");
-  const manualBrand = manualBrandConfirmation(brandResource, contract);
-  const targetEmptyOmit = approvedTargetEmptyBrandOmitExperiment(bundle);
-
   let industryProbe = null;
   const brandIndustryRequest = buildBrandIndustryReadonlyRequest({
     advertiserId,
@@ -715,27 +589,12 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
           nextAction: "无需动作"
         });
       }
-      if (manualBrand.confirmed && brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 1) {
-        return check("passed_by_manual_confirmation", "platform_brand_info", "品牌 fuzzy live 通过；行业使用同账户历史 fresh 证据人工确认放行。", {
-          resourceType: "brand_info",
-          gap: "",
-          nextAction: "进入单次真实创建确认前检查"
-        });
-      }
-      if (brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 0 && targetEmptyOmit.approved) {
-        return check("passed_by_manual_confirmation", "platform_brand_info", "目标账户可投品牌列表为空；本 Case 已获准在一次创建验证中整组省略 brand_info。", {
+      if (brandProbe.status === "passed" && Number(brandProbe.summary?.brandListCount) === 0) {
+        return check("passed", "platform_brand_info", "目标账户品牌列表为空；创建字段整组省略 brand_info。", {
           resourceType: "brand_info",
           gap: "",
           nextAction: "进入单次真实创建确认前检查",
-          targetEmptyOmitExperiment: true
-        });
-      }
-      if (brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 0 && fallback.approved) {
-        return check("passed_by_manual_confirmation", "platform_brand_info", "目标账户可投品牌列表为空；已冻结游戏维度保底候选，等待单次真实创建验证。", {
-          resourceType: "brand_info",
-          gap: "",
-          nextAction: "进入单次真实创建确认前检查",
-          fallbackCandidate: fallback.candidate
+          targetEmptyOmit: true
         });
       }
       return check("blocked", "platform_brand_info", `平台品牌/行业只读未完整命中唯一 VALID ${contract.brandName || "品牌"} + ${contract.industryPath || "行业"}。`, {
@@ -750,41 +609,18 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
     .filter((item) => item.resourceType)
     .map((item) => ({
       resourceType: item.resourceType,
-      visibilityStatus: item.targetEmptyOmitExperiment ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "visible" : undefined,
-      readbackStatus: item.targetEmptyOmitExperiment ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "readback_verified" : undefined,
+      visibilityStatus: item.targetEmptyOmit ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "visible" : undefined,
+      readbackStatus: item.targetEmptyOmit ? "not_required" : ["passed", "passed_by_manual_confirmation"].includes(item.status) ? "readback_verified" : undefined,
       platformResourceId: item.key === "platform_event_asset" && eventProbe.summary?.expectedAssetId ? eventProbe.summary.expectedAssetId : undefined,
-      resourceMetadata: item.key === "platform_brand_info" && item.status === "passed"
-        ? {
+      resourceMetadata: item.key === "platform_brand_info" && item.status === "passed" && item.targetEmptyOmit
+        ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe })
+        : item.key === "platform_brand_info" && item.status === "passed"
+          ? {
           brand_info_official: brandInfoOfficialFromReadback({
             brandSummary: brandProbe.summary || {},
             industrySummary: industryProbe?.summary || {}
           })
         }
-        : item.key === "platform_brand_info" && item.status === "passed_by_manual_confirmation" && item.targetEmptyOmitExperiment
-          ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe })
-        : item.key === "platform_brand_info" && item.status === "passed_by_manual_confirmation" && item.fallbackCandidate
-          ? {
-            brand_info_official: fallbackOfficial(item.fallbackCandidate),
-            game_route_fallback_experiment: {
-              status: "experimental_pending_create",
-              route_id: compact(bundle.job?.route_id),
-              game_code: compact(bundle.job?.game_code),
-              case_id: compact(bundle.job?.case_id),
-              tuple_hash: compact(item.fallbackCandidate.tuple_hash),
-              brand_blueprint_id: compact(item.fallbackCandidate.brand_blueprint_id),
-              supporting_account_count: Number(item.fallbackCandidate.supporting_account_count),
-              distinct_tuple_count: Number(item.fallbackCandidate.distinct_tuple_count),
-              evidence_refs: item.fallbackCandidate.evidence_refs || []
-            }
-          }
-        : item.key === "platform_brand_info" && item.status === "passed_by_manual_confirmation"
-          ? {
-            brand_info_official: {
-              ...manualBrand.official,
-              used_for_create_gate: true,
-              confirmation_status: "accepted_manual_confirmation"
-            }
-          }
         : {},
       readonlyCheck: {
         status: item.status,
@@ -820,7 +656,6 @@ function summarizeImageInventory(payload = {}) {
 export async function runOceanEngineBaselineResourceProbes({ bundle, client } = {}) {
   const advertiserId = compact(bundle?.job?.advertiser_id);
   const contract = brandContract(bundle);
-  const fallback = approvedGameBrandFallback(bundle);
   const probes = [];
   const credential = client?.credentialState?.() || { status: "credential_required", blockers: ["client_missing"] };
   const credentialBlockers = Array.isArray(credential.blockers) ? credential.blockers : [];
@@ -892,11 +727,8 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
   const avatarDiagnostic = avatarReadonlyDiagnostic(avatarProbe);
   const brandPassed = brandProbe.status === "passed" && brandProbe.summary?.matchedBrandCount === 1 &&
     industryProbe?.status === "passed" && brandOfficialMatchesExpected(brandProbe.summary || {}, industryProbe.summary || {}, contract);
-  const brandFallbackPassed = brandProbe.status === "passed" &&
-    brandProbe.summary?.matchedBrandCount === 0 && fallback.approved;
-  const targetEmptyOmit = approvedTargetEmptyBrandOmitExperiment(bundle);
   const brandEmptyOmitPassed = brandProbe.status === "passed" &&
-    brandProbe.summary?.matchedBrandCount === 0 && targetEmptyOmit.approved;
+    Number(brandProbe.summary?.brandListCount) === 0;
   const imageInventoryReadable = imageProbe.status === "passed";
   const productImageReadback = productImage.metadata?.product_image_target_upload_readback || {};
   const productImagePassed = imageInventoryReadable &&
@@ -908,7 +740,7 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
   const blockedProbes = probes.filter((probe) => probe.status !== "passed");
   const checks = [
     check(avatarPassed ? "passed" : "blocked", "baseline_platform_avatar", avatarPassed ? "目标账户头像已通过只读核验。" : "目标账户头像未 ready。", { resourceType: "avatar", gap: avatarPassed ? "" : "avatar_readonly_not_ready" }),
-    check(brandPassed ? "passed" : brandEmptyOmitPassed || brandFallbackPassed ? "passed_by_manual_confirmation" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : brandEmptyOmitPassed ? "目标账户可投品牌列表为空；已获准一次整组省略 brand_info 验证。" : brandFallbackPassed ? "目标账户可投品牌列表为空；已冻结游戏维度保底候选，等待单次真实创建验证。" : "目标账户品牌或行业未完整命中。", { resourceType: "brand_info", gap: brandPassed || brandFallbackPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", fallbackCandidate: brandFallbackPassed ? fallback.candidate : null, targetEmptyOmitExperiment: brandEmptyOmitPassed }),
+    check(brandPassed || brandEmptyOmitPassed ? "passed" : "blocked", "baseline_platform_brand", brandPassed ? "目标账户品牌和行业已通过只读核验。" : brandEmptyOmitPassed ? "目标账户品牌列表为空；创建字段整组省略 brand_info。" : "目标账户品牌列表非空但未唯一完整命中目标品牌与行业。", { resourceType: "brand_info", gap: brandPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", targetEmptyOmit: brandEmptyOmitPassed }),
     check(productImagePassed ? "passed" : imageInventoryReadable ? "needs_confirmation" : "blocked", "baseline_platform_product_image_inventory", productImagePassed ? "目标账户产品图已通过上传回查证据核验。" : imageInventoryReadable ? "已盘点目标账户产品图库存；未自动选择产品图。" : "目标账户产品图库存读取失败。", { resourceType: "product_image", gap: productImagePassed ? "" : imageInventoryReadable ? "product_image_selection_required" : "product_image_inventory_unavailable" })
   ];
 
@@ -939,26 +771,13 @@ export async function runOceanEngineBaselineResourceProbes({ bundle, client } = 
       },
       {
         resourceType: "brand_info",
-        visibilityStatus: brandEmptyOmitPassed ? "not_required" : brandPassed || brandFallbackPassed ? "visible" : undefined,
-        readbackStatus: brandEmptyOmitPassed ? "not_required" : brandPassed || brandFallbackPassed ? "readback_verified" : undefined,
-        inheritanceStatus: brandPassed ? "target_readonly_verified" : brandFallbackPassed ? "baseline_candidate" : brandEmptyOmitPassed ? "target_readonly_verified" : "target_readonly_blocked",
-        resourceMetadata: brandPassed ? {
+        visibilityStatus: brandEmptyOmitPassed ? "not_required" : brandPassed ? "visible" : undefined,
+        readbackStatus: brandEmptyOmitPassed ? "not_required" : brandPassed ? "readback_verified" : undefined,
+        inheritanceStatus: brandPassed || brandEmptyOmitPassed ? "target_readonly_verified" : "target_readonly_blocked",
+        resourceMetadata: brandEmptyOmitPassed ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe }) : brandPassed ? {
           brand_info_official: brandInfoOfficialFromReadback({ brandSummary: brandProbe.summary || {}, industrySummary: industryProbe?.summary || {} })
-        } : brandEmptyOmitPassed ? targetEmptyBrandOmitMetadata({ bundle, probe: brandProbe }) : brandFallbackPassed ? {
-          brand_info_official: fallbackOfficial(fallback.candidate),
-          game_route_fallback_experiment: {
-            status: "experimental_pending_create",
-            route_id: compact(bundle.job?.route_id),
-            game_code: compact(bundle.job?.game_code),
-            case_id: compact(bundle.job?.case_id),
-            tuple_hash: compact(fallback.candidate.tuple_hash),
-            brand_blueprint_id: compact(fallback.candidate.brand_blueprint_id),
-            supporting_account_count: Number(fallback.candidate.supporting_account_count),
-            distinct_tuple_count: Number(fallback.candidate.distinct_tuple_count),
-            evidence_refs: fallback.candidate.evidence_refs || []
-          }
         } : {},
-        readonlyCheck: { status: brandPassed ? "passed" : brandFallbackPassed || brandEmptyOmitPassed ? "passed_by_manual_confirmation" : "blocked", key: "baseline_platform_brand", gap: brandPassed || brandFallbackPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", probe_labels: probes.filter((probe) => probe.label.startsWith("baseline_brand")).map((probe) => probe.label) }
+        readonlyCheck: { status: brandPassed || brandEmptyOmitPassed ? "passed" : "blocked", key: "baseline_platform_brand", gap: brandPassed || brandEmptyOmitPassed ? "" : "brand_industry_readback_required", probe_labels: probes.filter((probe) => probe.label.startsWith("baseline_brand")).map((probe) => probe.label) }
       },
       {
         resourceType: "product_image",

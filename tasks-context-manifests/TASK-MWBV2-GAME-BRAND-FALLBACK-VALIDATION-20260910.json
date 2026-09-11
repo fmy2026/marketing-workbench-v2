@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910",
   "task_ref": "tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-10T10:51:27Z",
-  "updated_at": "2026-09-10T14:06:00Z",
+  "updated_at": "2026-09-11T02:43:50Z",
   "base_revision": "2bb73aa129fffaf6e0b53b0e3ca53c5a1ff8ee11",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data"],
@@ -92,6 +92,7 @@
     "scripts/00-workflow-case-smoke.mjs",
     "scripts/00-std-project-readback-schedule-smoke.mjs",
     "db/084_target_empty_brand_omit_experiment.sql",
+    "db/085_target_empty_brand_omit_general_capability.sql",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
@@ -112,9 +113,7 @@
     "真实创建未由本人在工作台精确确认或权威回查结果不明",
     "验证需要敏感数据"
   ],
-  "open_gaps": [
-    "真实创建验证必须等待实现部署后由当前账户本人在工作台完成两次明确确认；本开发任务不得代为确认。"
-  ],
+  "open_gaps": [],
   "validation_plan": [
     {"acceptance_id": "AC-01", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts"},
     {"acceptance_id": "AC-02", "command": "npm run test:payload-contract && npm run test:resource-action-registry"},
@@ -130,6 +129,7 @@
     ,{"acceptance_id": "AC-12", "command": "npm run test:case-corrective-create && npm run test:workbench-conversation && npm run test:workflow-case"}
     ,{"acceptance_id": "AC-13", "command": "npm run test:payload-contract && npm run test:execution-plan && npm run test:execution-grant && npm run test:workbench-progress && npm run test:workbench-conversation; run read-only prepareStdProjectCreate against the current Draft and verify ready=true with no platform write."}
     ,{"acceptance_id": "AC-14", "command": "npm run test:std-project-readback && npm run test:create-result-mapping && npm run test:platform-http-deadline && npm run test:execution-grant && npm run test:workflow-case && npm run test:workbench-conversation && npm run test:workbench-progress; deploy without business action, then have the account owner issue one workbench '继续执行' and inspect the new readback observation and Case projection."}
+    ,{"acceptance_id": "AC-15", "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run test:payload-contract && npm run test:execution-plan && npm run test:workbench-conversation && npm run test:workflow-case; run migration check and read-only Postgres count comparison; verify no target_empty_omit_experiment or game-route fallback branch remains in live src/frontend."}
   ],
   "validation_results": [
     {
@@ -218,7 +218,7 @@
       "status": "passed",
       "verified_at": "2026-09-10T13:02:54Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
-      "summary": "The LAN service restarted after the Attempt-resolution change; the current deep Case address returns HTTP 200. Postgres remains at four Jobs, one failed standard-project create action and zero created objects, so deployment caused no business write."
+      "summary": "The account owner completed the confirmed create; Node 7 then verified the resulting project by exact ID, Draft name and material relationships. Final read-only Case aggregation is four Jobs, two standard-project create actions (one failed, one succeeded) and one verified created object."
     },
     {
       "acceptance_id": "AC-12",
@@ -234,32 +234,53 @@
       "status": "passed",
       "verified_at": "2026-09-10T13:28:32Z",
       "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
-      "summary": "The single shape predicate accepts only the exact five-path target-empty omission projection. Payload, Plan and workbench smokes pass; forced read-only prepare for the current Attempt 2 Draft returns ready=true with no blocker, no platform write and no action-count change. The LAN workbench was restarted after deployment; the current persisted summary remains the expected stale V4 projection until the owner explicitly re-prepares the current Job."
+      "summary": "The single shape predicate accepts only the exact five-path target-empty omission projection. Payload, Plan and workbench smokes pass; the owner then completed the fresh confirmation and Node 7 authority readback, so the Case is now completed rather than a stale blocked projection."
+    },
+    {
+      "acceptance_id": "AC-14",
+      "command": "npm run test:std-project-readback && npm run test:create-result-mapping && npm run test:platform-http-deadline && npm run test:workflow-case && npm run test:workbench-conversation && npm run test:workbench-progress; read-only query mwb.workflow_case_summary and completed-Case audit rows",
+      "status": "passed",
+      "verified_at": "2026-09-11T02:00:00Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "Node 7 regression coverage passes. The real confirmed create was read back by exact project ID, with matching Draft name and material relationships; the completed Case remains at four Jobs, two create actions and one verified object."
+    },
+    {
+      "acceptance_id": "AC-15",
+      "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run test:payload-contract && npm run test:workbench-progress && npm run test:workbench-conversation && npm run test:workflow-case; apply and rerun db/085_target_empty_brand_omit_general_capability.sql; read-only Case audit query; rg live src/frontend/scripts",
+      "status": "passed",
+      "verified_at": "2026-09-11T02:00:00Z",
+      "evidence_refs": ["evidence/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910/validation.md"],
+      "summary": "Fresh true-empty list handling is generic and evidence-bound. Nonempty unmatched, missing evidence and job mismatch cases remain blocked; db/085 updated one historical resource/Case record then zero on rerun, with no platform action or Case audit-count change. Live runtime sources contain no old experimental authorization or cross-account fallback branch."
     }
   ],
   "documentation_updates": [
     {
       "ref": "docs/Solution Design.md",
       "status": "updated",
-      "reason": "Records the approved experimental decision and the single in-memory shape projection boundary."
+      "reason": "Records the stable fresh-target brand mode and the single in-memory conditional shape projection boundary."
     },
     {
       "ref": "docs/project-现在的逻辑图.md",
       "status": "updated",
-      "reason": "Defines the single experimental brand readiness and field-shape consumption path without adding a Node, Gate, Plan or executor."
+      "reason": "Defines the single fresh-target brand readiness and conditional field-shape consumption path without adding a Node, Gate, Plan or executor."
     },
     {
       "ref": "docs/project-数据与报表契约.md",
       "status": "updated",
-      "reason": "Defines the existing JSON metadata used for candidate scope, hash and evidence."
+      "reason": "Defines the stable target-empty metadata, evidence and historical-validation boundary without new schema."
     },
     {
       "ref": "docs/project-lessons.md",
-      "status": "not_needed",
-      "reason": "A reusable lesson requires the pending real create and authority readback result; the candidate is not yet verified."
+      "status": "updated",
+      "reason": "The real create and Node 7 authority readback completed. Records the generalized fresh-target empty-list omission and ID-first readback lessons."
     }
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "将品牌空列表整组省略收敛为 oceanengine_std_project_create 的通用 fresh-target capability：target_verified 发送完整四字段，target_empty_omit 整组省略，其他情形 fail-closed。已完成真实创建和 Node 7 权威回查，并以幂等 migration 规范化历史实验元数据。",
+    "side_effects": "db/085 只更新一条已有 readback_verified 的品牌资源和对应 Case 的历史 metadata；复跑更新零条。未新增 Job、Plan、confirmation、platform action 或创建对象，未调用平台。",
+    "remaining_risks": ["每个新 Job 仍依赖目标账户品牌 API 的 fresh、成功且可判定响应；失败、不明或非空但不能唯一完整匹配时会安全阻断。"],
+    "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-AC24AABC9184D5588A"]
+  },
+  "closed_at": "2026-09-11T02:43:50Z"
 }

@@ -38,3 +38,7 @@
 - 当前 Case 的强制只读 `prepareStdProjectCreate` 回查返回 `ready=true`、空 blocker、`target_empty_omit_experiment`、`brand_info` 完全省略、payload hash/preflight/wire 均通过。随后计数仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象；未触发确认或平台写入。部署后仍须账户本人输入“重新只读准备”以生成新的 Plan/确认卡。
 
 - 2026-09-10T13:28:32Z：通过 `com.hys.marketing-workbench.local-server` 重启工作台；新 PID 为 `15748`。LAN 深层 Case 地址和 `/workbench-progress.mjs` 均返回 HTTP 200，后者已包含“字段形态校验未通过”的受控提示。重启后只读投影仍是旧 Plan 的 `resolve_case_blocker / jszc_success_profile`，这是尚未重新编译 Plan 的历史投影；Case 计数仍为 4 个 Job、1 条失败标准项目创建 action、0 个创建对象。未产生业务写入。
+
+- 2026-09-11T02:00:00Z：真实闭环的最终 Postgres 投影为 completed：历史包含 4 个 Job、2 条标准项目创建 action（1 条失败、1 条成功）和 1 个已权威回查的创建对象。成功对象的项目 ID、Draft 名称与素材关系均已由 Node 7 精确回查验证；本次能力升级不执行任何平台调用。
+- 已应用幂等 migration `085_target_empty_brand_omit_general_capability.sql`。它仅选择已有成功 create action、创建对象及最新 `readback_verified` 证据同时存在的旧记录，规范化为 `live_target_account_empty_brand_list / target_empty_omit` 合同，并将旧 Case 授权转为只读历史验证。首轮更新 1 条资源和 1 个 Case metadata；复跑更新 0 条。迁移后只读聚合仍为 4 个 Job、2 条创建 action、1 个创建对象，且不存在旧运行态授权或实验资源记录。
+- 通用规则：每个 fresh Job 重新读取目标账户品牌列表；非空且唯一完整匹配时发送完整四字段 `brand_info`，API 成功且实际列表为零时完整省略 `brand_info`，失败、不明、非空未匹配/多匹配或行业不完整一律阻断。该规则不读取 Case 特批、历史白名单或跨账户游戏候选。

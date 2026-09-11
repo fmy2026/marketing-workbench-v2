@@ -1,5 +1,4 @@
 import {
-  buildGameBrandFallbackCandidate,
   runOceanEngineBaselineResourceProbes,
   runOceanEngineReadonlyProbes
 } from "../src/platforms/oceanengineReadonlyAdapter.mjs";
@@ -33,6 +32,7 @@ function fakeReadonlyClient(calls = []) {
         avatar: { avatarStatus: "AUDIT_PASS", avatarReady: true, avatarReadinessReason: "avatar_ready", imagePresent: true, width: 300, height: 300 },
         event_asset: { expectedAssetFound: true, expectedAssetId: "100000000001" },
         brand_info: {
+          brandListCount: 1,
           matchedBrandCount: 1,
           outerBrandId: "11467384",
           brandNameId: "11467384",
@@ -43,6 +43,7 @@ function fakeReadonlyClient(calls = []) {
         baseline_avatar: { avatarStatus: "IN_AUDIT", avatarReady: true, avatarReadinessReason: "avatar_ready", imagePresent: true, width: 300, height: 300 },
         baseline_event_asset: { expectedAssetFound: true, expectedAssetId: "100000000001" },
         baseline_brand_info: {
+          brandListCount: 1,
           matchedBrandCount: 1,
           outerBrandId: "11467384",
           brandNameId: "11467384",
@@ -163,42 +164,6 @@ assert(productUpdate.readonlyCheck?.status === "needs_confirmation", "product_im
 assert(!productUpdate.platformResourceId, "product_image_platform_id_was_auto_selected");
 assert(productUpdate.resourceMetadata?.product_image_inventory?.candidate_count === 3, "product_image_inventory_count_missing");
 
-const fallbackEvidence = ["A", "B"].map((suffix) => ({
-  brand_name_id: "11467384",
-  cdp_brand_id: "4016408",
-  cdp_brand_name: "巨兽战场",
-  yuntu_category_id: "2202",
-  matched_industry_path: "游戏 / SLG",
-  source: "live_target_account_readback",
-  readback_status: "fresh_target_brand_industry_readback_passed",
-  checked_at: new Date().toISOString(),
-  evidence_refs: [`EV-SMOKE-BRAND-${suffix}`]
-}));
-const fallbackCandidate = buildGameBrandFallbackCandidate({ bundle: targetRuntimeBundle, evidence: fallbackEvidence });
-assert(fallbackCandidate.status === "candidate", "game_brand_fallback_candidate_not_built");
-assert(fallbackCandidate.supporting_account_count === 2, "game_brand_fallback_support_count_mismatch");
-assert(fallbackCandidate.distinct_tuple_count === 1, "game_brand_fallback_tuple_not_unique");
-
-const fallbackBundle = {
-  ...baselineInventoryBundle,
-  job: { ...baselineInventoryBundle.job, case_id: "CASE-SMOKE-BRAND-FALLBACK" },
-  case: {
-    case_id: "CASE-SMOKE-BRAND-FALLBACK",
-    metadata: {
-      brand_fallback_experiment: {
-        status: "approved_for_single_create_validation",
-        case_id: "CASE-SMOKE-BRAND-FALLBACK",
-        tuple_hash: fallbackCandidate.tuple_hash,
-        route_id: TARGET.routeId,
-        game_code: TARGET.gameCode,
-        brand_blueprint_id: fallbackCandidate.brand_blueprint_id,
-        maximum_create_calls: 1,
-        retry_allowed: false
-      }
-    }
-  },
-  gameBrandFallbackCandidate: fallbackCandidate
-};
 const emptyBrandCalls = [];
 const emptyBrandClient = fakeReadonlyClient(emptyBrandCalls);
 const baseGet = emptyBrandClient.get.bind(emptyBrandClient);
@@ -213,48 +178,45 @@ emptyBrandClient.get = async (definition) => {
     apiCode: "0",
     requestIdPresent: true,
     responseHash: "sha256:smoke-empty-brand",
-    summary: { matchedBrandCount: 0, outerBrandId: "", brandNameId: "", cdpBrandId: "", cdpBrandName: "" }
+    summary: { brandListCount: 0, matchedBrandCount: 0, outerBrandId: "", brandNameId: "", cdpBrandId: "", cdpBrandName: "" }
   };
 };
-const fallbackProbe = await runOceanEngineBaselineResourceProbes({ bundle: fallbackBundle, client: emptyBrandClient });
-const fallbackBrandUpdate = fallbackProbe.resourceUpdates.find((item) => item.resourceType === "brand_info") || {};
-assert(fallbackBrandUpdate.readonlyCheck?.status === "passed_by_manual_confirmation", "empty_target_brand_did_not_use_approved_fallback");
-assert(fallbackBrandUpdate.inheritanceStatus === "baseline_candidate", "fallback_brand_must_use_existing_baseline_inheritance_status");
-assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.source === "game_route_fallback_experiment", "fallback_source_not_explicit");
-assert(fallbackBrandUpdate.resourceMetadata?.brand_info_official?.tuple_hash === fallbackCandidate.tuple_hash, "fallback_tuple_hash_not_frozen");
-assert(!emptyBrandCalls.some((item) => item.label === "baseline_brand_industry"), "empty_target_brand_should_not_probe_industry_without_outer_brand_id");
-
-const targetEmptyOmitBundle = structuredClone(fallbackBundle);
-targetEmptyOmitBundle.case.metadata.brand_empty_omit_experiment = {
-  status: "approved_for_single_create_validation",
-  case_id: targetEmptyOmitBundle.job.case_id,
-  route_id: targetEmptyOmitBundle.job.route_id,
-  game_code: targetEmptyOmitBundle.job.game_code,
-  maximum_create_calls: 1,
-  retry_allowed: false
+const targetEmptyOmitBundle = {
+  ...baselineInventoryBundle,
+  job: { ...baselineInventoryBundle.job, case_id: "CASE-SMOKE-BRAND-EMPTY" },
+  case: { case_id: "CASE-SMOKE-BRAND-EMPTY", metadata: {} }
 };
 const targetEmptyOmitProbe = await runOceanEngineBaselineResourceProbes({ bundle: targetEmptyOmitBundle, client: emptyBrandClient });
 const targetEmptyOmitBrand = targetEmptyOmitProbe.resourceUpdates.find((item) => item.resourceType === "brand_info") || {};
 assert(targetEmptyOmitBrand.visibilityStatus === "not_required", "target_empty_brand_must_not_be_presented_as_visible");
 assert(targetEmptyOmitBrand.readbackStatus === "not_required", "target_empty_brand_must_not_be_presented_as_readback_verified");
-assert(targetEmptyOmitBrand.resourceMetadata?.brand_info_official?.source === "target_empty_omit_experiment", "target_empty_omit_source_missing");
-assert(targetEmptyOmitBrand.resourceMetadata?.target_empty_omit_experiment?.matched_brand_count === 0, "target_empty_omit_evidence_missing");
+assert(targetEmptyOmitBrand.readonlyCheck?.status === "passed", "target_empty_brand_should_be_target_readonly_verified");
+assert(targetEmptyOmitBrand.resourceMetadata?.brand_info_official?.source === "live_target_account_empty_brand_list", "target_empty_omit_source_missing");
+assert(targetEmptyOmitBrand.resourceMetadata?.brand_info_official?.brand_list_count === 0, "target_empty_omit_evidence_missing");
+assert(!emptyBrandCalls.some((item) => item.label === "baseline_brand_industry"), "empty_target_brand_should_not_probe_industry_without_outer_brand_id");
+
+const nonEmptyUnmatchedClient = fakeReadonlyClient();
+const nonEmptyBaseGet = nonEmptyUnmatchedClient.get.bind(nonEmptyUnmatchedClient);
+nonEmptyUnmatchedClient.get = async (definition) => definition.label === "baseline_brand_info"
+  ? { label: definition.label, endpoint: definition.endpoint, status: "passed", httpStatus: 200, apiCode: "0", requestIdPresent: true, responseHash: "sha256:smoke-nonempty-brand", summary: { brandListCount: 1, matchedBrandCount: 0 } }
+  : nonEmptyBaseGet(definition);
+const nonEmptyUnmatchedProbe = await runOceanEngineBaselineResourceProbes({ bundle: targetEmptyOmitBundle, client: nonEmptyUnmatchedClient });
+assert(nonEmptyUnmatchedProbe.checks.find((item) => item.key === "baseline_platform_brand")?.status === "blocked", "nonempty_unmatched_brand_must_not_be_treated_as_empty");
 
 const batchWrites = [];
 const reconcile = await runPlatformReadonlyReconcileSkill({
   repo: {
-    async listVerifiedGameBrandEvidence() { return fallbackEvidence; },
     async upsertEvidence() {},
     async updateAccountResourcesReadonlyBatch(input) { batchWrites.push(input); }
   },
-  bundle: fallbackBundle,
+  bundle: targetEmptyOmitBundle,
   client: emptyBrandClient,
   allowReadonlyDependency: true
 });
-assert(reconcile.status === "passed", "fallback_reconcile_not_passed");
+assert(reconcile.status === "passed", "target_empty_reconcile_not_passed");
 assert(batchWrites.length === 1, "baseline_readonly_updates_must_use_one_atomic_batch");
 assert(batchWrites[0].updates.length === 3, "baseline_readonly_batch_resource_count_mismatch");
-assert(batchWrites[0].updates.find((item) => item.resourceType === "brand_info")?.inheritanceStatus === "baseline_candidate", "atomic_batch_fallback_brand_status_mismatch");
+assert(batchWrites[0].updates.find((item) => item.resourceType === "brand_info")?.inheritanceStatus === "target_readonly_verified", "atomic_batch_target_empty_brand_status_mismatch");
 
 const snapshot = (bundle, resourceType) => (bundle.resources || []).find((item) => item.resource_type === resourceType) || null;
 const beforeRejectedBatch = await repo.getCoreContext(TARGET);
@@ -264,7 +226,7 @@ try {
     ...TARGET,
     updates: [
       { resourceType: "avatar", inheritanceStatus: "baseline_candidate", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } },
-      { resourceType: "brand_info", inheritanceStatus: "game_route_fallback_experiment", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } },
+      { resourceType: "brand_info", inheritanceStatus: "invalid_inheritance_status", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } },
       { resourceType: "product_image", inheritanceStatus: "baseline_candidate", metadata: { status: "test" }, resourceMetadata: { test_marker: "must_rollback" } }
     ]
   });
@@ -276,17 +238,6 @@ const afterRejectedBatch = await repo.getCoreContext(TARGET);
 for (const resourceType of ["avatar", "brand_info", "product_image"]) {
   assert(JSON.stringify(snapshot(beforeRejectedBatch, resourceType)) === JSON.stringify(snapshot(afterRejectedBatch, resourceType)), `invalid_batch_must_not_partially_update:${resourceType}`);
 }
-
-const ambiguousFallback = buildGameBrandFallbackCandidate({
-  bundle: targetRuntimeBundle,
-  evidence: [...fallbackEvidence, { ...fallbackEvidence[0], cdp_brand_id: "4016409", evidence_refs: ["EV-SMOKE-BRAND-C"] }]
-});
-assert(ambiguousFallback.status === "unavailable" && ambiguousFallback.blockers.includes("brand_fallback_tuple_ambiguous"), "ambiguous_brand_fallback_not_rejected");
-const staleFallback = buildGameBrandFallbackCandidate({
-  bundle: targetRuntimeBundle,
-  evidence: fallbackEvidence.map((item) => ({ ...item, checked_at: "2020-01-01T00:00:00.000Z" }))
-});
-assert(staleFallback.status === "unavailable" && staleFallback.blockers.includes("brand_fallback_insufficient_verified_accounts"), "stale_brand_fallback_not_rejected");
 
 const genericCalls = [];
 await runOceanEngineReadonlyProbes({

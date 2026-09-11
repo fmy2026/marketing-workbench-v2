@@ -47,7 +47,7 @@ assert(
   "brand_blocker_must_have_controlled_presentation"
 );
 assert(
-  presentRootBlocker("brand_info_confirmation").title === "品牌候选创建前校验未通过",
+  presentRootBlocker("brand_info_confirmation").title === "品牌创建前校验未通过",
   "brand_confirmation_blocker_must_have_controlled_presentation"
 );
 assert(
@@ -185,20 +185,20 @@ const preview = buildConfirmationPreview(bundle, caseSummary);
 assert(preview?.advertiser === "****5993", "confirmation preview must mask advertiser");
 assert(preview?.maximumPlatformCalls === 1, "confirmation preview call limit missing");
 assert(preview?.retryAllowed === false, "confirmation preview retry boundary missing");
-const fallbackPreview = buildConfirmationPreview({
+const targetEmptyPreview = buildConfirmationPreview({
   ...bundle,
   resources: [{
     resource_type: "brand_info",
     metadata: {
       brand_info_official: {
-        source: "game_route_fallback_experiment",
-        readback_status: "experimental_pending_create",
-        tuple_hash: "sha256:brand-fallback-smoke"
+        source: "live_target_account_empty_brand_list",
+        readback_status: "target_brand_list_empty",
+        brand_list_count: 0
       }
     }
   }]
 }, caseSummary);
-assert(fallbackPreview?.brandFallbackExperiment?.label.includes("游戏维度保底候选"), "brand_fallback_confirmation_preview_missing");
+assert(targetEmptyPreview?.targetEmptyBrandOmit?.label.includes("整组省略 brand_info"), "target_empty_brand_confirmation_preview_missing");
 
 const continueDecision = evaluateGateAction({
   intent: deterministic,
@@ -587,7 +587,7 @@ const blockedResourceResponse = await handleWorkbenchCommand({
   runWorkbenchInitialReadonlyFn: async () => blockedFreshView
 });
 assert(!blockedResourceResponse.interaction.message.includes("第二张创建确认卡"), "blocked_fresh_job_must_not_claim_create_confirmation");
-assert(blockedResourceResponse.interaction.message.includes("品牌候选创建前校验未通过"), "blocked_fresh_job_must_present_root_blocker");
+assert(blockedResourceResponse.interaction.message.includes("品牌创建前校验未通过"), "blocked_fresh_job_must_present_root_blocker");
 assert(blockedResourceResponse.interaction.confirmationPreview === null, "blocked_fresh_job_must_not_expose_create_confirmation");
 
 const monitorPlan = {

@@ -778,11 +778,11 @@ export function presentRootBlocker(code = "") {
     },
     brand_info_not_ready: {
       title: "品牌/行业需要重新核验",
-      reason: "目标账户当前可投品牌列表未形成可用的品牌/行业合同；只有已冻结、同路线同游戏且获本 Case 批准的保底候选可进入一次验证创建。",
-      nextActionLabel: "请输入“重新只读准备”；只读核验会优先使用目标账户结果，候选不会自动创建项目。"
+      reason: "目标账户当前品牌列表未形成可用合同；只有非空列表的唯一完整匹配，或成功返回的真空列表整组省略，才可进入创建准备。",
+      nextActionLabel: "请输入“重新只读准备”；系统将重新查询目标账户，不会自动创建项目。"
     },
     brand_info_confirmation: {
-      title: "品牌候选创建前校验未通过",
+      title: "品牌创建前校验未通过",
       reason: "当前品牌资源未能同时满足统一资格合同与 Draft 一致性校验。",
       nextActionLabel: "请输入“重新只读准备”生成 fresh Job；不会复用旧 Plan 或自动创建项目。"
     },

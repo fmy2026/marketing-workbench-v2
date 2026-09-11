@@ -246,9 +246,10 @@ function projectedSentBrandShape({ path, valueType }) {
 }
 
 /**
- * Validates one narrow, approved deviation from the recorded JSZC success
- * shape. The Draft retains the factual five omitted brand paths; only this
- * in-memory comparison projects them back to the four historical send paths.
+ * Validates the conditional brand contract against the recorded JSZC success
+ * shape. The Draft retains the factual five omitted brand paths; the in-memory
+ * comparison substitutes the canonical four-path brand shape only after the
+ * complete omission shape has passed its own strict validation.
  */
 export function evaluateJsZcFieldShapeCompatibility({
   createFieldLedger = {},
@@ -258,7 +259,7 @@ export function evaluateJsZcFieldShapeCompatibility({
   const entries = Array.isArray(createFieldLedger.entries) ? createFieldLedger.entries : [];
   const expectedHash = String(successProfile.goldenFieldShapeHash || "");
   const expectedCount = Number(successProfile.expectedLedgerPathCount || 0);
-  const isTargetEmptyOmit = brandMode === "target_empty_omit_experiment";
+  const isTargetEmptyOmit = brandMode === "target_empty_omit";
   const brandEntries = entries.filter((entry) => entry.group === "brand");
   const exactOmittedBrandShape = isTargetEmptyOmit &&
     brandEntries.length === BRAND_OMITTED_LEDGER_PATHS.length &&
@@ -291,7 +292,7 @@ export function evaluateJsZcFieldShapeCompatibility({
   ];
   return {
     status: blockers.length ? "blocked" : "passed",
-    mode: isTargetEmptyOmit ? "target_empty_omit_projection" : "strict_recorded_shape",
+    mode: isTargetEmptyOmit ? "target_empty_omit_conditional_shape" : "strict_recorded_shape",
     actualEntryCount: entries.length,
     comparativeEntryCount,
     expectedEntryCount: expectedCount,

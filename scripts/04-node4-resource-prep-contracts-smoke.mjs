@@ -32,52 +32,32 @@ function sha256Hex(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
-function fallbackBrandBundle({ tupleHash = "", caseId = "CASE-SMOKE-BRAND", routeId = "oceanengine_3_byte_mini_game" } = {}) {
-  const official = {
-    brand_name_id: "101",
-    cdp_brand_id: "202",
-    cdp_brand_name: "smoke brand",
-    yuntu_category_id: "303",
-    matched_industry_path: "游戏 / SLG",
-    source: "game_route_fallback_experiment",
-    readback_status: "experimental_pending_create",
-    validation_status: "experimental_pending_create",
-    used_for_create_gate: true
-  };
-  const hash = tupleHash || `sha256:${createHash("sha256").update(JSON.stringify({
-    brand_name_id: official.brand_name_id,
-    cdp_brand_id: official.cdp_brand_id,
-    cdp_brand_name: official.cdp_brand_name,
-    yuntu_category_id: official.yuntu_category_id,
-    matched_industry_path: official.matched_industry_path
-  })).digest("hex")}`;
-  official.tuple_hash = hash;
+function targetEmptyBrandBundle({ jobId = "JOB-SMOKE-BRAND-EMPTY" } = {}) {
   return {
-    job: { case_id: caseId, route_id: routeId, game_code: "JSZC" },
+    job: { job_id: jobId, route_id: "oceanengine_3_byte_mini_game", game_code: "JSZC" },
     resources: [{
       resource_type: "brand_info",
-      blueprint_id: "BRP-SMOKE-BRAND",
+      visibility_status: "not_required",
+      readback_status: "not_required",
       metadata: {
-        brand_info_official: official,
-        game_route_fallback_experiment: {
-          status: "experimental_pending_create",
-          case_id: caseId,
-          route_id: "oceanengine_3_byte_mini_game",
-          game_code: "JSZC",
-          brand_blueprint_id: "BRP-SMOKE-BRAND",
-          tuple_hash: hash,
-          supporting_account_count: 2,
-          distinct_tuple_count: 1,
-          evidence_refs: ["EV-SMOKE-A", "EV-SMOKE-B"]
-        }
+        brand_info_official: {
+          source: "live_target_account_empty_brand_list",
+          readback_status: "target_brand_list_empty",
+          validation_status: "not_required",
+          verified_by_job_id: jobId,
+          brand_list_count: 0,
+          response_hash: "sha256:smoke-empty-brand"
+        },
+        readonly_check: { status: "passed", evidence_refs: ["EV-SMOKE-BRAND-EMPTY"] }
       }
     }]
   };
 }
 
-assert(brandIndustryPassed(fallbackBrandBundle()), "approved_brand_fallback_not_accepted_by_create_gate");
-assert(!brandIndustryPassed(fallbackBrandBundle({ tupleHash: "sha256:mismatch" })), "brand_fallback_hash_mismatch_not_rejected");
-assert(!brandIndustryPassed(fallbackBrandBundle({ routeId: "other_route" })), "brand_fallback_route_mismatch_not_rejected");
+assert(brandIndustryPassed(targetEmptyBrandBundle()), "target_empty_brand_not_accepted_by_create_gate");
+const targetEmptyJobMismatch = targetEmptyBrandBundle();
+targetEmptyJobMismatch.resources[0].metadata.brand_info_official.verified_by_job_id = "JOB-OTHER";
+assert(!brandIndustryPassed(targetEmptyJobMismatch), "target_empty_brand_job_mismatch_not_rejected");
 assert(resourceReady({
   visibility_status: "not_required",
   readback_status: "not_required",

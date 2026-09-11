@@ -137,7 +137,7 @@ function basePayloadSummary({ bundle, projectName, namePrefix, projectSeq, yyyym
     targeting_summary: bundle.defaults?.targeting_summary || "",
     dmp_summary: bundle.defaults?.dmp_summary || "",
     brand_mode: brandMode,
-    ...(brandMode === "target_empty_omit_experiment" ? {} : { brand_info: brandInfoSummary(bundle) }),
+    ...(brandMode === "target_empty_omit" ? {} : { brand_info: brandInfoSummary(bundle) }),
     material_pack_id: bundle.materialPack?.pack?.pack_id || "",
     material_asset_refs: materialItems(bundle).map((entry) => entry.item?.asset_ref).filter(Boolean),
     naming_prefix: namePrefix,
@@ -371,7 +371,7 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const finalPayloadBlockers = Array.isArray(payload.final_payload_blockers) ? payload.final_payload_blockers : [];
   const usesFinalPayloadHash = payload.payload_hash_source === "final_controlled_payload";
   const brandMode = brandInfoMode(bundle);
-  const targetEmptyOmit = brandMode === "target_empty_omit_experiment";
+  const targetEmptyOmit = brandMode === "target_empty_omit";
   const missingFields = REQUIRED_PAYLOAD_FIELDS
     .filter((field) => field !== "brand_info" || !targetEmptyOmit)
     .filter((field) => !valuePresent(payload[field]));
@@ -385,10 +385,10 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
   const brandInfoMatchesCurrentContract = REQUIRED_BRAND_INFO_FIELDS
     .every((field) => clean(brandInfo[field]) === clean(currentBrandInfo[field]));
   // Node 04 owns eligibility for target readback and the narrowly approved
-  // game-route fallback. Node 05 only verifies that its frozen draft still
+  // target-account brand mode. Node 05 only verifies that its frozen draft still
   // matches that same resource contract.
   const brandInfoConfirmed = targetEmptyOmit
-    ? !Object.hasOwn(payload, "brand_info") && finalManifest.brandMode === "target_empty_omit_experiment" && finalManifest.brandInfoOmitted === true
+    ? !Object.hasOwn(payload, "brand_info") && finalManifest.brandMode === "target_empty_omit" && finalManifest.brandInfoOmitted === true
     : brandIndustryPassed(bundle) && brandInfoMatchesCurrentContract;
   const expectedHash = usesFinalPayloadHash && payload.final_payload_hash
     ? payload.final_payload_hash
@@ -709,8 +709,8 @@ export function evaluateOe3PayloadContract({ bundle, draft, touchpointVerificati
       key: "brand_info_confirmation",
       status: brandInfoConfirmed ? "passed" : "blocked",
       summary: brandInfoConfirmed
-        ? targetEmptyOmit ? "目标空列表省略实验已通过统一资源资格合同，Draft 未包含 brand_info。" : "brand_info 已通过统一资源资格合同，且与当前 Draft 一致。"
-        : targetEmptyOmit ? "目标空列表省略实验的模式、授权或 Draft 不一致。" : "brand_info 未通过统一资源资格合同，或与当前 Draft 不一致。"
+        ? targetEmptyOmit ? "目标空列表省略合同已通过统一资源资格校验，Draft 未包含 brand_info。" : "brand_info 已通过统一资源资格合同，且与当前 Draft 一致。"
+        : targetEmptyOmit ? "目标空列表模式或 Draft 不一致。" : "brand_info 未通过统一资源资格合同，或与当前 Draft 不一致。"
     },
     {
       key: "long_numeric_ids",

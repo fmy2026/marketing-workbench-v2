@@ -931,7 +931,7 @@ export function evaluateStdProjectCreatePreflight({
 } = {}) {
   const diagnostics = [];
   if (payload) {
-    const targetEmptyOmit = requestFieldManifest.brandMode === "target_empty_omit_experiment";
+    const targetEmptyOmit = requestFieldManifest.brandMode === "target_empty_omit";
     const externalUrlPolicy = clean(requestFieldManifest.externalUrlMaterialListPolicy || "omit");
     const filterEventPolicy = clean(requestFieldManifest.filterEventPolicy || "omit");
     const convertedTimeDurationPolicy = clean(requestFieldManifest.convertedTimeDurationPolicy || "");
@@ -994,7 +994,7 @@ export function evaluateStdProjectCreatePreflight({
     if (targetEmptyOmit) {
       diagnostics.push(checkAbsent(payload, "brand_info", {
         blockerCode: "brand_info_must_be_omitted_for_target_empty_brand_mode",
-        repairHint: "目标账户品牌列表成功为空的受控实验中，brand_info 及其所有子字段必须整组省略。"
+        repairHint: "目标账户品牌列表成功为空时，brand_info 及其所有子字段必须整组省略。"
       }));
     } else {
       diagnostics.push(checkRequired(payload, "brand_info"));

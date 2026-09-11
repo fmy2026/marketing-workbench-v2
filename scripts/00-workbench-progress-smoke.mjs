@@ -126,7 +126,7 @@ assert(!brandFallbackGuidance.message.includes("游戏维度保底候选"), "bra
 assert(brandFallbackGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_fallback_placeholder_mismatch");
 assert(!brandFallbackGuidance.placeholder.includes("继续执行"), "brand_fallback_placeholder_must_not_continue");
 const brandConfirmationGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_confirmation"] });
-assert(brandConfirmationGuidance?.message.includes("品牌候选创建前校验未通过"), "brand_confirmation_guidance_missing");
+assert(brandConfirmationGuidance?.message.includes("品牌创建前校验未通过"), "brand_confirmation_guidance_missing");
 assert(brandConfirmationGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "brand_confirmation_placeholder_mismatch");
 assert(!brandConfirmationGuidance.placeholder.includes("继续执行"), "brand_confirmation_placeholder_must_not_continue");
 const fieldShapeGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["jszc_success_profile"] });
@@ -175,7 +175,7 @@ assert(!clientSource.includes("输入“继续执行”重新准备下一 Attemp
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
-assert(clientSource.includes("preview.brandFallbackExperiment.label"), "brand_fallback_confirmation_label_missing");
+assert(clientSource.includes("preview.targetEmptyBrandOmit.label"), "target_empty_brand_confirmation_label_missing");
 assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");
 assert(clientSource.includes("本次处理未完成，请刷新后重试；未执行新的确认或创建动作。"), "internal_error_ui_copy_missing");
 assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");

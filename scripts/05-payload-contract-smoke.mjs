@@ -540,78 +540,18 @@ try {
   assert(mock.bundle.readback.object_name === mock.bundle.draft.project_name, "mock readback object_name does not come from draft project_name");
   assert(mock.bundle.platformAction?.action_type === "mock_oceanengine_std_project_create", "mock execute did not use mock platform action");
 
-  const fallbackBundle = structuredClone(mock.bundle);
-  const fallbackBrand = fallbackBundle.resources.find((item) => item.resource_type === "brand_info");
-  assert(fallbackBrand, "fallback_brand_resource_missing");
-  const fallbackTuple = {
-    brand_name_id: "101",
-    cdp_brand_id: "202",
-    cdp_brand_name: "payload smoke fallback brand",
-    yuntu_category_id: "303",
-    matched_industry_path: "游戏 / SLG"
-  };
-  const fallbackTupleHash = `sha256:${createHash("sha256").update(JSON.stringify(fallbackTuple)).digest("hex")}`;
-  fallbackBrand.metadata = {
-    brand_info_official: {
-      ...fallbackTuple,
-      source: "game_route_fallback_experiment",
-      readback_status: "experimental_pending_create",
-      validation_status: "experimental_pending_create",
-      used_for_create_gate: true,
-      tuple_hash: fallbackTupleHash
-    },
-    game_route_fallback_experiment: {
-      status: "experimental_pending_create",
-      case_id: fallbackBundle.job.case_id,
-      route_id: fallbackBundle.job.route_id,
-      game_code: fallbackBundle.job.game_code,
-      brand_blueprint_id: fallbackBrand.blueprint_id,
-      tuple_hash: fallbackTupleHash,
-      supporting_account_count: 2,
-      distinct_tuple_count: 1,
-      evidence_refs: ["EV-SMOKE-BRAND-A", "EV-SMOKE-BRAND-B"]
-    }
-  };
-  const fallbackDraft = structuredClone(mock.bundle.draft);
-  fallbackDraft.payload_summary.brand_info = {
-    ...fallbackTuple,
-    readback_status: "experimental_pending_create"
-  };
-  const fallbackContract = evaluateOe3PayloadContract({
-    bundle: fallbackBundle,
-    draft: fallbackDraft,
-    touchpointVerification: mock.touchpointVerification
-  });
-  assert(!fallbackContract.gaps.some((gap) => gap.key === "brand_info_confirmation"), "approved_fallback_brand_must_pass_payload_contract");
-
-  const targetEmptyBundle = mockReadyBundle(structuredClone(fallbackBundle));
-  targetEmptyBundle.case.metadata.brand_empty_omit_experiment = {
-    status: "approved_for_single_create_validation",
-    case_id: targetEmptyBundle.job.case_id,
-    route_id: targetEmptyBundle.job.route_id,
-    game_code: targetEmptyBundle.job.game_code,
-    maximum_create_calls: 1,
-    retry_allowed: false
-  };
+  const targetEmptyBundle = mockReadyBundle(structuredClone(mock.bundle));
   targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").metadata = {
     brand_info_official: {
-      source: "target_empty_omit_experiment",
-      readback_status: "target_empty_omit_experiment",
-      validation_status: "experimental_pending_create",
-      used_for_create_gate: true
-    },
-    target_empty_omit_experiment: {
-      status: "experimental_pending_create",
-      case_id: targetEmptyBundle.job.case_id,
-      route_id: targetEmptyBundle.job.route_id,
-      game_code: targetEmptyBundle.job.game_code,
-      job_id: targetEmptyBundle.job.job_id,
+      source: "live_target_account_empty_brand_list",
+      readback_status: "target_brand_list_empty",
+      validation_status: "not_required",
+      verified_by_job_id: targetEmptyBundle.job.job_id,
+      brand_list_count: 0,
       matched_brand_count: 0,
-      empty_list_evidence_ref: "sha256:smoke-empty-brand-list",
-      maximum_create_calls: 1,
-      retry_allowed: false
+      response_hash: "sha256:smoke-empty-brand-list"
     },
-    readonly_check: { status: "passed" }
+    readonly_check: { status: "passed", evidence_refs: ["EV-SMOKE-BRAND-EMPTY"] }
   };
   targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").visibility_status = "not_required";
   targetEmptyBundle.resources.find((item) => item.resource_type === "brand_info").readback_status = "not_required";
@@ -640,7 +580,7 @@ try {
     }
   });
   assert(!Object.hasOwn(targetEmptyPayload.payload, "brand_info"), "target_empty_brand_mode_must_omit_entire_brand_info");
-  assert(targetEmptyPayload.requestFieldManifest.brandMode === "target_empty_omit_experiment", "target_empty_brand_mode_manifest_missing");
+  assert(targetEmptyPayload.requestFieldManifest.brandMode === "target_empty_omit", "target_empty_brand_mode_manifest_missing");
   assert(targetEmptyPayload.requestFieldManifest.brandInfoOmitted === true, "target_empty_brand_mode_manifest_not_omitted");
   assert(!targetEmptyPayload.blockers.includes("brand_info_integer_fields_missing"), "target_empty_brand_mode_should_not_require_brand_ids");
   assert(!targetEmptyPayload.blockers.includes("nested_brand_info_contract_invalid"), "target_empty_brand_mode_must_pass_nested_omit_contract");
@@ -717,38 +657,29 @@ try {
   });
   assert(targetEmptyWithBrand.blockers.includes("nested_brand_info_contract_invalid"), "target_empty_brand_mode_must_reject_sent_brand_info");
 
-  const invalidFallback = (mutate, message, { resourceInvalid = true } = {}) => {
-    const bundle = structuredClone(fallbackBundle);
-    const draft = structuredClone(fallbackDraft);
+  const invalidTargetEmpty = (mutate, message, { resourceInvalid = true } = {}) => {
+    const bundle = structuredClone(targetEmptyBundle);
+    const draft = structuredClone(targetEmptyDraft);
     mutate(bundle, draft);
     const contract = evaluateOe3PayloadContract({ bundle, draft, touchpointVerification: mock.touchpointVerification });
     if (resourceInvalid) assert(!brandIndustryPassed(bundle), `${message}:predicate_still_passed`);
     assert(contract.gaps.some((gap) => gap.key === "brand_info_confirmation"), message);
   };
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.brand_info_official.tuple_hash = "sha256:mismatch";
-  }, "fallback_brand_hash_mismatch_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.case_id = "CASE-OTHER";
-  }, "fallback_brand_case_mismatch_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.route_id = "other_route";
-  }, "fallback_brand_route_mismatch_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.game_code = "OTHER";
-  }, "fallback_brand_game_mismatch_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.brand_blueprint_id = "BRP-OTHER";
-  }, "fallback_brand_blueprint_mismatch_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.evidence_refs = ["EV-SMOKE-BRAND-A"];
-  }, "fallback_brand_insufficient_evidence_must_block_payload_contract");
-  invalidFallback((bundle) => {
-    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.game_route_fallback_experiment.distinct_tuple_count = 2;
-  }, "fallback_brand_multiple_tuples_must_block_payload_contract");
-  invalidFallback((_bundle, draft) => {
-    draft.payload_summary.brand_info.brand_name_id = "999";
-  }, "fallback_brand_draft_drift_must_block_payload_contract", { resourceInvalid: false });
+  invalidTargetEmpty((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.brand_info_official.response_hash = "";
+  }, "target_empty_brand_missing_response_hash_must_block_payload_contract");
+  invalidTargetEmpty((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.brand_info_official.verified_by_job_id = "JOB-OTHER";
+  }, "target_empty_brand_job_mismatch_must_block_payload_contract");
+  invalidTargetEmpty((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.brand_info_official.brand_list_count = 1;
+  }, "target_empty_nonempty_list_must_block_payload_contract");
+  invalidTargetEmpty((bundle) => {
+    bundle.resources.find((item) => item.resource_type === "brand_info").metadata.readonly_check.evidence_refs = [];
+  }, "target_empty_brand_missing_evidence_must_block_payload_contract");
+  invalidTargetEmpty((_bundle, draft) => {
+    draft.payload_summary.brand_info = { brand_name_id: 999 };
+  }, "target_empty_partial_brand_object_must_block_payload_contract", { resourceInvalid: false });
 
   const longIdTransportPreflight = evaluateStdProjectCreatePreflight({
     requestFieldManifest: {
