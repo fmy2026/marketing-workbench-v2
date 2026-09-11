@@ -1,0 +1,92 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911",
+  "task_ref": "tasks/TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T02:49:48Z",
+  "updated_at": "2026-09-11T02:51:56Z",
+  "base_revision": "120cf2b97c686be5dbf233660dc38bced6a93a4a",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911.json",
+    "docs/project-lessons.md",
+    "docs/Solution Design.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "docs/project-lessons.md",
+    "tasks/TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-CONDITIONAL-FIELD-CAPABILITY-LESSON-20260911.json"
+  ],
+  "forbidden_actions": [
+    "修改 live 源码、数据库、Plan、Gate、Node、路由或平台执行入口",
+    "任何外部平台读取或写入、确认、创建、重试或业务数据修改",
+    "记录或传播账户、Case、Job、凭据、原始请求或响应"
+  ],
+  "stop_conditions": [
+    "经验结论需要超出已验证事实的运行规则、Schema 或外部平台验证",
+    "记录内容需要包含动态业务事实或敏感信息"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "Manual review of docs/project-lessons.md: confirm the approved controlled-verification-to-capability framework covers fresh evidence, exact scope, success/rejection/indeterminate closure, and fail-closed boundaries."
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "rg -n '受控验证到通用能力的收敛|fresh Job|fail-closed' docs/project-lessons.md && git diff --check && npm run check:project -- --phase start"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "Manual review of docs/project-lessons.md: confirm the approved controlled-verification-to-capability framework covers fresh evidence, exact scope, success/rejection/indeterminate closure, and fail-closed boundaries.",
+      "status": "passed",
+      "verified_at": "2026-09-11T02:51:56Z",
+      "evidence_refs": [
+        "docs/project-lessons.md"
+      ],
+      "summary": "The new section records fresh-target evidence priority, exact-scope auditable validation, all three terminal outcomes, promotion only after authority readback, and the fail-closed boundary."
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "rg -n '受控验证到通用能力的收敛|fresh Job|fail-closed' docs/project-lessons.md && git diff --check && npm run check:project -- --phase start",
+      "status": "passed",
+      "verified_at": "2026-09-11T02:51:56Z",
+      "evidence_refs": [
+        "docs/project-lessons.md"
+      ],
+      "summary": "The approved text is present without dynamic or sensitive facts; diff and active-Task project-contract checks pass with database_access=false and platform_access=false."
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "updated",
+      "reason": "用户确认将已验证的条件字段受控验证与通用能力收敛经验沉淀为跨任务复用原则。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "未改变当前方案方法、有效决策或运行合同；本次只将既有真实闭环结论整理为长期经验。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已将条件字段在账户能力差异下的受控验证、严格收口与通用能力升级原则写入长期经验文档。",
+    "side_effects": "仅修改项目经验、Task、Manifest 和项目任务指针；未连接数据库、未调用平台，也未修改运行机制。",
+    "remaining_risks": [
+      "未来新的条件字段仍须先取得当前目标账户的 fresh 权威证据；没有成功创建和权威回查，不得提前推广为通用能力。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T02:51:56Z"
+}
