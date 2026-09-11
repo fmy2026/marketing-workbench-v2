@@ -131,17 +131,24 @@ function requiredVideoEntries(bundle = {}) {
   return items
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
     .map((entry) => {
+      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+      const sourceResource = (bundle.materialSourceResources || []).find((item) =>
+        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+      ) || {};
+      const sourceMapping = sourceResource.metadata?.oceanengine_video_mapping || {};
       const metadata = entry.asset?.metadata || {};
+      const sourceVideoId = clean(sourceMapping.status === "verified" ? sourceMapping.oceanengine_video_id || sourceResource.platform_resource_id : "");
       return {
-        sourceAssetId: clean(entry.item?.asset_id || entry.asset?.asset_id),
+        sourceAssetId,
         resourceName: clean(entry.asset?.asset_name || entry.item?.asset_ref || entry.item?.asset_id),
-        videoId: clean(metadata.video_id || metadata.platform_video_id),
-        videoIdPresent: Boolean(clean(metadata.video_id || metadata.platform_video_id)),
-        explicitCoverIdPresent: Boolean(clean(metadata.video_cover_id || metadata.cover_id)),
-        localFilePathPresent: Boolean(clean(metadata.local_file?.path || metadata.local_path)),
-        localFileHashPresent: Boolean(clean(metadata.local_file?.sha256 || metadata.local_file_hash)),
-        localFileSizeBytes: Number(metadata.local_file?.size_bytes || metadata.local_file_size_bytes || 0),
-        localFileHash: clean(metadata.local_file?.sha256 || metadata.local_file_hash)
+        originResourceId: clean(metadata.qiankun_origin_resource_id),
+        videoId: sourceVideoId,
+        videoIdPresent: Boolean(sourceVideoId),
+        explicitCoverIdPresent: Boolean(clean(sourceResource.metadata?.video_cover_id || sourceResource.metadata?.cover_id || metadata.video_cover_id || metadata.cover_id)),
+        localFilePathPresent: false,
+        localFileHashPresent: false,
+        localFileSizeBytes: 0,
+        localFileHash: ""
       };
     });
 }
@@ -1249,7 +1256,7 @@ export async function preflightVideoMaterialBindOnce({
     ...(item && item.sourceVideoVisible !== true ? ["source_video_not_visible"] : []),
     ...(item && item.targetVideoVisible === true ? ["target_video_already_visible"] : []),
     ...(!internal?.videoId ? ["video_id_missing_for_controlled_bind"] : []),
-    ...(internal && !internal.localFileHashPresent ? ["local_file_hash_missing"] : []),
+    ...(internal && !internal.videoIdPresent ? ["source_video_id_missing"] : []),
     ...(resource.visibility_status === "visible" && resource.readback_status === "readback_verified" ? ["target_resource_already_verified"] : []),
     ...(previousSuccess > 0 ? ["successful_bind_action_already_recorded"] : []),
     ...(item?.requestHash && requestPlan?.requestHash && item.requestHash !== requestPlan.requestHash ? ["video_bind_request_hash_mismatch"] : []),

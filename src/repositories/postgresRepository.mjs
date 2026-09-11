@@ -728,6 +728,19 @@ export class PostgresRepository {
           WHERE brp.route_id = r.route_id
             AND brp.game_code = g.game_code
         ),
+        'materialSourceResources', (
+          SELECT coalesce(jsonb_agg(to_jsonb(source_ar) ORDER BY source_ar.resource_id), '[]'::jsonb)
+          FROM mwb.account_resources source_ar
+          WHERE source_ar.route_id = j.route_id
+            AND source_ar.game_code = j.game_code
+            AND source_ar.resource_type = 'video_asset'
+            AND source_ar.advertiser_id = coalesce((
+              SELECT d.raw_defaults #>> '{material_source_account,advertiser_id}'
+              FROM mwb.game_route_defaults d
+              WHERE d.route_id = j.route_id AND d.game_code = j.game_code
+              LIMIT 1
+            ), '')
+        ),
         'resources', (
           SELECT coalesce(jsonb_agg(to_jsonb(ar) ORDER BY ar.resource_type, ar.resource_id), '[]'::jsonb)
           FROM mwb.account_resources ar
@@ -4588,11 +4601,12 @@ export class PostgresRepository {
     `, this.database);
   }
 
-  async updateAccountResourcePlatformResource({ routeId, gameCode, advertiserId, resourceType, platformResourceId, visibilityStatus, readbackStatus, metadata }) {
+  async updateAccountResourcePlatformResource({ routeId, gameCode, advertiserId, resourceType, sourceAssetId, platformResourceId, visibilityStatus, readbackStatus, metadata }) {
     assertId("route_id", routeId);
     assertId("game_code", gameCode);
     assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
     assertId("resource_type", resourceType);
+    assertId("source_asset_id", sourceAssetId);
     assertId("platform_resource_id", platformResourceId, /^[0-9A-Za-z_:\-/.]+$/);
 
     await runPsql(`
@@ -4605,7 +4619,44 @@ export class PostgresRepository {
       WHERE route_id = ${sqlLiteral(routeId)}
         AND game_code = ${sqlLiteral(gameCode)}
         AND advertiser_id = ${sqlLiteral(advertiserId)}
-        AND resource_type = ${sqlLiteral(resourceType)};
+        AND resource_type = ${sqlLiteral(resourceType)}
+        AND source_asset_id = ${sqlLiteral(sourceAssetId)};
+    `, this.database);
+  }
+
+  async updateAccountResourceQiankunVideoMapping({
+    routeId,
+    gameCode,
+    advertiserId,
+    sourceAssetId,
+    oceanengineVideoId = "",
+    mappingStatus,
+    visibilityStatus,
+    readbackStatus,
+    metadata
+  }) {
+    assertId("route_id", routeId);
+    assertId("game_code", gameCode);
+    assertId("advertiser_id", advertiserId, /^[0-9A-Za-z_\-.]+$/);
+    assertId("source_asset_id", sourceAssetId);
+    assertId("mapping_status", mappingStatus);
+    if (oceanengineVideoId) assertId("oceanengine_video_id", oceanengineVideoId, /^[0-9A-Za-z_:\-/.]+$/);
+    await runPsql(`
+      UPDATE mwb.account_resources
+      SET platform_resource_id = nullif(${sqlLiteral(oceanengineVideoId)}, ''),
+          visibility_status = ${sqlLiteral(visibilityStatus || "needs_confirmation")},
+          readback_status = ${sqlLiteral(readbackStatus || "not_found")},
+          metadata = metadata || jsonb_build_object('oceanengine_video_mapping', ${sqlJson({
+            status: mappingStatus,
+            oceanengine_video_id: oceanengineVideoId || "",
+            ...metadata
+          })}),
+          updated_at = now()
+      WHERE route_id = ${sqlLiteral(routeId)}
+        AND game_code = ${sqlLiteral(gameCode)}
+        AND advertiser_id = ${sqlLiteral(advertiserId)}
+        AND resource_type = 'video_asset'
+        AND source_asset_id = ${sqlLiteral(sourceAssetId)};
     `, this.database);
   }
 

@@ -1,0 +1,155 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911",
+  "task_ref": "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T06:20:00Z",
+  "updated_at": "2026-09-11T10:25:00Z",
+  "base_revision": "4b1e15b47b7508c45ce38fe08186dccb9f866a4b",
+  "baseline_dirty_files": {
+    "docs/Solution Design.md": "sha256:43990edc6aeb8831ecbc264fe2cc47e65a0c539c89a2853f6cbe8a2028781a1e",
+    "docs/project-lessons.md": "sha256:041f1b3da3dea8d8295e4c9f1586fe09bbc75a11d8f487206c4ce5b323e2df66",
+    "docs/project-数据与报表契约.md": "sha256:5d174c35d4f1b984f06b56b1db0f55c1524be5f2f5565b25b5005f04f1637f89",
+    "docs/project-现在的逻辑图.md": "sha256:b7457030a4935bb059e0ef44da77379fdf0ccb096a4d33e33a216fb3857ae726",
+    "project.state.json": "sha256:3ca405a06c6c1beaaa711b2c7a44b867f1bbeaca870117f7c1688947ffc5a19f",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs": "sha256:2d0c0210eb2e649812e339c72c8863a1579563d5cdedacae69fe3e3c849e2268",
+    "src/platforms/qiankunMonitorClient.mjs": "sha256:908f9142def32b11ce34eb95eb26300d429e12d8f37ff60250921ec8031fb273",
+    "src/repositories/postgresRepository.mjs": "sha256:b17c193db9a4433f2a6d61f00b2b6fbd1838f49886a13e216f61cc46d34ba07a",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs": "sha256:3a6dd72751b6bfea4645d26e5d50320b60174184f4e7621df737d8d2df13ee01",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs": "sha256:35ed24f38eca57d79d5d5587f9586a6fceb5c1fbca353d3b10d873bc89a4bd84",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs": "sha256:ef71f79288ac0023165c636b71857f73e5757a4c6123ea83b9c7e3e7569f18ce",
+    "db/086_jszc_qiankun_video_fallback.sql": "sha256:504e61f791173969c2c5a87f89859a1cdeb9ca0199ed858ea5fef333538e1659",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.md": "sha256:8516cae1ab3c4027e171ef3a2a0ecc40b2d113953d748c1daa1a98664a69ad0f",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.json": "sha256:94c975a6891fe5fef1e6bfd24a43b2692d1dfdd4222f5db84bce111a1c5c375c",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md": "sha256:ff7b5315a49be74f498d74fb4bd360666f7b8b392a33e1e1e20898e76a4f2deb"
+  },
+  "domains": [
+    "control",
+    "data",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "docs/project-数据与报表契约.md",
+    "db/086_jszc_qiankun_video_fallback.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "db/086_jszc_qiankun_video_fallback.sql",
+    "src/platforms/qiankunMonitorClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/platforms/oceanengineAvatarExecutor.mjs",
+    "src/platforms/oceanengineProductImageExecutor.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/**"
+  ],
+  "forbidden_actions": [
+    "sync_material_option 或任何未形成冻结 Plan、当前 Job 与本人确认的乾坤写入",
+    "任何 OceanEngine 视频绑定、目标账户共享或标准项目创建",
+    "未文档化的首次预热 API"
+  ],
+  "stop_conditions": [
+    "任一来源码不存在或 resource_type 不为 2",
+    "预热记录缺失或归属物料户不匹配",
+    "OceanEngine 物料户只读回查凭据不可用"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "backup, apply 086, then query static video assets, pack items and blueprints"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "query Qiankun accountIndex with fengmeiyu and persist only an exact account match"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "query Qiankun resource_index and sync_material_list for all ten origin IDs"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run db:backup; psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/086_jszc_qiankun_video_fallback.sql; psql static readback",
+      "verified_at": "2026-09-11T07:33:16Z",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/validation.md#ac-01"
+      ],
+      "summary": "Backup completed and the static baseline readback is exactly 10 active required QK videos without local-file dependencies."
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Qiankun POST /tf/account_info/accountIndex with ownerKey=fengmeiyu and accountId=1760246749825031",
+      "verified_at": "2026-09-11T08:05:00Z",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/validation.md#ac-02"
+      ],
+      "summary": "User formally bound the material account to fengmeiyu; record 4770 and agent 265 were persisted while virtual SSO owner remains evidence only."
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "Qiankun resource_index plus reconcileQiankunMaterialSourceVideoInventory over all OceanEngine material-account inventory pages",
+      "verified_at": "2026-09-11T10:25:00Z",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/validation.md#ac-03"
+      ],
+      "summary": "All ten source videos are type 2 and each had exactly one complete-boundary filename match across 3,333 OceanEngine inventory records; ten distinct verified source video IDs were persisted."
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "明确唯一完整 filename 来源码匹配是物料户视频存在的权威证据。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "明确 Node 04 只消费唯一文件名映射后的 OceanEngine 视频 ID。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "登记预热审计与验证后文件名映射的字段分工。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "updated",
+      "reason": "记录完整边界匹配、零/多匹配阻断和绑定前核验规则。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "JSZC-HUNT ten-video static baseline, Feng Meiyu material-account binding and all ten exact filename mappings are verified.",
+    "side_effects": "Material account 1760246749825031 now has ten distinct verified OceanEngine source video IDs; Qiankun preheat remains audit-only. No external platform write was called.",
+    "remaining_risks": [
+      "Target-account binding and standard-project creation require a future Job, frozen Plan and the target owner's confirmation."
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.account_resources:1760246749825031"
+    ]
+  },
+  "closed_at": "2026-09-11T10:25:00Z"
+}

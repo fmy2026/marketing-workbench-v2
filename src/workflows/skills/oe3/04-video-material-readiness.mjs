@@ -12,16 +12,143 @@ function requiredVideoEntries(bundle = {}) {
   const items = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
   return items
     .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
-    .map((entry) => ({
-      sourceAssetId: clean(entry.item?.asset_id || entry.asset?.asset_id),
+    .map((entry) => {
+      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+      const sourceResource = (bundle.materialSourceResources || []).find((item) =>
+        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+      ) || {};
+      const sourceMapping = sourceResource.metadata?.oceanengine_video_mapping || {};
+      return {
+      sourceAssetId,
       assetRef: clean(entry.item?.asset_ref || entry.asset?.asset_ref),
       resourceName: clean(entry.asset?.asset_name || entry.item?.asset_ref || entry.item?.asset_id),
-      videoId: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id),
-      coverId: clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id),
-      localFilePath: clean(entry.asset?.metadata?.local_file?.path || entry.asset?.metadata?.local_path),
-      localFileHash: clean(entry.asset?.metadata?.local_file?.sha256 || entry.asset?.metadata?.local_file_hash),
-      localFileSizeBytes: Number(entry.asset?.metadata?.local_file?.size_bytes || entry.asset?.metadata?.local_file_size_bytes || 0)
-    }));
+      originResourceId: clean(entry.asset?.metadata?.qiankun_origin_resource_id),
+      videoId: clean(sourceMapping.status === "verified" ? sourceMapping.oceanengine_video_id || sourceResource.platform_resource_id : ""),
+      coverId: clean(sourceResource.metadata?.video_cover_id || sourceResource.metadata?.cover_id || entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id),
+      sourcePreheatStatus: clean(sourceResource.metadata?.qiankun_preheat?.status_name),
+      sourcePreheatRecordId: clean(sourceResource.metadata?.qiankun_preheat?.record_id)
+      };
+    });
+}
+
+function sourceCodePattern(value = "") {
+  const escaped = clean(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return escaped ? new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`, "i") : null;
+}
+
+export async function reconcileQiankunMaterialSourceVideoInventory({
+  repo,
+  routeId,
+  gameCode,
+  materialAccountId,
+  videos = [],
+  client = createOceanEngineReadonlyClient()
+} = {}) {
+  const sources = (videos || []).map((entry = {}) => ({
+    sourceAssetId: clean(entry.sourceAssetId),
+    originResourceId: clean(entry.originResourceId),
+    resourceName: clean(entry.resourceName)
+  })).filter((entry) => entry.sourceAssetId && entry.originResourceId);
+  const duplicateSourceCodes = sources.filter((entry, index) =>
+    sources.findIndex((candidate) => candidate.originResourceId === entry.originResourceId) !== index
+  ).map((entry) => entry.originResourceId);
+  if (!repo || !clean(routeId) || !clean(gameCode) || !clean(materialAccountId) || !sources.length || duplicateSourceCodes.length) {
+    throw new Error("invalid_qiankun_material_source_inventory_input");
+  }
+  const patterns = new Map(sources.map((entry) => [entry.originResourceId, sourceCodePattern(entry.originResourceId)]));
+  const fetchPage = async (page) => client.get({
+    label: `material_source_video_inventory_${page}`,
+    endpoint: "file/video/get",
+    query: { advertiser_id: materialAccountId, page: String(page), page_size: "100" },
+    summarize: (payload) => ({
+      items: Array.isArray(payload?.data?.list) ? payload.data.list : [],
+      totalPage: Number(payload?.data?.page_info?.total_page || 0),
+      totalNumber: Number(payload?.data?.page_info?.total_number || 0)
+    })
+  });
+  const first = await fetchPage(1);
+  const totalPage = Number(first.summary?.totalPage || 0);
+  if (first.status !== "passed" || !Number.isInteger(totalPage) || totalPage < 1 || totalPage > 100) {
+    return { status: "blocked", blocker: "material_source_inventory_page_bound_invalid", items: [] };
+  }
+  const pages = [first];
+  for (let page = 2; page <= totalPage; page += 1) {
+    const result = await fetchPage(page);
+    if (result.status !== "passed") {
+      return { status: "blocked", blocker: "material_source_inventory_page_failed", items: [] };
+    }
+    pages.push(result);
+  }
+  const matches = new Map(sources.map((entry) => [entry.originResourceId, []]));
+  pages.forEach((pageResult) => {
+    (pageResult.summary?.items || []).forEach((item = {}) => {
+      const filename = clean(item.filename);
+      sources.forEach((entry) => {
+        if (patterns.get(entry.originResourceId)?.test(filename) && clean(item.id)) {
+          matches.get(entry.originResourceId).push(clean(item.id));
+        }
+      });
+    });
+  });
+  const responseHashAggregate = hashValue(pages.map((pageResult) => pageResult.responseHash));
+  const items = sources.map((entry) => {
+    const candidates = [...new Set(matches.get(entry.originResourceId) || [])];
+    return { ...entry, candidateCount: candidates.length, oceanengineVideoId: candidates.length === 1 ? candidates[0] : "" };
+  });
+  const invalid = items.filter((entry) => entry.candidateCount !== 1);
+  if (invalid.length) {
+    await Promise.all(invalid.map((entry) => repo.updateAccountResourceQiankunVideoMapping({
+      routeId,
+      gameCode,
+      advertiserId: materialAccountId,
+      sourceAssetId: entry.sourceAssetId,
+      oceanengineVideoId: "",
+      mappingStatus: entry.candidateCount ? "ambiguous" : "not_found",
+      visibilityStatus: "needs_confirmation",
+      readbackStatus: entry.candidateCount ? "failed" : "not_found",
+      metadata: {
+        origin_resource_id: entry.originResourceId,
+        matched_field: "filename",
+        candidate_count: entry.candidateCount,
+        inventory_total_page: totalPage,
+        inventory_total_number: Number(first.summary?.totalNumber || 0),
+        response_hash_aggregate: responseHashAggregate,
+        checked_at: new Date().toISOString()
+      }
+    })));
+    return { status: "blocked", blocker: "material_source_code_match_not_unique", totalPage, items };
+  }
+  await Promise.all(items.map((entry) => repo.upsertAccountResourceReadonlyBySourceAsset({
+    routeId,
+    gameCode,
+    advertiserId: materialAccountId,
+    resourceType: "video_asset",
+    sourceAssetId: entry.sourceAssetId,
+    resourceName: entry.resourceName || entry.originResourceId,
+    visibilityStatus: "visible",
+    readbackStatus: "readback_verified",
+    platformResourceId: entry.oceanengineVideoId,
+    required: true,
+    metadata: {
+      status: "passed",
+      source_video_visible: true,
+      checked_at: new Date().toISOString()
+    },
+    resourceMetadata: {
+      oceanengine_video_mapping: {
+        status: "verified",
+        oceanengine_video_id: entry.oceanengineVideoId,
+        origin_resource_id: entry.originResourceId,
+        matched_field: "filename",
+        candidate_count: 1,
+        inventory_total_page: totalPage,
+        inventory_total_number: Number(first.summary?.totalNumber || 0),
+        response_hash_aggregate: responseHashAggregate,
+        checked_at: new Date().toISOString()
+      }
+    }
+  })));
+  return { status: "passed", totalPage, totalNumber: Number(first.summary?.totalNumber || 0), responseHashAggregate, items };
 }
 
 export function materialSourceAccount(bundle = {}) {
@@ -401,20 +528,19 @@ function coverModeFrom({ explicitCoverVisible = false, videoVisible = false } = 
   return "cover_not_ready";
 }
 
-function materialPlanStatus({ sourceVideoVisible = false, targetVideoVisible = false, localFileReady = false, probeFailed = false } = {}) {
+function materialPlanStatus({ sourceVideoVisible = false, targetVideoVisible = false, probeFailed = false } = {}) {
   if (probeFailed) return "platform_probe_failed";
   if (sourceVideoVisible && targetVideoVisible) return "source_ready_target_ready";
   if (sourceVideoVisible && !targetVideoVisible) return "source_ready_target_missing";
-  if (!sourceVideoVisible && localFileReady) return "source_missing_local_ready";
-  return "source_missing_local_missing";
+  return "source_preheat_or_material_source_missing";
 }
 
 function nextActionForPlan(planStatus) {
   if (planStatus === "source_ready_target_ready") return "无需动作";
   if (planStatus === "source_ready_target_missing") return "仅需将物料户视频绑定或推送到目标账户";
-  if (planStatus === "source_missing_local_ready") return "先上传本地 MP4 到物料户，再绑定或推送到目标账户";
+  if (planStatus === "source_preheat_or_material_source_missing") return "核验乾坤预热记录和物料户视频可见性";
   if (planStatus === "platform_probe_failed") return "只读 probe 失败，停止并复查平台返回";
-  return "补齐 v2 本地 MP4 或确认物料户素材";
+  return "确认乾坤素材预热记录与物料户素材";
 }
 
 function videoQueryFor(item, advertiserId) {
@@ -436,12 +562,15 @@ function coverQueryFor(item, advertiserId) {
 }
 
 function sourceReadyFromCachedResource(resource = {}) {
+  const sourceMapping = resource?.metadata?.oceanengine_video_mapping || {};
   const readonlyCheck = resource?.metadata?.readonly_check || {};
   const finalReadiness = resource?.metadata?.final_material_readiness || {};
   const planStatus = clean(readonlyCheck.plan_status || finalReadiness.plan_status);
-  return readonlyCheck.source_video_visible === true ||
+  return sourceMapping.status === "verified" && Boolean(clean(sourceMapping.oceanengine_video_id || resource?.platform_resource_id)) && (
+    readonlyCheck.source_video_visible === true ||
     finalReadiness.source_video_visible === true ||
-    ["source_ready_target_missing", "source_ready_target_ready"].includes(planStatus);
+    ["source_ready_target_missing", "source_ready_target_ready"].includes(planStatus)
+  );
 }
 
 function probeFailedStatus(...probes) {
@@ -778,7 +907,6 @@ export async function runVideoMaterialReadonlyGate({
       planStatus = materialPlanStatus({
         sourceVideoVisible,
         targetVideoVisible,
-        localFileReady: Boolean(item.localFilePath && item.localFileHash && item.localFileSizeBytes > 0),
         probeFailed
       });
       if (!sourceAccount.advertiserId) blocker = "material_source_account_missing";
@@ -786,8 +914,7 @@ export async function runVideoMaterialReadonlyGate({
       if (!blocker && requireExplicitCover && coverSourceProbe?.summary?.targetVisible !== true) blocker = "video_cover_source_not_visible";
       if (!blocker && requireExplicitCover && !targetCoverVisible) blocker = "video_cover_target_not_visible";
       if (!blocker && planStatus === "platform_probe_failed") blocker = "platform_probe_failed";
-      if (!blocker && planStatus === "source_missing_local_missing") blocker = "source_missing_local_missing";
-      if (!blocker && planStatus === "source_missing_local_ready") blocker = "source_missing_local_ready";
+      if (!blocker && planStatus === "source_preheat_or_material_source_missing") blocker = "source_preheat_or_material_source_missing";
       if (!blocker && planStatus === "source_ready_target_missing") blocker = "source_ready_target_missing";
     }
     const status = blocker ? "blocked" : "passed";

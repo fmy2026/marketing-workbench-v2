@@ -510,6 +510,7 @@ export async function ensureProductImageForTargetOnce({
     gameCode: bundle.job.game_code,
     advertiserId: bundle.job.advertiser_id,
     resourceType: "product_image",
+    sourceAssetId: resource.source_asset_id,
     platformResourceId: imageId,
     visibilityStatus: "needs_confirmation",
     readbackStatus: "pending",

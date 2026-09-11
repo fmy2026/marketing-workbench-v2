@@ -31,6 +31,8 @@
 
 正式业务写入只有 `工作台 / HTTP API → 统一 Plan-bound 执行层 → platforms / repositories` 一条链；执行层按 `monitor_bootstrap`、`resource_prepare`、`std_project_create` 分发。CLI 仅限 dry-run、状态、readback 和安全诊断。
 
+JSZC-HUNT 的保底视频固定为 10 个乾坤 `origin_resource_id`。Node 04 以乾坤素材库确认静态来源，物料户对账器扫描 `file/video/get` 全页并按完整边界在 `filename` 中唯一匹配来源码，返回项 `id` 写为 verified 的实际视频 ID；只有该映射才可进入 bind。乾坤预热记录和 `m_id` 是同步审计事实，不能覆盖已验证库存；零/多文件名匹配、类型不为视频或物料户不可见均阻断。本地 MP4 不是运行时依据。
+
 ## 2. Workflow Skill：三阶段七 Node
 
 Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-registry.mjs) 定义；Skill 合同定义依赖、输入、输出和写入责任；实际 schedule 只查 [runner](../src/workflows/skills/oe3/00-runner.mjs)。

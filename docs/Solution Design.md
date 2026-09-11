@@ -80,6 +80,7 @@
 | OE3 官方 2.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
 | OE3 官方 2.0 copy | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
 | 乾坤接口 | [当前 API 文档](qiankun-api-docs-20260911.md) |
+| JSZC-HUNT 保底视频 | 10 个乾坤素材标识码是静态来源；物料户 `file/video/get` 全页中唯一、完整边界匹配 `filename` 的标识码是实际可用视频的权威证据，返回项 `id` 才成为可绑定视频 ID。预热记录和乾坤 `m_id` 保留为审计事实，不覆盖已验证的物料户库存；零/多文件名匹配不降级到本地 MP4，保持 fail-closed。 |
 
 OE3 按上表顺序查证：3.0 资料不足时才补查 2.0，关键版本冲突转为人工决策。需要的官方具体文件按任务加入读取清单，避免整个知识库成为默认必读。
 

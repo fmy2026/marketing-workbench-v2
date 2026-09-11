@@ -1,0 +1,103 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911",
+  "task_ref": "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T10:40:00Z",
+  "updated_at": "2026-09-11T10:50:00Z",
+  "base_revision": "4b1e15b47b7508c45ce38fe08186dccb9f866a4b",
+  "baseline_dirty_files": {
+    "db/086_jszc_qiankun_video_fallback.sql": "sha256:e4588bf2001b9d47d7ba7fee095d955fe7dc838bd8005e1ecc870d0ea2bc3d63",
+    "docs/Solution Design.md": "sha256:411d3de2f5cc5671f907920f78ed696f1f74387a3f69a3da311b2190a082deb3",
+    "docs/project-lessons.md": "sha256:8b9309d31ed282976a09d41bfe91456f2518b1057e348d2e2a396f03b9bbae92",
+    "docs/project-数据与报表契约.md": "sha256:558f20295860c66df7c6210e02b4fe422b10782c9d0a640bfe7f7b3df00df922",
+    "docs/project-现在的逻辑图.md": "sha256:a74bf24f4ba49b419c4d09dbb75a8c72a480e42adec3b94045bdbbb585a7d576",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/validation.md": "sha256:e248bb8c5447ff85469e8f0c7695ae9834a8acac0773b99213d2dcbc5341bc61",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md": "sha256:ff7b5315a49be74f498d74fb4bd360666f7b8b392a33e1e1e20898e76a4f2deb",
+    "project.state.json": "sha256:338ec940a6af217a50f4be89f41cabc12196a64d3673e2308d9d4de53a5b4594",
+    "src/platforms/oceanengineAvatarExecutor.mjs": "sha256:b70e62333f55f1416a4152995c426b2294973c51590124cef69ea3260e8b3698",
+    "src/platforms/oceanengineProductImageExecutor.mjs": "sha256:e9e41ec95a314600c333d963fc13e4f7a3797ba5770c941197d180194cb48258",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs": "sha256:8930c786312bd52d89879aeed81d4594739ff6c4fe8acf220a91c0455afcad78",
+    "src/platforms/qiankunMonitorClient.mjs": "sha256:f10cb32125b95c572d62f58dbbea2603acd3eadafa4cc8f4c77f35984ba04ac2",
+    "src/repositories/postgresRepository.mjs": "sha256:48c10d395a8c88715cee2d208913d7e31effed6d209eb3ccbd7c56b8dc5a819b",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs": "sha256:5f00d151022b5122b6b6de21dcf5330bf19a64ec548d54eba12cb0ae1a79c5a8",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs": "sha256:369c945fd97efc8668cde1965218be93214a427b0d12db2e1725f6709e1ea6f0",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs": "sha256:c9ee914ecbd687fb6255772946d24a5f2d2ce019e083c6b4d3ffecd2f4b0753c",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.json": "sha256:5da26ed40564a5aa19d3a053ba4e526adbf7201dc93b6bd398f57ac0f9cb9ae4",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.json": "sha256:94c975a6891fe5fef1e6bfd24a43b2692d1dfdd4222f5db84bce111a1c5c375c",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.json": "sha256:9269e885b881006ef360dd33652d87954acba3b9373a9b609e2ca80a2c7695a8",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.md": "sha256:67d6ead61c55a1e54d81e5d6f0934e8f601b22432fbc3c0c6186f7e1aef7eab4",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.md": "sha256:8516cae1ab3c4027e171ef3a2a0ecc40b2d113953d748c1daa1a98664a69ad0f",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.md": "sha256:734d92abf63c8d574ba5cfbeb27431f5750ccea7bf81d5e8394a57f8cbf372f9"
+  },
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-lessons.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911.json",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-BASELINE-READONLY-20260911/validation.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "docs/project-lessons.md",
+    "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911/**"
+  ],
+  "forbidden_actions": [
+    "任何代码、数据库或平台操作",
+    "记录动态账户、凭据、原始请求或响应"
+  ],
+  "stop_conditions": [
+    "内容超出已验证的来源与库存核验事实",
+    "发现需改变运行合同或数据模型"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "Review the added lesson against the verified Task evidence and project-contract checker."
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Review the added lesson against the verified Task evidence and project-contract checker.",
+      "verified_at": "2026-09-11T10:50:00Z",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-LESSON-20260911/validation.md#ac-01"
+      ],
+      "summary": "The existing video-material lesson now records the verified Qiankun source type check, unique filename inventory mapping, identifier boundary and fail-closed conditions without dynamic or sensitive data."
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "updated",
+      "reason": "沉淀已验证的乾坤来源码与物料户视频库存映射经验。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "本次只补充既有已批准机制的经验结论，不改变方案方法或有效决策。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Recorded the verified JSZC-HUNT Qiankun source-code to material-account video mapping lesson.",
+    "side_effects": "Only the long-term lesson, Task coordination and redacted evidence changed; no database or platform operation occurred.",
+    "remaining_risks": [
+      "Target-account binding remains a future owner-confirmed Job and frozen Plan."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T10:50:00Z"
+}

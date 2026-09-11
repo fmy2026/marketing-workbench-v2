@@ -1,7 +1,7 @@
 import { hashValue } from "./00-contracts.mjs";
 import { canonicalGuideVideoReadiness } from "./04-resource-verifiers.mjs";
 
-export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-09.jszc-byte-game-comment-management-enabled-v3";
+export const JSZC_SUCCESS_PROFILE_VERSION = "2026-09-11.jszc-qiankun-ten-video-fallback-v4";
 export const JSZC_NESTED_FIELD_CONTRACT_VERSION = "2026-09-08.oe3-std-project-create-nested-fields-v6";
 export const JSZC_SUCCESS_PROFILE_SOURCE = "jszc_incremental_fallback_plus_official_comment_management_contract";
 
@@ -89,7 +89,7 @@ export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 94;
 export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:9a1f104f75a724c214b36e6c8b4cf6334b195d10932f0c295eec86c5f02d4d2f";
 export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 96;
 export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
-  videoMaterialList: 2,
+  videoMaterialList: 10,
   titleMaterialList: 3,
   imageMaterialList: 0,
   productImageIds: 1,

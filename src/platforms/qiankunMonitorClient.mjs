@@ -15,11 +15,15 @@ const ALLOWED_ENDPOINTS = new Set([
   "/tf/ad/changePackageId",
   "/tf/ad/changeMediaId",
   "/tf/ad/changeMediaAccountId",
+  "/resource/resource/resource_index",
+  "/resource/resource/sync_material_list",
+  "/resource/resource/sync_material_option",
   "/tf/ad/monitorSerialNumberAdd"
 ]);
 
 const WRITE_ENDPOINTS = new Set([
   "/tf/ad/monitorSerialNumberAdd"
+  ,"/resource/resource/sync_material_option"
 ]);
 
 const EMPTY_FORM_FIELDS_BY_ENDPOINT = {
@@ -283,6 +287,36 @@ function compactMediaAccountInfo(payload = {}) {
   };
 }
 
+function compactQiankunResourceList(payload = {}) {
+  const list = Array.isArray(payload.data?.list) ? payload.data.list : [];
+  return {
+    resultTotal: Number(payload.data?.resultTotal || 0),
+    list: list.map((item) => ({
+      originResourceId: clean(item.origin_resource_id),
+      resourceName: clean(item.resource_name),
+      resourceType: Number(item.resource_type || 0),
+      resourceTypeName: clean(item.resource_type_name),
+      cateName: clean(item.cate_name)
+    }))
+  };
+}
+
+function compactQiankunPreheatList(payload = {}) {
+  const list = Array.isArray(payload.data?.list) ? payload.data.list : [];
+  return {
+    resultTotal: Number(payload.data?.resultTotal || 0),
+    list: list.map((item) => ({
+      id: clean(item.id),
+      materialMark: clean(item.material_mark),
+      mediaAccountId: clean(item.media_account_id),
+      mediaMaterialId: clean(item.m_id),
+      status: clean(item.status),
+      statusName: clean(item.status_name),
+      cateId: clean(item.cate_id)
+    }))
+  };
+}
+
 function endpointSummary(endpoint, payload = {}, options = {}) {
   if (endpoint === "/tf/account_info/accountIndex") {
     return {
@@ -323,6 +357,9 @@ function endpointSummary(endpoint, payload = {}, options = {}) {
   if (endpoint === "/tf/ad/changeMediaAccountId") {
     return compactMediaAccountInfo(payload);
   }
+  if (endpoint === "/resource/resource/resource_index") return compactQiankunResourceList(payload);
+  if (endpoint === "/resource/resource/sync_material_list") return compactQiankunPreheatList(payload);
+  if (endpoint === "/resource/resource/sync_material_option") return { accepted: responseCode(payload) === "0" };
   return {
     dataPresent: dataPresent(payload)
   };
@@ -560,6 +597,37 @@ export class QiankunMonitorClient {
       endpoint: "/tf/ad/changeMediaAccountId",
       ownerKey,
       params: { media_account_id: mediaAccountId }
+    });
+  }
+
+  queryResourceIndex({ ownerKey, originResourceIds = [], pageNo = 1, pageSize = 100 }) {
+    const ids = [...new Set((originResourceIds || []).map(clean).filter(Boolean))];
+    return this.postForm({
+      label: "qiankun_resource_index",
+      endpoint: "/resource/resource/resource_index",
+      ownerKey,
+      params: { resource_type: 2, origin_resource_id: ids.join(","), pageNo, pageSize }
+    });
+  }
+
+  queryMaterialPreheat({ ownerKey, materialMarks = [], mediaAccountId = "", pageNo = 1, pageSize = 100 }) {
+    const marks = [...new Set((materialMarks || []).map(clean).filter(Boolean))];
+    return this.postForm({
+      label: "qiankun_material_preheat_list",
+      endpoint: "/resource/resource/sync_material_list",
+      ownerKey,
+      params: { materialMark: marks.join(","), account: clean(mediaAccountId) ? [clean(mediaAccountId)] : [], pageNo, pageSize }
+    });
+  }
+
+  retryMaterialPreheatOnce({ ownerKey, preheatRecordIds = [] }) {
+    const ids = [...new Set((preheatRecordIds || []).map(clean).filter(Boolean))];
+    return this.postForm({
+      label: "qiankun_material_preheat_retry",
+      endpoint: "/resource/resource/sync_material_option",
+      ownerKey,
+      params: { optStatus: 1, ids },
+      allowWrite: true
     });
   }
 

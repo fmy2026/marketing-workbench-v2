@@ -40,8 +40,8 @@ export async function runVideoMaterialBindPlanSkill({ bundle } = {}) {
       requestHashPresent: Boolean(item.requestHash),
       sourceVideoVisible: item.sourceVideoVisible,
       targetVideoVisible: item.targetVideoVisible,
-      localFilePresent: item.localFilePresent,
-      localFileHashPresent: item.localFileHashPresent,
+      originResourceId: item.originResourceId || "",
+      materialSourceVideoIdPresent: item.videoIdPresent === true,
       coverMode: item.coverMode,
       nextAction: item.nextAction
     })),

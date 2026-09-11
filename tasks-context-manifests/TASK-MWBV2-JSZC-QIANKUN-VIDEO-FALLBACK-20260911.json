@@ -1,0 +1,33 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911",
+  "task_ref": "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T06:00:00Z",
+  "updated_at": "2026-09-11T06:10:00Z",
+  "base_revision": "4b1e15b47b7508c45ce38fe08186dccb9f866a4b",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data"],
+  "read_order": ["AGENTS.md", "project.state.json", "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.md", "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.json", "docs/Solution Design.md", "docs/project-现在的逻辑图.md", "docs/project-数据与报表契约.md", "docs/qiankun-api-docs-20260911.md"],
+  "reference_only": [],
+  "allowed_writes": ["project.state.json", "tasks/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.md", "tasks-context-manifests/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911.json", "evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/**", "db/086_jszc_qiankun_video_fallback.sql", "src/platforms/qiankunMonitorClient.mjs", "src/repositories/postgresRepository.mjs", "src/workflows/skills/oe3/04-video-material-readiness.mjs", "src/workflows/skills/oe3/04-video-material-bind-plan.mjs", "src/platforms/oceanengineVideoMaterialExecutor.mjs", "src/workflows/skills/oe3/05-jszc-success-profile.mjs", "docs/Solution Design.md", "docs/project-现在的逻辑图.md", "docs/project-数据与报表契约.md", "docs/project-lessons.md", "scripts/04-video-material-executor-smoke.mjs"],
+  "forbidden_actions": ["真实平台写入", "未文档化的首次预热创建", "本地 MP4 兜底", "保存 token、Cookie、完整 URL 或原始请求响应"],
+  "stop_conditions": ["任一素材无预热记录、预热失败或物料户视频不可见", "需要扩展到未批准的真实平台写入"],
+  "open_gaps": [],
+  "validation_plan": [{"acceptance_id":"AC-01","command":"node scripts/04-video-material-executor-smoke.mjs"},{"acceptance_id":"AC-02","command":"node scripts/04-video-material-executor-smoke.mjs"},{"acceptance_id":"AC-03","command":"node scripts/04-video-material-executor-smoke.mjs"},{"acceptance_id":"AC-04","command":"npm run check:project -- --phase start"}],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"node scripts/04-video-material-executor-smoke.mjs","verified_at":"2026-09-11T06:10:00Z","summary":"现有视频绑定 smoke 通过；素材 fail_list 继续 fail-closed，未触发真实平台写入。","evidence_refs":["evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md#ac-01"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"node scripts/04-video-material-executor-smoke.mjs","verified_at":"2026-09-11T06:10:00Z","summary":"物料户视频 ID 解析与绑定作用域 smoke 通过；本地文件哈希不再是绑定前置条件。","evidence_refs":["evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md#ac-01"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"node scripts/04-video-material-executor-smoke.mjs","verified_at":"2026-09-11T06:10:00Z","summary":"目标户可见素材保持 noop，缺失素材仍只生成受控 bind。","evidence_refs":["evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md#ac-01"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"npm run check:project -- --phase start","verified_at":"2026-09-11T06:10:00Z","summary":"Task 合同检查通过，未连接数据库或平台。","evidence_refs":["evidence/TASK-MWBV2-JSZC-QIANKUN-VIDEO-FALLBACK-20260911/validation.md#ac-04"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"记录乾坤来源码和无本地 MP4 降级边界。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"记录 Node 04 的乾坤预热和物料户回查链。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"登记静态来源与账户级动态物料事实边界。"},
+    {"ref":"docs/project-lessons.md","status":"updated","reason":"更新视频预检与 fail-closed 经验。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {"summary":"JSZC-HUNT 保底视频已切换为 10 个乾坤来源码；物料户 m_id 作为账户资源事实消费，现有目标户 bind 保持单次受控。","side_effects":"新增数据库迁移、乾坤素材/预热客户端能力、物料户资源装配和当前文档；未执行真实平台调用。","remaining_risks":["乾坤文档未提供首次预热记录创建接口；无记录时仍 fail-closed。","迁移需要在数据库备份后应用，才能使新 Job 使用 10 条新基线。"],"business_evidence_refs":[]},
+  "closed_at": "2026-09-11T06:10:00Z"
+}

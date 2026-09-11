@@ -272,6 +272,7 @@ export async function ensureAvatarForTargetOnce({
     gameCode: bundle.job.game_code,
     advertiserId: bundle.job.advertiser_id,
     resourceType: "avatar",
+    sourceAssetId: resource.source_asset_id,
     platformResourceId: imageId,
     visibilityStatus: "needs_confirmation",
     readbackStatus: "pending",
