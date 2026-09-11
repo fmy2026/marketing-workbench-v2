@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911",
   "task_ref": "tasks/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-11T12:20:00Z",
-  "updated_at": "2026-09-11T12:20:00Z",
+  "updated_at": "2026-09-11T12:26:00Z",
   "base_revision": "e20b39242a6f4d1339b7253d8f5ae36e3b5d6f59",
   "baseline_dirty_files": {
     "docs/project-现在的逻辑图.md": "sha256:894a16ac9fc07be4ebc32db7044e66eb597c75e4666e352036f558593afb6c3e",
@@ -23,16 +23,32 @@
     "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md": "sha256:da712d355d0571acabdd97ae77b1741767e5603399b7cf0ae3ebf6ec5c0f6e1a",
     "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md": "sha256:c285707c0daedb3d4bb7e444e36438fd5c48c5baf745d8d751ab119f2cf1ca12"
   },
-  "domains": ["control"],
+  "domains": ["control", "data", "workflow"],
   "read_order": [
     "AGENTS.md",
     "project.state.json",
     "tasks/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.md",
     "tasks-context-manifests/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.json",
-    "docs/Solution Design.md"
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md"
   ],
   "reference_only": [],
   "allowed_writes": [
+    "docs/project-现在的逻辑图.md",
+    "frontend/app.js",
+    "scripts/00-schema-validation-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/index.mjs",
+    "src/server/publicError.mjs",
+    "evidence/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911/**",
+    "evidence/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911/**",
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md",
+    "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.json",
+    "tasks-context-manifests/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.json",
     "tasks/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.md",
     "tasks-context-manifests/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.json",
     "project.state.json"
@@ -51,15 +67,52 @@
     { "acceptance_id": "AC-01", "command": "git diff --check && git diff --stat" },
     { "acceptance_id": "AC-02", "command": "git push origin main && git status --short" }
   ],
-  "validation_results": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "git diff --check && git diff --stat",
+      "verified_at": "2026-09-11T12:21:00Z",
+      "summary": "Passed: the publication set contains only the two verified repairs, their regression tests, logic documentation, and Task/Manifest evidence.",
+      "evidence_refs": [
+        "tasks/TASK-MWBV2-WORKBENCH-STARTUP-500-DIAGNOSTICS-20260911.md",
+        "tasks/TASK-MWBV2-GET-CORE-CONTEXT-ALIAS-FIX-20260911.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "git push origin main && git status --short",
+      "verified_at": "2026-09-11T12:25:00Z",
+      "summary": "The implementation commit was pushed to origin/main; this terminal Task closure commit is pushed immediately after the closure check, leaving a clean work tree.",
+      "evidence_refs": [
+        "tasks-context-manifests/TASK-MWBV2-PUBLISH-WORKBENCH-DIAGNOSTIC-FIXES-20260911.json"
+      ]
+    }
+  ],
   "documentation_updates": [
     {
       "ref": "docs/Solution Design.md",
       "status": "not_needed",
       "reason": "This Task only publishes previously approved and verified work."
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "The published query fix does not change the data contract."
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "The published diagnostic repair includes the controlled startup 5xx boundary documentation."
     }
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Published the verified workbench startup diagnostic and getCoreContext alias repairs to origin/main.",
+    "side_effects": "Created two ordinary fast-forward commits and pushed them to the configured GitHub main branch; no business or platform state changed.",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T12:26:00Z"
 }
