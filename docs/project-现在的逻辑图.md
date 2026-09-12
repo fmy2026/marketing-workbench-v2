@@ -31,7 +31,7 @@
 
 正式业务写入只有 `工作台 / HTTP API → 统一 Plan-bound 执行层 → platforms / repositories` 一条链；执行层按 `monitor_bootstrap`、`resource_prepare`、`std_project_create` 分发。CLI 仅限 dry-run、状态、readback 和安全诊断。
 
-JSZC-HUNT 的保底视频固定为 10 个乾坤 `origin_resource_id`。Node 04 以乾坤素材库确认静态来源，物料户对账器扫描 `file/video/get` 全页并按完整边界在 `filename` 中唯一匹配来源码，返回项 `id` 写为 verified 的实际视频 ID；只有该映射才可进入 bind。乾坤预热记录和 `m_id` 是同步审计事实，不能覆盖已验证库存；零/多文件名匹配、类型不为视频或物料户不可见均阻断。本地 MP4 不是运行时依据。
+JSZC-HUNT 的“当前必需视频集”唯一由物料包中 `video_asset + required=true + status=active` 的条目决定；当前数据可恰有 10 条，但数量不是流程规则。Node 04 以乾坤素材库确认每条静态来源，物料户对账器扫描 `file/video/get` 全页并按完整边界在 `filename` 中唯一匹配来源码，返回项 `id` 写为 `oceanengine_video_mapping.status=verified` 的实际视频 ID；只有该映射才可进入 bind。乾坤预热记录和 `m_id` 是同步审计事实，不能覆盖已验证库存；零/多文件名匹配、类型不为视频或物料户不可见均阻断。本地 MP4 与旧 `asset.metadata.video_id` 都不是运行时依据。
 
 ## 2. Workflow Skill：三阶段七 Node
 
@@ -42,7 +42,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 准备 01 `launch_intake` | 规范 route、game、advertiser；缺字段停止。owner 校验在建档前完成。 |
 | 准备 02 `creation_context` | 装配账户、触点、monitor、平台 App；普通 schedule 只读 monitor，缺失 monitor 只能生成独立 `monitor_bootstrap` Plan。 |
 | 准备 03 `game_launch_pack` | 解析游戏、路线默认值、物料、备用页和资源蓝图；不从历史账户复制动态资源 ID。 |
-| 就绪 04 `account_resource_prepare` | 输出 `account_ready_report` 与资源四态；同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
+| 就绪 04 `account_resource_prepare` | 仅将当前 `required=true` 的路线资源蓝图原子物化为新账户候选；退役或非必需蓝图不进入账户资源。必需视频蓝图的 `source_asset_id` 集合必须等于当前必需视频集；随后输出 `account_ready_report` 与资源四态；同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
 | 就绪 05 `std_project_draft_builder` | 执行已确认资源 Plan，或生成 Draft/hash、字段合同、查重和创建就绪；不创建项目。 |
 | 创建执行 06 `std_project_create_executor` | 只消费已确认 Create Plan；绑定或授权漂移即停止。 |
 | 创建执行 07 `readback_closer` | 仅以官方 `project_ids` 精确回查项目 ID 与 Draft 名称；二者一致即完成。无对象 ID 的不明创建才按名称恢复性查询，空或不一致均停止且不得补发 create；不再创建后查询素材详情。 |
@@ -98,7 +98,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 - Case 是持续目标，Job 是一次运行；fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
 - monitor、资源准备、项目创建分别确认；确认前必须 fresh readonly，资源、调用量、Draft/hash、授权、重复或 effective config 漂移均 fail-closed。
-- 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY。标准项目的权威完成回查仅核验项目 ID 与 Draft 名称；素材、封面和引导视频合同在 Node 04、Node 05 与 preflight 完成。
+- 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY。事件资产创建收到资产 ID 后，只能在 `0 / 1 / 3 / 5` 秒窗口按该 ID、目标 App 与实例作只读回查；窗口耗尽、ID 缺失或不匹配均保持已消费且不得重发创建。资源 Plan 已调用平台但回查未确认时，工作台必须如实提示“已受理、未确认、不会重发”，不暴露对象 ID 或原始响应。标准项目的权威完成回查仅核验项目 ID 与 Draft 名称；素材、封面和引导视频合同在 Node 04、Node 05 与 preflight 完成。
 - 创建 Attempt 由 Case 的 `nextCreateAttemptNo` 推导；失败或修正使用新 Job/Plan/confirmation/Attempt。
 - 唯一重投例外是无对象 ID 的精确 `40100`，同一冻结 Create action 最多三次错峰物理投递；其余错误、超时或不明结果不自动重试。OAuth 与存储边界分别查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)和数据契约。
 - Node 05 查重唯一只读限流例外是首次 `GET std_project/list` 的 `HTTP 200 + api_code=40100`：完全相同参数在 Job 确定的 `20–24` 秒后最多重试一次；第二次 `40100` 以 `duplicate_readonly_rate_limited` 停止，其他错误零重试。该 GET 不产生 Plan、confirmation、action 或 Attempt；证据仅记录调用次数、最终业务码与是否恢复。

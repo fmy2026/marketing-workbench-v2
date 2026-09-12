@@ -473,7 +473,7 @@ async function detailCandidates({ bundle, client, candidates = [] }) {
   return { details, probes, blockers: [] };
 }
 
-function classifyEventCandidate({ inventoryResult, details, appId, instanceId = "" }) {
+function classifyEventCandidate({ inventoryResult, details, appId, instanceId = "", expectedEventAssetId = "" }) {
   if (inventoryResult.status !== "passed") {
     return { candidate: null, blockers: inventoryResult.blockers || ["event_asset_inventory_readonly_failed"], inventory: { pageCount: inventoryResult.probes.length, candidateCount: 0, appBoundCandidateCount: 0, instanceBoundCandidateCount: 0, instanceBindingObservable: false, appBindingObservable: false, candidateSelectionSource: "" } };
   }
@@ -487,11 +487,15 @@ function classifyEventCandidate({ inventoryResult, details, appId, instanceId = 
   const instanceBound = instanceBindingObservable
     ? appBound.filter((asset) => clean(asset.instanceId) === clean(instanceId))
     : appBound;
+  const expectedId = clean(expectedEventAssetId);
+  const exactCandidates = expectedId
+    ? instanceBound.filter((asset) => asset.id === expectedId)
+    : instanceBound;
   const inventory = {
     pageCount: inventoryResult.probes.length,
     candidateCount: listed.length,
     appBoundCandidateCount: appBound.length,
-    instanceBoundCandidateCount: instanceBound.length,
+    instanceBoundCandidateCount: exactCandidates.length,
     instanceBindingObservable,
     appBindingObservable,
     candidateSelectionSource: ""
@@ -503,9 +507,10 @@ function classifyEventCandidate({ inventoryResult, details, appId, instanceId = 
   if (!instanceBindingObservable || !instanceBound.length) {
     return { candidate: null, blockers: ["micro_app_instance_binding_readback_failed"], inventory };
   }
-  if (instanceBound.length > 1) return { candidate: null, blockers: ["event_asset_target_ambiguous"], inventory };
+  if (expectedId && !exactCandidates.length) return { candidate: null, blockers: ["event_asset_created_id_not_visible"], inventory };
+  if (exactCandidates.length > 1) return { candidate: null, blockers: ["event_asset_target_ambiguous"], inventory };
   return {
-    candidate: instanceBound[0],
+    candidate: exactCandidates[0],
     blockers: [],
     inventory: {
       ...inventory,
@@ -693,6 +698,7 @@ export async function runEventChainReadonlySkill({
   bundle,
   client = createOceanEngineReadonlyClient(),
   allowReadonlyDependency = false,
+  expectedEventAssetId = "",
   mockReady = false
 } = {}) {
   if (!repo || !bundle?.job) throw new Error("launch_job_bundle_required");
@@ -756,7 +762,8 @@ export async function runEventChainReadonlySkill({
         inventoryResult,
         details: detailResult.details,
         appId: instance.appId,
-        instanceId: instance.instanceId
+        instanceId: instance.instanceId,
+        expectedEventAssetId
       });
   let blockers = [...candidatePreflightBlockers, ...event.blockers, ...(detailResult.blockers || [])];
   const identityVerified = blockers.length === 0 && Boolean(event.candidate?.id);

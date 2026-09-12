@@ -97,10 +97,26 @@ const targetRuntimeBundle = {
   }
 };
 const blueprints = targetBundle.resourceBlueprints || [];
+const requiredBlueprints = blueprints.filter((item) => item.required === true);
+const requiredVideoBlueprints = requiredBlueprints.filter((item) => item.resource_type === "video_asset");
+const requiredResourceKeys = requiredBlueprints.map((item) => `${item.resource_type}:${item.source_asset_id}`);
+const requiredActiveVideoPackAssetIds = (targetBundle.materialPack?.items || [])
+  .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true && (entry.item?.status || "active") === "active")
+  .map((entry) => String(entry.item?.asset_id || entry.asset?.asset_id || "").trim())
+  .filter(Boolean)
+  .sort();
+const requiredVideoBlueprintAssetIds = requiredVideoBlueprints
+  .map((item) => String(item.source_asset_id || "").trim())
+  .filter(Boolean)
+  .sort();
+const duplicateVideoSource = "JSZC-HUNT-4IG2-3";
 
-assert(blueprints.length === 9, "jszc_blueprint_count_mismatch");
 assert(new Set(blueprints.map((item) => item.resource_type)).size === 8, "jszc_blueprint_resource_type_coverage_mismatch");
-assert(blueprints.filter((item) => item.resource_type === "video_asset").length === 2, "jszc_video_blueprint_count_mismatch");
+assert(new Set(requiredResourceKeys).size === requiredResourceKeys.length, "required_blueprint_resource_key_not_unique");
+assert(blueprints.filter((item) => item.resource_type === "video_asset" && item.source_asset_id === duplicateVideoSource).length === 2, "retired_duplicate_video_fixture_missing");
+assert(requiredVideoBlueprints.filter((item) => item.source_asset_id === duplicateVideoSource).length === 1, "retired_duplicate_video_not_excluded");
+assert(new Set(requiredActiveVideoPackAssetIds).size === requiredActiveVideoPackAssetIds.length, "required_active_material_pack_video_source_asset_not_unique");
+assert(JSON.stringify(requiredVideoBlueprintAssetIds) === JSON.stringify(requiredActiveVideoPackAssetIds), "required_video_blueprints_do_not_match_active_required_material_pack");
 assert(blueprints.some((item) => item.resource_type === "backup_landing_page" && item.source_asset_id === "LPA-JSZC-OE3-BACKUP-001"), "jszc_backup_landing_blueprint_missing");
 assert(!Object.hasOwn(targetBundle.defaults?.raw_defaults?.material_source_account || {}, "target_advertiser_id"), "legacy_target_advertiser_id_not_removed");
 

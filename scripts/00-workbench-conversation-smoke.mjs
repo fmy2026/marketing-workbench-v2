@@ -590,6 +590,29 @@ assert(!blockedResourceResponse.interaction.message.includes("第二张创建确
 assert(blockedResourceResponse.interaction.message.includes("品牌创建前校验未通过"), "blocked_fresh_job_must_present_root_blocker");
 assert(blockedResourceResponse.interaction.confirmationPreview === null, "blocked_fresh_job_must_not_expose_create_confirmation");
 
+const writeReadbackBlockedResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() { return resourceBundle; },
+    async getWorkflowCaseSummary() { return resourceCaseSummary; }
+  },
+  jobId: "JOB-RESOURCE-1",
+  message: "确认准备资源",
+  expectedPlanId: resourcePlan.plan_id,
+  expectedPlanHash: resourcePlan.plan_hash,
+  getJobViewFn: async () => resourceView,
+  executeConfirmedResourcePlanFn: async () => ({
+    status: "blocked",
+    blockers: ["event_asset_target_not_found"],
+    outputSummary: {
+      actionResults: [{ actionType: "ensure_resource:event_asset", status: "event_asset_readback_not_verified", platformWriteCalled: true }]
+    }
+  })
+});
+assert(writeReadbackBlockedResponse.interaction.kind === "execution_blocked", `write_readback_blocked_effect_changed:${writeReadbackBlockedResponse.interaction.kind}`);
+assert(writeReadbackBlockedResponse.interaction.message.includes("已调用平台，但权威只读回查未确认"), "write_readback_blocked_message_missing");
+assert(writeReadbackBlockedResponse.interaction.message.includes("不会重发该平台动作"), "write_readback_duplicate_protection_missing");
+assert(!writeReadbackBlockedResponse.interaction.message.includes("未执行受控动作"), "write_readback_blocked_must_not_claim_zero_write");
+
 const monitorPlan = {
   plan_status: "ready",
   plan_kind: "monitor_bootstrap",

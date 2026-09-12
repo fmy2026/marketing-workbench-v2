@@ -1,5 +1,10 @@
 import { hashValue } from "./00-contracts.mjs";
-import { brandInfoMode, canonicalGuideVideoReadiness, resourceReady } from "./04-resource-verifiers.mjs";
+import {
+  brandInfoMode,
+  canonicalGuideVideoReadiness,
+  requiredVerifiedVideoMaterialEntries,
+  resourceReady
+} from "./04-resource-verifiers.mjs";
 import {
   applyOfficialCreateFieldSendPolicy,
   evaluateOfficialCreateFieldEvidence,
@@ -274,17 +279,14 @@ function titleMaterials(bundle = {}) {
 function videoMaterials(bundle = {}) {
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const guideRequired = guideReadiness.required === true;
-  const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  return materialItems
-    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
+  return requiredVerifiedVideoMaterialEntries(bundle)
     .map((entry) => {
-      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
-      const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
+      const resourceItem = resourceBySourceAsset(bundle, "video_asset", entry.sourceAssetId);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
       const videoCoverId = clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "");
       const item = {
         image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
-        video_id: clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id || "")
+        video_id: entry.videoId
       };
       if (coverMode === "explicit_cover_verified" && videoCoverId) {
         item.video_cover_id = videoCoverId;
@@ -301,11 +303,9 @@ function requiredVideoMaterialReadiness(bundle = {}) {
   const coverRequired = bundle.account?.video_cover_required === true;
   const guideReadiness = canonicalGuideVideoReadiness(bundle);
   const guideRequired = guideReadiness.required === true;
-  const materialItems = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  const items = materialItems
-    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required)
+  const items = requiredVerifiedVideoMaterialEntries(bundle)
     .map((entry) => {
-      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+      const sourceAssetId = entry.sourceAssetId;
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const readonlyStatus = clean(resourceItem.metadata?.readonly_check?.status);
       const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
@@ -325,7 +325,7 @@ function requiredVideoMaterialReadiness(bundle = {}) {
         guideReady;
       return {
         sourceAssetId,
-        videoIdPresent: Boolean(clean(entry.asset?.metadata?.video_id || entry.asset?.metadata?.platform_video_id)),
+        videoIdPresent: entry.videoIdPresent,
         videoCoverIdPresent: Boolean(clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)),
         coverMode: coverMode || "not_checked",
         videoCoverRequired: coverRequired,

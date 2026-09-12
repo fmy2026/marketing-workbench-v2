@@ -187,6 +187,26 @@ assert(plan.items[0].videoIdPresent === true, "video_prepare_verified_mapping_no
 assert(plan.items[0].requestHash === requestPlan.requestHash, "video_prepare_request_hash_mismatch");
 assert(plan.items[0].targetAdvertiserId === targetAdvertiserId, "video_prepare_target_should_come_from_job");
 
+const retiredVideoBundle = bundle();
+retiredVideoBundle.materialPack.items.push({
+  ...videoEntry("VIDEO-RETIRED"),
+  item: { item_type: "video_asset", required: true, status: "retired", asset_id: "VIDEO-RETIRED" }
+});
+retiredVideoBundle.materialSourceResources.push(materialSourceResourceEntry("VIDEO-RETIRED", "video-retired"));
+const retiredVideoPlan = buildVideoMaterialPreparePlan({ bundle: retiredVideoBundle });
+assert(retiredVideoPlan.bindActionCount === 1, "retired_video_must_not_join_required_video_set");
+
+const legacyMetadataOnlyBundle = bundle();
+legacyMetadataOnlyBundle.materialSourceResources = [];
+legacyMetadataOnlyBundle.materialPack.items[0].asset.metadata.video_id = "legacy-video-id-must-not-bind";
+let legacyMetadataOnlyBlocked = false;
+try {
+  buildVideoMaterialPreparePlan({ bundle: legacyMetadataOnlyBundle });
+} catch (error) {
+  legacyMetadataOnlyBlocked = error.message === "video_ids_required";
+}
+assert(legacyMetadataOnlyBlocked, "legacy_video_metadata_must_not_bind");
+
 const twoVideoPlan = buildVideoMaterialPreparePlan({ bundle: bundle({ twoVideos: true }) });
 assert(twoVideoPlan.bindActionCount === 2, "video_prepare_two_video_bind_count_wrong");
 assert(twoVideoPlan.bindBatchCount === 1, "video_prepare_two_video_batch_count_wrong");

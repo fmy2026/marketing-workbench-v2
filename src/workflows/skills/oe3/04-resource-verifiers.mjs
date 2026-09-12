@@ -161,6 +161,46 @@ export function materialItems(bundle = {}) {
   return Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
 }
 
+/**
+ * The active required entries in the material pack own the runtime video set.
+ * Blueprints only provision account candidates; historical asset metadata and
+ * pack summaries are not video-ID or cardinality sources.
+ */
+export function requiredActiveVideoMaterialItems(bundle = {}) {
+  return materialItems(bundle).filter((entry) =>
+    clean(entry?.item?.item_type) === "video_asset" &&
+    entry?.item?.required === true &&
+    clean(entry?.item?.status || "active") === "active"
+  );
+}
+
+export function requiredVerifiedVideoMaterialEntries(bundle = {}) {
+  return requiredActiveVideoMaterialItems(bundle).map((entry) => {
+    const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+    const sourceResources = (bundle.materialSourceResources || []).filter((item) =>
+      item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+    );
+    const sourceResource = sourceResources.length === 1 ? sourceResources[0] : {};
+    const mapping = sourceResource.metadata?.oceanengine_video_mapping || {};
+    const videoId = clean(mapping.status === "verified"
+      ? mapping.oceanengine_video_id || sourceResource.platform_resource_id
+      : "");
+    return {
+      sourceAssetId,
+      assetRef: clean(entry.item?.asset_ref || entry.asset?.asset_ref),
+      resourceName: clean(entry.asset?.asset_name || entry.item?.asset_ref || entry.item?.asset_id),
+      originResourceId: clean(entry.asset?.metadata?.qiankun_origin_resource_id),
+      asset: entry.asset || {},
+      item: entry.item || {},
+      sourceResource,
+      sourceResourceCount: sourceResources.length,
+      mappingStatus: clean(mapping.status || "missing"),
+      videoId,
+      videoIdPresent: Boolean(videoId)
+    };
+  });
+}
+
 export function backupLandingPageReadiness(bundle = {}) {
   return node3BackupLandingPageReadiness(bundle);
 }
@@ -183,6 +223,7 @@ export function mockReadyBundle(bundle = {}) {
   const mockBackupLandingUrlHash = "be2045c5206b29f2e3d08bc46a8ae6dd0f9588aaef11edab968de84a17594b78";
   const mockDmpAudienceIds = Array.from({ length: 10 }, (_, index) => String(100000000001 + index));
   const resources = [...(bundle.resources || [])];
+  const materialSourceResources = [...(bundle.materialSourceResources || [])];
   // Test-only memory fixture: production always reads its evidence matrix from Postgres.
   const defaults = structuredClone(bundle.defaults || {});
   const fieldRules = defaults.raw_defaults?.official_create_field_contract?.field_rules;
@@ -248,9 +289,38 @@ export function mockReadyBundle(bundle = {}) {
       }
     });
   }
+  requiredActiveVideoMaterialItems(bundle).forEach((entry, index) => {
+    const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
+    if (!sourceAssetId) return;
+    const sourceIndex = materialSourceResources.findIndex((item) =>
+      item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+    );
+    const source = {
+      resource_type: "video_asset",
+      source_asset_id: sourceAssetId,
+      platform_resource_id: String(910000000000 + index),
+      metadata: {
+        oceanengine_video_mapping: {
+          status: "verified",
+          oceanengine_video_id: String(910000000000 + index),
+          test_fixture: true
+        }
+      }
+    };
+    if (sourceIndex < 0) materialSourceResources.push(source);
+    else materialSourceResources[sourceIndex] = {
+      ...materialSourceResources[sourceIndex],
+      platform_resource_id: source.platform_resource_id,
+      metadata: {
+        ...(materialSourceResources[sourceIndex].metadata || {}),
+        ...source.metadata
+      }
+    };
+  });
   return {
     ...bundle,
     defaults,
+    materialSourceResources,
     account: {
       ...(bundle.account || {}),
       aweme_authorization: {

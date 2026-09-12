@@ -32,11 +32,11 @@
 | 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |
 | 账户当前状态 | 使用账户 canonical readiness 纠正历史缺失/未就绪投影，保留历史 Skill 证据 | [账户投影任务](../tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md) |
-| 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产、配置与目标绑定顺序核验，部分完成也要有准确 blocker | [逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
+| 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产创建响应有 ID 后只作有界精确 readonly 回查，绝不重发创建；配置与目标绑定保持既有顺序核验，部分完成也要有准确 blocker | [本次批准 Task](../tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md)、[逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
 | 品牌来源与字段形态 | 新鲜目标账户品牌/行业回查是唯一运行时来源；跨账户游戏候选只保留为已消费历史 Plan 的解释证据，不能进入新 Draft 或被重放 | [本次批准 Task](../tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md)、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 目标空品牌列表的整组省略 | `oceanengine_std_project_create` 的每个 fresh Job 都按当前目标账户品牌查询决定唯一 `brand_mode`：列表非空且唯一完整命中品牌/行业时发送四字段 `brand_info`；API 成功且实际返回空列表时整个省略 `brand_info`；失败、不明、非空未匹配、多匹配或行业不完整均阻断。空列表不用 Case 特批、历史白名单或游戏候选；`not_required/not_required` 必须带当前 Job、响应 hash 和证据引用。Node 04、Node 05、嵌套合同、payload、preflight、账本、wire body 和确认卡共用该模式。条件字段合同严格检查五条品牌 omit 账本，并继续用黄金形态校验所有非品牌字段；不发送空或部分对象，也不跳过 hash/数量校验 | [本次批准 Task](../tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md)、官方创建字段文档、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 资源动作精确调用量 | 资源 executor 的 fresh readonly 结果是该动作唯一调用量来源：0 表示已满足、不生成写动作；正整数同时冻结在 planned action、action grant 与 Plan 总调用量。确认前重新计算；任一数量或授权不一致均在 confirmation claim 前 fail-closed，必须走 fresh Job/Plan，不能改写旧 Plan | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md)、[当前逻辑](project-现在的逻辑图.md) |
-| 事件配置最终一致性 | 所有写入成功后采用有界只读回查窗口吸收可见性延迟，失败不重试创建 | [回查窗口任务](../tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md) |
+| 事件资产与配置最终一致性 | 事件资产创建及后续 baseline 配置都只用有界只读回查窗口吸收可见性延迟；创建响应已受理但未确认时 Plan 仍单次消费，失败不重试创建 | [本次批准 Task](../tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md)、[回查窗口任务](../tasks/TASK-MWBV2-EVENT-CONFIG-POST-CREATE-READBACK-20260906.md) |
 | 平台响应与完成判定 | 受理不等于 verified；统一错误分类、HTTP deadline 和严格 finalizer，避免误成功或悬挂 | [终态任务](../tasks/TASK-MWBV2-CASE-TERMINAL-HTTP-DEADLINE-20260902.md)、[回查收口任务](../tasks/TASK-MWBV2-STD-PROJECT-READBACK-CLOSURE-20260902.md) |
 | 标准项目 Node 7 查询锚点 | 创建响应明确成功且本地对象 ID 完整时，Node 7 仅用官方列表接口的 `project_ids` 以十进制文本构造精确查询，并同时核验 ID 与 Draft 名称；这就是项目创建的最终完成标准，不再调用素材详情接口或将视频、封面、引导视频关联作为创建后条件。名称过滤只用于创建响应不明且无 ID 的恢复性只读。每次回查创建独立脱敏 observation/evidence，按时间选择最新结果；空结果、ID 缺失或不一致均 fail-closed，绝不重发 create 或扩大五次/25 秒边界 | [本次批准 Task](../tasks/TASK-MWBV2-READBACK-IDENTITY-ONLY-20260911.md)、官方“获取标准项目列表”文档、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 标准项目 `40100` 有界错峰投递 | 一个冻结 Create Plan、payload/hash、confirmation 与逻辑 action 只能在精确 `std_project/create + 40100 + 无对象 ID` 下投递至多三次；调用点为 `0 / 20–24 / 45–49` 秒，抖动由 action ID 确定。其他业务码、HTTP 429、超时、网络/解析不明均 fail-closed；物理投递写入脱敏 delivery 审计，Case Attempt 仍只计该一个逻辑 action | [本次批准任务](../tasks/TASK-MWBV2-STD-PROJECT-40100-RATE-LIMIT-REDELIVERY-20260909.md)、migration `080`、[当前逻辑](project-现在的逻辑图.md) |
@@ -80,7 +80,7 @@
 | OE3 官方 2.0 | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0` |
 | OE3 官方 2.0 copy | `/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-2.0-copy` |
 | 乾坤接口 | [当前 API 文档](qiankun-api-docs-20260911.md) |
-| JSZC-HUNT 保底视频 | 10 个乾坤素材标识码是静态来源；物料户 `file/video/get` 全页中唯一、完整边界匹配 `filename` 的标识码是实际可用视频的权威证据，返回项 `id` 才成为可绑定视频 ID。预热记录和乾坤 `m_id` 保留为审计事实，不覆盖已验证的物料户库存；零/多文件名匹配不降级到本地 MP4，保持 fail-closed。 |
+| JSZC-HUNT 当前必需视频集 | 物料包中 active required `video_asset` 的 `source_asset_id` 集合是唯一静态来源，并与必需视频蓝图保持一致；当前数据可恰为 10 条，但数量不是流程规则。物料户 `file/video/get` 全页中唯一、完整边界匹配 `filename` 的来源码且 `oceanengine_video_mapping.status=verified` 时，返回项 `id` 才成为可绑定视频 ID。预热记录和乾坤 `m_id` 保留为审计事实，不覆盖已验证库存；旧 `asset.metadata.video_id`、零/多匹配均不降级，保持 fail-closed。 |
 
 OE3 按上表顺序查证：3.0 资料不足时才补查 2.0，关键版本冲突转为人工决策。需要的官方具体文件按任务加入读取清单，避免整个知识库成为默认必读。
 

@@ -304,6 +304,16 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
         }
       }]
     },
+    materialSourceResources: [{
+      resource_type: "video_asset",
+      source_asset_id: "VIDEO-1",
+      metadata: {
+        oceanengine_video_mapping: {
+          status: "verified",
+          oceanengine_video_id: "v1"
+        }
+      }
+    }],
     resources: [{
       resource_type: "video_asset",
       source_asset_id: "VIDEO-1",
@@ -596,7 +606,11 @@ try {
     brandMode: targetEmptyPayload.requestFieldManifest.brandMode
   });
   assert(targetEmptyCompatibility.status === "passed", "target_empty_brand_shape_projection_must_match_recorded_baseline");
-  assert(targetEmptyCompatibility.actualEntryCount === 95 && targetEmptyCompatibility.comparativeEntryCount === 94, "target_empty_brand_projection_count_mismatch");
+  assert(
+    targetEmptyCompatibility.comparativeEntryCount === Number(targetEmptyPayload.requestFieldManifest.successProfile?.expectedLedgerPathCount || 0) &&
+      targetEmptyCompatibility.actualEntryCount >= targetEmptyCompatibility.comparativeEntryCount,
+    "target_empty_brand_projection_count_mismatch"
+  );
   const targetEmptyContract = evaluateOe3PayloadContract({
     bundle: targetEmptyBundle,
     draft: targetEmptyDraft,

@@ -1,0 +1,166 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911",
+  "task_ref": "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T09:20:08Z",
+  "updated_at": "2026-09-11T12:28:00Z",
+  "base_revision": "d1983caa613bb4b5826d77129e17416d38ddead2",
+  "baseline_dirty_files": {
+    "docs/project-数据与报表契约.md": "sha256:7835a7cec08468654c32cad5f43d5e5c52e2434cadca6c4ddf2e8f14276ff73e",
+    "docs/project-现在的逻辑图.md": "sha256:6071f9eb60edd06479c48835da11c64b162ea2cdb3b55e467ad218efe5a9d39a",
+    "project.state.json": "sha256:5076030dfdd5c1507f9d4ddca419ceaa1efcc110ac7b508b5672e2872b57a5bc",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs": "sha256:d27fa22d60337366554487dd8c7eddd6bfdfa353a4dcd4d4d6b870e97cbc47ae",
+    "src/repositories/postgresRepository.mjs": "sha256:e91212740a5809a032b977a0ac50773fe5469ae3b2aaae6230ec05fcb9e29a06",
+    "tasks-context-manifests/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.json": "sha256:e6984538fd666878ef63511897903dc5b34ffdc423c3f3b349ca36fe7f27f4fa",
+    "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md": "sha256:b8a736c903aee74e9f2f7548ffe740a8f4832d0dc30c4dd061f5c5e672d39473"
+  },
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.json",
+    "project.state.json",
+    "db/087_dynamic_required_video_contract.sql",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/03-launch-pack.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/04-event-asset-executor-smoke.mjs",
+    "scripts/04-video-material-executor-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md"
+  ],
+  "forbidden_actions": [
+    "任何真实平台写入、确认、自动重试或 OAuth 刷新",
+    "修改当前 Case、Job、Plan 或账户资源动态业务数据",
+    "保存 token、Cookie、secret、完整 URL、原始请求或原始平台响应"
+  ],
+  "stop_conditions": [
+    "需要重发事件资产创建或扩大现有确认/授权边界",
+    "需要修改当前动态业务事实或迁移账户资源",
+    "无法保持平台响应与凭据脱敏边界"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:event-asset-executor && npm run test:event-configs-executor"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:guide-video-payload"},
+    {"acceptance_id": "AC-04", "command": "npm run test:baseline-resource-inheritance && npm run validate:schemas"},
+    {"acceptance_id": "AC-05", "command": "git diff --check"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:event-asset-executor && npm run test:event-configs-executor && npm run test:event-chain-readonly",
+      "verified_at": "2026-09-11T09:39:00Z",
+      "summary": "事件资产 smoke 覆盖延迟可见、响应 ID 缺失、错误 ID 与窗口耗尽；每个分支均确认创建最多调用一次，后续仅执行只读回查。事件配置和 event-chain readonly 回归通过。",
+      "evidence_refs": [
+        "src/platforms/oceanengineEventAssetExecutor.mjs",
+        "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+        "scripts/04-event-asset-executor-smoke.mjs",
+        "scripts/04-event-configs-executor-smoke.mjs",
+        "scripts/04-event-chain-readonly-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation",
+      "verified_at": "2026-09-11T09:39:00Z",
+      "summary": "工作台会话 smoke 验证：资源 Plan 已调用平台而权威回查未确认时，返回“不会重发”的脱敏提示，不再误称未执行受控动作。",
+      "evidence_refs": [
+        "src/workflows/workbenchConversation.mjs",
+        "scripts/00-workbench-conversation-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:guide-video-payload",
+      "verified_at": "2026-09-11T09:39:00Z",
+      "summary": "视频执行器、payload 与引导视频 smoke 通过：单、双、50 批次以及 100 条动态视频集均由 verified 映射解析；退役项排除，旧 asset.metadata.video_id 不能形成绑定。",
+      "evidence_refs": [
+        "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+        "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+        "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+        "src/workflows/skills/oe3/05-payload.mjs",
+        "scripts/04-video-material-executor-smoke.mjs",
+        "scripts/05-payload-contract-smoke.mjs",
+        "scripts/05-guide-video-payload-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:baseline-resource-inheritance && npm run test:node4-resource-prep-contracts && npm run validate:schemas && npm run smoke:workflow-skills",
+      "verified_at": "2026-09-11T09:40:00Z",
+      "summary": "资源继承 smoke 验证必需视频蓝图与 active required 物料包 source_asset_id 集合一致且退役重复项不进入候选；Node 04、schema 与完整 workflow smoke 均通过，无真实平台写入。",
+      "evidence_refs": [
+        "scripts/03-baseline-resource-inheritance-smoke.mjs",
+        "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+        "scripts/00-schema-validation-smoke.mjs",
+        "scripts/00-oe3-workflow-skills-smoke.mjs",
+        "db/087_dynamic_required_video_contract.sql"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "git diff --check",
+      "verified_at": "2026-09-11T09:40:00Z",
+      "summary": "Git whitespace 检查通过；项目关闭前与关闭后合同校验按任务协议在本记录完成后执行。",
+      "evidence_refs": [
+        "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录事件资产精确只读回查与当前必需视频集的唯一来源决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明事件资产回查窗口、工作台受控反馈和动态视频集边界。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "说明物料包与蓝图集合一致性、verified 视频映射以及 migration 087 的路线合同元数据变更。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Event-asset creation now performs one bounded exact-ID readonly confirmation cycle before it can be considered ready, while the required video set is resolved once from active required pack items and verified material-source mappings.",
+    "side_effects": "Applied migration 087 only to route-contract metadata and ran test_run cleanup smokes. No current Case, Job, Plan, confirmation, account resource, OAuth token or real platform object was modified.",
+    "remaining_risks": [
+      "The existing runtime Case remains unchanged. Its owner must explicitly use one workbench readonly recovery after deployment; that recovery must not replay the consumed resource Plan."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T12:28:00Z"
+}

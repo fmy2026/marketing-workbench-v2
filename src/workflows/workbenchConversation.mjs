@@ -433,6 +433,9 @@ export async function handleWorkbenchCommand({
   const executionBlocked = isMonitorBootstrap || isResourcePrepare
     ? executed.status === "blocked"
     : executed.executionGrant?.status === "blocked";
+  const resourcePlatformWriteCalled = isResourcePrepare &&
+    Array.isArray(executed.outputSummary?.actionResults) &&
+    executed.outputSummary.actionResults.some((item) => item?.platformWriteCalled === true);
   let nextView = isMonitorBootstrap || isResourcePrepare
     ? await getJobViewFn(repo, jobId, { projectStatePath })
     : executed;
@@ -473,6 +476,8 @@ export async function handleWorkbenchCommand({
             const presentation = presentRootBlocker(blocker);
             return blocker === "qiankun_account_identity_changed_since_plan" || blocker === "monitor_fresh_readonly_contract_drift"
               ? "账户监测身份已更新，旧 Plan 已失效；请重新只读准备。"
+              : resourcePlatformWriteCalled
+                ? `受控资源动作已调用平台，但权威只读回查未确认；不会重发该平台动作。${presentation.nextActionLabel}`
               : `未执行受控动作：${presentation.title}。${presentation.nextActionLabel}`;
           })()
         : isMonitorBootstrap

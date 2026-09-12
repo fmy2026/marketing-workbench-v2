@@ -20,6 +20,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertDynamicVideoSetShape(manifest, expectedHash, expectedCount, label) {
+  const compatibility = manifest.fieldShapeCompatibility || {};
+  assert(compatibility.status === "passed", `${label}_dynamic_video_set_shape_blocked:${(compatibility.blockers || []).join(",")}`);
+  assert(compatibility.comparativeFieldShapeHash === expectedHash, `${label}_dynamic_video_set_shape_hash_changed`);
+  assert(compatibility.comparativeEntryCount === expectedCount, `${label}_dynamic_video_set_shape_count_changed`);
+}
+
 const repo = new PostgresRepository();
 const jobs = [];
 const fixtureBackupLandingUrl = "https://example.invalid/mwbv2/mock-backup-landing-page";
@@ -74,7 +81,7 @@ try {
   // The persisted bundle is a normal test fixture. Capability-on behavior below is
   // constructed in memory so runtime correctness never depends on a production account.
   const ordinary = await createTestJob("1871922175825993", "ordinary");
-  const ordinaryNoGuideBundle = structuredClone(ordinary);
+  const ordinaryNoGuideBundle = mockReadyBundle(structuredClone(ordinary));
   delete ordinaryNoGuideBundle.defaults.raw_defaults.official_create_field_contract.nested_rules.groups["project_materials.video_material_list"].guide_video_policy;
   const ordinaryInstance = ordinaryNoGuideBundle.resources.find((item) => item.resource_type === "micro_app_instance");
   ordinaryInstance.metadata = {
@@ -96,8 +103,7 @@ try {
   assert(ordinary.account?.video_cover_required !== true, "ordinary_account_video_cover_policy_unexpectedly_enabled");
   assert(ordinaryManifest.guideVideoRequired === false, "ordinary_manifest_guide_video_flag_must_be_false");
   assert(ordinaryManifest.videoCoverRequired === false, "ordinary_manifest_video_cover_flag_must_be_false");
-  assert(ordinaryLedger.checkedPathCount === JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT, "ordinary_ledger_path_count_changed");
-  assert(ordinaryLedger.fieldShapeHash === JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH, "ordinary_ledger_shape_hash_changed");
+  assertDynamicVideoSetShape(ordinaryManifest, JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH, JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT, "ordinary");
   assert(ordinaryGuideEntries.length === 0, "ordinary_payload_must_omit_guide_video_id");
 
   const capabilityFixture = structuredClone(ordinary);
@@ -155,6 +161,7 @@ try {
   const requiredBuild = buildFixturePayload(requiredMockBundle);
   const requiredManifest = requiredBuild.requestFieldManifest || {};
   const requiredLedger = requiredManifest.createFieldLedger || {};
+  const requiredVideos = requiredBuild.payload.project_materials.video_material_list || [];
   const guideEntries = (requiredLedger.entries || []).filter((entry) =>
     entry.path === "project_materials.video_material_list.[].guide_video_id" ||
     entry.path === "project_materials.video_material_list[].guide_video_id"
@@ -167,17 +174,11 @@ try {
   assert(requiredMockBundle.account?.video_cover_required === true, "capability_fixture_video_cover_policy_not_enabled");
   assert(requiredManifest.guideVideoRequired === true, "required_manifest_guide_video_flag_missing");
   assert(requiredManifest.videoCoverRequired === true, "required_manifest_video_cover_flag_missing");
-  assert(Number(requiredManifest.guideVideoReadyCount || 0) === 2, "both_required_videos_must_have_guide_video_id");
-  assert(
-    requiredLedger.checkedPathCount === JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT,
-    `required_ledger_path_count_mismatch:${requiredLedger.checkedPathCount}`
-  );
-  assert(
-    requiredLedger.fieldShapeHash === JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH,
-    `required_ledger_shape_hash_mismatch:${requiredLedger.fieldShapeHash}`
-  );
-  assert(guideEntries.length === 2, `required_payload_must_contain_two_guide_video_fields:${guideEntries.length}`);
-  assert(coverEntries.length === 2, `required_payload_must_contain_two_video_cover_fields:${coverEntries.length}`);
+  assert(requiredVideos.length > 0, "required_video_set_missing");
+  assert(Number(requiredManifest.guideVideoReadyCount || 0) === requiredVideos.length, "all_required_videos_must_have_guide_video_id");
+  assertDynamicVideoSetShape(requiredManifest, JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH, JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT, "required");
+  assert(guideEntries.length === requiredVideos.length, `required_payload_must_contain_guide_video_fields_for_every_required_video:${guideEntries.length}`);
+  assert(coverEntries.length === requiredVideos.length, `required_payload_must_contain_cover_fields_for_every_required_video:${coverEntries.length}`);
   assert(requiredManifest.finalMaterialReadiness.items.every((item) =>
     item.videoCoverVerifiedByCurrentJob === true && item.coverMode === "explicit_cover_verified"
   ), "required_payload_covers_must_be_fresh_verified");
@@ -233,9 +234,8 @@ try {
   assert(guideOnlyCanonicalGuide.status === "passed", "guide_only_canonical_guide_video_must_be_ready");
   assert(guideOnlyManifest.guideVideoRequired === true, "guide_only_manifest_guide_video_flag_missing");
   assert(guideOnlyManifest.videoCoverRequired === false, "guide_only_manifest_video_cover_flag_must_be_false");
-  assert(guideOnlyLedger.checkedPathCount === JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT, `guide_only_ledger_path_count_mismatch:${guideOnlyLedger.checkedPathCount}:guide_fields=${guideOnlyVideos.filter((item) => item.guide_video_id).length}:cover_fields=${guideOnlyVideos.filter((item) => item.video_cover_id).length}`);
-  assert(guideOnlyLedger.fieldShapeHash === JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH, `guide_only_ledger_shape_hash_mismatch:${guideOnlyLedger.fieldShapeHash}`);
-  assert(guideOnlyVideos.length === 2, "guide_only_required_video_count_mismatch");
+  assertDynamicVideoSetShape(guideOnlyManifest, JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH, JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT, "guide_only");
+  assert(guideOnlyVideos.length > 0, "guide_only_required_video_set_missing");
   assert(guideOnlyVideos.every((item) => item.guide_video_id === guideOnlyCanonicalGuide.guideVideoId), "guide_only_videos_must_share_one_canonical_guide_video");
   assert(guideOnlyVideos.every((item) => !Object.hasOwn(item, "video_cover_id")), "guide_only_payload_must_omit_explicit_video_cover_id");
   assert(guideOnlyManifest.finalMaterialReadiness.items.every((item) =>
@@ -261,8 +261,11 @@ try {
   assert(staleVideoBuild.payload.project_materials.video_material_list.every((item) => item.guide_video_id === canonicalGuide.guideVideoId), "stale_video_metadata_must_be_ignored");
 
   const hundredVideoBundle = structuredClone(requiredMockBundle);
-  const videoTemplate = hundredVideoBundle.materialPack.items.find((entry) => entry.item?.item_type === "video_asset");
+  const videoTemplate = hundredVideoBundle.materialPack.items.find((entry) =>
+    entry.item?.item_type === "video_asset" && entry.item?.required === true && (entry.item?.status || "active") === "active"
+  );
   const videoResourceTemplate = hundredVideoBundle.resources.find((item) => item.resource_type === "video_asset");
+  const sourceResourceTemplate = hundredVideoBundle.materialSourceResources.find((item) => item.resource_type === "video_asset");
   const nonVideoItems = hundredVideoBundle.materialPack.items.filter((entry) => entry.item?.item_type !== "video_asset");
   const nonVideoResources = hundredVideoBundle.resources.filter((item) => item.resource_type !== "video_asset");
   hundredVideoBundle.materialPack.items = [
@@ -272,8 +275,6 @@ try {
       const sourceAssetId = `VIDEO-HUNDRED-${index + 1}`;
       entry.item.asset_id = sourceAssetId;
       entry.asset.asset_id = sourceAssetId;
-      entry.asset.metadata.video_id = `video-id-hundred-${index + 1}`;
-      entry.asset.metadata.platform_video_id = `video-id-hundred-${index + 1}`;
       return entry;
     })
   ];
@@ -286,8 +287,19 @@ try {
       platform_resource_id: `VIDEO-HUNDRED-${index + 1}`
     }))
   ];
-  const hundredVideoBuild = buildOe3StdProjectPayload({ bundle: hundredVideoBundle });
-  assert(hundredVideoBuild.payload.project_materials.video_material_list.length === 100, "hundred_video_payload_count_mismatch");
+  hundredVideoBundle.materialSourceResources = Array.from({ length: 100 }, (_, index) => ({
+    ...structuredClone(sourceResourceTemplate),
+    source_asset_id: `VIDEO-HUNDRED-${index + 1}`,
+    metadata: {
+      ...(sourceResourceTemplate.metadata || {}),
+      oceanengine_video_mapping: {
+        status: "verified",
+        oceanengine_video_id: `video-id-hundred-${index + 1}`
+      }
+    }
+  }));
+  const hundredVideoBuild = buildFixturePayload(hundredVideoBundle);
+  assert(hundredVideoBuild.payload.project_materials.video_material_list.length === 100, `hundred_video_payload_count_mismatch:${hundredVideoBuild.payload.project_materials.video_material_list.length}:blockers=${hundredVideoBuild.blockers.join(",")}`);
   assert(hundredVideoBuild.payload.project_materials.video_material_list.every((item) => item.guide_video_id === canonicalGuide.guideVideoId), "hundred_video_payload_must_share_canonical_guide_video");
   assert(hundredVideoBuild.payload.project_materials.video_material_list.every((item) => item.video_cover_id), "hundred_video_payload_must_send_explicit_cover_ids");
 

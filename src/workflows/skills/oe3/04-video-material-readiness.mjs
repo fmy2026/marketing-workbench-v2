@@ -5,30 +5,17 @@ import {
   canonicalGuideVideoReadiness,
   clean,
   guideVideoCapabilityPolicy,
+  requiredVerifiedVideoMaterialEntries,
   verifiedMicroAppInstanceResources
 } from "./04-resource-verifiers.mjs";
 
 function requiredVideoEntries(bundle = {}) {
-  const items = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  return items
-    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
-    .map((entry) => {
-      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
-      const sourceResource = (bundle.materialSourceResources || []).find((item) =>
-        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
-      ) || {};
-      const sourceMapping = sourceResource.metadata?.oceanengine_video_mapping || {};
-      return {
-      sourceAssetId,
-      assetRef: clean(entry.item?.asset_ref || entry.asset?.asset_ref),
-      resourceName: clean(entry.asset?.asset_name || entry.item?.asset_ref || entry.item?.asset_id),
-      originResourceId: clean(entry.asset?.metadata?.qiankun_origin_resource_id),
-      videoId: clean(sourceMapping.status === "verified" ? sourceMapping.oceanengine_video_id || sourceResource.platform_resource_id : ""),
-      coverId: clean(sourceResource.metadata?.video_cover_id || sourceResource.metadata?.cover_id || entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id),
-      sourcePreheatStatus: clean(sourceResource.metadata?.qiankun_preheat?.status_name),
-      sourcePreheatRecordId: clean(sourceResource.metadata?.qiankun_preheat?.record_id)
-      };
-    });
+  return requiredVerifiedVideoMaterialEntries(bundle).map((entry) => ({
+    ...entry,
+    coverId: clean(entry.sourceResource.metadata?.video_cover_id || entry.sourceResource.metadata?.cover_id || entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id),
+    sourcePreheatStatus: clean(entry.sourceResource.metadata?.qiankun_preheat?.status_name),
+    sourcePreheatRecordId: clean(entry.sourceResource.metadata?.qiankun_preheat?.record_id)
+  }));
 }
 
 function sourceCodePattern(value = "") {

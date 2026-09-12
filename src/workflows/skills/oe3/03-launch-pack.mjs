@@ -1,4 +1,4 @@
-import { materialItems } from "./04-resource-verifiers.mjs";
+import { materialItems, requiredActiveVideoMaterialItems } from "./04-resource-verifiers.mjs";
 import { runBackupLandingPageDefaultSkill } from "./03-landing-page-readiness.mjs";
 
 export { materialItems };
@@ -43,7 +43,7 @@ export function runLaunchPackSkill({ bundle, skillKey }) {
       outputSummary: {
         materialPackId: bundle.materialPack?.pack?.pack_id || "",
         materialItemCount: items.length,
-        requiredVideoCount: items.filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required).length
+        requiredVideoCount: requiredActiveVideoMaterialItems(bundle).length
       }
     };
   }

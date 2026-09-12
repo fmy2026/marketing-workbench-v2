@@ -6,6 +6,7 @@ import {
   buildSingleResourceExecutionPlanFromBundle
 } from "../src/workflows/executionPlan.mjs";
 import {
+  DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS,
   EVENT_ASSET_CONFIRM_VALUE,
   buildEventAssetCreateRequestPlan,
   ensureEventAssetForTargetOnce
@@ -175,6 +176,7 @@ function baselineEvents() {
 function clientStub(state, {
   readyBeforeCreate = false,
   readyAfterCreate = true,
+  visibleAfterPostCreateInventoryReads = 0,
   configsReadyAfterCreate = readyAfterCreate,
   assets = null,
   detailAssets = null
@@ -185,7 +187,11 @@ function clientStub(state, {
     credentialState() { return { status: "ready", blockers: [] }; },
     async get({ label, endpoint, summarize }) {
       calls.push({ label, endpoint });
-      const shouldBeReady = readyBeforeCreate || (state.createFetchCount > 0 && readyAfterCreate);
+      if (label === "event_chain_asset_list" && state.createFetchCount > 0) {
+        state.postCreateInventoryReads = Number(state.postCreateInventoryReads || 0) + 1;
+      }
+      const shouldBeReady = readyBeforeCreate || (state.createFetchCount > 0 && readyAfterCreate &&
+        Number(state.postCreateInventoryReads || 0) > visibleAfterPostCreateInventoryReads);
       const currentAssets = assets !== null
         ? assets
         : shouldBeReady ? [asset("1874999999999999")] : [];
@@ -290,7 +296,7 @@ function validCredential() {
   };
 }
 
-function fetchSuccess(state, { status = 200, payload = { code: 0, request_id: "smoke", data: {} } } = {}) {
+function fetchSuccess(state, { status = 200, payload = { code: 0, request_id: "smoke", data: { asset_id: "1874999999999999" } } } = {}) {
   return async (_url, options = {}) => {
     state.createFetchCount += 1;
     assert.equal(options.method, EVENT_ASSET_CREATE_METHOD);
@@ -350,6 +356,29 @@ assert.equal(createRepo.state.actions.filter((item) => item.actionType === EVENT
 assert(createRepo.state.updates.some((item) => item.resourceType === "event_asset" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 assert(createRepo.state.updates.some((item) => item.resourceType === "micro_app_instance" && item.visibilityStatus === "visible" && item.readbackStatus === "readback_verified"));
 
+const baselineMissingState = { createFetchCount: 0 };
+const baselineMissingBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-BASELINE-MISSING" });
+const baselineMissing = await ensureEventAssetForTargetOnce({
+  repo: repoStub(baselineMissingBundle),
+  jobId: baselineMissingBundle.job.job_id,
+  confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(baselineMissingState),
+  readonlyClient: clientStub(baselineMissingState, {
+    readyBeforeCreate: true,
+    readyAfterCreate: true,
+    configsReadyAfterCreate: false
+  }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(baselineMissingBundle)
+});
+assert.equal(baselineMissing.status, "event_asset_identity_ready", JSON.stringify(baselineMissing.blockers || []));
+assert.equal(baselineMissing.runtime_event_asset_id, "1874999999999999");
+assert.equal(baselineMissing.target_identity_readback_verified, true);
+assert.equal(baselineMissing.target_readback_verified, false);
+assert.equal(baselineMissing.platform_write_called, false);
+assert.equal(baselineMissingState.createFetchCount, 0);
+
 const deferredState = { createFetchCount: 0 };
 const deferredBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-DEFER-CONFIGS" });
 const deferredRepo = repoStub(deferredBundle);
@@ -369,6 +398,59 @@ assert.equal(deferred.runtime_event_asset_id, "1874999999999999");
 assert.equal(deferred.target_readback_verified, false);
 assert.equal(deferred.target_identity_readback_verified, true);
 assert.equal(deferredState.createFetchCount, 1);
+
+let delayedNow = 0;
+const delayedState = { createFetchCount: 0 };
+const delayedBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-DELAYED-VISIBILITY" });
+const delayed = await ensureEventAssetForTargetOnce({
+  repo: repoStub(delayedBundle),
+  jobId: delayedBundle.job.job_id,
+  confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(delayedState),
+  readonlyClient: clientStub(delayedState, { visibleAfterPostCreateInventoryReads: 1, configsReadyAfterCreate: false }),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(delayedBundle),
+  deferFullEventChainUntilConfigs: true,
+  postCreateReadbackDelaysMs: DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS,
+  nowFn: () => delayedNow,
+  sleepImpl: async (delayMs) => { delayedNow += delayMs; }
+});
+assert.equal(delayed.status, "event_asset_identity_ready", JSON.stringify(delayed.blockers || []));
+assert.equal(delayed.readback_attempt_count, 2);
+assert.equal(delayedState.createFetchCount, 1);
+
+const missingIdState = { createFetchCount: 0 };
+const missingIdBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-MISSING-ID" });
+const missingId = await ensureEventAssetForTargetOnce({
+  repo: repoStub(missingIdBundle),
+  jobId: missingIdBundle.job.job_id,
+  confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(missingIdState, { payload: { code: 0, request_id: "smoke", data: {} } }),
+  readonlyClient: clientStub(missingIdState),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(missingIdBundle)
+});
+assert.equal(missingId.status, "event_asset_create_response_id_missing");
+assert.equal(missingIdState.createFetchCount, 1);
+
+const wrongIdState = { createFetchCount: 0 };
+const wrongIdBundle = baseBundle({ jobId: "JOB-SMOKE-EVENT-ASSET-WRONG-ID" });
+const wrongId = await ensureEventAssetForTargetOnce({
+  repo: repoStub(wrongIdBundle),
+  jobId: wrongIdBundle.job.job_id,
+  confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
+  fetchImpl: fetchSuccess(wrongIdState, { payload: { code: 0, request_id: "smoke", data: { asset_id: "1874999999999000" } } }),
+  readonlyClient: clientStub(wrongIdState),
+  credentialSummary: validCredential(),
+  oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
+  projectStatePath: await statePathFor(wrongIdBundle),
+  postCreateReadbackDelaysMs: [0]
+});
+assert.equal(wrongId.status, "event_asset_readback_not_verified");
+assert(wrongId.blockers.includes("event_asset_created_id_not_visible"));
+assert.equal(wrongIdState.createFetchCount, 1);
 
 const repeated = await ensureEventAssetForTargetOnce({
   repo: createRepo,
@@ -436,7 +518,8 @@ const readbackFail = await ensureEventAssetForTargetOnce({
   readonlyClient: clientStub(readbackFailState, { readyAfterCreate: false }),
   credentialSummary: validCredential(),
   oceanEngineEnv: { OCEANENGINE_ACCESS_TOKEN: "token-smoke" },
-  projectStatePath: await statePathFor(readbackFailBundle)
+  projectStatePath: await statePathFor(readbackFailBundle),
+  postCreateReadbackDelaysMs: [0]
 });
 assert.equal(readbackFail.status, "event_asset_readback_not_verified");
 assert(readbackFail.blockers.includes("event_asset_target_not_found"));
@@ -463,7 +546,11 @@ const output = {
   requestPlanPassed: requestPlan.status === "passed",
   noopStatus: noop.status,
   createStatus: created.status,
+  baselineMissingStatus: baselineMissing.status,
   deferredStatus: deferred.status,
+  delayedVisibilityStatus: delayed.status,
+  responseIdMissingBlocked: missingId.status === "event_asset_create_response_id_missing",
+  wrongResponseIdBlocked: wrongId.status === "event_asset_readback_not_verified",
   duplicateBlocked: duplicate.blockers.includes("event_asset_platform_action_already_recorded_for_job"),
   appMismatchBlocked: mismatch.blockers.includes("micro_app_instance_binding_readback_failed"),
   postCreateReadbackBlocked: readbackFail.status === "event_asset_readback_not_verified",
@@ -472,6 +559,9 @@ const output = {
     noopState.createFetchCount,
     createState.createFetchCount,
     duplicateState.createFetchCount,
+    delayedState.createFetchCount,
+    missingIdState.createFetchCount,
+    wrongIdState.createFetchCount,
     mismatchState.createFetchCount,
     readbackFailState.createFetchCount,
     failedState.createFetchCount

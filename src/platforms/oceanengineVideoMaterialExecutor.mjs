@@ -11,6 +11,7 @@ import {
   runVideoMaterialReadonlyGate,
   runVideoMaterialTargetReadonlyProbe
 } from "../workflows/skills/oe3/04-video-material-readiness.mjs";
+import { requiredVerifiedVideoMaterialEntries } from "../workflows/skills/oe3/04-resource-verifiers.mjs";
 import {
   VIDEO_MATERIAL_ENSURE_CONFIRM_ENV,
   VIDEO_MATERIAL_ENSURE_CONFIRM_VALUE,
@@ -127,30 +128,14 @@ function safeBindResponseSummary(payload = {}) {
 }
 
 function requiredVideoEntries(bundle = {}) {
-  const items = Array.isArray(bundle.materialPack?.items) ? bundle.materialPack.items : [];
-  return items
-    .filter((entry) => entry.item?.item_type === "video_asset" && entry.item?.required === true)
-    .map((entry) => {
-      const sourceAssetId = clean(entry.item?.asset_id || entry.asset?.asset_id);
-      const sourceResource = (bundle.materialSourceResources || []).find((item) =>
-        item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
-      ) || {};
-      const sourceMapping = sourceResource.metadata?.oceanengine_video_mapping || {};
-      const metadata = entry.asset?.metadata || {};
-      const sourceVideoId = clean(sourceMapping.status === "verified" ? sourceMapping.oceanengine_video_id || sourceResource.platform_resource_id : "");
-      return {
-        sourceAssetId,
-        resourceName: clean(entry.asset?.asset_name || entry.item?.asset_ref || entry.item?.asset_id),
-        originResourceId: clean(metadata.qiankun_origin_resource_id),
-        videoId: sourceVideoId,
-        videoIdPresent: Boolean(sourceVideoId),
-        explicitCoverIdPresent: Boolean(clean(sourceResource.metadata?.video_cover_id || sourceResource.metadata?.cover_id || metadata.video_cover_id || metadata.cover_id)),
-        localFilePathPresent: false,
-        localFileHashPresent: false,
-        localFileSizeBytes: 0,
-        localFileHash: ""
-      };
-    });
+  return requiredVerifiedVideoMaterialEntries(bundle).map((entry) => ({
+    ...entry,
+    explicitCoverIdPresent: Boolean(clean(entry.sourceResource.metadata?.video_cover_id || entry.sourceResource.metadata?.cover_id || entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)),
+    localFilePathPresent: false,
+    localFileHashPresent: false,
+    localFileSizeBytes: 0,
+    localFileHash: ""
+  }));
 }
 
 function materialSourceAccount(bundle = {}) {

@@ -82,21 +82,12 @@ export const JSZC_SUCCESS_PROFILE_FIXTURE = Object.freeze({
 });
 
 export const JSZC_SUCCESS_PROFILE_FIXTURE_HASH = hashValue(JSZC_SUCCESS_PROFILE_FIXTURE);
-export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:e2fd4ac63467eeda4b72064ea751a23bedf71b927e3c4e462ae5a7e4cbd1a844";
-export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 92;
-export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:98ee03c08b3252ad83a8f66a3cc6d64c4a609cc643240b0de06d541fef1207fe";
-export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 94;
-export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:9a1f104f75a724c214b36e6c8b4cf6334b195d10932f0c295eec86c5f02d4d2f";
-export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 96;
-export const JSZC_SUCCESS_PROFILE_GOLDEN_MATERIAL_COUNTS = Object.freeze({
-  videoMaterialList: 10,
-  titleMaterialList: 3,
-  imageMaterialList: 0,
-  productImageIds: 1,
-  externalUrlMaterialList: 1,
-  dmpExclusions: 10
-});
-
+export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:3ca0165414980e6fc9a7f353e4d766024a560e6d6bc855821bda8b3a1060fe11";
+export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 90;
+export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:255b9d660aa5992063c474b455bfca5da96130b094aa240b74f04541c2859fb6";
+export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 91;
+export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:866ab396dc253076bd5e31c13ad2b2ad22f4b74c3b4d7c1df432c4dcae8869f3";
+export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 92;
 const BRAND_OMITTED_LEDGER_PATHS = Object.freeze([
   "brand_info",
   "brand_info.brand_name_id",
@@ -245,6 +236,30 @@ function projectedSentBrandShape({ path, valueType }) {
   };
 }
 
+function dynamicVideoSetShapes(entries = []) {
+  const dynamic = entries.filter((entry) => entry.path === "project_materials.video_material_list" ||
+    entry.path.startsWith("project_materials.video_material_list.[]") ||
+    entry.path.startsWith("project_materials.video_material_list[]"));
+  if (!dynamic.length) return entries.map(ledgerShape);
+  const stable = entries
+    .filter((entry) => !dynamic.includes(entry))
+    .map(ledgerShape);
+  const normalized = [];
+  const seen = new Set();
+  for (const entry of dynamic) {
+    const shape = ledgerShape(entry);
+    // Video cardinality is governed by active required pack items.  Preserve
+    // list/member shape while explicitly excluding its mutable cardinality.
+    if (shape.path === "project_materials.video_material_list") shape.itemCount = null;
+    const key = JSON.stringify(shape);
+    if (!seen.has(key)) {
+      seen.add(key);
+      normalized.push(shape);
+    }
+  }
+  return [...stable, ...normalized].sort((left, right) => left.path.localeCompare(right.path));
+}
+
 /**
  * Validates the conditional brand contract against the recorded JSZC success
  * shape. The Draft retains the factual five omitted brand paths; the in-memory
@@ -272,15 +287,16 @@ export function evaluateJsZcFieldShapeCompatibility({
       entry.enumMatched === null &&
       entry.preCreateStatus === "passed" && entry.rawValueStored === false
     ));
-  const projectedShapes = isTargetEmptyOmit && exactOmittedBrandShape
+  const projectedEntries = isTargetEmptyOmit && exactOmittedBrandShape
     ? [
         ...[
-          ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy !== "omit").map(ledgerShape),
+          ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy !== "omit"),
           ...BRAND_SENT_LEDGER_SHAPES.map(projectedSentBrandShape)
-        ].sort((left, right) => left.path.localeCompare(right.path)),
-        ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy === "omit").map(ledgerShape)
+        ],
+        ...entries.filter((entry) => entry.group !== "brand" && entry.sendPolicy === "omit")
       ]
-    : entries.map(ledgerShape);
+    : entries;
+  const projectedShapes = dynamicVideoSetShapes(projectedEntries);
   const comparativeShapeHash = hashValue(projectedShapes);
   const comparativeEntryCount = projectedShapes.length;
   const blockers = [
@@ -292,7 +308,7 @@ export function evaluateJsZcFieldShapeCompatibility({
   ];
   return {
     status: blockers.length ? "blocked" : "passed",
-    mode: isTargetEmptyOmit ? "target_empty_omit_conditional_shape" : "strict_recorded_shape",
+    mode: isTargetEmptyOmit ? "target_empty_omit_dynamic_video_set_shape" : "dynamic_required_video_set_shape",
     actualEntryCount: entries.length,
     comparativeEntryCount,
     expectedEntryCount: expectedCount,

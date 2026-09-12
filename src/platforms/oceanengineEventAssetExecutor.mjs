@@ -30,12 +30,28 @@ import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs
 
 export const EVENT_ASSET_CONFIRM_ENV = EVENT_ASSET_ENSURE_CONFIRM_ENV;
 export const EVENT_ASSET_CONFIRM_VALUE = EVENT_ASSET_ENSURE_CONFIRM_VALUE;
+export const DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS = Object.freeze([0, 1000, 3000, 5000]);
 
 const API_BASE = "https://api.oceanengine.com";
 const EVENT_ASSET_CREATE_FULL_ENDPOINT = `${API_BASE}${EVENT_ASSET_CREATE_ENDPOINT}`;
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function sleep(delayMs) {
+  return Number(delayMs) > 0
+    ? new Promise((resolve) => setTimeout(resolve, Number(delayMs)))
+    : Promise.resolve();
+}
+
+function safePostCreateReadbackDelays(delays = DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS) {
+  const values = Array.isArray(delays) ? delays : DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS;
+  const normalized = [...new Set(values
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 5000))]
+    .sort((left, right) => left - right);
+  return normalized.length ? normalized.slice(0, 4) : [...DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS];
 }
 
 function apiCode(payload = {}) {
@@ -256,6 +272,8 @@ async function saveEventAssetCreateEvidence({ repo, bundle, create = {}, status,
     response_asset_id_present: Boolean(create.assetId),
     post_readback_status: readback.status || "not_called",
     post_readback_blocker_count: Array.isArray(readback.blockers) ? readback.blockers.length : 0,
+    post_readback_attempt_count: Number(readback.attemptCount || 0),
+    post_readback_elapsed_ms: Number(readback.elapsedMs || 0),
     payload_persisted: false,
     response_persisted: false
   });
@@ -265,7 +283,7 @@ async function saveEventAssetCreateEvidence({ repo, bundle, create = {}, status,
     jobId: bundle.job.job_id,
     artifactType: "event_asset_create",
     title: "JSZC 事件资产 API 单次创建",
-    summary: `status=${status}; http=${summary.http_status ?? "none"}; api_code=${summary.api_code}; request_id_present=${summary.request_id_present === true}; post_readback_status=${summary.post_readback_status}; response_persisted=false`,
+    summary: `status=${status}; http=${summary.http_status ?? "none"}; api_code=${summary.api_code}; request_id_present=${summary.request_id_present === true}; post_readback_status=${summary.post_readback_status}; post_readback_attempts=${summary.post_readback_attempt_count}; response_persisted=false`,
     contentHash: create.responseHash || hashValue(summary),
     storageRef: "postgres:evidence_artifacts:redacted_summary_only",
     sourceRef: "oceanengine:event_manager/assets/create",
@@ -279,6 +297,69 @@ function createAllowedByPreflight(preflight = {}) {
   return blockers.length === 1 && blockers[0] === "event_asset_target_not_found";
 }
 
+function identityReadyWithBaselineMissing(preflight = {}) {
+  const blockers = Array.isArray(preflight.blockers) ? preflight.blockers : [];
+  return (
+    blockers.length === 1 &&
+    blockers[0] === "event_configs_baseline_missing" &&
+    preflight.outputSummary?.eventAssetIdentityReadbackVerified === true &&
+    clean(preflight.runtimeEventAssetId)
+  );
+}
+
+export async function pollEventAssetPostCreateReadback({
+  repo,
+  jobId,
+  client,
+  expectedEventAssetId,
+  allowReadonlyDependency = true,
+  delaysMs = DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS,
+  nowFn = Date.now,
+  sleepImpl = sleep
+} = {}) {
+  if (!repo || !jobId || !client || !clean(expectedEventAssetId)) {
+    throw new Error("event_asset_post_create_readback_context_required");
+  }
+  const startedAtMs = Number(nowFn());
+  const attempts = [];
+  let result = null;
+  for (const plannedDelayMs of safePostCreateReadbackDelays(delaysMs)) {
+    const waitMs = Math.max(0, plannedDelayMs - Math.max(0, Number(nowFn()) - startedAtMs));
+    if (waitMs > 0) await sleepImpl(waitMs);
+    const bundle = await repo.getLaunchJobBundle(jobId);
+    result = await runEventChainReadonlySkill({
+      repo,
+      bundle,
+      client,
+      allowReadonlyDependency,
+      expectedEventAssetId
+    });
+    const identityReady = result.outputSummary?.eventAssetIdentityReadbackVerified === true &&
+      clean(result.runtimeEventAssetId) === clean(expectedEventAssetId);
+    attempts.push(sanitizeForPublic({
+      planned_delay_ms: plannedDelayMs,
+      actual_elapsed_ms: Math.max(0, Number(nowFn()) - startedAtMs),
+      status: result.status || "blocked",
+      blocker_count: Array.isArray(result.blockers) ? result.blockers.length : 0,
+      identity_verified: identityReady
+    }));
+    if (identityReady) {
+      return {
+        identityReady: true,
+        result,
+        attempts,
+        elapsedMs: Math.max(0, Number(nowFn()) - startedAtMs)
+      };
+    }
+  }
+  return {
+    identityReady: false,
+    result,
+    attempts,
+    elapsedMs: Math.max(0, Number(nowFn()) - startedAtMs)
+  };
+}
+
 export async function ensureEventAssetForTargetOnce({
   repo,
   jobId,
@@ -289,7 +370,10 @@ export async function ensureEventAssetForTargetOnce({
   oceanEngineEnv = null,
   projectStatePath,
   allowReadonlyDependency = true,
-  deferFullEventChainUntilConfigs = false
+  deferFullEventChainUntilConfigs = false,
+  postCreateReadbackDelaysMs = DEFAULT_EVENT_ASSET_POST_CREATE_READBACK_DELAYS_MS,
+  nowFn = Date.now,
+  sleepImpl = sleep
 } = {}) {
   if (!repo || !jobId) throw new Error("event_asset_executor_repo_and_job_required");
   let bundle = await repo.getLaunchJobBundle(jobId);
@@ -308,6 +392,24 @@ export async function ensureEventAssetForTargetOnce({
       jobId,
       evidence_refs: preflight.evidenceRefs || [],
       target_already_usable: true,
+      platform_write_called: false,
+      token_refresh_called: false,
+      payload_persisted: false,
+      response_persisted: false
+    });
+    assertNoSensitiveLeak(result);
+    return result;
+  }
+
+  if (identityReadyWithBaselineMissing(preflight)) {
+    const result = sanitizeForPublic({
+      status: "event_asset_identity_ready",
+      jobId,
+      evidence_refs: preflight.evidenceRefs || [],
+      runtime_event_asset_id: clean(preflight.runtimeEventAssetId),
+      target_identity_readback_verified: true,
+      target_readback_verified: false,
+      blockers: [],
       platform_write_called: false,
       token_refresh_called: false,
       payload_persisted: false,
@@ -405,23 +507,60 @@ export async function ensureEventAssetForTargetOnce({
     return result;
   }
 
-  bundle = await repo.getLaunchJobBundle(jobId);
-  const postReadback = await runEventChainReadonlySkill({
+  if (!clean(create.assetId)) {
+    const evidenceRef = await saveEventAssetCreateEvidence({
+      repo,
+      bundle,
+      create,
+      status: "response_id_missing",
+      readback: { status: "not_called", blockers: ["event_asset_create_response_id_missing"] }
+    });
+    const result = sanitizeForPublic({
+      status: "event_asset_create_response_id_missing",
+      jobId,
+      create_action_id: create.actionId,
+      evidence_ref: evidenceRef,
+      blockers: ["event_asset_create_response_id_missing"],
+      event_asset_id_present_in_response: false,
+      platform_write_called: true,
+      token_refresh_called: false,
+      payload_persisted: false,
+      response_persisted: false
+    });
+    assertNoSensitiveLeak(result);
+    return result;
+  }
+
+  const postReadbackCycle = await pollEventAssetPostCreateReadback({
     repo,
-    bundle,
+    jobId,
     client,
-    allowReadonlyDependency
+    expectedEventAssetId: create.assetId,
+    allowReadonlyDependency,
+    delaysMs: postCreateReadbackDelaysMs,
+    nowFn,
+    sleepImpl
   });
+  bundle = await repo.getLaunchJobBundle(jobId);
+  const postReadback = postReadbackCycle.result || {
+    status: "blocked",
+    blockers: ["event_asset_post_create_readback_timeout"]
+  };
   const identityReadyForConfigs = Boolean(deferFullEventChainUntilConfigs === true &&
-    postReadback.outputSummary?.eventAssetIdentityReadbackVerified === true &&
-    clean(postReadback.runtimeEventAssetId));
-  const ready = postReadback.status === "passed";
+    postReadbackCycle.identityReady === true &&
+    clean(postReadback.runtimeEventAssetId) === clean(create.assetId));
+  const ready = postReadbackCycle.identityReady === true && postReadback.status === "passed";
+  const readbackForEvidence = {
+    ...postReadback,
+    attemptCount: postReadbackCycle.attempts.length,
+    elapsedMs: postReadbackCycle.elapsedMs
+  };
   const evidenceRef = await saveEventAssetCreateEvidence({
     repo,
     bundle,
     create,
     status: ready ? "passed" : identityReadyForConfigs ? "identity_readback_passed_pending_event_configs" : "post_readback_blocked",
-    readback: postReadback
+    readback: readbackForEvidence
   });
   const result = sanitizeForPublic({
     status: ready
@@ -433,11 +572,15 @@ export async function ensureEventAssetForTargetOnce({
     create_action_id: create.actionId,
     evidence_ref: evidenceRef,
     readback_evidence_refs: postReadback.evidenceRefs || [],
-    blockers: ready || identityReadyForConfigs ? [] : postReadback.blockers || ["event_asset_post_create_readback_blocked"],
+    blockers: ready || identityReadyForConfigs ? [] : postReadback.blockers?.length
+      ? postReadback.blockers
+      : ["event_asset_post_create_readback_timeout"],
     runtime_event_asset_id: identityReadyForConfigs ? postReadback.runtimeEventAssetId : "",
     event_asset_id_present_in_response: Boolean(create.assetId),
     target_identity_readback_verified: ready || identityReadyForConfigs,
     target_readback_verified: ready,
+    readback_attempt_count: postReadbackCycle.attempts.length,
+    readback_elapsed_ms: postReadbackCycle.elapsedMs,
     optimized_goal_verified: postReadback.outputSummary?.objectiveFound === true &&
       postReadback.outputSummary?.deepObjectiveFound === true,
     deep_bid_type_verified: postReadback.outputSummary?.deepBidTypeFound === true,

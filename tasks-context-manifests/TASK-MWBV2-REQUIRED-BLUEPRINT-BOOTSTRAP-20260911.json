@@ -1,0 +1,120 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911",
+  "task_ref": "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md",
+  "status": "completed",
+  "created_at": "2026-09-11T09:06:22Z",
+  "updated_at": "2026-09-11T12:27:00Z",
+  "base_revision": "d1983caa613bb4b5826d77129e17416d38ddead2",
+  "baseline_dirty_files": {},
+  "domains": ["control", "data", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.json",
+    "project.state.json"
+  ],
+  "forbidden_actions": [
+    "迁移、回填或删除动态业务数据",
+    "新建 Case、Job、Plan、confirmation 或提交工作台恢复命令",
+    "外部平台写入、OAuth 刷新或修改平台写入授权"
+  ],
+  "stop_conditions": [
+    "需要改变资源准备、Plan 或确认机制",
+    "发现当前必需蓝图本身仍存在重复资源唯一键",
+    "验证需要修改动态业务数据或调用平台写接口"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "静态检查 bootstrapAccountResourcesFromBlueprints 的 required=true 蓝图筛选，并运行当前数据库只读蓝图重复键核验"},
+    {"acceptance_id": "AC-02", "command": "npm run test:baseline-resource-inheritance && npm run smoke:workflow-skills && npm run validate:schemas"},
+    {"acceptance_id": "AC-03", "command": "人工核对 docs/project-现在的逻辑图.md 与 docs/project-数据与报表契约.md 的 Node 04 候选边界说明"},
+    {"acceptance_id": "AC-04", "command": "git diff --check && npm run check:project -- --phase before-close && launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/agents/launch-creation"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "静态检查 bootstrapAccountResourcesFromBlueprints 的 required=true 蓝图筛选，并运行当前数据库只读蓝图重复键核验",
+      "verified_at": "2026-09-11T09:07:00Z",
+      "summary": "候选查询已限定 required=true；当前路线有 17 条必需蓝图、10 条必需视频，必需资源唯一键重复数为 0。资源身份唯一键冲突时原子更新为当前蓝图。",
+      "evidence_refs": [
+        "src/repositories/postgresRepository.mjs",
+        "scripts/03-baseline-resource-inheritance-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:baseline-resource-inheritance && npm run smoke:workflow-skills && npm run validate:schemas",
+      "verified_at": "2026-09-11T09:08:00Z",
+      "summary": "三项 smoke 通过。资源继承 smoke 验证退役重复视频不属于 required 集合；完整工作流 smoke 实际通过 Node 04 物化且无平台写入；Schema smoke 通过。",
+      "evidence_refs": [
+        "scripts/03-baseline-resource-inheritance-smoke.mjs",
+        "scripts/00-oe3-workflow-skills-smoke.mjs",
+        "scripts/00-schema-validation-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "人工核对 docs/project-现在的逻辑图.md 与 docs/project-数据与报表契约.md 的 Node 04 候选边界说明",
+      "verified_at": "2026-09-11T09:08:00Z",
+      "summary": "逻辑图和数据契约均明确：只有 required=true 蓝图可进入 Node 04 新账户候选，退役/非必需蓝图不参与账户资源唯一键。",
+      "evidence_refs": [
+        "docs/project-现在的逻辑图.md",
+        "docs/project-数据与报表契约.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "git diff --check && launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench.local-server && curl --noproxy '*' -s -o /dev/null -w '%{http_code}' http://192.168.42.7:3000/agents/launch-creation",
+      "verified_at": "2026-09-11T09:08:00Z",
+      "summary": "差异检查通过；本地工作台服务已重启，配置的局域网入口返回 HTTP 200。未提交 Case、Plan、confirmation 或平台动作。",
+      "evidence_refs": [
+        "deploy/launchd/com.hys.marketing-workbench.lan-http.plist.example"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "明确 Node 04 只物化当前 required 资源蓝图。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "明确非必需或退役蓝图不参与账户资源唯一键。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "本次只修复既有 required 候选机制的查询边界，不改变已批准的运行决策。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "Node 04 now materializes only required baseline blueprints and atomically adopts an existing resource with the same account resource identity into the current required blueprint.",
+    "side_effects": "Regression smokes created and removed only test-run Jobs; no migration, Case/Job recovery command, confirmation, external platform write or OAuth refresh occurred.",
+    "remaining_risks": [
+      "The existing runtime Case remains paused until its owner explicitly requests one readonly recovery in the workbench."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-11T12:27:00Z"
+}
