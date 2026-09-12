@@ -1,0 +1,98 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911",
+  "task_ref": "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md",
+  "status": "active",
+  "created_at": "2026-09-11T14:10:00Z",
+  "updated_at": "2026-09-12T01:46:03Z",
+  "base_revision": "d1983caa613bb4b5826d77129e17416d38ddead2",
+  "baseline_dirty_files": {
+    "db/087_dynamic_required_video_contract.sql": "sha256:c375087eeab4df8a5756352a99acb6f8af98b4e2903e6a0176b19298bc3f3926",
+    "docs/Solution Design.md": "sha256:98aaddbdee779de3071552879e288f440860def75f60a219ece3bbea14c941b8",
+    "docs/project-数据与报表契约.md": "sha256:2603328fefda11b4f6231587c071bc69a1c3525fa06a506e718876bfef069e25",
+    "docs/project-现在的逻辑图.md": "sha256:35d5239ad062d4704dc76a240c64bbeac39207f6672251eabc454801e808846e",
+    "project.state.json": "sha256:cd2e6a7fa5fec8fd2c84e3f4ae57dc0e80f58e83c9533fee819966217ba173e5",
+    "scripts/00-workbench-conversation-smoke.mjs": "sha256:b63a7c0ecb648de9a5b6817bbefd6e3606ff11d2797a66465afc1378c091d946",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs": "sha256:3d83343911049469953913824e6c77f87d5fd1ffecab3e38671a3af99a8b98a3",
+    "scripts/04-event-asset-executor-smoke.mjs": "sha256:5b492c75af250e8655f6ea16660020c0b56c55e1fbe190b416e13bbdb9f30560",
+    "scripts/04-video-material-executor-smoke.mjs": "sha256:cd03473d88d3c1d6cecba14dc4e7acc7982abf48ac6b98a0dca1b0218b06fc0e",
+    "scripts/05-guide-video-payload-smoke.mjs": "sha256:663b5aa381bab0f66c33ed8bab58a1156f38184397b60df0ded82b104c3568bc",
+    "scripts/05-payload-contract-smoke.mjs": "sha256:44e703d96747fd13d438415343387e233aac6fc4b10f47c70cbe763f75449f4b",
+    "scripts/06-launch-job-bundle-video-source-smoke.mjs": "sha256:251d0bc132f3f99eb2d7111f3b4ea0978fcb1870ddb638ee9f779f352babc5fc",
+    "src/platforms/oceanengineEventAssetExecutor.mjs": "sha256:975b652771ffc6d4d88c31eef84ad52cf13099193fd97401b40a57649dc98d13",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs": "sha256:86f79a172f285ae84bba6e30e43098e56061564ef07990362c48a5423e54a00b",
+    "src/repositories/postgresRepository.mjs": "sha256:596c8511d0b19f957e5aba94f5937a29870ad1f5c57d2dcb4f4ee20b831f2994",
+    "src/workflows/skills/oe3/03-launch-pack.mjs": "sha256:2ca3ed4474a9600b03348983cb41bf26d80b09e659a9d2435a014c8bfa14b57d",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs": "sha256:091f2992abab46248cf502e40155a527f02d0e5a631852889e46c91e5c18ffd3",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs": "sha256:6ff838a6b592388da131358d570219a08993ef1f839288f9e227a93cc382d4b2",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs": "sha256:22740bcac360ace9fa33304c7e5993cdbd4f83629bc2121361f3343ee0fb1d7f",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs": "sha256:53d3e3987f877f0a1b5a2461adb81742b9429b9498d4d6c31042445d6b94d5a4",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs": "sha256:9e6ac7a66ce740d361281f3b706fb042b7bf89c7ee9a8aa3a4682f2f34626bc1",
+    "src/workflows/skills/oe3/05-payload.mjs": "sha256:6f8ed7d6cf4e327f2c4a4049ad3a6a0707fa16335f358bd15b8d8bb03c5fe775",
+    "src/workflows/workbenchConversation.mjs": "sha256:a83f42bb9e0bc5b83ea91f56adf4756ded412ae5d0a313440f6e99709fd44e80",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-IDENTITY-READY-FOR-BASIS-20260911.json": "sha256:de772c154e1dd68889e3da95b2c05c1061963e8cfd5ec042011db1565e711a3d",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.json": "sha256:ca19a05c65f7f2a197e569ef9757d77aea8c40cb6a5a7fe8775e7a721b562b6f",
+    "tasks-context-manifests/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.json": "sha256:e6984538fd666878ef63511897903dc5b34ffdc423c3f3b349ca36fe7f27f4fa",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.json": "sha256:c2ea93d69401c63c3cd171e093d63765452146c2b937d1aec794eae3a5bd2fab",
+    "tasks/TASK-MWBV2-EVENT-ASSET-IDENTITY-READY-FOR-BASIS-20260911.md": "sha256:bcbd9fc155aa2b0b1c61d3397ea9dd059faa21296f9350c3eaf634822bb93d25",
+    "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md": "sha256:fc3cdda9ab9c451204763e9218b4def0e520c2770ef02d816ebce4d5e40bc594",
+    "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md": "sha256:b8a736c903aee74e9f2f7548ffe740a8f4832d0dc30c4dd061f5c5e672d39473",
+    "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md": "sha256:b9d290ba9a97e2fc94adf262d419958888e81e42821514af1be90583c78f54ac"
+  },
+  "domains": [
+    "control",
+    "data",
+    "workflow"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.json",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.json",
+    "project.state.json",
+    "src/repositories/postgresRepository.mjs",
+    "scripts/06-launch-job-bundle-video-source-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "新增平台写入动作或重试策略",
+    "修改主链 Gate / Plan / Case 流转模型",
+    "在视频绑定流程引入视频数量硬编码"
+  ],
+  "stop_conditions": [
+    "需要平台写入机制改动",
+    "出现除 `video_bind_plan_empty` 外的新阻断根因",
+    "无法获取稳定的 DB 证据（Case/Job 不存在）"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run validate:schemas"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:video-material-executor"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "node scripts/06-launch-job-bundle-video-source-smoke.mjs"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run check:project -- --phase start"
+    }
+  ],
+  "validation_results": [],
+  "documentation_updates": [],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

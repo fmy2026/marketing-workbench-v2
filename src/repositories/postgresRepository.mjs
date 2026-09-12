@@ -1184,6 +1184,20 @@ export class PostgresRepository {
           ORDER BY mp.updated_at DESC
           LIMIT 1
         ),
+        'materialSourceResources', (
+          SELECT coalesce(jsonb_agg(to_jsonb(source_ar) ORDER BY source_ar.resource_id), '[]'::jsonb)
+          FROM mwb.account_resources source_ar
+          WHERE source_ar.route_id = j.route_id
+            AND source_ar.game_code = j.game_code
+            AND source_ar.resource_type = 'video_asset'
+            AND source_ar.advertiser_id = coalesce((
+              SELECT d.raw_defaults #>> '{material_source_account,advertiser_id}'
+              FROM mwb.game_route_defaults d
+              WHERE d.route_id = j.route_id
+                AND d.game_code = j.game_code
+              LIMIT 1
+            ), '')
+        ),
         'backupLandingPage', (
           SELECT ${safeLandingPageJson("lpa")}
           FROM mwb.landing_page_assets lpa
@@ -4414,6 +4428,7 @@ export class PostgresRepository {
          AND lpa.landing_page_asset_id = brp.source_asset_id
         WHERE brp.route_id = ${sqlLiteral(routeId)}
           AND brp.game_code = ${sqlLiteral(gameCode)}
+          AND brp.required = true
       ),
       inserted AS (
         INSERT INTO mwb.account_resources (
@@ -4489,7 +4504,7 @@ export class PostgresRepository {
             AND existing.game_code = b.game_code
             AND existing.blueprint_id = b.blueprint_id
         )
-        ON CONFLICT (resource_id) DO UPDATE SET
+        ON CONFLICT (advertiser_id, route_id, game_code, resource_type, source_asset_id) DO UPDATE SET
           blueprint_id = EXCLUDED.blueprint_id,
           metadata = mwb.account_resources.metadata || jsonb_build_object(
             'baseline_blueprint', EXCLUDED.metadata->'baseline_blueprint'
