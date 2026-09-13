@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-13 CST |
-| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913` |
+| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-WORKBENCH-ACCESS-MODE-SWITCH-20260913` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -28,6 +28,7 @@
 | Case 与单一 Gate | Case 管持续目标、Job 管一次运行；消费者统一读 summary，避免历史 blocker 冒充当前阻断 | [Case Gate 任务](../tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md)、[数据契约](project-数据与报表契约.md) |
 | 用户与账户归属 | 本人执行/确认，管理员管理用户及只读报表；账户发现前验证唯一 owner | [账户隔离任务](../tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md) |
 | 工作台本机入口 | 默认固定为 `127.0.0.1:3000`，不依赖 Wi-Fi IP；本机 LaunchAgent 在用户登录后启动和异常退出后重启。局域网多人访问仅以独立显式配置开放 | [本次批准 Task](../tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md)、[部署说明](../deploy/README.md) |
+| 工作台访问模式 | 单一服务在 `local` 与 `company` 模式之间显式切换：本机固定 loopback；公司模式只接受当前 Mac 已分配的 RFC1918 IPv4，并在重载失败时恢复前一份 LaunchAgent 配置。日常从根地址登录后进入 Agent 广场 | [本次批准 Task](../tasks/TASK-MWBV2-WORKBENCH-ACCESS-MODE-SWITCH-20260913.md)、[部署说明](../deploy/README.md) |
 | 正式平台写入 | 工作台/API 通过冻结 Plan、精确确认和通用 executor 执行；普通运行不再为每份 Plan 创建仓库 Task | [原生 Plan-bound 任务](../tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md) |
 | 分开确认资源和创建 | 独立 Resource Plan 与 fresh Create Plan，避免资源修正扩大项目创建授权；monitor 缺失时另用 Bootstrap Plan | [两次确认任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md) |
 | 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |

@@ -20,6 +20,8 @@
     "test:llm-explicit-intake-progress": "node scripts/00-llm-explicit-intake-progress-smoke.mjs",
     "test:agent-readonly-modules": "node scripts/00-agent-readonly-modules-smoke.mjs",
     "test:workbench-network-policy": "node scripts/00-workbench-network-policy-smoke.mjs",
+    "workbench:mode": "node scripts/00-workbench-mode-switch.mjs",
+    "test:workbench-mode-switch": "node scripts/00-workbench-mode-switch-smoke.mjs",
     "test:workbench-progress": "node scripts/00-workbench-progress-smoke.mjs",
     "test:node4-progress-projection": "node scripts/00-node4-progress-projection-smoke.mjs",
     "test:workbench-conversation": "node scripts/00-workbench-conversation-smoke.mjs",

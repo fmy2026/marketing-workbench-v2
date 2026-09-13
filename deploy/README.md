@@ -1,6 +1,6 @@
 # 本机工作台部署
 
-当前默认入口是 `http://127.0.0.1:3000/agents/launch-creation`。Node 仅监听 loopback，因此 Wi-Fi 切换、断网或局域网 IP 变化不会影响本机地址；平台业务调用仍需联网。应用以 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
+当前默认入口是 `http://127.0.0.1:3000`。未登录时显示登录页；登录后进入 Agent 广场，再选择需要的模块。Node 仅监听 loopback，因此 Wi-Fi 切换、断网或局域网 IP 变化不会影响本机地址；平台业务调用仍需联网。应用以 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
 
 ## 当前本机配置
 
@@ -13,6 +13,24 @@ WORKBENCH_PUBLIC_ORIGIN=http://127.0.0.1:3000
 ```
 
 LaunchAgent 使用 `RunAtLoad=true` 和 `KeepAlive=true`：用户登录时启动，进程退出后重启。Mac 关机、用户退出登录或设备睡眠期间服务不会运行。
+
+切换到本机模式（可在任何网络下运行）：
+
+```sh
+npm run workbench:mode -- --mode local
+```
+
+## 公司共享模式
+
+回公司连接 Wi-Fi 后，先确认 Mac 当前获得的私网 IPv4，再显式切换。公司模式只接受当前 Mac 已分配的 `10.*`、`172.16.*–172.31.*` 或 `192.168.*` 地址；命令会生成对应的监听与公开地址、重载同一 LaunchAgent，并检查根地址。重载或检查失败时自动恢复原配置。
+
+```sh
+npm run workbench:mode -- --mode company --host <公司当前IP>
+```
+
+成功后命令会输出唯一可分享的根地址 `http://<公司当前IP>:3000`。你和同事都从这个根地址登录；登录后进入 Agent 广场。公司配置样例见 [公司 LAN HTTP LaunchAgent](launchd/com.hys.marketing-workbench.company-lan-http.plist.example)。
+
+连接公司 Wi-Fi 不会自动切换模式。每次 IP 变化后都必须重新运行该命令；同事访问还要求 Mac 在线、未睡眠，且公司网络允许设备互访。首次切换后需要由另一台公司电脑完成实际登录与本人数据隔离验收。
 
 本机验收：
 
