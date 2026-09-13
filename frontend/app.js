@@ -484,7 +484,7 @@ import {
     card.append(el("p", "", preview.actionLabel || "创建 1 个广告项目"));
     const facts = el("dl", "confirmation-facts");
     const callLimitLabel = preview.planKind === "resource_prepare"
-      ? "六项资源动作累计调用上限"
+      ? `${preview.actions?.length || 0} 类资源动作累计调用上限（不含只读核验）`
       : "调用上限";
     [
       ["项目", preview.projectName || "待生成"],
@@ -508,10 +508,15 @@ import {
     card.append(facts);
     if (preview.planKind === "resource_prepare" && preview.actionLimits?.length) {
       const limits = el("details", "confirmation-action-limits");
-      limits.append(el("summary", "", "查看每项调用上限"));
+      limits.append(el("summary", "", "查看资源内容与每项调用上限"));
       const list = el("ul", "");
       for (const item of preview.actionLimits) {
-        list.append(el("li", "", `${item.actionType}：${item.maximumPlatformCalls} 次`));
+        const presentation = item.presentation;
+        const description = presentation?.description || "数量未记录";
+        const batch = Number(presentation?.batchCount || 0) > 0 ? `，${presentation.batchCount} 批` : "";
+        const row = el("li", "", `${presentation?.label || item.actionType}：${description}${batch}；平台写入调用上限 ${item.maximumPlatformCalls} 次`);
+        row.append(el("small", "confirmation-action-code", `动作代码：${item.actionType}`));
+        list.append(row);
       }
       limits.append(list);
       card.append(limits);
@@ -716,21 +721,17 @@ import {
 
       const flow = el("div", "node-flow");
       nodes.forEach((node, index) => {
-        const resourcePlanWaiting = confirmationPreview()?.planKind === "resource_prepare" &&
-          job?.caseGate?.currentGate === "await_job_write_authorization" &&
-          Number(node.number) >= 5;
-        const displayStatus = resourcePlanWaiting ? "waiting" : node.status;
+        const displayStatus = node.status;
         if (index) flow.append(el("span", "node-arrow", "→"));
         const focused = focusNode(phase);
         const nodeButton = el("button", "node-pill");
         nodeButton.type = "button";
-        const waitingLabel = Number(node.number) === 5 ? "等待资源回查后复核" : "等待资源 Plan 完成";
-        nodeButton.title = resourcePlanWaiting ? waitingLabel : statusTitle(node);
+        nodeButton.title = statusTitle(node);
         nodeButton.setAttribute("aria-pressed", String(focused?.id === node.id));
         if (focused?.id === node.id) nodeButton.classList.add("is-selected");
         nodeButton.append(el("span", "node-marker", String(node.number || "")));
         nodeButton.append(el("span", "node-pill-label", node.name || ""));
-        nodeButton.append(statusDot(displayStatus, resourcePlanWaiting ? waitingLabel : statusTitle(node)));
+        nodeButton.append(statusDot(displayStatus, statusTitle(node)));
         nodeButton.addEventListener("click", () => {
           focusedNodes.set(phase.id || phase.title || phase.phase || "", node.id);
           renderWorkflow();
@@ -741,14 +742,7 @@ import {
 
       const focused = focusNode(phase);
       if (focused?.children?.length) {
-        const resourcePlanWaiting = confirmationPreview()?.planKind === "resource_prepare" &&
-          job?.caseGate?.currentGate === "await_job_write_authorization" &&
-          Number(focused.number) >= 5;
-        const visibleChildren = resourcePlanWaiting
-          ? Number(focused.number) === 5
-            ? [{ id: "resource-readback-dependency", label: "等待资源回查后复核", status: "waiting", statusLabel: "等待" }]
-            : focused.children.map((child) => ({ ...child, status: "waiting", statusLabel: "等待" }))
-          : focused.children;
+        const visibleChildren = focused.children;
         const children = el("div", "subnode-panel");
         const subnodeTitle = el("div", "subnode-heading");
         subnodeTitle.append(el("span", "", focused.name));
@@ -777,6 +771,7 @@ import {
     const preview = confirmationPreview();
     document.getElementById("progressText").textContent = progressPresentation({
       nodes,
+      progress: job?.progress,
       caseGate: job?.caseGate,
       confirmationPreview: preview,
       executionAvailability: job?.executionAvailability,

@@ -21,11 +21,14 @@ function blockerMessage(caseGate = {}) {
  * This is presentation only. Gate, blocker and next-action truth remain in
  * workflow_case_summary; callers must not use this result for state changes.
  */
-export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = null, isLatestCaseJob = false } = {}) {
+export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = null, isLatestCaseJob = false, progress = null } = {}) {
   if (!isLatestCaseJob) {
     return Object.freeze({ shortLabel: "历史运行，只读", message: "这是历史运行，只读查看；不会执行或创建。" });
   }
   const currentGate = clean(caseGate.currentGate || caseGate.current_gate);
+  if (progress?.executionPhase) {
+    return Object.freeze({ shortLabel: "已确认执行", message: `已完成 ${progress.completedCount}/${progress.totalCount}，当前第 ${progress.currentNodeNumber} 节点：${progress.currentNodeLabel}；${progress.executionPhase}。` });
+  }
   const messages = {
     create_fresh_job: "已收到完整需求，正在建立本次流程。",
     run_monitor_readonly: "正在核对这个账户的监测配置，目前不会创建任何对象。",

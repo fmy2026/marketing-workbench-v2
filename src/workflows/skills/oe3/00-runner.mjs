@@ -796,7 +796,7 @@ async function executeSkill({ repo, context, skillKey }) {
   const safeResult = sanitizeForPublic(resultForRecord);
   assertNoSensitiveLeak(safeResult);
   context.skillOutputs.set(skillKey, memoryResult);
-  await recordSkillRun({ repo, bundle: context.bundle, definition, input, result: safeResult, startedAt });
+  await recordSkillRun({ repo, bundle: context.bundle, definition, input, result: safeResult, startedAt, executionCycle: context.executionCycle });
   return memoryResult;
 }
 
@@ -839,8 +839,16 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
   }
   const blockedResourceStates = resourceStates.filter((item) => item.state === "BLOCKED");
   const resourceStateStable = blockedResourceStates.length > 0 || !hasPendingResourceSkill;
+  const resourcePlanKind = bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind || "";
+  const resourcePlanStatus = bundle.executionPlan?.plan_status || "";
+  const resourcePlanAwaitingConfirmation = resourcePlanKind === "resource_prepare" && resourcePlanStatus === "ready";
+  const resourcePlanExecuting = resourcePlanKind === "resource_prepare" && resourcePlanStatus === "executing";
   const resourceNodeStatus = blockedResourceStates.length
     ? "blocked"
+    : resourcePlanAwaitingConfirmation
+      ? "needs_confirmation"
+      : resourcePlanExecuting
+        ? "running"
     : !resourceStateStable
       ? previousResourceNode?.status === "passed" ? "passed" : "waiting"
       : "passed";
@@ -874,7 +882,7 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     .map((key) => skillOutput(key))
     .filter((item) => item.outputSummary);
   const monitorBlockers = monitorOutputs.flatMap((item) => item.blockers || []);
-  const createNode = createNodeStatusFromSkill({ create, mode });
+  let createNode = createNodeStatusFromSkill({ create, mode });
   const readbackNode = readbackNodeStatusFromSkill({ readback, mode });
   const contextBlocked = ["context-resolve-account", "context-resolve-touchpoint", "context-resolve-platform-app"]
     .some((key) => skillOutput(key).status === "blocked");
@@ -888,8 +896,17 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
     : draftConfirmedOrCreated
       ? "passed"
       : payloadContract.status === "passed" && readiness.canCreateCurrentJob
-        ? "needs_confirmation"
+        ? "passed"
         : "repairable";
+  const currentPlanKind = bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind || "";
+  const currentPlanStatus = bundle.executionPlan?.plan_status || "";
+  if (!draftConfirmedOrCreated && draftNodeStatus === "passed" && currentPlanKind === "std_project_create") {
+    createNode = currentPlanStatus === "ready"
+      ? { status: "needs_confirmation", summary: "草稿与创建前检查已通过，等待本人确认一次创建。", diagnosticLevel: "warning", outputSummary: createNode.outputSummary }
+      : currentPlanStatus === "executing"
+        ? { status: "running", summary: "创建确认已登记，正在执行创建前复核或单次创建。", diagnosticLevel: "info", outputSummary: createNode.outputSummary }
+        : createNode;
+  }
 
   return [
     nodeStatus({
@@ -940,8 +957,12 @@ export function aggregateNodeRuns({ bundle, mode, skillOutputs }) {
         ? `账户资源存在阻断；唯一根阻断：${blockedResourceStates[0].blocker}。`
         : !resourceStateStable
           ? "账户资源正在核验，保留上一份稳定资源状态。"
-        : resourceStates.some((item) => item.state === "PLANNED")
+        : resourcePlanAwaitingConfirmation
           ? "账户资源无外部阻断，待一次确认后按 Plan 准备。"
+          : resourcePlanExecuting
+            ? "资源确认已登记，正在按冻结 Plan 执行与回查。"
+        : resourceStates.some((item) => item.state === "PLANNED")
+          ? "账户资源仍待形成受控 Plan。"
           : `${OE3_REQUIRED_RESOURCE_TYPES.length} 项账户资源均已通过 Skill 检查。`,
       diagnosticLevel: resourceBlockers.length ? "error" : "info",
       outputSummary: {
@@ -1155,6 +1176,9 @@ export async function runOe3WorkflowSkills({
     bundle = await repo.getLaunchJobBundle(jobId);
   }
   const touchpointVerification = await getTouchpointVerification(repo, bundle);
+  const cycle = typeof repo.startLaunchExecutionCycle === "function"
+    ? await repo.startLaunchExecutionCycle({ jobId, mode, planId: bundle.executionPlan?.plan_id || "" })
+    : { cycleNo: 1 };
   const context = {
     bundle,
     mode,
@@ -1187,7 +1211,8 @@ export async function runOe3WorkflowSkills({
     freezeConfirmedPlan: confirmedPlanMode,
     touchpointVerification,
     skillOutputs: new Map(),
-    payloadContract: null
+    payloadContract: null,
+    executionCycle: Number(cycle.cycleNo || 1)
   };
   const persistNodeSnapshot = async () => {
     const nodes = mode === "aweme_auth_readonly"
@@ -1252,16 +1277,21 @@ export async function runOe3WorkflowSkills({
       currentNode: latest.job.current_node,
       skillRunCount: context.skillOutputs.size,
       nodeStatuses: Object.fromEntries(nodes.map((node) => [node.nodeKey, node.status])),
-      createReadiness: nodes.find((node) => node.nodeKey === "std_project_draft_builder")?.outputSummary?.createReadiness || {},
       noRealPlatformWrite: workflowNoRealPlatformWrite({
         create: context.skillOutputs.get("create-once") || {}
       }),
       noTokenRefresh: true
     };
     assertNoSensitiveLeak(summary);
+    if (typeof repo.finishLaunchExecutionCycle === "function") {
+      await repo.finishLaunchExecutionCycle({ jobId, cycleNo: context.executionCycle, status: "completed", summary });
+    }
     return { bundle: latest, nodes, summary };
   } catch (error) {
     if (context.skillOutputs.size) await persistNodeSnapshot();
+    if (typeof repo.finishLaunchExecutionCycle === "function") {
+      await repo.finishLaunchExecutionCycle({ jobId, cycleNo: context.executionCycle, status: "failed", summary: { error_code: "workflow_run_failed" } });
+    }
     throw error;
   }
 }

@@ -53,7 +53,8 @@ export async function evaluatePlanBoundWriteAuthorization({
   projectStatePath = DEFAULT_PROJECT_STATE_PATH,
   authorizationSource = "",
   authenticatedUserId = "",
-  requireAwaitingConfirmationGate = true
+  requireAwaitingConfirmationGate = true,
+  expectedPlanStatuses = ["ready"]
 } = {}) {
   if (!bundle?.job) throw new Error("plan_bound_authorization_job_required");
   const state = await readProjectControlState(projectStatePath);
@@ -104,7 +105,7 @@ export async function evaluatePlanBoundWriteAuthorization({
     ...(!requireAwaitingConfirmationGate || summary?.current_gate === "await_job_write_authorization"
       ? []
       : ["workbench_runtime_gate_not_confirmable"]),
-    ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(expectedPlanStatuses.includes(plan?.plan_status) ? [] : ["execution_plan_status_not_authorized"]),
     ...(blockerCodes(plan).length === 0 ? [] : ["execution_plan_has_blockers"]),
     ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),

@@ -333,7 +333,7 @@ export const OE3_SKILL_DEFINITIONS = [
   })),
   {
     skillKey: "confirmed-resource-orchestrator",
-    nodeKey: "std_project_draft_builder",
+    nodeKey: "account_resource_prepare",
     dependsOn: OE3_REQUIRED_RESOURCE_TYPES.map((resourceType) => `resource-verify-${resourceType.replace(/_/g, "-")}`),
     inputContract: ["confirmed_execution_plan", "planned_resource_actions", "single_plan_confirmation"],
     outputContract: ["orchestrator_status", "executed_action_count", "action_results", "create_called"],
@@ -499,11 +499,11 @@ export function moduleRefForSkill(skillKey) {
   return "src/workflows/skills/oe3/00-runner.mjs";
 }
 
-export function skillRunId({ jobId, skillKey, attemptNo = 1 }) {
-  return `SKILL-${jobId}-${skillKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}-${String(attemptNo).padStart(2, "0")}`;
+export function skillRunId({ jobId, skillKey, attemptNo = 1, executionCycle = 1 }) {
+  return `SKILL-${jobId}-${skillKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}-C${String(executionCycle).padStart(3, "0")}-${String(attemptNo).padStart(2, "0")}`;
 }
 
-export async function recordSkillRun({ repo, bundle, definition, input, result, startedAt }) {
+export async function recordSkillRun({ repo, bundle, definition, input, result, startedAt, executionCycle = 1 }) {
   const outputSummary = sanitizeForPublic(result.outputSummary || {});
   const blockers = sanitizeForPublic(result.blockers || []);
   const evidenceRefs = sanitizeForPublic(result.evidenceRefs || []);
@@ -512,12 +512,14 @@ export async function recordSkillRun({ repo, bundle, definition, input, result, 
     skillRunId: skillRunId({
       jobId: bundle.job.job_id,
       skillKey: definition.skillKey,
-      attemptNo: result.attemptNo || 1
+      attemptNo: result.attemptNo || 1,
+      executionCycle
     }),
     jobId: bundle.job.job_id,
     nodeKey: definition.nodeKey,
     skillKey: definition.skillKey,
     attemptNo: result.attemptNo || 1,
+    executionCycle,
     status: result.status || "passed",
     inputHash: hashValue(sanitizeForPublic(input || {})),
     outputSummary,

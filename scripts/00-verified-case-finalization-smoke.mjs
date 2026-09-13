@@ -5,7 +5,7 @@ function assert(condition, message) {
 }
 
 function fixture({
-  planStatus = "ready",
+  planStatus = "executing",
   readbackStatus = "readback_verified",
   readbackObjectId = "7680763113444425770",
   readbackObjectName = "VERIFIED_FINALIZATION_SMOKE",
@@ -52,7 +52,7 @@ function fixture({
     },
     async markConfirmedStdProjectCreatePlanWaitingReadback() {
       state.calls.push("waiting_readback");
-      if (state.planStatus === "ready") state.planStatus = "waiting_readback";
+      if (state.planStatus === "executing") state.planStatus = "waiting_readback";
       return { transitioned: true };
     },
     async consumeConfirmedStdProjectCreatePlanAfterReadback() {
@@ -104,7 +104,7 @@ for (const [label, options, expectedReason] of [
 
 console.log(JSON.stringify({
   status: "passed",
-  transitionOrder: ["ready", "waiting_readback", "consumed", "case_completed"],
+  transitionOrder: ["executing", "waiting_readback", "consumed", "case_completed"],
   repeatedFinalization: "idempotent",
   platformCalls: 0
 }, null, 2));

@@ -33,6 +33,33 @@ const failed = aggregateNodeRuns({
 });
 assert(node(failed, "account_resource_prepare").status === "blocked", "real_resource_blocker_must_block_node4");
 
+const awaitingResourceConfirmation = aggregateNodeRuns({
+  bundle: {
+    ...bundle,
+    executionPlan: { plan_kind: "resource_prepare", plan_status: "ready" }
+  },
+  mode: "execute_once",
+  skillOutputs: new Map()
+});
+assert(node(awaitingResourceConfirmation, "account_resource_prepare").status === "needs_confirmation", "resource_plan_must_keep_node4_unfinished_until_confirmed");
+
+const createReady = aggregateNodeRuns({
+  bundle: {
+    ...bundle,
+    executionPlan: { plan_kind: "std_project_create", plan_status: "ready" },
+    nodes: [
+      ...bundle.nodes,
+      { node_key: "std_project_draft_builder", status: "passed", output_summary: { createReadiness: { canCreateCurrentJob: true } } }
+    ]
+  },
+  mode: "execute_once",
+  skillOutputs: new Map([
+    ["payload-contract", { status: "passed", outputSummary: {} }]
+  ])
+});
+assert(node(createReady, "std_project_draft_builder").status === "passed", "draft_checks_must_complete_node5");
+assert(node(createReady, "std_project_create_executor").status === "needs_confirmation", "create_confirmation_must_be_node6_at_five_of_seven");
+
 const readbackOnly = aggregateNodeRuns({
   bundle: {
     ...bundle,

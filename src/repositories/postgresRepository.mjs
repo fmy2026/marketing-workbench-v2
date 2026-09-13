@@ -1319,9 +1319,14 @@ export class PostgresRepository {
           LIMIT 1
         ),
         'skillRuns', (
-          SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.started_at, sr.skill_run_id), '[]'::jsonb)
+          SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.execution_cycle, sr.started_at, sr.skill_run_id), '[]'::jsonb)
           FROM mwb.launch_skill_runs sr
           WHERE sr.job_id = j.job_id
+        ),
+        'executionCycles', (
+          SELECT coalesce(jsonb_agg(to_jsonb(cycle) ORDER BY cycle.cycle_no), '[]'::jsonb)
+          FROM mwb.launch_execution_cycles cycle
+          WHERE cycle.job_id = j.job_id
         ),
         'evidence', (
           SELECT coalesce(jsonb_agg(to_jsonb(ev) ORDER BY ev.created_at), '[]'::jsonb)
@@ -3569,6 +3574,48 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async startLaunchExecutionCycle({ jobId, mode, planId = "" }) {
+    assertId("job_id", jobId);
+    assertId("run_mode", mode);
+    if (planId) assertId("plan_id", planId);
+    const result = await queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(jobId)}, 1)) AS locked
+      ), next_cycle AS (
+        SELECT coalesce(max(cycle_no), 0) + 1 AS cycle_no
+        FROM mwb.launch_execution_cycles
+        WHERE job_id = ${sqlLiteral(jobId)}
+      ), inserted AS (
+        INSERT INTO mwb.launch_execution_cycles (
+          cycle_id, job_id, cycle_no, run_mode, plan_id, cycle_status, outcome_summary
+        )
+        SELECT
+          ${sqlLiteral(`CYCLE-${jobId}-`)} || lpad(next_cycle.cycle_no::text, 3, '0'),
+          ${sqlLiteral(jobId)}, next_cycle.cycle_no, ${sqlLiteral(mode)},
+          ${planId ? sqlLiteral(planId) : "NULL"}, 'running', '{}'::jsonb
+        FROM next_cycle CROSS JOIN scope_lock
+        RETURNING cycle_no
+      )
+      SELECT jsonb_build_object('cycleNo', coalesce((SELECT cycle_no FROM inserted), 0))::text;
+    `, this.database);
+    return result || { cycleNo: 0 };
+  }
+
+  async finishLaunchExecutionCycle({ jobId, cycleNo, status, summary = {} }) {
+    assertId("job_id", jobId);
+    if (!Number.isInteger(Number(cycleNo)) || Number(cycleNo) < 1) throw new Error("execution_cycle_invalid");
+    if (!["completed", "failed"].includes(status)) throw new Error("execution_cycle_status_invalid");
+    await runPsql(`
+      UPDATE mwb.launch_execution_cycles
+      SET cycle_status = ${sqlLiteral(status)},
+          finished_at = coalesce(finished_at, now()),
+          outcome_summary = ${sqlJson(summary)}
+      WHERE job_id = ${sqlLiteral(jobId)}
+        AND cycle_no = ${Number(cycleNo)}
+        AND cycle_status = 'running';
+    `, this.database);
+  }
+
   async upsertLaunchSkillRun(run) {
     assertId("skill_run_id", run.skillRunId);
     assertId("job_id", run.jobId);
@@ -3613,7 +3660,7 @@ export class PostgresRepository {
         ${run.startedAt ? `${sqlLiteral(run.startedAt)}::timestamptz` : "now()"},
         ${run.finishedAt ? `${sqlLiteral(run.finishedAt)}::timestamptz` : "now()"}
       )
-      ON CONFLICT (job_id, skill_key, attempt_no) DO UPDATE SET
+      ON CONFLICT (job_id, execution_cycle, skill_key, attempt_no) DO UPDATE SET
         node_key = EXCLUDED.node_key,
         status = EXCLUDED.status,
         input_hash = EXCLUDED.input_hash,
@@ -3899,7 +3946,7 @@ export class PostgresRepository {
         CROSS JOIN LATERAL jsonb_array_elements(p.planned_actions) WITH ORDINALITY AS action(value, ordinality)
         WHERE p.job_id = ${sqlLiteral(jobId)}
           AND p.plan_id = ${sqlLiteral(planId)}
-          AND p.plan_status = 'ready'
+          AND p.plan_status = 'executing'
         GROUP BY p.plan_id
         HAVING count(*) > 0
           AND bool_and(action.value->>'action_type' <> 'std_project_create')
@@ -3951,7 +3998,7 @@ export class PostgresRepository {
             updated_at = now()
         WHERE p.job_id = ${sqlLiteral(jobId)}
           AND p.plan_id = ${sqlLiteral(planId)}
-          AND p.plan_status = 'ready'
+          AND p.plan_status = 'executing'
           AND coalesce(p.plan_kind, p.metadata->>'plan_kind', '') = 'resource_prepare'
           AND EXISTS (
             SELECT 1
@@ -3985,7 +4032,7 @@ export class PostgresRepository {
             updated_at = now()
         WHERE plan.job_id = ${sqlLiteral(jobId)}
           AND plan.plan_id = ${sqlLiteral(planId)}
-          AND plan.plan_status = 'ready'
+          AND plan.plan_status = 'executing'
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'monitor_bootstrap'
           AND EXISTS (
             SELECT 1
@@ -4042,7 +4089,7 @@ export class PostgresRepository {
             updated_at = now()
         WHERE plan.job_id = ${sqlLiteral(jobId)}
           AND plan.plan_id = ${sqlLiteral(planId)}
-          AND plan.plan_status = 'ready'
+          AND plan.plan_status = 'executing'
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
           AND EXISTS (
             SELECT 1
@@ -4090,7 +4137,7 @@ export class PostgresRepository {
             updated_at = now()
         WHERE plan.job_id = ${sqlLiteral(jobId)}
           AND plan.plan_id = ${sqlLiteral(planId)}
-          AND plan.plan_status = 'ready'
+          AND plan.plan_status = 'executing'
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
           AND EXISTS (
             SELECT 1
@@ -4255,7 +4302,7 @@ export class PostgresRepository {
             updated_at = now()
         WHERE plan.job_id = ${sqlLiteral(jobId)}
           AND plan.plan_id = ${sqlLiteral(planId)}
-          AND plan.plan_status IN ('ready', 'waiting_readback')
+          AND plan.plan_status IN ('executing', 'waiting_readback')
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
           AND EXISTS (
             SELECT 1
@@ -5123,9 +5170,22 @@ export class PostgresRepository {
         FROM target_plan
         ON CONFLICT DO NOTHING
         RETURNING confirmation_id
+      ), activated AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'executing',
+            metadata = plan.metadata || jsonb_build_object(
+              'execution_started_at', now()::text,
+              'retry_allowed', false
+            ),
+            updated_at = now()
+        FROM claimed
+        WHERE plan.plan_id = ${sqlLiteral(confirmation.planId)}
+          AND plan.job_id = ${sqlLiteral(confirmation.jobId)}
+          AND plan.plan_status = 'ready'
+        RETURNING plan.plan_id
       )
       SELECT jsonb_build_object(
-        'claimed', EXISTS (SELECT 1 FROM claimed),
+        'claimed', EXISTS (SELECT 1 FROM claimed) AND EXISTS (SELECT 1 FROM activated),
         'confirmationId', COALESCE((SELECT confirmation_id FROM claimed LIMIT 1), ''),
         'contextValid', EXISTS (SELECT 1 FROM target_plan),
         'alreadyConfirmed', EXISTS (SELECT 1 FROM same_plan_confirmation),
@@ -5230,12 +5290,20 @@ export class PostgresRepository {
     assertId("action_type", actionType);
     const result = await queryJson(`
       WITH confirmed AS (
-        SELECT confirmation_id
-        FROM mwb.launch_confirmations
-        WHERE confirmation_id = ${sqlLiteral(confirmationId)}
-          AND job_id = ${sqlLiteral(jobId)}
-          AND plan_id = ${sqlLiteral(planId)}
-          AND confirmation_status = 'confirmed_for_execution_plan'
+        SELECT confirmation.confirmation_id
+        FROM mwb.launch_confirmations confirmation
+        JOIN mwb.launch_execution_plans plan ON plan.plan_id = confirmation.plan_id
+        WHERE confirmation.confirmation_id = ${sqlLiteral(confirmationId)}
+          AND confirmation.job_id = ${sqlLiteral(jobId)}
+          AND confirmation.plan_id = ${sqlLiteral(planId)}
+          AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          AND plan.job_id = confirmation.job_id
+          AND plan.plan_status = 'executing'
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(plan.planned_actions) action
+            WHERE action.value->>'action_type' = ${sqlLiteral(actionType)}
+          )
       ), claimed AS (
         INSERT INTO mwb.platform_actions (
           action_id, job_id, confirmation_id, plan_id, action_type, endpoint, method,

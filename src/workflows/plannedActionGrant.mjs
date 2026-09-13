@@ -72,7 +72,8 @@ export async function validatePlannedActionGrant({
       projectStatePath,
       authorizationSource: confirmation?.confirmed_by || "",
       authenticatedUserId: confirmation?.confirmed_by_user_id || "",
-      requireAwaitingConfirmationGate: false
+      requireAwaitingConfirmationGate: false,
+      expectedPlanStatuses: ["executing"]
     })
     : {
       blockers: state.guardrails?.platform_write_allowed === true ? [] : ["platform_write_scope_not_enabled"],

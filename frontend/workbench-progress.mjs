@@ -91,6 +91,7 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
 
 export function progressPresentation({
   nodes = [],
+  progress = null,
   caseGate = {},
   confirmationPreview = null,
   executionAvailability = {},
@@ -99,20 +100,22 @@ export function progressPresentation({
   busy = false,
   viewOnly = false
 } = {}) {
-  const completed = progressCount(nodes);
-  const total = nodes.length;
-  const prefix = `进度 ${completed} / ${total}`;
+  const completed = Number(progress?.completedCount ?? progressCount(nodes));
+  const total = Number(progress?.totalCount ?? nodes.length);
+  const prefix = `已完成 ${completed} / ${total}`;
+  const current = progress?.currentNodeLabel ? ` · 当前第 ${progress.currentNodeNumber} 节点：${progress.currentNodeLabel}` : "";
   if (viewOnly) return `${prefix} · 历史 Job，只读查看`;
-  if (caseGate?.currentGate === "first_std_project_create_completed") return `${prefix} · 已完成`;
+  if (caseGate?.currentGate === "first_std_project_create_completed") return `${prefix} · 流程已完成`;
   if (execution?.status === "started" && execution?.latestDeliveryStatus === "rate_limited") {
     const nextDelivery = Math.min(Number(execution.deliveryCount || 0) + 1, Number(execution.maximumDeliveryCalls || 3));
     return `${prefix} · 平台限流，正在等待第 ${nextDelivery}/${Number(execution.maximumDeliveryCalls || 3)} 次错峰投递`;
   }
-  if (busy) return `${prefix} · 正在处理`;
+  if (progress?.executionPhase) return `${prefix}${current} · ${progress.executionPhase}`;
+  if (busy) return `${prefix}${current} · 正在处理`;
   const blockerCode = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   const blockerTitle = blockerCode ? String(caseGate?.rootBlocker?.title || blockerCode).trim() : "";
-  if (blockerTitle) return `${prefix} · 已暂停：${blockerTitle}`;
-  if (confirmationPreview && executionAvailability?.canExecuteOnce === true) return `${prefix} · 待确认`;
+  if (blockerTitle) return `${prefix}${current} · 已暂停：${blockerTitle}`;
+  if (confirmationPreview && executionAvailability?.canExecuteOnce === true) return `${prefix}${current} · 待确认`;
   if (confirmationPreview) return `${prefix} · 已暂停：当前 Plan 不可确认`;
   return `${prefix} · ${headline?.statusLabel || "已同步"}`;
 }

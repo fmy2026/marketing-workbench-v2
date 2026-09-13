@@ -141,6 +141,7 @@ const node4Children = Object.freeze([
   child("baseline-resource-bootstrap", "保底候选装配", { kind: "latest_skill", skillKeys: ["resource-bootstrap-from-blueprints"] }),
   child("target-resource-readonly", "目标账户只读核验", { kind: "latest_skill", skillKeys: ["resource-live-readonly-reconcile"] }),
   child("aweme-authorization", "抖音号授权关系", { kind: "latest_skill", skillKeys: ["aweme-authorization-readonly"] }),
+  child("confirmed-resource-orchestrator", "已确认资源动作编排", { kind: "latest_skill", skillKeys: ["confirmed-resource-orchestrator"] }),
   ...node4ResourceChildren
 ]);
 
@@ -212,7 +213,6 @@ export const WORKFLOW_NODES = Object.freeze([
     output: "creation_draft",
     subflows: Object.freeze(["项目名与草稿", "字段合同", "查重", "创建就绪"]),
     children: Object.freeze([
-      child("confirmed-resource-orchestrator", "已确认资源动作编排", { kind: "latest_skill", skillKeys: ["confirmed-resource-orchestrator"] }),
       child("project-name-and-draft", "项目名与草稿", { kind: "latest_skill", skillKeys: ["payload-build"] }),
       child("field-contract", "字段合同", { kind: "latest_skill", skillKeys: ["payload-contract"] }),
       child("duplicate-check", "查重", { kind: "latest_skill", skillKeys: ["duplicate-check"] }),

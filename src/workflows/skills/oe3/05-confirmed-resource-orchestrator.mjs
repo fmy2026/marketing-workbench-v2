@@ -54,7 +54,7 @@ export async function runConfirmedResourceOrchestratorSkill({
     ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
     : bundle.executionConfirmation || null;
   const preflightBlockers = [
-    ...(plan?.plan_status === "ready" || plan?.planStatus === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(plan?.plan_status === "executing" || plan?.planStatus === "executing" ? [] : ["execution_plan_not_executing_after_confirmation"]),
     ...(Array.isArray(plan?.blocker_codes || plan?.blockerCodes) && (plan.blocker_codes || plan.blockerCodes).length === 0
       ? []
       : ["execution_plan_has_blockers"]),
@@ -278,6 +278,10 @@ export async function executeConfirmedResourcePlan({
   }
 
   try {
+    const cycle = typeof repo.startLaunchExecutionCycle === "function"
+      ? await repo.startLaunchExecutionCycle({ jobId, mode: "confirmed_resource_execution", planId: currentPlanId })
+      : { cycleNo: 1 };
+    const executionCycle = Number(cycle?.cycleNo || cycle?.cycle_no || 1);
     bundle = await repo.getLaunchJobBundle(jobId);
     let orchestrator;
     try {
@@ -310,10 +314,11 @@ export async function executeConfirmedResourcePlan({
     }
     if (typeof repo.upsertLaunchSkillRun === "function") {
       await repo.upsertLaunchSkillRun({
-        skillRunId: `${jobId}-confirmed-resource-orchestrator-workbench-1`,
+        skillRunId: `${jobId}-confirmed-resource-orchestrator-workbench-C${executionCycle}-1`,
         jobId,
-        nodeKey: "std_project_draft_builder",
+        nodeKey: "account_resource_prepare",
         skillKey: "confirmed-resource-orchestrator",
+        executionCycle,
         attemptNo: 1,
         status: orchestrator.status === "passed" ? "passed" : "blocked",
         inputHash: hashValue({ jobId, planId: currentPlanId, actionTypes }),
@@ -329,6 +334,14 @@ export async function executeConfirmedResourcePlan({
       await repo.updateJob(jobId, {
         status: orchestrator.status === "passed" ? "completed_confirmed_resource_plan" : "blocked_confirmed_resource_plan",
         currentNode: "5"
+      });
+    }
+    if (typeof repo.finishLaunchExecutionCycle === "function") {
+      await repo.finishLaunchExecutionCycle({
+        jobId,
+        cycleNo: executionCycle,
+        status: orchestrator.status === "passed" ? "completed" : "failed",
+        summary: { resource_execution_status: orchestrator.status || "blocked", plan_id: currentPlanId }
       });
     }
     return sanitizeForPublic({

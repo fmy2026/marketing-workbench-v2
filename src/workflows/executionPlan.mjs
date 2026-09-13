@@ -1,5 +1,6 @@
 import {
   OE3_REQUIRED_RESOURCE_TYPES,
+  OE3_RESOURCE_LABELS,
   assertNoSensitiveLeak,
   hashValue,
   sanitizeForPublic
@@ -285,7 +286,13 @@ export async function resolveFreshResourceActionContracts({ bundle, actionTypes 
     status: materialPlan.contractStatus || "blocked",
     blockers: [...new Set(materialPlan.contractBlockers || ["video_material_prepare_contract_missing"])],
     maximumPlatformCalls: bindBatchCount,
-    contractHash: materialPlan.bindBatchRequestHash || ""
+    contractHash: materialPlan.bindBatchRequestHash || "",
+    presentation: {
+      selectedCount: selectedRequiredVideoCount,
+      readyCount,
+      pendingCount: bindActionCount,
+      batchCount: bindBatchCount
+    }
   };
   if (contract.status === "blocked") {
     resourceActionContracts.video_asset = contract;
@@ -562,7 +569,14 @@ function eventConfigsPlannedAction({ job, dependsOnEventAsset = false, actionCal
     ],
     writes_to: ["platform_actions", "account_resources", "launch_skill_runs", "evidence_artifacts"],
     reason: "baseline_event_configs_create_or_noop",
-    maximum_platform_calls: grant.maximum_platform_calls
+    maximum_platform_calls: grant.maximum_platform_calls,
+    presentation: {
+      label: "事件配置",
+      quantity: 1,
+      unit: "组配置",
+      batchCount: 1,
+      description: "创建或核验 1 组事件配置"
+    }
   };
 }
 
@@ -614,6 +628,22 @@ function compilePlannedActions(bundle = {}, {
   if (unresolvedMonitorBlocker) blockers.push(unresolvedMonitorBlocker);
 
   const byType = resourcesByType(bundle);
+  const actionPresentation = ({ actionType, resourceType, maximumPlatformCalls, resourceActionContract = null }) => {
+    const label = resourceType ? OE3_RESOURCE_LABELS[resourceType] || resourceType : "资源";
+    const video = resourceActionContract?.presentation || {};
+    if (resourceType === "video_asset") return {
+      label: "视频绑定",
+      quantity: Number(video.pendingCount || 0),
+      unit: "条视频",
+      batchCount: Number(video.batchCount || maximumPlatformCalls || 0),
+      description: `绑定 ${Number(video.pendingCount || 0)} 条视频，分 ${Number(video.batchCount || maximumPlatformCalls || 0)} 批`
+    };
+    if (actionType === EVENT_CONFIGS_PROVISION_ACTION) return { label: "事件配置", quantity: Number(maximumPlatformCalls || 0), unit: "项配置", batchCount: 0, description: `创建 ${Number(maximumPlatformCalls || 0)} 项事件配置` };
+    if (resourceType === "avatar") return { label: "头像", quantity: 1, unit: "个头像", batchCount: 0, description: "上传并提交头像" };
+    if (resourceType === "dmp_audience_package") return { label: "人群包", quantity: Number(maximumPlatformCalls || 0), unit: "个人群包", batchCount: 0, description: `推送 ${Number(maximumPlatformCalls || 0)} 个人群包` };
+    if (resourceType === "product_image") return { label: "产品图", quantity: 1, unit: "张产品图", batchCount: 0, description: "上传产品图" };
+    return { label, quantity: 0, unit: "", batchCount: 0, description: `${label}准备` };
+  };
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
     const capability = getResourceActionCapability(resourceType);
     const records = byType.get(resourceType) || [];
@@ -695,6 +725,7 @@ function compilePlannedActions(bundle = {}, {
       continue;
     }
     const grant = actionGrantDefaults(actionType, actionCallLimits);
+    const maximumPlatformCalls = grant.maximum_platform_calls;
     actions.push({
       action_type: actionType,
       target_ref: `resource:${job.route_id}:${job.game_code}:${job.advertiser_id}:${resourceType}`,
@@ -704,7 +735,8 @@ function compilePlannedActions(bundle = {}, {
       depends_on: [capability.verify_skill_key],
       writes_to: ["account_resources", "launch_skill_runs", "evidence_artifacts"],
       reason: records.length ? "resource_not_ready" : "resource_missing",
-      maximum_platform_calls: grant.maximum_platform_calls,
+      maximum_platform_calls: maximumPlatformCalls,
+      presentation: actionPresentation({ actionType, resourceType, maximumPlatformCalls, resourceActionContract }),
       ...(resourceActionContract?.contractHash ? { resource_contract_hash: resourceActionContract.contractHash } : {})
     });
     if (resourceType === "event_asset") {

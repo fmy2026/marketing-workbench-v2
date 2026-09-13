@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-13 CST |
-| 校验基线 | 静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `090`，最新为 `090_confirmed_plan_recovery_integrity.sql` |
+| 校验基线 | 静态核验 Task `TASK-MWBV2-WORKBENCH-PROGRESS-EXECUTION-OBSERVABILITY-20260913`；Postgres 39 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `091`，最新为 `091_workbench_progress_execution_observability.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -134,7 +134,7 @@ route_id + game_code
 | 账户 | `advertiser_id` 主键，保留 route/game 与唯一 owner；不能为同一 ID 跨 scope 新造第二份账户真值 | `updated_at` 不代表所有资源重新核验，归属变更只能走受控入口 |
 | 触点 / 账户资源 | `touchpoint_id` / `resource_id` 主键；平台 ID、ref 与 hash 不代替本地主键；不假定同一资源类型只能一行 | readiness 使用当前 scope 的记录和核验证据；有多个候选必须按合同判定，不任意取首条 |
 | Case | `case_id` 主键、`case_key` 唯一；部分唯一索引约束同 route×game×advertiser 最多一个 active runtime Case | Case 可包含多个 Job；`updated_at` 是本地生命周期/元数据变化，不是每个子事件的时间 |
-| Job / Node / Skill | `job_id` / `node_run_id` / `skill_run_id`；Node 唯一 job×node_key，Skill 唯一 job×skill_key×attempt_no | Job 建档/更新时间、Node/Skill 开始/结束时间分别保存；不得把新 readonly 结果改写成历史运行证据 |
+| Job / Node / Skill / execution cycle | `job_id` / `node_run_id` / `skill_run_id` / `cycle_id`；Node 唯一 job×node_key，Skill 唯一 job×execution_cycle×skill_key×attempt_no，cycle 唯一 job×cycle_no | cycle 从真实开始到结束独立记录；Skill 关联单一 cycle。轮次间人工等待不并入 Skill 耗时，运行中的 cycle 不写结束时间；没有 cycle 的历史 Skill 保留原记录，仅按历史聚合口径展示 |
 | Draft / 名称预留 | `draft_id` / `reservation_id`；名称预留有 job 唯一及 scope×序号、scope×名称约束 | fresh Job 不继承旧确认；runtime 名称占用保留，测试占用单独清理 |
 | Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation ID 由 Plan ID 派生并按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，确认 claim 同时校验 owner/latest Job/Case 生命周期，授权消费留在数据库审计 |
 | Action / delivery / 创建对象 | `action_id` / `(action_id, delivery_no)` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；delivery 序号限定 1–3；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合且只按逻辑 action 计数；`40100` 的物理 delivery 不增加 Attempt。外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
@@ -144,6 +144,8 @@ route_id + game_code
 | Agent 模型配置 | `(user_id, agent_key)`；协议固定 `openai_compatible`，启用记录只能对应测试通过状态 | 更新 API Base、模型或本地 Key 后清除测试时间并停止启用；本地 Key 的唯一事实为 gitignored `0600` 凭据库，数据库只保存不可用来换取 Key 的引用 |
 
 SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空值表示尚无对应执行时间，不能填成成功或零耗时。当前 View 是查询时的运营投影，没有按日分桶、币种换算或归因窗口。导出及对账须注明查询时刻与显示时区，禁止把文档更新时间当成数据截至时间。
+
+`launch_execution_cycles` 只保存 Job、运行 mode、可选冻结 Plan、开始/结束、结果分类和脱敏摘要；删除测试 Job 时级联删除 cycle，删除 Plan 时只清空其可选关联。Job API 的 `executionTiming` 只读取 cycle 与 Skill 时间，用于定位每轮和每个 Skill 的耗时，不能把嵌套时长相加或把它作为 Gate、授权或平台写入依据。
 
 ## 6. View 去重与人员指标口径
 

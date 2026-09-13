@@ -291,6 +291,42 @@ function executionView(bundle = {}) {
   };
 }
 
+function durationMs(startedAt = "", finishedAt = "") {
+  const started = Date.parse(startedAt);
+  const finished = Date.parse(finishedAt);
+  return Number.isFinite(started) && Number.isFinite(finished) && finished >= started
+    ? finished - started
+    : null;
+}
+
+function executionTimingView(bundle = {}) {
+  const cycles = (bundle.executionCycles || []).map((cycle) => ({
+    cycleNo: Number(cycle.cycle_no || 0),
+    mode: cycle.run_mode || "",
+    planId: cycle.plan_id || "",
+    status: cycle.cycle_status || "running",
+    startedAt: cycle.started_at || "",
+    finishedAt: cycle.finished_at || "",
+    durationMs: durationMs(cycle.started_at, cycle.finished_at),
+    outcome: cycle.outcome_summary || {}
+  }));
+  const skills = (bundle.skillRuns || []).map((run) => ({
+    cycleNo: Number(run.execution_cycle || 1),
+    skillKey: run.skill_key || "",
+    nodeKey: run.node_key || "",
+    status: run.status || "",
+    startedAt: run.started_at || "",
+    finishedAt: run.finished_at || "",
+    durationMs: durationMs(run.started_at, run.finished_at)
+  }));
+  return {
+    measurement: "execution_cycle_and_skill_duration",
+    legacyRecordsPresent: cycles.length === 0 && skills.some((skill) => skill.cycleNo === 1),
+    cycles,
+    skills
+  };
+}
+
 function actionView(bundle = {}, createReadiness = {}) {
   const failed = bundle.job?.job_status === "failed_waiting_manual_review";
   const readyForConfirmation = createReadiness.status === "ready_for_user_create_confirmation";
@@ -658,6 +694,41 @@ function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {
   }));
 }
 
+function workflowProgressView(nodes = [], bundle = {}) {
+  const totalCount = WORKFLOW_NODES.length;
+  const completedCount = nodes.filter((node) => node.status === "passed").length;
+  const plan = bundle.executionPlan || {};
+  const planKind = String(plan.plan_kind || plan.metadata?.plan_kind || "");
+  const planStatus = String(plan.plan_status || "");
+  const waitingReadback = planStatus === "waiting_readback";
+  const fallbackCurrent = nodes.find((node) => node.status !== "passed") || nodes[nodes.length - 1] || null;
+  const currentNode = waitingReadback
+    ? nodes.find((node) => node.nodeKey === "readback_closer") || fallbackCurrent
+    : fallbackCurrent;
+  const executionPhase = waitingReadback
+    ? "项目已创建，正在权威回查"
+    : planStatus === "executing" && planKind === "std_project_create"
+      ? "创建前复核／创建中"
+      : planStatus === "executing" && planKind === "resource_prepare"
+        ? "资源准备与回查中"
+        : planStatus === "executing" && planKind === "monitor_bootstrap"
+          ? "Monitor 创建与回查中"
+          : currentNode?.status === "needs_confirmation"
+            ? (currentNode.number === 6 ? "等待创建确认" : "等待资源确认")
+            : currentNode?.status === "running"
+              ? "正在处理"
+              : "";
+  return {
+    completedCount,
+    totalCount,
+    currentNodeNumber: currentNode?.number || totalCount,
+    currentNodeLabel: currentNode?.nodeName || "流程已完成",
+    currentNodeStatus: currentNode?.status || "passed",
+    executionPhase,
+    completed: completedCount === totalCount
+  };
+}
+
 function activeCaseView(summary = {}) {
   const rootBlockerCodes = Array.isArray(summary.root_blocker_codes) ? summary.root_blocker_codes : [];
   return {
@@ -954,11 +1025,13 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     };
   });
   const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {});
+  const progress = workflowProgressView(nodes, bundle);
   const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
     currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false
   });
   const diagnostics = diagnosticsFromNodes(nodes);
   const execution = executionView(bundle);
+  const executionTiming = executionTimingView(bundle);
   const createReadiness = createReadinessView(bundle, runtimeChecks);
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
@@ -968,7 +1041,8 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   caseGate.progressNarrative = presentWorkflowProgress({
     caseGate,
     confirmationPreview,
-    isLatestCaseJob: caseGate.isLatestCaseJob
+    isLatestCaseJob: caseGate.isLatestCaseJob,
+    progress
   });
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
   const completedCase = caseGate.isLatestCaseJob && caseGate.currentGate === "first_std_project_create_completed";
@@ -1073,6 +1147,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       authorizationMode: executionAvailability.authorizationMode || "none",
       reasonCode: executionAvailability.reasonCode || ""
     },
+    progress,
     primaryAction,
     confirmationPreview,
     platformReadonly: {
@@ -1101,6 +1176,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
         evidenceRefs: run.evidence_refs || []
       }))
     },
+    executionTiming,
     draft: {
       objectType: bundle.job.object_type,
       projectName: bundle.draft?.project_name || "等待生成",

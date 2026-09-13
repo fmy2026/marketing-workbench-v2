@@ -126,21 +126,23 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       actionGrants[type]?.maximumPlatformCalls ??
       actions.find((action) => actionType(action) === type)?.maximum_platform_calls ??
       0
-    )
+    ),
+    presentation: actions.find((action) => actionType(action) === type)?.presentation || null
   }));
+  const maximumPlatformCalls = Number(scope.maximum_platform_calls || actions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0) || scope.maximum_actions || 1);
   return {
     status: "confirmation_required",
     planKind,
     actionLabel: isMonitorBootstrapPlan
       ? "确认创建 monitor"
       : isResourcePreparePlan
-        ? `准备 ${actionTypes.length} 个受控资源动作`
+        ? `准备 ${actionTypes.length} 类资源动作，平台写入累计上限 ${maximumPlatformCalls} 次（不含只读核验）`
         : "创建 1 个广告项目",
     projectName: isMonitorBootstrapPlan || isResourcePreparePlan ? "" : clean(metadata.planning_intent?.project_name || bundle.draft?.project_name),
     advertiser: maskIdentifier(bundle.job?.advertiser_id),
     actions: actionTypes,
     actionLimits,
-    maximumPlatformCalls: Number(scope.maximum_platform_calls || actions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0) || scope.maximum_actions || 1),
+    maximumPlatformCalls,
     maximumCreateAttempts: Number(metadata.maximum_create_attempts || scope.maximum_total_attempts || caseSummary?.action_readback_state?.maximum_attempts || 3),
     retryAllowed: scope.retry_allowed === true,
     planId: clean(plan.plan_id),

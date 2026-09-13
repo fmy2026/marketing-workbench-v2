@@ -31,7 +31,7 @@ function verifiedRuntimeFacts(bundle = {}, summary = null) {
   if (clean(summary?.latest_job_id) !== jobId) return { eligible: false, reason: "verified_finalization_latest_case_job_required" };
   if (clean(summary?.current_gate) !== COMPLETED_GATE) return { eligible: false, reason: "verified_finalization_gate_not_completed" };
   if (planKind(plan) !== PLAN_KIND_STD_PROJECT_CREATE) return { eligible: false, reason: "verified_finalization_create_plan_required" };
-  if (!["ready", "waiting_readback", "consumed"].includes(clean(plan.plan_status))) {
+  if (!["executing", "waiting_readback", "consumed"].includes(clean(plan.plan_status))) {
     return { eligible: false, reason: "verified_finalization_plan_status_invalid" };
   }
   if (clean(action.plan_id) !== planId || clean(action.action_type) !== "oceanengine_std_project_create") {
@@ -79,7 +79,7 @@ export async function finalizeVerifiedStdProjectRuntimeCase({
   let facts = verifiedRuntimeFacts(bundle, summary);
   if (!facts.eligible) return { finalized: false, reason: facts.reason, view: null };
 
-  if (clean(bundle.executionPlan?.plan_status) === "ready") {
+  if (clean(bundle.executionPlan?.plan_status) === "executing") {
     await repo.markConfirmedStdProjectCreatePlanWaitingReadback({ jobId: facts.jobId, planId: facts.planId });
     bundle = await repo.getLaunchJobBundle(jobId);
     summary = await repo.getWorkflowCaseSummary(facts.caseId);

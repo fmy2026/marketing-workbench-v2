@@ -28,11 +28,11 @@ const credentialGate = {
 
 assert(PROGRESS_REFRESH_INTERVAL_MS === 1200, "progress_poll_interval_changed");
 assert(
-  progressPresentation({ nodes, caseGate: credentialGate }) === "进度 1 / 7 · 已暂停：平台只读凭据不可用",
+  progressPresentation({ nodes, caseGate: credentialGate }) === "已完成 1 / 7 · 已暂停：平台只读凭据不可用",
   "credential_blocker_progress_copy_mismatch"
 );
 assert(
-  progressPresentation({ nodes, busy: true }) === "进度 1 / 7 · 正在处理",
+  progressPresentation({ nodes, busy: true }) === "已完成 1 / 7 · 正在处理",
   "busy_progress_copy_mismatch"
 );
 assert(
@@ -44,7 +44,7 @@ assert(
       deliveryCount: 1,
       maximumDeliveryCalls: 3
     }
-  }) === "进度 1 / 7 · 平台限流，正在等待第 2/3 次错峰投递",
+  }) === "已完成 1 / 7 · 平台限流，正在等待第 2/3 次错峰投递",
   "rate_limit_redelivery_progress_copy_mismatch"
 );
 const interruptedNodes = nodes.map((node, index) => index < 4 ? { ...node, status: "passed" } : node);
@@ -56,7 +56,7 @@ assert(
       rootBlockerCodes: ["confirmed_resource_execution_interrupted"],
       rootBlocker: { title: "资源执行中断，等待只读恢复" }
     }
-  }) === "进度 4 / 7 · 已暂停：资源执行中断，等待只读恢复",
+  }) === "已完成 4 / 7 · 已暂停：资源执行中断，等待只读恢复",
   "interrupted_resource_progress_copy_mismatch"
 );
 const createdPendingReadbackNodes = nodes.map((node, index) => index < 6 ? { ...node, status: "passed" } : { ...node, status: "repairable" });
@@ -68,7 +68,7 @@ assert(
       rootBlockerCodes: ["created_object_readback_pending"],
       rootBlocker: { title: "项目已创建，等待平台 API 可见" }
     }
-  }) === "进度 6 / 7 · 已暂停：项目已创建，等待平台 API 可见",
+  }) === "已完成 6 / 7 · 已暂停：项目已创建，等待平台 API 可见",
   "created_pending_readback_must_render_six_of_seven_paused"
 );
 assert(
@@ -79,7 +79,7 @@ assert(
       rootBlockerCodes: ["corrective_attempt_requires_new_payload_version"],
       rootBlocker: { title: "当前创建尝试失败，可重新准备" }
     }
-  }) === "进度 4 / 7 · 已暂停：当前创建尝试失败，可重新准备",
+  }) === "已完成 4 / 7 · 已暂停：当前创建尝试失败，可重新准备",
   "corrective_attempt_progress_copy_mismatch"
 );
 assert(
@@ -87,7 +87,7 @@ assert(
     nodes,
     confirmationPreview: { planId: "PLAN-1" },
     executionAvailability: { canExecuteOnce: true }
-  }) === "进度 1 / 7 · 待确认",
+  }) === "已完成 1 / 7 · 待确认",
   "confirmation_progress_copy_mismatch"
 );
 assert(
@@ -96,16 +96,23 @@ assert(
     caseGate: { currentGate: "await_job_write_authorization", rootBlockerCodes: [], rootBlocker: { title: "无阻断" } },
     confirmationPreview: { planId: "PLAN-1" },
     executionAvailability: { canExecuteOnce: true }
-  }) === "进度 1 / 7 · 待确认",
+  }) === "已完成 1 / 7 · 待确认",
   "zero_blocker_must_not_render_paused"
 );
 assert(
-  progressPresentation({ nodes: nodes.map(() => ({ status: "passed" })), caseGate: { currentGate: "first_std_project_create_completed" } }) === "进度 7 / 7 · 已完成",
+  progressPresentation({ nodes: nodes.map(() => ({ status: "passed" })), caseGate: { currentGate: "first_std_project_create_completed" } }) === "已完成 7 / 7 · 流程已完成",
   "completion_progress_copy_mismatch"
 );
 assert(
-  progressPresentation({ nodes, viewOnly: true }) === "进度 1 / 7 · 历史 Job，只读查看",
+  progressPresentation({ nodes, viewOnly: true }) === "已完成 1 / 7 · 历史 Job，只读查看",
   "history_progress_copy_mismatch"
+);
+assert(
+  progressPresentation({
+    nodes: nodes.map((node, index) => index < 5 ? { status: "passed" } : node),
+    progress: { completedCount: 5, totalCount: 7, currentNodeNumber: 6, currentNodeLabel: "创建执行", executionPhase: "创建前复核／创建中" }
+  }) === "已完成 5 / 7 · 当前第 6 节点：创建执行 · 创建前复核／创建中",
+  "server_progress_projection_copy_mismatch"
 );
 assert(progressRefreshLabel({ hasJob: true }) === "刷新进度", "active_refresh_label_mismatch");
 assert(progressRefreshLabel({ hasJob: true, viewOnly: true }) === "刷新历史", "history_refresh_label_mismatch");

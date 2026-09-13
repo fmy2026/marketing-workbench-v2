@@ -79,6 +79,10 @@ const bundle = {
   executionPlan: plan,
   executionConfirmation: confirmation
 };
+const executingBundle = {
+  ...bundle,
+  executionPlan: { ...plan, plan_status: "executing" }
+};
 const repo = {
   getLatestLaunchExecutionPlan: async () => plan,
   getLaunchConfirmationForPlan: async () => confirmation,
@@ -314,7 +318,7 @@ try {
       platform_write_called: false
     };
   }]));
-  const passed = await runConfirmedResourceOrchestratorSkill({ repo, bundle, projectStatePath: statePath, executorOverrides });
+  const passed = await runConfirmedResourceOrchestratorSkill({ repo, bundle: executingBundle, projectStatePath: statePath, executorOverrides });
   assert(passed.status === "passed", "confirmed_resource_orchestrator_not_passed");
   assert(order.join(",") === resourceActions.join(","), "resource_action_order_mismatch");
   assert(passed.outputSummary.createCalled === false, "orchestrator_must_not_call_create");
@@ -326,7 +330,11 @@ try {
   const workbenchRepo = {
     ...repo,
     async getLaunchJobBundle() {
-      return { ...workbenchBundle, executionConfirmation: workbenchConfirmation };
+      return {
+        ...workbenchBundle,
+        executionPlan: { ...plan, plan_status: workbenchConfirmation ? "executing" : "ready" },
+        executionConfirmation: workbenchConfirmation
+      };
     },
     async getLaunchConfirmationForPlan() { return workbenchConfirmation; },
     async claimLaunchExecutionPlanConfirmation(input) {
@@ -374,7 +382,11 @@ try {
   const concurrentRepo = {
     ...repo,
     async getLaunchJobBundle() {
-      return { ...workbenchBundle, executionConfirmation: concurrentConfirmation };
+      return {
+        ...workbenchBundle,
+        executionPlan: { ...plan, plan_status: concurrentConfirmation ? "executing" : "ready" },
+        executionConfirmation: concurrentConfirmation
+      };
     },
     async getLaunchConfirmationForPlan() { return concurrentConfirmation; },
     async claimLaunchExecutionPlanConfirmation(input) {
@@ -433,13 +445,13 @@ try {
   };
   const firstAtomic = await runConfirmedResourceOrchestratorSkill({
     repo: atomicRepo,
-    bundle,
+    bundle: executingBundle,
     projectStatePath: statePath,
     executorOverrides
   });
   const secondAtomic = await runConfirmedResourceOrchestratorSkill({
     repo: atomicRepo,
-    bundle,
+    bundle: executingBundle,
     projectStatePath: statePath,
     executorOverrides
   });
@@ -450,7 +462,7 @@ try {
   const failedOrder = [];
   const failed = await runConfirmedResourceOrchestratorSkill({
     repo,
-    bundle,
+    bundle: executingBundle,
     projectStatePath: statePath,
     executorOverrides: {
       ...executorOverrides,
@@ -489,7 +501,11 @@ try {
   const interruptedRepo = {
     ...repo,
     async getLaunchJobBundle() {
-      return { ...workbenchBundle, executionConfirmation: interruptedConfirmation };
+      return {
+        ...workbenchBundle,
+        executionPlan: { ...plan, plan_status: interruptedConfirmation ? "executing" : "ready" },
+        executionConfirmation: interruptedConfirmation
+      };
     },
     async getLaunchConfirmationForPlan() { return interruptedConfirmation; },
     async claimLaunchExecutionPlanConfirmation(input) {

@@ -273,7 +273,7 @@ try {
     jobId: completionJob.jobId,
     planVersion: 1,
     planKind: "std_project_create",
-    planStatus: "ready",
+    planStatus: "executing",
     planHash: `sha256:${"6".repeat(64)}`,
     plannedActions: [{ action_type: "std_project_create", status: "ready" }],
     blockerCodes: [],

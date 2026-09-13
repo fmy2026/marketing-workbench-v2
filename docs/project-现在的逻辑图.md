@@ -42,8 +42,8 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | 准备 01 `launch_intake` | 规范 route、game、advertiser；缺字段停止。owner 校验在建档前完成；已登记 Create confirmation 的 Job 不得再次进入 Node 01–05。 |
 | 准备 02 `creation_context` | 装配账户、触点、monitor、平台 App；普通 schedule 只读 monitor，缺失 monitor 只能生成独立 `monitor_bootstrap` Plan。 |
 | 准备 03 `game_launch_pack` | 解析游戏、路线默认值、物料、备用页和资源蓝图；不从历史账户复制动态资源 ID。 |
-| 就绪 04 `account_resource_prepare` | 仅将当前 `required=true` 的路线资源蓝图原子物化为新账户候选；退役或非必需蓝图不进入账户资源。必需视频蓝图的 `source_asset_id` 集合必须等于当前必需视频集；普通视频来源、唯一 target 映射、条件封面和目标可见性查询先完成，再核验引导视频依赖。输出须区分“核验完成、仍需准备资源”和“资源全部就绪”；同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
-| 就绪 05 `std_project_draft_builder` | 执行已确认资源 Plan，或生成 Draft/hash、字段合同、查重和创建就绪；不创建项目。 |
+| 就绪 04 `account_resource_prepare` | 仅将当前 `required=true` 的路线资源蓝图原子物化为新账户候选；退役或非必需蓝图不进入账户资源。必需视频蓝图的 `source_asset_id` 集合必须等于当前必需视频集；普通视频来源、唯一 target 映射、条件封面和目标可见性查询先完成，再核验引导视频依赖。输出须区分“核验完成、仍需准备资源”和“资源全部就绪”；已确认资源动作编排也归属本节点，同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
+| 就绪 05 `std_project_draft_builder` | 生成 Draft/hash、字段合同、查重和创建就绪；不创建项目。 |
 | 创建执行 06 `std_project_create_executor` | 只消费已确认 Create Plan；confirmation ID 从 Plan ID 派生，claim 原子核验最新 Job、Plan/hash、Case 生命周期和本人归属；绑定或授权漂移即停止。 |
 | 创建执行 07 `readback_closer` | 仅以官方 `project_ids` 精确回查项目 ID 与 Draft 名称；二者一致即完成。无对象 ID 的不明创建才按名称恢复性查询，空或不一致均停止且不得补发 create；不再创建后查询素材详情。 |
 
@@ -92,11 +92,12 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 ```text
 全局 Guardrail + latest Job 的 ready Plan / 精确 plan_id、plan_hash
-+ 账户本人单次 confirmation + action grant 的目标、动作、顺序、调用上限
++ 账户本人单次 confirmation 原子切换为 executing + action grant 的目标、动作、顺序、调用上限
 = 唯一可执行的平台写入
 ```
 
 - Case 是持续目标，Job 是一次运行；fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
+- 页面只读同一服务端 progress 投影：资源 Plan 待确认是 3/7、资源执行是 Node 04；草稿检查通过是 5/7，创建确认或执行仍是 Node 06 的 5/7，创建成功待权威回查为 6/7，只有 Node 07 verified 才是 7/7。确认卡的资源数量、批次、动作码和调用上限均来自冻结 Plan；只读核验不计入平台写入上限。
 - monitor、资源准备、项目创建分别确认；确认前必须 fresh readonly，资源、调用量、Draft/hash、授权、重复或 effective config 漂移均 fail-closed。视频资源还必须重算当前绑定集合、批次与集合 hash；无法核验、集合变化或 hash 不同在占用 confirmation 前停止。
 - 已确认 Create Plan 在实际 create action 前停止时，冻结 Plan 仍消费，executor 必须记录最具体的上游 blocker 及脱敏观察引用。同一 Job 已确认 `std_project_create` 后，Node 01–05、普通 runner 和 Plan 发布事务均拒绝重跑或生成后续 Plan；只有原 Plan 的 Node 07 回查可继续。若 Case 最新、本人范围、无 create action、无创建对象且次数未耗尽，Gate 只允许既有 fresh readonly recovery；它按 Case 锁去重，产生新 Job、新 Plan/hash 和新确认。已有 action、对象或结果不明一律只走 readonly readback，不能恢复性创建。
 - 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY。事件资产创建收到资产 ID 后，只能在 `0 / 1 / 3 / 5` 秒窗口按该 ID、目标 App 与实例作只读回查；窗口耗尽、ID 缺失或不匹配均保持已消费且不得重发创建。资源 Plan 已调用平台但回查未确认时，工作台必须如实提示“已受理、未确认、不会重发”，不暴露对象 ID 或原始响应。标准项目的权威完成回查仅核验项目 ID 与 Draft 名称；素材、封面和引导视频合同在 Node 04、Node 05 与 preflight 完成。
