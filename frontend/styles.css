@@ -1133,7 +1133,7 @@ p {
 .agent-hub-intro h1 { margin-top: 10px; font-size: 28px; letter-spacing: -.02em; }
 .agent-hub-intro > p:last-child { margin-top: 10px; color: var(--muted); font-size: 14px; line-height: 1.65; }
 .agent-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 320px)); gap: 18px; margin-top: 34px; }
-.agent-card { min-height: 260px; display: grid; align-content: start; gap: 15px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(23, 32, 51, .03); }
+.agent-card { min-height: 260px; display: flex; flex-direction: column; gap: 15px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(23, 32, 51, .03); }
 .agent-card-icon { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; background: #5b4de5; color: #fff; font-size: 17px; font-weight: 900; }
 .agent-card-icon.is-muted { background: #edf0f4; color: #98a2b3; }
 .agent-card-heading { justify-content: space-between; gap: 10px; }
@@ -1143,11 +1143,13 @@ p {
 .agent-availability::before { content: "●"; margin-right: 4px; font-size: 9px; }
 .agent-card-metrics { display: flex; gap: 13px; padding: 11px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .agent-card-metrics strong { color: var(--text); font-size: 15px; }
-.agent-open-button { min-height: 34px; border: 1px solid #b9c9f7; border-radius: 7px; background: #fff; color: #2559cf; font-size: 12px; font-weight: 800; }
+.agent-open-button { min-height: 34px; margin-top: auto; border: 1px solid #b9c9f7; border-radius: 7px; background: #fff; color: #2559cf; font-size: 12px; font-weight: 800; }
 .agent-open-button:not(:disabled):hover { background: var(--blue-soft); }
 .agent-open-button:disabled { border-color: var(--line); background: var(--disabled); color: var(--muted); }
 .agent-card-coming-soon { color: var(--muted); background: #fbfcfe; border-style: dashed; }
 .agent-card-coming-soon h2 { color: #798498; }
+.agent-availability-preview { color: #798498; }
+.agent-availability-preview::before { content: ""; margin-right: 0; }
 
 .agent-workspace {
   height: calc(100vh - 58px);

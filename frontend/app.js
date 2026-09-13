@@ -299,6 +299,34 @@ import {
     return undefined;
   }
 
+  const AGENT_PREVIEWS = Object.freeze([
+    Object.freeze({
+      icon: "情",
+      displayName: "市场情报",
+      description: "整理市场、竞品与素材信息，形成有来源依据的情报摘要，为投放决策提供参考。"
+    }),
+    Object.freeze({
+      icon: "策",
+      displayName: "投放策略",
+      description: "结合市场情报、业务目标与投放数据，形成投放方案和执行建议。"
+    })
+  ]);
+
+  function renderPreviewCard(preview) {
+    const card = el("article", "agent-card agent-card-coming-soon");
+    card.append(el("span", "agent-card-icon is-muted", preview.icon));
+    const heading = el("div", "agent-card-heading");
+    heading.append(el("h2", "", preview.displayName));
+    heading.append(el("span", "agent-availability agent-availability-preview", "筹备中"));
+    card.append(heading);
+    card.append(el("p", "", preview.description));
+    const disabled = el("button", "agent-open-button", "敬请期待");
+    disabled.type = "button";
+    disabled.disabled = true;
+    card.append(disabled);
+    return card;
+  }
+
   function renderAgentCards(agents = []) {
     const grid = document.getElementById("agentCardGrid");
     grid.innerHTML = "";
@@ -333,15 +361,7 @@ import {
       card.append(open);
       grid.append(card);
     }
-    const comingSoon = el("article", "agent-card agent-card-coming-soon");
-    comingSoon.append(el("span", "agent-card-icon is-muted", "＋"));
-    comingSoon.append(el("h2", "", "即将上线"));
-    comingSoon.append(el("p", "", "更多数字员工正在接入中。"));
-    const disabled = el("button", "agent-open-button", "敬请期待");
-    disabled.type = "button";
-    disabled.disabled = true;
-    comingSoon.append(disabled);
-    grid.append(comingSoon);
+    AGENT_PREVIEWS.forEach((preview) => grid.append(renderPreviewCard(preview)));
   }
 
   async function loadAgentHub() {

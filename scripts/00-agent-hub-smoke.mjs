@@ -34,10 +34,11 @@ assert(detail?.plans?.length === 3, "agent_detail_plan_summary_missing");
 const publicText = JSON.stringify({ agents, detail });
 assert(!/(credential|token|secret|advertiser_id|src\/|\.mjs)/i.test(publicText), "agent_catalog_leaks_internal_or_sensitive_data");
 
-const [serverSource, appSource, html] = await Promise.all([
+const [serverSource, appSource, html, styles] = await Promise.all([
   readFile(new URL("../src/server/workbenchServer.mjs", import.meta.url), "utf8"),
   readFile(new URL("../frontend/app.js", import.meta.url), "utf8"),
-  readFile(new URL("../frontend/index.html", import.meta.url), "utf8")
+  readFile(new URL("../frontend/index.html", import.meta.url), "utf8"),
+  readFile(new URL("../frontend/styles.css", import.meta.url), "utf8")
 ]);
 assert(serverSource.includes('pathname === "/" && (url.searchParams.has("case_id") || url.searchParams.has("job_id"))'), "legacy_case_job_redirect_missing");
 assert(serverSource.includes("isRegisteredAgentPath(pathname)"), "registered_agent_spa_guard_missing");
@@ -45,6 +46,18 @@ assert(html.includes('href="/styles.css"') && !html.includes('href="./styles.css
 assert(html.includes('src="/app.js"') && !html.includes('src="./app.js"'), "deep_link_module_must_use_root_path");
 assert(appSource.includes("passwordChangeForced") && appSource.includes("Escape"), "password_or_menu_interaction_missing");
 assert(html.includes("数字员工广场") && html.includes("数据统计") && !html.includes(">SOP<"), "agent_shell_labels_incorrect");
+assert(html.includes("市场情报提供依据，投放策略形成建议，投放创建承接受控执行。"), "agent_hub_positioning_copy_missing");
+assert(appSource.includes("const AGENT_PREVIEWS") && appSource.includes('icon: "情"') && appSource.includes('icon: "策"'), "agent_preview_catalog_missing");
+assert(appSource.includes('displayName: "市场情报"') && appSource.includes('displayName: "投放策略"'), "agent_preview_names_missing");
+const previewCatalog = appSource.slice(appSource.indexOf("const AGENT_PREVIEWS"), appSource.indexOf("function renderPreviewCard"));
+assert((previewCatalog.match(/displayName:/g) || []).length === 2 && agents.length + (previewCatalog.match(/displayName:/g) || []).length === 3, "agent_hub_card_count_mismatch");
+assert(appSource.includes('"筹备中"') && appSource.includes('"敬请期待"'), "agent_preview_status_or_button_missing");
+assert(!appSource.includes('"即将上线"') && !appSource.includes('"更多数字员工正在接入中。"'), "generic_agent_preview_must_be_removed");
+const previewRenderer = appSource.slice(appSource.indexOf("function renderPreviewCard"), appSource.indexOf("function renderAgentCards"));
+assert(!previewRenderer.includes("workspacePath") && !previewRenderer.includes("loadAgentWorkspace"), "agent_preview_must_not_open_workspace");
+assert(!previewRenderer.includes("agent-card-metrics"), "agent_preview_must_not_show_capability_metrics");
+assert(styles.includes(".agent-card { min-height: 260px; display: flex; flex-direction: column;") && styles.includes(".agent-open-button { min-height: 34px; margin-top: auto;"), "agent_card_actions_must_align");
+assert(styles.includes(".agent-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 320px));") && styles.includes(".agent-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr));") && styles.includes(".agent-card-grid { grid-template-columns: 1fr;"), "agent_card_responsive_grid_missing");
 
 const policyDirectory = await mkdtemp(join(tmpdir(), "mwbv2-agent-hub-policy-"));
 const policyStatePath = join(policyDirectory, "project.state.json");
