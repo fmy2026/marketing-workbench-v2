@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-13T05:25:44Z",
+  "updated_at": "2026-09-13T05:57:00Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,12 +9,8 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": {
-    "id": "TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913",
-    "task_ref": "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.json"
-  },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md",
+  "active_task": null,
+  "last_closed_task_ref": "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

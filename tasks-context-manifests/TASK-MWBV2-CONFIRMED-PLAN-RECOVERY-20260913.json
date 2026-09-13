@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913",
   "task_ref": "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-13T05:25:44Z",
-  "updated_at": "2026-09-13T05:55:38Z",
+  "updated_at": "2026-09-13T05:57:00Z",
   "base_revision": "2610540b064b785961c4f2a10a7a3d01612109ac",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data", "security", "deploy"],
@@ -118,11 +118,11 @@
     },
     {
       "acceptance_id": "AC-04",
-      "command": "npm run smoke:workflow-skills",
-      "verified_at": "2026-09-13T05:52:29Z",
+      "command": "npm run smoke:workflow-skills && npm run check:project -- --phase before-close && launchctl kickstart -k gui/501/com.hys.marketing-workbench.local-server && curl --noproxy '*' --max-time 8 -sS -o /private/tmp/mwbv2-confirmed-plan-recovery-app.js -w '%{http_code} %{size_download}' http://127.0.0.1:3000/app.js",
+      "verified_at": "2026-09-13T05:56:35Z",
       "status": "passed",
-      "summary": "三阶段七 Node、runner mode、Node 04 授权只读和 execute mock 回归通过；无真实平台写入或 token 刷新。项目关闭检查与服务重载待交付步骤完成后补充。",
-      "evidence_refs": ["scripts/00-oe3-workflow-skills-smoke.mjs"]
+      "summary": "三阶段七 Node、runner mode、Node 04 授权只读和 execute mock 回归通过；关闭前项目检查、服务重载和实际 /app.js 核验通过，未发生真实平台写入或 token 刷新。",
+      "evidence_refs": ["scripts/00-oe3-workflow-skills-smoke.mjs", "evidence/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913/validation.md"]
     }
   ],
   "documentation_updates": [
@@ -159,5 +159,5 @@
       "postgres:mwb.launch_execution_plans:JOB-MWBV2-20260913041225-B42A4A"
     ]
   },
-  "closed_at": null
+  "closed_at": "2026-09-13T05:57:00Z"
 }
