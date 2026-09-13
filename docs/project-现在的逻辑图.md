@@ -13,7 +13,7 @@
 ## 1. 唯一闭环与真值分工
 
 ```text
-本人作用域 Intake → active Case + fresh Job → 3 阶段 7 Node
+自然语言 / 标准 JSON → `LaunchRequest v1` → 本人作用域 Intake → active Case + fresh Job → 3 阶段 7 Node
 → monitor / 资源 / Draft 就绪 → BLOCKED、WAITING 或冻结 Plan
 → plan_id + plan_hash + 本人精确确认 + action grant
 → 统一 Plan-bound 执行层（monitor、resource、create）
@@ -39,7 +39,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 
 | 阶段 / Node | 核心职责 → 输出或停止边界 |
 | --- | --- |
-| 准备 01 `launch_intake` | 规范 route、game、advertiser；缺字段停止。owner 校验在建档前完成；已登记 Create confirmation 的 Job 不得再次进入 Node 01–05。 |
+| 准备 01 `launch_intake` | 只接收已校验的 `LaunchRequest v1`：`create_std_project + oceanengine_3_byte_mini_game + JSZC + advertiser_id`；缺字段、未知字段、冲突输入或未支持事项停止。自然语言和 JSON 只在建档前归一，Case/Job 使用同一冻结请求；owner 校验在建档前完成；已登记 Create confirmation 的 Job 不得再次进入 Node 01–05。 |
 | 准备 02 `creation_context` | 装配账户、触点、monitor、平台 App；普通 schedule 只读 monitor，缺失 monitor 只能生成独立 `monitor_bootstrap` Plan。 |
 | 准备 03 `game_launch_pack` | 解析游戏、路线默认值、物料、备用页和资源蓝图；不从历史账户复制动态资源 ID。 |
 | 就绪 04 `account_resource_prepare` | 仅将当前 `required=true` 的路线资源蓝图原子物化为新账户候选；退役或非必需蓝图不进入账户资源。必需视频蓝图的 `source_asset_id` 集合必须等于当前必需视频集；普通视频来源、唯一 target 映射、条件封面和目标可见性查询先完成，再核验引导视频依赖。输出须区分“核验完成、仍需准备资源”和“资源全部就绪”；已确认资源动作编排也归属本节点，同轮基线 readonly 原子落库，来源、合同或回查不完整即 fail-closed。 |
@@ -129,7 +129,8 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - “启动流程”在创建 Case、创建 fresh Job 与启动 readonly 任一阶段遇到未分类 5xx 时，只显示该阶段与脱敏诊断码；服务端只写本地受控诊断（方法、路径、阶段、指纹、受控错误码和不含错误消息的栈帧）。它不是业务 blocker，不触发自动重试、confirmation 或平台创建。
 - 数字员工广场以“市场情报提供依据 → 投放策略形成建议 → 投放创建承接受控执行”说明职责；当前只有投放创建属于服务端公开注册、可进入工作区的 Agent。市场情报和投放策略是前端静态预告卡，没有路由、模型配置、API 或执行权限。
 - Agent 壳层、右侧 Workflow 和统计只消费受控投影：壳层不计算 Gate、blocker、next action、Plan 或执行动作；普通用户仅本人范围，管理员读取全量报表也不获得账户操作权。
-- 模型仅在规则未完整识别 Intake 且本人配置已测试启用时补槽位；确认、取消、状态和恢复始终规则优先。模型不接收运行状态或原始对话，用户可见进度与提示只来自 Summary 投影和确定性模板。
+- JSON 是完整的新请求，不与自然语言草稿混用，且不调用模型；未知 schema/version/operation/字段或无效类型直接拒绝。自然语言草稿仅保留在页面内存，刷新或切换输入方式即重新输入，服务端不保存原始文本或 JSON。
+- 模型仅在规则未完整识别自然语言 Intake 且本人配置已测试启用时补槽位；确认、取消、状态和恢复始终规则优先。模型不接收 Case、Job、Gate、Plan 或执行状态，输出只能使用输入中可验证的证据；用户可见进度与提示只来自 Summary 投影和确定性模板。
 
 ## 6. 权威来源索引
 

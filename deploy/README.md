@@ -59,6 +59,8 @@ npm run setup:qiankun-user -- --user zhangchaobo --gui
 
 投放创建 Agent 的用户自配模型 Key 独立保存在 `.local/workbench-llm-credentials.json`：程序强制文件为 `0600` 并采用临时文件替换；数据库、audit、日志和浏览器不会读取或回显 Key。该文件由工作区“大模型配置”写入，配置、测试和启用均只能由该用户本人完成；不要手工复制 Key 到环境变量、任务文件或部署日志。
 
+投放创建页面支持自然语言和完整 `launch-request.v1` JSON。自然语言可分次补齐路线、游戏和账户；JSON 必须包含 `schema_version`、`operation`、`route_id`、`game_code` 和字符串形式的 `advertiser_id`，并且只支持 `create_std_project`、`oceanengine_3_byte_mini_game`、`JSZC`。模型只辅助自然语言缺项，JSON 不调用模型；两者在启动前都只会创建 Case、fresh Job 和 readonly 准备，后续每张 Plan 仍须由本人确认。
+
 ## 长期 HTTPS 上线参数
 
 上线前需要公司内网提供两个值：

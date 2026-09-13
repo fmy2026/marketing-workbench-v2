@@ -557,6 +557,79 @@ p {
   border-top: 1px solid var(--line);
 }
 
+.intake-mode-switch {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.intake-mode-button,
+.copy-template-button {
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  padding: 7px 10px;
+}
+
+.intake-mode-button.is-active {
+  border-color: var(--blue);
+  background: #eef3ff;
+  color: var(--blue);
+}
+
+.structured-request-panel {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.structured-request-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.structured-request-panel textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  resize: vertical;
+  color: var(--text);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.structured-request-panel textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.structured-submit-button {
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: var(--blue);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .conversation-presets {
   display: flex;
   flex-wrap: wrap;

@@ -6,6 +6,19 @@ import {
   normalizeExplicitLaunchSlot,
   parseLaunchIntake
 } from "./launchAgent.mjs";
+import {
+  createLaunchRequestDraft,
+  launchRequestIssue,
+  normalizeLaunchRequestDraft,
+  toLaunchRequestResponse,
+  validateLaunchRequest
+} from "./launchRequest.mjs";
+
+function intakeRequestError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
 
 export const CONVERSATION_INTENT_SCHEMA_VERSION = "2026-09-10.conversation-intent-v2";
 export const CONVERSATION_INTENTS = Object.freeze([
@@ -265,10 +278,13 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
   const deterministic = parseLaunchIntake(message);
   const values = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, launchIntakeFieldValue(deterministic, key)]));
   const slotSources = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, values[key] ? "rules" : "missing"]));
-  if (hasCompleteLaunchIntake(values)) {
-    return { ...deterministic, ...values, parseSource: "rules", slotSources };
+  if (deterministic.issues?.length) {
+    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: deterministic.issues };
   }
-  if (!resolver) return { ...deterministic, ...values, parseSource: "rules", slotSources };
+  if (hasCompleteLaunchIntake(values)) {
+    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [] };
+  }
+  if (!resolver) return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [] };
 
   const intent = await resolveConversationIntent({
     message,
@@ -302,8 +318,42 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
     missing_fields: LAUNCH_INTAKE_FIELDS.filter((key) => !values[key]),
     missingFields: LAUNCH_INTAKE_FIELDS.filter((key) => !values[key]),
     parseSource: accepted ? "llm_assisted" : failed ? "rules_fallback" : "rules",
-    slotSources
+    slotSources,
+    issues: []
   };
+}
+
+export async function resolveLaunchRequestIntake({ userIntent, request, draft, resolver } = {}) {
+  const hasRequest = request !== undefined;
+  const hasNatural = typeof userIntent === "string" && userIntent.trim().length > 0;
+  if (hasRequest && hasNatural) throw intakeRequestError("一次提交只能使用一种投放创建输入。");
+  if (hasRequest) {
+    const normalized = validateLaunchRequest(request);
+    return toLaunchRequestResponse({
+      draft: normalized,
+      parseSource: "structured_json",
+      source: "structured_json",
+      slotSources: Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((field) => [field, "structured_json"]))
+    });
+  }
+  if (!hasNatural) throw intakeRequestError("请输入投放创建需求。");
+  const prior = normalizeLaunchRequestDraft(draft || {});
+  const resolved = await resolveExplicitLaunchIntake({ message: userIntent, resolver });
+  const issueCodes = resolved.issues || [];
+  let next = { ...prior };
+  if (issueCodes.includes("operation_not_supported")) {
+    next = createLaunchRequestDraft();
+  } else {
+    for (const field of LAUNCH_INTAKE_FIELDS) if (resolved[field]) next[field] = resolved[field];
+    if (issueCodes.includes("multiple_advertiser_ids")) next.advertiser_id = "";
+  }
+  return toLaunchRequestResponse({
+    draft: next,
+    parseSource: resolved.parseSource,
+    source: "natural_language",
+    slotSources: resolved.slotSources,
+    issues: issueCodes.map(launchRequestIssue)
+  });
 }
 
 export function isExplicitCreateConfirmation(message = "") {

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { parseLaunchIntake, hashText } from "../agents/launchAgent.mjs";
+import { hashText } from "../agents/launchAgent.mjs";
+import { normalizeLaunchRequestFromBody } from "../agents/launchRequest.mjs";
 import { evaluateOceanEnginePrewriteReadiness } from "../platforms/oceanengineReadonlyAdapter.mjs";
 import {
   evaluateOe3PayloadContract,
@@ -1308,8 +1309,8 @@ async function resolveApprovedReplacementForIntake(repo, workflowCase = null, cu
 }
 
 export async function createWorkflowCase(repo, body = {}, options = {}) {
-  const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
-  const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, intake);
+  const normalizedRequest = normalizeLaunchRequestFromBody(body);
+  const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, normalizedRequest.request);
   const caseKey = String(body.case_key || body.caseKey || "").trim();
   const businessGoal = String(body.business_goal || body.businessGoal || "").trim();
   const currentUser = options.currentUser || null;
@@ -1552,12 +1553,12 @@ async function resolveCaseForNewJob(repo, { body, routeId, gameCode, advertiserI
 }
 
 export async function createJob(repo, body = {}) {
-  const intake = parseLaunchIntake(body.user_intent || body.userIntent || "");
-  const routeId = body.route_id || body.routeId || intake.route_id;
-  const gameCode = String(body.game_code || body.gameCode || intake.game_code || "").toUpperCase();
-  const advertiserId = body.advertiser_id || body.advertiserId || intake.advertiser_id;
+  const normalizedRequest = normalizeLaunchRequestFromBody(body);
+  const routeId = normalizedRequest.request.route_id;
+  const gameCode = normalizedRequest.request.game_code;
+  const advertiserId = normalizedRequest.request.advertiser_id;
   const sourceUsage = body.source_usage || body.sourceUsage || "runtime_truth";
-  const sourceRecordRef = body.source_record_ref || body.sourceRecordRef || intake.source_record_ref;
+  const sourceRecordRef = body.source_record_ref || body.sourceRecordRef || `workbench:${normalizedRequest.request.schema_version}`;
   const missingFields = [];
   if (!routeId) missingFields.push("route_id");
   if (!gameCode) missingFields.push("game_code");

@@ -44,6 +44,9 @@ import {
     game_code: "",
     advertiser_id: ""
   };
+  let intakeMode = "natural";
+  let intakeIssues = [];
+  let intakeParseSource = "rules";
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -600,6 +603,7 @@ import {
   }
 
   function parserLabel(source = "rules") {
+    if (source === "structured_json") return "已使用标准 JSON 校验";
     if (source === "llm" || source === "llm_assisted") return "已使用模型辅助解析";
     if (source === "rules_fallback") return "模型不可用或结果未通过校验，已回退规则解析";
     return "已使用规则解析";
@@ -670,12 +674,40 @@ import {
     const startButton = document.getElementById("startWorkflowButton");
     const hint = document.getElementById("intakeHint");
     const action = document.getElementById("intakeAction");
-    const isDraftReady = !job && fields.length > 0 && missing.length === 0;
+    const hasIssues = !job && intakeIssues.length > 0;
+    const isDraftReady = !job && fields.length > 0 && missing.length === 0 && !hasIssues;
     action.hidden = Boolean(job);
     startButton.disabled = !isDraftReady || busy || viewOnly;
-    hint.textContent = isDraftReady
-      ? "输入已规范化，确认后启动只读流程。"
-      : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。");
+    hint.textContent = hasIssues
+      ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")
+      : (isDraftReady
+        ? `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`
+        : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。"));
+    const tip = document.getElementById("configTip");
+    if (tip) tip.textContent = parserLabel(intakeParseSource);
+    renderIntakeMode();
+  }
+
+  function clearDraftIntake() {
+    for (const key of Object.keys(draftIntake)) draftIntake[key] = "";
+    intakeIssues = [];
+    intakeParseSource = "rules";
+    draftCaseId = "";
+    draftCaseKey = "";
+  }
+
+  function renderIntakeMode() {
+    const jsonMode = intakeMode === "json";
+    const naturalForm = document.getElementById("chatForm");
+    const jsonPanel = document.getElementById("structuredRequestPanel");
+    if (naturalForm) naturalForm.hidden = jsonMode;
+    if (jsonPanel) jsonPanel.hidden = !jsonMode;
+    for (const button of document.querySelectorAll("[data-intake-mode]")) {
+      const selected = button.dataset.intakeMode === intakeMode;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-selected", String(selected));
+      button.disabled = Boolean(job) || busy || viewOnly;
+    }
   }
 
   function renderActiveCases() {
@@ -938,9 +970,7 @@ import {
         diagnosticStage,
         body: JSON.stringify({
           case_key: createCaseKey(),
-          route_id: draftIntake.route_id,
-          game_code: draftIntake.game_code,
-          advertiser_id: draftIntake.advertiser_id,
+          request: frozenLaunchRequest(),
           business_goal: "从工作台启动一次受控标准项目创建流程。",
           source_usage: "runtime_truth"
         })
@@ -964,7 +994,7 @@ import {
   }
 
   async function startWorkflow() {
-    if (busy || viewOnly || job || missingFields().length) return;
+    if (busy || viewOnly || job || missingFields().length || intakeIssues.length) return;
     setBusy(true);
     let startupStage = "创建 Case";
     try {
@@ -993,12 +1023,10 @@ import {
         method: "POST",
         diagnosticStage: "start_workflow_create_job",
         body: JSON.stringify({
-          route_id: draftIntake.route_id,
-          game_code: draftIntake.game_code,
-          advertiser_id: draftIntake.advertiser_id,
+          request: frozenLaunchRequest(),
           case_id: selectedCase.caseId,
           source_usage: "runtime_truth",
-          source_record_ref: "workbench:normalized-input"
+          source_record_ref: "workbench:launch-request-v1"
         })
       });
       setJobView(created);
@@ -1015,10 +1043,22 @@ import {
   }
 
   function mergeIntake(intake) {
-    for (const field of requiredFields()) {
-      const value = fieldValue(intake, field.key);
-      if (value) draftIntake[field.key] = value;
-    }
+    const request = intake?.request || intake || {};
+    for (const field of requiredFields()) draftIntake[field.key] = fieldValue(request, field.key);
+    intakeIssues = Array.isArray(intake?.issues) ? intake.issues : [];
+    intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
+    draftCaseId = "";
+    draftCaseKey = "";
+  }
+
+  function frozenLaunchRequest() {
+    return Object.freeze({
+      schema_version: "launch-request.v1",
+      operation: "create_std_project",
+      route_id: draftIntake.route_id,
+      game_code: draftIntake.game_code,
+      advertiser_id: draftIntake.advertiser_id
+    });
   }
 
   function setActiveCaseUrl(caseId) {
@@ -1298,6 +1338,49 @@ import {
     document.getElementById("startWorkflowButton").addEventListener("click", () => {
       startWorkflow();
     });
+    for (const button of document.querySelectorAll("[data-intake-mode]")) {
+      button.addEventListener("click", () => {
+        if (busy || viewOnly || job) return;
+        intakeMode = button.dataset.intakeMode || "natural";
+        clearDraftIntake();
+        document.getElementById("structuredRequestInput").value = "";
+        renderAll();
+      });
+    }
+    document.getElementById("copyLaunchRequestTemplate").addEventListener("click", async () => {
+      const text = JSON.stringify(launchRequestTemplate(), null, 2);
+      const input = document.getElementById("structuredRequestInput");
+      input.value = text;
+      try {
+        await navigator.clipboard?.writeText(text);
+      } catch {
+        input.focus();
+        input.select();
+      }
+    });
+    document.getElementById("submitStructuredRequest").addEventListener("click", async () => {
+      const input = document.getElementById("structuredRequestInput");
+      let request;
+      try {
+        request = JSON.parse(input.value);
+      } catch {
+        clearDraftIntake();
+        message("agent", "JSON 格式无效；请粘贴完整的标准请求后重新校验。");
+        renderAll();
+        return;
+      }
+      await submitStructuredRequest(request);
+    });
+  }
+
+  function launchRequestTemplate() {
+    return {
+      schema_version: "launch-request.v1",
+      operation: "create_std_project",
+      route_id: "oceanengine_3_byte_mini_game",
+      game_code: "JSZC",
+      advertiser_id: "填写本人新账户ID"
+    };
   }
 
   async function submitConversationInput(text) {
@@ -1312,22 +1395,44 @@ import {
         }
         const intake = await api("/api/launch/intake", {
           method: "POST",
-          body: JSON.stringify({ user_intent: normalized })
+          body: JSON.stringify({ user_intent: normalized, draft: { ...draftIntake } })
         });
         mergeIntake(intake);
         const missing = missingFields();
-        const label = parserLabel(intake.parseSource);
+        const label = parserLabel(intake.parse_source || intake.parseSource);
         const identified = requiredFields().length - missing.length;
-        message("agent", identified === 0
+        message("agent", intakeIssues.length
+          ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")
+          : (identified === 0
           ? "我只处理推广路线、游戏标识和账户 ID；请补充所需信息。"
           : (missing.length
             ? `${label}，已识别 ${identified}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
-            : `${label}，三项输入已规范化；请核对后点击“启动流程”。`));
+            : `${label}，三项输入已规范化；请核对后点击“启动流程”。`)));
       } catch (error) {
+        clearDraftIntake();
         showError(error);
       } finally {
         setBusy(false);
       }
+  }
+
+  async function submitStructuredRequest(request) {
+    if (busy || viewOnly || job) return;
+    clearDraftIntake();
+    setBusy(true);
+    try {
+      const intake = await api("/api/launch/intake", {
+        method: "POST",
+        body: JSON.stringify({ request })
+      });
+      mergeIntake(intake);
+      message("agent", "已完成标准 JSON 校验；请核对新建标准项目、路线、游戏和账户后启动流程。");
+    } catch (error) {
+      clearDraftIntake();
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function bindShellInteractions() {

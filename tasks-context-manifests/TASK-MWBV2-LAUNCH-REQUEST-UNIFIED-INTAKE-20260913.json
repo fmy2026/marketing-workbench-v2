@@ -1,0 +1,92 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913",
+  "task_ref": "tasks/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T12:10:00Z",
+  "updated_at": "2026-09-13T12:45:00Z",
+  "base_revision": "7e21576384f75b5e2c0187b8097e5afff901f4e7",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/agents/launchAgent.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/openaiCompatibleModelConfigTest.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "package.json",
+    "tasks/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/agents/launchAgent.mjs",
+    "src/agents/launchRequest.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "tests/run.mjs",
+    "tests/suites.json",
+    "evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/**"
+  ],
+  "forbidden_actions": [
+    "保存原始对话、原始 JSON、模型 Key 或跨会话草稿",
+    "新增外部认证、公开 API、可运行事项、数据库表或数据库迁移",
+    "真实平台写入、OAuth 刷新、预算或出价修改、扩大确认或重试"
+  ],
+  "stop_conditions": [
+    "需要超出 create_std_project 的路线、事项或字段合同",
+    "需要修改账户归属、Gate、Plan、确认、执行、回查或真实平台权限",
+    "无法保持旧三字段调用和 Case/Job 输入一致"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:launch-request"},
+    {"acceptance_id": "AC-02", "command": "npm run test:launch-request && npm run test:llm-explicit-intake-progress"},
+    {"acceptance_id": "AC-03", "command": "npm run test:launch-request && npm run smoke:api && npm run test:workbench-auth-http"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-05", "command": "npm run test:launch-request && npm run test:agent-model-config && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"npm run test:launch-request && npm run test:workbench-auth-http","verified_at":"2026-09-13T12:25:00Z","summary":"合成合同与隔离 HTTP 覆盖自然语言/JSON 等价、JSON 不调用模型、严格 schema 校验及混合输入拒绝。","evidence_refs":["evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/validation.md"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"npm run test:launch-request && npm run test:llm-explicit-intake-progress && npm run test:workbench-client-pages","verified_at":"2026-09-13T12:25:00Z","summary":"分次补齐、明确账户修正、多账户与不支持事项均生成受控澄清；模式切换和 JSON 失败路径不保留旧可启动草稿。","evidence_refs":["evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/validation.md"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"npm run test:launch-request && npm run smoke:api && npm run test:workbench-auth-http && npm run test:workbench-user-isolation","verified_at":"2026-09-13T12:25:00Z","summary":"Case/Job 通过同一请求规范化器消费输入；旧字段兼容、本人账户访问与既有 API 流程回归通过。","evidence_refs":["evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/validation.md"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"npm run test:workbench-client-pages","verified_at":"2026-09-13T12:25:00Z","summary":"无头 Chrome 完成登录、进入工作区、自然语言缺项、输入模式切换、JSON 模板与校验、按钮状态和解析来源标签的实际交互。","evidence_refs":["evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/validation.md"]},
+    {"acceptance_id":"AC-05","status":"passed","command":"npm run test:launch-request && npm run test:agent-model-config && npm run test:agent-hub && npm run check:project -- --phase before-close","verified_at":"2026-09-13T12:42:00Z","summary":"合成回归、既有模型/广场回归与项目关闭校验通过。本 Task 未配置真实模型 Key，也未创建或确认真实平台对象。","evidence_refs":["evidence/TASK-MWBV2-LAUNCH-REQUEST-UNIFIED-INTAKE-20260913/validation.md"]}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "登记统一请求、澄清和模型职责边界的有效决策。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "说明自然语言、JSON、统一请求与确定性执行链的衔接。"},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "说明 Case/Job 只消费规范化字段且不持久化原始输入。"},
+    {"ref": "deploy/README.md", "status": "updated", "reason": "补充用户配置模型后使用自然语言或标准 JSON 启动 readonly 准备的操作边界。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {"summary":"自然语言与完整 JSON 已统一为 launch-request.v1；页面可分次澄清，Case/Job 共享冻结请求，JSON 不调用模型。","side_effects":"新增本地页面草稿和严格同源接口校验；没有数据库迁移、真实模型配置或平台写入。","remaining_risks":["真实新账户闭环需要用户配置本人模型、提供本人账户并逐张确认实际 Plan。"],"business_evidence_refs":[]},
+  "closed_at": "2026-09-13T12:45:00Z"
+}

@@ -21,7 +21,7 @@ let failed = false;
 for (const file of files) {
   if (!/^scripts\/[a-z0-9-]+\.mjs$/.test(file) && !/^tests\/[a-z0-9-]+\.test\.mjs$/.test(file)) throw new Error("invalid_test_entry");
   const source = await readFile(resolve(root, file), "utf8");
-  const httpTest = /00-workbench-(auth|cross-user)-http-smoke/.test(file);
+  const httpTest = /00-workbench-(auth|cross-user)-http-smoke|00-workbench-client-pages-smoke/.test(file);
   const databaseTest = source.includes('tests/support/repository.mjs') || httpTest;
   const started = performance.now();
   let database;

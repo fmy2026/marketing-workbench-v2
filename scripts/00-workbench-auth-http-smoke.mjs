@@ -90,6 +90,41 @@ try {
   assert(users.status === 200, "admin_user_list_access_failed");
   const usersBody = await users.json();
   assert((usersBody.users || []).length === 3, "admin_user_list_count_mismatch");
+  const launchRequest = {
+    schema_version: "launch-request.v1",
+    operation: "create_std_project",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "1871922999999999"
+  };
+  const structuredIntake = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ request: launchRequest })
+  });
+  const structuredIntakeBody = await structuredIntake.json();
+  assert(structuredIntake.status === 200, "structured_intake_rejected");
+  assert(structuredIntakeBody.parse_source === "structured_json", "structured_intake_used_non_json_parser");
+  assert(JSON.stringify(structuredIntakeBody.request) === JSON.stringify(launchRequest), "structured_intake_request_changed");
+  const unknownField = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ request: { ...launchRequest, unexpected: true } })
+  });
+  const unknownFieldBody = await unknownField.json();
+  assert(unknownField.status === 400 && unknownFieldBody.details?.fields?.includes("unexpected"), "structured_unknown_field_not_rejected");
+  const mixedIntake = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ request: launchRequest, user_intent: "账户 1871922999999999" })
+  });
+  assert(mixedIntake.status === 400, "mixed_intake_not_rejected");
+  const malformedIntake = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: "{\"request\":"
+  });
+  assert(malformedIntake.status === 400, "malformed_json_not_rejected");
   protectedApisPassed = true;
 } finally {
   const reset = await fetch(`${origin}/api/admin/users/${encodeURIComponent(loginBody.user.userId)}/reset-password`, {
@@ -125,6 +160,7 @@ console.log(JSON.stringify({
   protectedWorkbenchBlockedBeforeChange: true,
   passwordChangePassed: true,
   protectedApisPassed,
+  structuredIntakePassed: true,
   defaultPasswordRestored: true,
   logoutPassed: true
 }, null, 2));

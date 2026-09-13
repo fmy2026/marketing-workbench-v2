@@ -24,7 +24,7 @@ function firstMatch(text, pattern) {
 
 function normalizeRouteId(text) {
   if (/oceanengine_3_byte_mini_game/i.test(text)) return DEFAULT_ROUTE_ID;
-  if (/巨量|穿山甲|oceanengine/i.test(text) && /小游戏|mini\s*game/i.test(text)) return DEFAULT_ROUTE_ID;
+  if (/巨量|穿山甲|字节|oe3|oceanengine/i.test(text) && /小游戏|mini\s*game/i.test(text)) return DEFAULT_ROUTE_ID;
   return firstMatch(text, /\b([a-z][a-z0-9]+(?:_[a-z0-9]+){2,})\b/i);
 }
 
@@ -36,6 +36,28 @@ function normalizeGameCode(text) {
 
 function normalizeAdvertiserId(text) {
   return firstMatch(text, /(?:advertiser_id|广告账户|账户|账号|advertiser)\s*[:：]?\s*(\d{8,24})/i) || firstMatch(text, /\b(\d{12,24})\b/);
+}
+
+function extractAdvertiserIds(text) {
+  const values = new Set();
+  const labelled = String(text || "").matchAll(/(?:advertiser_id|广告账户|账户|账号|advertiser)\s*[:：]?\s*(\d{8,24})/gi);
+  for (const match of labelled) values.add(match[1]);
+  if (!values.size) {
+    for (const value of String(text || "").match(/\b\d{12,24}\b/g) || []) values.add(value);
+  }
+  return [...values];
+}
+
+export function detectUnsupportedLaunchOperation(text) {
+  const value = String(text || "");
+  if (!value.trim()) return "";
+  if (
+    /(?:只|仅)?(?:修改|调整|改)(?:[^。；，,\n]{0,20})(?:roi|出价|系数|配置)/i.test(value)
+    || /(?:新增|增加|追加|上传)(?:[^。；，,\n]{0,12})(?:素材|视频|图片)/i.test(value)
+    || /(?:已有|现有)(?:[^。；，,\n]{0,12})(?:项目|计划|投放)/i.test(value)
+    || /(?:不要|不)(?:[^。；，,\n]{0,8})(?:新建|创建)/i.test(value)
+  ) return "operation_not_supported";
+  return "";
 }
 
 function camelKey(key) {
@@ -87,19 +109,28 @@ export function parseLaunchIntake(userIntent = "") {
   const text = String(userIntent || "").trim();
   const routeId = normalizeRouteId(text);
   const gameCode = normalizeGameCode(text);
-  const advertiserId = normalizeAdvertiserId(text);
+  const advertiserIds = extractAdvertiserIds(text);
+  const unsupportedOperation = detectUnsupportedLaunchOperation(text);
+  const issues = [];
+  if (unsupportedOperation) issues.push(unsupportedOperation);
+  if (advertiserIds.length > 1) issues.push("multiple_advertiser_ids");
+  const advertiserId = advertiserIds.length === 1 ? advertiserIds[0] : "";
   const missingFields = [];
-  if (!routeId) missingFields.push("route_id");
-  if (!gameCode) missingFields.push("game_code");
-  if (!advertiserId) missingFields.push("advertiser_id");
+  const values = unsupportedOperation
+    ? { routeId: "", gameCode: "", advertiserId: "" }
+    : { routeId, gameCode, advertiserId };
+  if (!values.routeId) missingFields.push("route_id");
+  if (!values.gameCode) missingFields.push("game_code");
+  if (!values.advertiserId) missingFields.push("advertiser_id");
 
   return {
-    route_id: routeId,
-    game_code: gameCode,
-    advertiser_id: advertiserId,
-    routeId,
-    gameCode,
-    advertiserId,
+    route_id: values.routeId,
+    game_code: values.gameCode,
+    advertiser_id: values.advertiserId,
+    routeId: values.routeId,
+    gameCode: values.gameCode,
+    advertiserId: values.advertiserId,
+    issues,
     missing_fields: missingFields,
     missingFields,
     source_record_ref: text ? `api:intake:${hashText(text).slice(0, 16)}` : "api:intake:empty"

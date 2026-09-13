@@ -22,8 +22,9 @@ import {
 import {
   createConversationIntentResolver,
   createOpenAiCompatibleIntentAdapter,
-  resolveExplicitLaunchIntake
+  resolveLaunchRequestIntake
 } from "../agents/conversationIntentResolver.mjs";
+import { normalizeLaunchRequestFromBody } from "../agents/launchRequest.mjs";
 import { resolveWorkflowStatisticsScope } from "../agents/agentWorkspaceScopes.mjs";
 import {
   buildWorkbenchView,
@@ -221,7 +222,11 @@ async function readBody(req) {
   }
   const raw = Buffer.concat(chunks).toString("utf8").trim();
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw requestError("invalid_json_body", 400);
+  }
 }
 
 async function serveStatic(req, res, pathname) {
@@ -483,15 +488,20 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {
     const body = await readBody(req);
-    const message = body.user_intent || body.userIntent || "";
     const resolver = await resolverForCurrentUser(auth.user.user_id);
-    return sendJson(res, 200, await resolveExplicitLaunchIntake({ message, resolver }));
+    return sendJson(res, 200, await resolveLaunchRequestIntake({
+      userIntent: body.user_intent || body.userIntent || "",
+      request: body.request,
+      draft: body.draft,
+      resolver
+    }));
   }
 
   if (req.method === "POST" && pathname === "/api/launch/jobs") {
     const body = await readBody(req);
+    const normalizedRequest = normalizeLaunchRequestFromBody(body);
     await requireCaseOwner(auth.user, body.case_id || body.caseId || "");
-    await requireAdvertiserOwner(auth.user, body.advertiser_id || body.advertiserId || "");
+    await requireAdvertiserOwner(auth.user, normalizedRequest.request.advertiser_id);
     return sendJson(res, 201, await createJob(repo, body));
   }
 

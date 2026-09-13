@@ -129,11 +129,24 @@
           <div class="chat-stream" id="chatStream" aria-live="polite"></div>
           <div class="conversation-presets" id="conversationPresets" aria-label="快捷输入"></div>
 
+          <div class="intake-mode-switch" id="intakeModeSwitch" role="tablist" aria-label="输入方式">
+            <button type="button" class="intake-mode-button is-active" data-intake-mode="natural" role="tab" aria-selected="true">自然语言</button>
+            <button type="button" class="intake-mode-button" data-intake-mode="json" role="tab" aria-selected="false">JSON</button>
+          </div>
+
           <form class="chat-form" id="chatForm">
             <label class="sr-only" for="chatInput">输入投放需求</label>
             <input id="chatInput" name="chatInput" type="text" autocomplete="off" placeholder="输入投放需求…">
             <button class="send-button" type="submit" aria-label="发送">→</button>
           </form>
+          <section class="structured-request-panel" id="structuredRequestPanel" hidden aria-label="标准 JSON 请求">
+            <div class="structured-request-heading">
+              <span>完整标准请求</span>
+              <button type="button" class="copy-template-button" id="copyLaunchRequestTemplate">复制模板</button>
+            </div>
+            <textarea id="structuredRequestInput" spellcheck="false" aria-label="LaunchRequest JSON"></textarea>
+            <button type="button" class="structured-submit-button" id="submitStructuredRequest">校验 JSON</button>
+          </section>
           <footer class="command-bar" id="commandBar">
             <div class="progress-text" id="progressText" aria-live="polite">进度 0 / 7</div>
             <button class="progress-refresh" id="progressRefreshButton" type="button" disabled>等待流程</button>
