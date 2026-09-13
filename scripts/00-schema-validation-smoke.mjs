@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-index.mjs";
 
 function assert(condition, message) {

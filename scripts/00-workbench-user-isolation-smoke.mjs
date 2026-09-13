@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import {
   clearSessionCookie,
   createSessionCredential,
@@ -17,9 +17,9 @@ function assert(condition, message) {
 
 const repo = new PostgresRepository();
 const expectedUsers = new Map([
-  ["fengmeiyu", { displayName: "冯美钰", role: "admin" }],
-  ["zhangjingwei", { displayName: "张境威", role: "operator" }],
-  ["zhangchaobo", { displayName: "张超博", role: "operator" }]
+  ["test_admin", { displayName: "Test Admin", role: "admin" }],
+  ["test_operator", { displayName: "Test Operator", role: "operator" }],
+  ["test_other", { displayName: "Test Other", role: "operator" }]
 ]);
 
 for (const [loginName, expected] of expectedUsers) {
@@ -45,16 +45,16 @@ const cookie = sessionCookie(session.token, { secure: true });
 assert(cookie.includes("HttpOnly") && cookie.includes("SameSite=Strict") && cookie.includes("Secure"), "secure_session_cookie_contract_failed");
 assert(clearSessionCookie({ secure: true }).includes("Max-Age=0"), "session_cookie_clear_contract_failed");
 
-const adminSummary = await repo.getUserWorkflowSummary({ userId: "USR-FENGMEIYU", admin: true });
-const operatorSummary = await repo.getUserWorkflowSummary({ userId: "USR-ZHANGJINGWEI", admin: false });
+const adminSummary = await repo.getUserWorkflowSummary({ userId: "USR-TEST-ADMIN", admin: true });
+const operatorSummary = await repo.getUserWorkflowSummary({ userId: "USR-TEST-OPERATOR", admin: false });
 assert(adminSummary.length === 3, "admin_summary_must_include_three_pilot_users");
-assert(operatorSummary.length === 1 && operatorSummary[0].login_name === "zhangjingwei", "operator_summary_scope_failed");
+assert(operatorSummary.length === 1 && operatorSummary[0].login_name === "test_operator", "operator_summary_scope_failed");
 
-const adminDetail = await repo.getUserWorkflowCaseDetail({ userId: "USR-FENGMEIYU", admin: true });
-const ownedDetail = adminDetail.find((item) => item.owner_user_id === "USR-FENGMEIYU");
+const adminDetail = await repo.getUserWorkflowCaseDetail({ userId: "USR-TEST-ADMIN", admin: true });
+const ownedDetail = adminDetail.find((item) => item.owner_user_id === "USR-TEST-ADMIN");
 if (ownedDetail) {
-  const ownerAccess = await repo.getAdvertiserAccess({ advertiserId: ownedDetail.advertiser_id, userId: "USR-FENGMEIYU" });
-  const otherAccess = await repo.getAdvertiserAccess({ advertiserId: ownedDetail.advertiser_id, userId: "USR-ZHANGJINGWEI" });
+  const ownerAccess = await repo.getAdvertiserAccess({ advertiserId: ownedDetail.advertiser_id, userId: "USR-TEST-ADMIN" });
+  const otherAccess = await repo.getAdvertiserAccess({ advertiserId: ownedDetail.advertiser_id, userId: "USR-TEST-OPERATOR" });
   assert(ownerAccess?.allowed === true, "advertiser_owner_access_rejected");
   assert(otherAccess?.allowed === false, "cross_user_advertiser_access_allowed");
 }
@@ -91,18 +91,18 @@ await createWorkflowCase(matchingRepo, {
   source_usage: "runtime_truth"
 }, {
   currentUser: {
-    user_id: "USR-ZHANGJINGWEI",
+    user_id: "USR-TEST-OPERATOR",
     user_status: "active",
-    qiankun_owner_key: "zhangjingwei"
+    qiankun_owner_key: "test_operator"
   },
   accountBootstrapFn: async () => ({
     status: "passed",
     accountIdentityWritten: true,
-    account: { qiankunOwnerKey: "zhangjingwei" }
+    account: { qiankunOwnerKey: "test_operator" }
   })
 });
-assert(matchingRepo.created()?.ownerUserId === "USR-ZHANGJINGWEI", "case_owner_not_persisted");
-assert(matchingRepo.created()?.createdByUserId === "USR-ZHANGJINGWEI", "case_actor_not_persisted");
+assert(matchingRepo.created()?.ownerUserId === "USR-TEST-OPERATOR", "case_owner_not_persisted");
+assert(matchingRepo.created()?.createdByUserId === "USR-TEST-OPERATOR", "case_actor_not_persisted");
 
 let mismatchBlocked = false;
 try {
@@ -114,14 +114,14 @@ try {
     source_usage: "runtime_truth"
   }, {
     currentUser: {
-      user_id: "USR-ZHANGJINGWEI",
+      user_id: "USR-TEST-OPERATOR",
       user_status: "active",
-      qiankun_owner_key: "zhangjingwei"
+      qiankun_owner_key: "test_operator"
     },
     accountBootstrapFn: async () => ({
       status: "blocked",
       accountIdentityWritten: false,
-      account: { qiankunOwnerKey: "zhangchaobo" },
+      account: { qiankunOwnerKey: "test_other" },
       blockers: ["credential_owner_mismatch"]
     })
   });
@@ -132,8 +132,8 @@ assert(mismatchBlocked, "intake_owner_mismatch_not_blocked");
 
 const policyBundle = {
   job: { job_id: "JOB-AUTH-SMOKE", case_id: "CASE-AUTH-SMOKE", source_usage: "runtime_truth", advertiser_id: "1234567890123456" },
-  case: { lifecycle_status: "active", owner_user_id: "USR-ZHANGJINGWEI" },
-  account: { owner_user_id: "USR-ZHANGJINGWEI" },
+  case: { lifecycle_status: "active", owner_user_id: "USR-TEST-OPERATOR" },
+  account: { owner_user_id: "USR-TEST-OPERATOR" },
   executionPlan: {
     plan_id: "PLAN-AUTH-SMOKE",
     plan_hash: "sha256:auth-smoke",
@@ -156,13 +156,13 @@ const allowedPolicy = await evaluatePlanBoundWriteAuthorization({
   repo: policyRepo,
   bundle: policyBundle,
   authorizationSource: "workbench_conversation",
-  authenticatedUserId: "USR-ZHANGJINGWEI"
+  authenticatedUserId: "USR-TEST-OPERATOR"
 });
 const deniedPolicy = await evaluatePlanBoundWriteAuthorization({
   repo: policyRepo,
   bundle: policyBundle,
   authorizationSource: "workbench_conversation",
-  authenticatedUserId: "USR-ZHANGCHAOBO"
+  authenticatedUserId: "USR-TEST-OTHER"
 });
 assert(allowedPolicy.status === "passed", `authenticated_owner_policy_failed:${allowedPolicy.blockers.join(",")}`);
 assert(deniedPolicy.blockers.includes("workbench_runtime_case_owner_mismatch"), "authenticated_owner_policy_did_not_block_cross_user");

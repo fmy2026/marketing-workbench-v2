@@ -142,3 +142,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 对话命令与恢复性 readonly | [Gate Action Policy](../src/workflows/gateActionPolicy.mjs)、[工作台对话](../src/workflows/workbenchConversation.mjs) |
 | 路线字段、资源来源、Schema 版本 | [数据契约](project-数据与报表契约.md) |
 | 平台接口与运维 | [乾坤 API 文档](qiankun-api-docs-20260911.md)、[部署说明](../deploy/README.md) |
+
+## 7. 开发验证入口
+
+新能力通过隔离测试入口验证；环境与数据合同见[隔离测试数据库](project-数据与报表契约.md#隔离测试数据库)。正式 server 的 HTTP 处理器由内部 `createWorkbenchServer({ repo, env })` 构造，部署入口仍使用默认仓储与环境；请求参数不能切换仓储或测试模式。测试平台请求必须使用显式假传输，未配置请求阻断并令回归失败。

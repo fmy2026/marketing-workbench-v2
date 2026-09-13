@@ -1,7 +1,8 @@
+import { createStdProjectTransport as fakeFetchFactory } from "../tests/support/platform.mjs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   EXECUTION_GRANT_INTENT,
@@ -16,34 +17,6 @@ const TARGET = {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
-}
-
-function fakeFetchFactory({ projectId, createApiCode = "0", createObjectIdPresent = true } = {}) {
-  const calls = [];
-  async function fakeFetch(url, options = {}) {
-    const href = String(url);
-    calls.push({ href, method: options.method || "GET" });
-    if (href.includes("/std_project/create/")) {
-      return new Response(JSON.stringify({
-        code: createApiCode,
-        request_id: "fake-request-create",
-        message: createApiCode === "0" ? "success" : "opaque platform condition",
-        data: createObjectIdPresent ? { project_id: projectId } : {}
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (href.includes("/std_project/list/")) {
-      const filtering = new URL(href).searchParams.get("filtering") || "{}";
-      const name = JSON.parse(filtering).name || "";
-      return new Response(JSON.stringify({
-        code: "0",
-        request_id: "fake-request-list",
-        data: { list: [{ project_id: projectId, name, status: "ENABLE" }] }
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    throw new Error(`unexpected_fake_fetch_url:${href}`);
-  }
-  fakeFetch.calls = calls;
-  return fakeFetch;
 }
 
 function callCount(fakeFetch, fragment) {

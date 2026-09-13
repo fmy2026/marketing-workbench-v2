@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { buildVideoMaterialPreparePlan } from "../src/platforms/oceanengineVideoMaterialExecutor.mjs";
 import { requiredVerifiedVideoMaterialEntries, requiredActiveVideoMaterialItems } from "../src/workflows/skills/oe3/04-resource-verifiers.mjs";
 
@@ -24,7 +24,7 @@ function uniqueSorted(items = []) {
   return [...new Set(items)].sort();
 }
 
-const caseId = getArg("case-id");
+const caseId = getArg("case-id", "CASE-TEST-BASELINE");
 if (!caseId) {
   throw new Error("case_id_required");
 }

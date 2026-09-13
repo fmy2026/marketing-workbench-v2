@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob } from "../src/workflows/launchWorkflow.mjs";
 import { runOe3WorkflowSkills } from "../src/workflows/skills/oe3/00-index.mjs";
 import {
@@ -113,6 +113,12 @@ try {
     video_cover_required: true
   };
   const requiredMockBundle = mockReadyBundle(capabilityFixture);
+  requiredMockBundle.resources.filter((item) => item.resource_type === "video_asset").forEach((item) => {
+    Object.assign(item.metadata.readonly_check, {
+      explicit_cover_visible: true,
+      verified_by_job_id: requiredMockBundle.job.job_id
+    });
+  });
   requiredMockBundle.materialPack = {
     ...requiredMockBundle.materialPack,
     items: (requiredMockBundle.materialPack?.items || []).map((entry, index) => entry.item?.item_type === "video_asset"

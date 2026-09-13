@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   ACTION_STD_PROJECT_CREATE,

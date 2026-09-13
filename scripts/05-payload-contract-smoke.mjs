@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { evaluateOe3PayloadContract } from "../src/workflows/skills/oe3/05-payload-contract.mjs";
 import { buildOe3StdProjectPayload } from "../src/workflows/skills/oe3/05-payload.mjs";

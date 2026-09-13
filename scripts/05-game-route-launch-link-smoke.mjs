@@ -128,6 +128,7 @@ function bundle() {
         }
       }
     },
+    materialSourceResources: [{ resource_type: "video_asset", source_asset_id: "VIDEO-1", platform_resource_id: "v1", metadata: { oceanengine_video_mapping: { status: "verified", oceanengine_video_id: "v1" }, video_cover_id: "c1" } }],
     materialPack: {
       items: [{
         item: { item_type: "video_asset", required: true, asset_id: "VIDEO-1" },
@@ -161,10 +162,10 @@ function bundle() {
       readyResource("dmp_audience_package", { metadata: { custom_audience_ids: Array.from({ length: 10 }, (_, index) => String(123 + index)) } }),
       readyResource("event_asset", { platformResourceId: "456" }),
       readyResource("product_image", { platformResourceId: "789", metadata: { product_image_target_upload_readback: { status: "passed", image_id_present: true, material_id_present: true } } }),
-      readyResource("brand_info", { metadata: { brand_info_official: { brand_name_id: "1", cdp_brand_id: "2", cdp_brand_name: "巨兽战场", yuntu_category_id: "3" } } }),
+      readyResource("brand_info", { metadata: { brand_info_official: { brand_name_id: "1", cdp_brand_id: "2", cdp_brand_name: "巨兽战场", yuntu_category_id: "3", readback_status: "fresh_target_brand_industry_readback_passed" } } }),
       readyResource("micro_app_instance", { platformResourceId: "7434750138926546994", metadata: { micro_app_instance_id: "7434750138926546994" } }),
       readyResource("backup_landing_page", { platformResourceId: "7624750304608649243" }),
-      readyResource("video_asset", { sourceAssetId: "VIDEO-1", platformResourceId: "VIDEO-1", metadata: { final_material_readiness: { cover_mode: "explicit_cover_verified" }, readonly_check: { status: "passed", video_id_present: true, cover_mode: "explicit_cover_verified" } } })
+      readyResource("video_asset", { sourceAssetId: "VIDEO-1", platformResourceId: "VIDEO-1", metadata: { final_material_readiness: { cover_mode: "explicit_cover_verified" }, readonly_check: { status: "passed", video_id_present: true, cover_mode: "explicit_cover_verified", explicit_cover_visible: true, verified_by_job_id: "JOB-LAUNCH-LINK-SMOKE" } } })
     ]
   };
 }
@@ -201,7 +202,7 @@ const ready = buildWith({
 assert(ready.requestFieldManifest.miniProgramUrlRequired === true, "mini game route must require launch link");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkPresent === true, "ready launch link should enter final payload only");
 assert(ready.requestFieldManifest.miniProgramLaunchLinkHashMatch === true, "ready launch link should hash-match");
-assert(ready.requestFieldManifest.nestedFieldContract?.status === "passed", "ready payload nested field contract should pass");
+assert(ready.requestFieldManifest.nestedFieldContract?.status === "passed", `ready payload nested field contract should pass:${JSON.stringify(ready.requestFieldManifest.nestedFieldContract)}`);
 assert(ready.requestFieldManifest.externalUrlMaterialListPolicy === "send", "ready payload should send external_url_material_list by success profile");
 assert(ready.requestFieldManifest.externalUrlMaterialListPresent === true, "ready payload must include external_url_material_list");
 assert(ready.requestFieldManifest.externalUrlMaterialListCount === 1, "ready payload must include exactly one external_url_material_list item");

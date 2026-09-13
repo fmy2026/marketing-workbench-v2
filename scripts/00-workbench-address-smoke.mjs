@@ -70,7 +70,7 @@ assert(createCalls === 0, "reused_case_created_duplicate");
 const exhaustedCase = {
   ...activeCase,
   case_id: "CASE-MWBV2-ADDRESS-EXHAUSTED-1",
-  owner_user_id: "USR-ZHANGJINGWEI",
+  owner_user_id: "USR-TEST-OPERATOR",
   source_usage: "runtime_truth",
   lifecycle_status: "active",
   maximum_create_attempts: 3,
@@ -135,7 +135,7 @@ const replacementRepo = {
 const currentUser = {
   user_id: exhaustedCase.owner_user_id,
   user_status: "active",
-  qiankun_owner_key: "zhangjingwei"
+  qiankun_owner_key: "test_operator"
 };
 const replacementOptions = {
   currentUser,

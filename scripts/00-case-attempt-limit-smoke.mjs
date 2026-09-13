@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, createWorkflowCase, runJob } from "../src/workflows/launchWorkflow.mjs";
 
 const TARGET = Object.freeze({

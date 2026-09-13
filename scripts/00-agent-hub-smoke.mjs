@@ -35,7 +35,7 @@ const publicText = JSON.stringify({ agents, detail });
 assert(!/(credential|token|secret|advertiser_id|src\/|\.mjs)/i.test(publicText), "agent_catalog_leaks_internal_or_sensitive_data");
 
 const [serverSource, appSource, html] = await Promise.all([
-  readFile(new URL("../src/server/index.mjs", import.meta.url), "utf8"),
+  readFile(new URL("../src/server/workbenchServer.mjs", import.meta.url), "utf8"),
   readFile(new URL("../frontend/app.js", import.meta.url), "utf8"),
   readFile(new URL("../frontend/index.html", import.meta.url), "utf8")
 ]);

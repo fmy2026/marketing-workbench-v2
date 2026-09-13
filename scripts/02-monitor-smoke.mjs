@@ -137,7 +137,7 @@ assertNoSensitiveLeak(monitorPlan);
 
 const ensureInput = buildMonitorEnsureExecutionInput({
   repo: {},
-  qiankunOwnerKey: "zhangchaobo",
+  qiankunOwnerKey: "test_other",
   target,
   jobId: bundle.job.job_id,
   currentPlanId: monitorPlan.planId,
@@ -145,7 +145,7 @@ const ensureInput = buildMonitorEnsureExecutionInput({
   fetchImpl: async () => undefined,
   authorization: { status: "passed" }
 });
-assert.equal(ensureInput.ownerKey, "zhangchaobo", "authenticated owner key must reach monitor ensure");
+assert.equal(ensureInput.ownerKey, "test_other", "authenticated owner key must reach monitor ensure");
 
 const standardPlan = buildExecutionPlanFromBundle({
   ...bundle,

@@ -11,8 +11,8 @@ const now = new Date("2026-09-07T00:00:00.000Z");
 const secret = "test-only-passport-token";
 
 const first = upsertQiankunCredential({
-  ownerKey: "zhangjingwei",
-  ownerName: "张境威",
+  ownerKey: "test_operator",
+  ownerName: "Test Operator",
   passportToken: secret,
   envPath,
   storePath,
@@ -27,8 +27,8 @@ assert.equal(JSON.stringify(first).includes(secret), false);
 assert.equal(statSync(storePath).mode & 0o777, 0o600);
 
 const second = upsertQiankunCredential({
-  ownerKey: "zhangjingwei",
-  ownerName: "张境威",
+  ownerKey: "test_operator",
+  ownerName: "Test Operator",
   passportToken: "replacement-test-token",
   envPath,
   storePath,

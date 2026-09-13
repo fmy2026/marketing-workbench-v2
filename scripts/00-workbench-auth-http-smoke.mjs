@@ -1,6 +1,8 @@
+import "../tests/support/network.mjs";
 import { internalErrorDiagnostic, publicErrorResponse } from "../src/server/publicError.mjs";
 
-const origin = process.env.MWBV2_TEST_ORIGIN || "http://127.0.0.1:3000";
+const origin = process.env.MWBV2_TEST_ORIGIN;
+if (!origin) throw new Error("isolated_test_origin_required");
 const loginName = process.env.MWBV2_TEST_LOGIN_NAME || "";
 const password = process.env.MWBV2_TEST_PASSWORD || "";
 const nextPassword = process.env.MWBV2_TEST_NEW_PASSWORD || "";
@@ -41,15 +43,6 @@ const conflict = publicErrorResponse(Object.assign(new Error("workflow_case_key_
 assert(conflict.statusCode === 409 && conflict.body.error === "workflow_case_key_already_exists" && conflict.body.details?.caseId === "CASE-SMOKE", "defined_client_error_changed");
 
 if (!loginName || !password || !nextPassword) {
-  if (process.env.MWBV2_AUTH_HTTP_ASSERTIONS_ONLY === "true") {
-    console.log(JSON.stringify({
-      status: "passed",
-      internalErrorBoundary: true,
-      internalDiagnosticLogBoundary: true,
-      authenticatedFlow: "not_run_missing_test_credentials"
-    }, null, 2));
-    process.exit(0);
-  }
   throw new Error("test_login_credentials_required");
 }
 

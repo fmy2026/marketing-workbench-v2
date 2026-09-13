@@ -100,3 +100,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 6. 执行 `npm run test:workbench-user-isolation`、`npm run test:workbench-auth-http` 和既有工作流回归。
 
 上线前按 [数据库备份说明](../docs/project-数据与报表契约.md#备份与定时执行) 完成备份，再在每台试用电脑通过最终 HTTPS 域名完成以上浏览器验收。
+
+## 开发回归服务
+
+HTTP 回归由统一测试入口启动独立 loopback 临时端口服务，并在结束时关闭；不会连接默认 3000 工作台或修改真实用户密码。数据库与测试入口详见[隔离测试数据库](../docs/project-数据与报表契约.md#隔离测试数据库)。正式 `npm start` / LaunchAgent 入口保持原配置。

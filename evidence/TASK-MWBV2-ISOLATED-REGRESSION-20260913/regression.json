@@ -1,0 +1,374 @@
+{
+  "suite": "workflow-regression",
+  "status": "failed",
+  "total": 61,
+  "passed": 57,
+  "results": [
+    {
+      "file": "scripts/00-workbench-address-smoke.mjs",
+      "status": "passed",
+      "durationMs": 279,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-agent-hub-smoke.mjs",
+      "status": "passed",
+      "durationMs": 217,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-agent-model-config-smoke.mjs",
+      "status": "passed",
+      "durationMs": 219,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+      "status": "passed",
+      "durationMs": 214,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-network-policy-smoke.mjs",
+      "status": "passed",
+      "durationMs": 177,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-mode-switch-smoke.mjs",
+      "status": "passed",
+      "durationMs": 192,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-progress-smoke.mjs",
+      "status": "passed",
+      "durationMs": 195,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-node4-progress-projection-smoke.mjs",
+      "status": "passed",
+      "durationMs": 287,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-conversation-smoke.mjs",
+      "status": "passed",
+      "durationMs": 336,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-std-project-readback-schedule-smoke.mjs",
+      "status": "passed",
+      "durationMs": 243,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-platform-http-deadline-smoke.mjs",
+      "status": "passed",
+      "durationMs": 280,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-verified-case-finalization-smoke.mjs",
+      "status": "passed",
+      "durationMs": 211,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-runtime-write-policy-smoke.mjs",
+      "status": "passed",
+      "durationMs": 321,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-qiankun-credential-setup-smoke.mjs",
+      "status": "passed",
+      "durationMs": 202,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-create-result-mapping-smoke.mjs",
+      "status": "passed",
+      "durationMs": 177,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-safe-platform-error-summary-smoke.mjs",
+      "status": "passed",
+      "durationMs": 216,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/05-single-confirmation-orchestrator-smoke.mjs",
+      "status": "passed",
+      "durationMs": 263,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/06-std-project-create-wire-body-smoke.mjs",
+      "status": "passed",
+      "durationMs": 219,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 216,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/05-game-route-launch-link-smoke.mjs",
+      "status": "passed",
+      "durationMs": 238,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/02-monitor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 227,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-resource-action-registry-smoke.mjs",
+      "status": "passed",
+      "durationMs": 305,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-aweme-authorization-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 310,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-avatar-submit-smoke.mjs",
+      "status": "passed",
+      "durationMs": 199,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-avatar-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 283,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-push-plan-smoke.mjs",
+      "status": "passed",
+      "durationMs": 210,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 302,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-readback-smoke.mjs",
+      "status": "passed",
+      "durationMs": 175,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-video-material-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 344,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-guide-video-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 221,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-product-image-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 359,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-chain-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 285,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-micro-app-instance-authority-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 206,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-provision-contract-smoke.mjs",
+      "status": "passed",
+      "durationMs": 270,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-account-contract-smoke.mjs",
+      "status": "passed",
+      "durationMs": 202,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 348,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-configs-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 389,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+      "status": "passed",
+      "durationMs": 275,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-backup-landing-page-material-inventory-smoke.mjs",
+      "status": "passed",
+      "durationMs": 293,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+      "status": "passed",
+      "durationMs": 246,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-project-contract-check-smoke.mjs",
+      "status": "passed",
+      "durationMs": 54015,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-smoke-api.mjs",
+      "status": "passed",
+      "durationMs": 26687,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-oe3-workflow-skills-smoke.mjs",
+      "status": "passed",
+      "durationMs": 26805,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-agent-readonly-modules-smoke.mjs",
+      "status": "passed",
+      "durationMs": 2721,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-workbench-user-isolation-smoke.mjs",
+      "status": "passed",
+      "durationMs": 3451,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-workbench-auth-http-smoke.mjs",
+      "status": "passed",
+      "durationMs": 4080,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-workbench-cross-user-http-smoke.mjs",
+      "status": "passed",
+      "durationMs": 4657,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-workflow-case-smoke.mjs",
+      "status": "passed",
+      "durationMs": 20176,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-new-account-monitor-bootstrap-bridge-smoke.mjs",
+      "status": "passed",
+      "durationMs": 2773,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-readonly-oceanengine-smoke.mjs",
+      "status": "passed",
+      "durationMs": 14291,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-schema-validation-smoke.mjs",
+      "status": "passed",
+      "durationMs": 2812,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/05-payload-contract-smoke.mjs",
+      "status": "failed",
+      "durationMs": 26073,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-execution-grant-smoke.mjs",
+      "status": "failed",
+      "durationMs": 83737,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-case-corrective-create-smoke.mjs",
+      "status": "failed",
+      "durationMs": 26973,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-case-attempt-limit-smoke.mjs",
+      "status": "passed",
+      "durationMs": 15169,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-execution-plan-smoke.mjs",
+      "status": "passed",
+      "durationMs": 40171,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/00-oe3-readonly-readiness-cli-smoke.mjs",
+      "status": "passed",
+      "durationMs": 4028,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/05-runtime-reservations-smoke.mjs",
+      "status": "passed",
+      "durationMs": 27433,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/03-baseline-resource-inheritance-smoke.mjs",
+      "status": "passed",
+      "durationMs": 3111,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/05-guide-video-payload-smoke.mjs",
+      "status": "failed",
+      "durationMs": 14671,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    },
+    {
+      "file": "scripts/06-launch-job-bundle-video-source-smoke.mjs",
+      "status": "passed",
+      "durationMs": 3113,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    }
+  ]
+}

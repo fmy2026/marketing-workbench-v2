@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { buildWorkbenchView, createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { OE3_REQUIRED_RESOURCE_TYPES, OE3_RESOURCE_LABELS } from "../src/workflows/skills/oe3/00-contracts.mjs";
 import { WORKFLOW_NODES } from "../src/workflows/skills/oe3/00-workflow-node-registry.mjs";

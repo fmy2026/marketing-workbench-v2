@@ -212,3 +212,9 @@ npm run db:backup
 [备份 LaunchAgent 示例](../deploy/launchd/com.hys.marketing-workbench-backup.plist.example) 配置每天本机时间 02:20 执行，日志写入 `.local/logs/backup.stdout.log` 和 `backup.stderr.log`。启用前核对项目路径、日志目录、运行用户连接权限及 `pg_dump/pg_restore` 可执行环境；安装与应用服务使用同一 launchd 管理方式，配置文件本身不证明已启用。
 
 `pg_restore --list` 只验证归档目录可读，不证明恢复成功。恢复需单独任务明确目标库、备份文件及覆盖范围；本合同不提供自动覆盖线上库的恢复命令。
+
+### 隔离测试数据库
+
+自动回归通过 `tests/run.mjs` 为每个数据库/HTTP 测试创建 `marketing_workbench_v2_test_<run_id>`，只从业务库读取 `mwb` Schema，记录规范化结构 SHA-256；不导出真实账户、用户、Case、Job、Plan、确认或回查数据，不重放历史 migration。静态合同夹具与合成身份、资源、运行记录由 `tests/fixtures` 和 `tests/support` 装载。测试构造器要求显式测试库，库名不可改写；测试进程的 psql 只能访问本轮数据库。结束时关闭测试服务、删除本轮数据库和临时目录。
+
+`npm run test:unit` 运行无业务库依赖的合同测试；`npm run test:integration` 运行独立数据库及 HTTP 测试；`npm run test:workflow-regression` 聚合两者。既有专项测试命令委托同一入口。`tests/isolation.test.mjs` 单独验证禁止业务库连接、仅导入结构和清理结果。缺少夹具或未配置的外部请求使测试失败，不能作为跳过项。测试库所需 PostgreSQL 建库权限仅用于本地回归；应用默认数据库仍由仓储构造器定义。

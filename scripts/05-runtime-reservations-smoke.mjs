@@ -1,4 +1,4 @@
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
 
 const TARGET = {

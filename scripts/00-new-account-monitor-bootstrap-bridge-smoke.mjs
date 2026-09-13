@@ -1,5 +1,5 @@
 import { buildConfirmationPreview, evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
-import { canonicalAccountAuthStatus } from "../src/repositories/postgresRepository.mjs";
+import { canonicalAccountAuthStatus } from "../tests/support/repository.mjs";
 import { runContextSkill } from "../src/workflows/skills/oe3/02-context-resolvers.mjs";
 import {
   createWorkflowCase,
@@ -325,18 +325,18 @@ const monitorPlanRequiredView = {
 let freshThenMonitorDryRuns = 0;
 let freshThenMonitorBridgeCalls = 0;
 const freshThenMonitorView = await runWorkbenchInitialReadonly({}, JOB_ID, {
-  qiankunOwnerKey: "zhangchaobo",
+  qiankunOwnerKey: "test_other",
   getJobViewFn: async () => initialFreshView,
   runJobFn: async (_repo, receivedJobId, options) => {
     freshThenMonitorDryRuns += 1;
     assert(receivedJobId === JOB_ID, "fresh_then_monitor_job_changed");
-    assert(options.qiankunOwnerKey === "zhangchaobo", "fresh_readonly_owner_key_missing");
+    assert(options.qiankunOwnerKey === "test_other", "fresh_readonly_owner_key_missing");
     return monitorPlanRequiredView;
   },
   monitorBridgeFn: async (_repo, receivedJobId, options) => {
     freshThenMonitorBridgeCalls += 1;
     assert(receivedJobId === JOB_ID, "monitor_plan_bridge_job_changed");
-    assert(options.qiankunOwnerKey === "zhangchaobo", "monitor_plan_bridge_owner_key_missing");
+    assert(options.qiankunOwnerKey === "test_other", "monitor_plan_bridge_owner_key_missing");
     return { view: bridge.view, reconcile: { runStatus: "account_resolved" }, planSaved: true };
   }
 });

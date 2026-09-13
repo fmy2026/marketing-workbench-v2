@@ -1,6 +1,6 @@
 import { getPublicAgent } from "../src/agents/agentRegistry.mjs";
 import { resolveWorkflowStatisticsScope } from "../src/agents/agentWorkspaceScopes.mjs";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -20,7 +20,7 @@ assert(resolveWorkflowStatisticsScope({ requestedScope: "all", userRole: "operat
 assert(resolveWorkflowStatisticsScope({ requestedScope: "anything", userRole: "admin" }) === "self", "invalid_scope_not_defaulted_to_self");
 
 const repo = new PostgresRepository();
-const operator = await repo.getWorkbenchUserByLogin("zhangjingwei");
+const operator = await repo.getWorkbenchUserByLogin("test_operator");
 assert(operator?.user_id, "operator_fixture_missing");
 const memory = await repo.getUserWorkflowMemory({ userId: operator.user_id });
 assert(memory.every((item) => !Object.hasOwn(item, "advertiser_id")), "memory_exposes_full_advertiser_id");

@@ -1,0 +1,254 @@
+{
+  "suite": "unit",
+  "status": "passed",
+  "total": 41,
+  "passed": 41,
+  "results": [
+    {
+      "file": "scripts/00-workbench-address-smoke.mjs",
+      "status": "passed",
+      "durationMs": 292,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-agent-hub-smoke.mjs",
+      "status": "passed",
+      "durationMs": 226,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-agent-model-config-smoke.mjs",
+      "status": "passed",
+      "durationMs": 238,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+      "status": "passed",
+      "durationMs": 219,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-network-policy-smoke.mjs",
+      "status": "passed",
+      "durationMs": 187,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-mode-switch-smoke.mjs",
+      "status": "passed",
+      "durationMs": 190,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-progress-smoke.mjs",
+      "status": "passed",
+      "durationMs": 193,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-node4-progress-projection-smoke.mjs",
+      "status": "passed",
+      "durationMs": 275,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-conversation-smoke.mjs",
+      "status": "passed",
+      "durationMs": 296,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-std-project-readback-schedule-smoke.mjs",
+      "status": "passed",
+      "durationMs": 228,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-platform-http-deadline-smoke.mjs",
+      "status": "passed",
+      "durationMs": 260,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-verified-case-finalization-smoke.mjs",
+      "status": "passed",
+      "durationMs": 202,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-workbench-runtime-write-policy-smoke.mjs",
+      "status": "passed",
+      "durationMs": 311,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-qiankun-credential-setup-smoke.mjs",
+      "status": "passed",
+      "durationMs": 213,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-create-result-mapping-smoke.mjs",
+      "status": "passed",
+      "durationMs": 178,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-safe-platform-error-summary-smoke.mjs",
+      "status": "passed",
+      "durationMs": 217,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/05-single-confirmation-orchestrator-smoke.mjs",
+      "status": "passed",
+      "durationMs": 290,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/06-std-project-create-wire-body-smoke.mjs",
+      "status": "passed",
+      "durationMs": 241,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-duplicate-semantic-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 230,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/05-game-route-launch-link-smoke.mjs",
+      "status": "passed",
+      "durationMs": 261,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/02-monitor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 250,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-resource-action-registry-smoke.mjs",
+      "status": "passed",
+      "durationMs": 335,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-aweme-authorization-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 324,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-avatar-submit-smoke.mjs",
+      "status": "passed",
+      "durationMs": 212,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-avatar-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 298,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-push-plan-smoke.mjs",
+      "status": "passed",
+      "durationMs": 227,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 305,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-dmp-readback-smoke.mjs",
+      "status": "passed",
+      "durationMs": 175,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-video-material-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 341,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-guide-video-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 227,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-product-image-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 521,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-chain-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 326,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-micro-app-instance-authority-readonly-smoke.mjs",
+      "status": "passed",
+      "durationMs": 227,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-provision-contract-smoke.mjs",
+      "status": "passed",
+      "durationMs": 307,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-account-contract-smoke.mjs",
+      "status": "passed",
+      "durationMs": 226,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-asset-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 387,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-event-configs-executor-smoke.mjs",
+      "status": "passed",
+      "durationMs": 444,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-node4-resource-prep-contracts-smoke.mjs",
+      "status": "passed",
+      "durationMs": 292,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/04-backup-landing-page-material-inventory-smoke.mjs",
+      "status": "passed",
+      "durationMs": 316,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+      "status": "passed",
+      "durationMs": 301,
+      "schemaHash": null
+    },
+    {
+      "file": "scripts/00-project-contract-check-smoke.mjs",
+      "status": "passed",
+      "durationMs": 57394,
+      "schemaHash": null
+    }
+  ]
+}

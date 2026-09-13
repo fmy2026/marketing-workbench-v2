@@ -1,4 +1,6 @@
-const origin = process.env.MWBV2_TEST_ORIGIN || "http://127.0.0.1:3000";
+import "../tests/support/network.mjs";
+const origin = process.env.MWBV2_TEST_ORIGIN;
+if (!origin) throw new Error("isolated_test_origin_required");
 const adminLogin = process.env.MWBV2_TEST_ADMIN_LOGIN || "";
 const operatorLogin = process.env.MWBV2_TEST_OPERATOR_LOGIN || "";
 const defaultPassword = process.env.MWBV2_TEST_PASSWORD || "";

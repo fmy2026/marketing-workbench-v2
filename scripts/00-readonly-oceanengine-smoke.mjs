@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, resolveReadonlyDependencyForRun, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { readonlyPermissionState } from "../src/workflows/skills/oe3/00-readonly-permission.mjs";
 import { assertNoSensitiveLeak } from "../src/workflows/skills/oe3/00-contracts.mjs";

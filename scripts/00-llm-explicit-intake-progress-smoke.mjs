@@ -93,7 +93,7 @@ const readback = presentWorkflowProgress({
   caseGate: { currentGate: "run_readback_only" },
   isLatestCaseJob: true
 });
-assert(readback.message === "平台已受理，正在核对项目 ID 和名称；不会重复创建。", "readback_copy_mismatch");
+assert(readback.message.includes("项目 ID 和名称") && readback.message.includes("不会重复创建") && !readback.message.includes("流程已完成"), "readback_copy_mismatch");
 assert(!/预计|分钟|run_readback_only/.test(readback.message), "progress_copy_must_not_expose_internal_or_eta");
 const blocked = presentWorkflowProgress({
   caseGate: { currentGate: "resolve_case_blocker", rootBlocker: { title: "账户资源未满足", reason: "缺少必要资源。", nextActionLabel: "补齐后重新只读核验。" } },

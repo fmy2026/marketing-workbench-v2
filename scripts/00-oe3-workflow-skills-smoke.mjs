@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { buildLaunchJobView, createJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   OE3_REQUIRED_RESOURCE_TYPES,

@@ -3,7 +3,7 @@ import {
   runOceanEngineReadonlyProbes
 } from "../src/platforms/oceanengineReadonlyAdapter.mjs";
 import { runPlatformReadonlyReconcileSkill } from "../src/workflows/skills/oe3/04-platform-readonly-reconcile.mjs";
-import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 import { runDmpReadonlyGate } from "../src/workflows/skills/oe3/04-dmp-readonly.mjs";
 import { runLaunchPackSkill } from "../src/workflows/skills/oe3/03-launch-pack.mjs";
 import {

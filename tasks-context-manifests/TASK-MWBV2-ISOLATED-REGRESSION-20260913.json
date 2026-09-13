@@ -1,0 +1,83 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-ISOLATED-REGRESSION-20260913",
+  "task_ref": "tasks/TASK-MWBV2-ISOLATED-REGRESSION-20260913.md",
+  "status": "cancelled",
+  "created_at": "2026-09-13T08:13:43.736865+00:00",
+  "updated_at": "2026-09-13T09:06:00.000000+00:00",
+  "base_revision": "4dcfc9de7d868e7f73fbd93aa08911085556203f",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "deploy"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-ISOLATED-REGRESSION-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-ISOLATED-REGRESSION-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "package.json",
+    "docs/qiankun-api-docs-20260911.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-ISOLATED-REGRESSION-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-ISOLATED-REGRESSION-20260913.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-ISOLATED-REGRESSION-20260913/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "package.json",
+    "tests/**",
+    "scripts/*smoke.mjs",
+    "scripts/00-schema-validation-smoke.mjs",
+    "scripts/00-jszc-success-profile-contract-check.mjs",
+    "src/server/**",
+    "scripts/00-smoke-api.mjs"
+  ],
+  "forbidden_actions": [
+    "业务库写入、生产 Schema 修改、真实平台调用、修改样本账户运行事实",
+    "关闭 runtime policy 或扩大平台动作授权"
+  ],
+  "stop_conditions": [
+    "测试越过独立库或假平台边界",
+    "无法解释的业务合同差异或超出 Task 1 范围"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "node tests/isolation.test.mjs"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:unit && npm run test:integration"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:workflow-regression; read-only baseline and service check"
+    }
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"node tests/isolation.test.mjs","verified_at":"2026-09-13T08:31:00.000000+00:00","summary":"拒绝业务库、仅装载 Schema、拦截外部请求且自动清理测试库。","evidence_refs":["evidence/TASK-MWBV2-ISOLATED-REGRESSION-20260913/isolation.json"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"npm run test:unit && npm run test:integration","verified_at":"2026-09-13T08:57:00.000000+00:00","summary":"41 项单元测试与 20 项隔离数据库/HTTP 测试通过。","evidence_refs":["evidence/TASK-MWBV2-ISOLATED-REGRESSION-20260913/unit.json","evidence/TASK-MWBV2-ISOLATED-REGRESSION-20260913/integration-final.json"]},
+    {"acceptance_id":"AC-03","status":"not_run","command":"npm run test:workflow-regression","verified_at":"2026-09-13T09:06:00.000000+00:00","summary":"用户要求停止推进；重复的汇总回归已中止，未进行服务重载。","evidence_refs":["evidence/TASK-MWBV2-ISOLATED-REGRESSION-20260913/start-check-final.json"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"已记录本轮隔离验证的批准取舍。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"已定义隔离数据库、合成夹具和统一测试入口。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"已定义测试注入边界。"},
+    {"ref":"deploy/README.md","status":"updated","reason":"已说明临时 HTTP 回归服务。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {"summary":"用户在最终汇总回归期间要求终止方案推进；Task 1 的已完成隔离测试改动保留在工作区待复核。","side_effects":"未写入业务库、未调用真实平台；已停止汇总回归并删除唯一临时测试库。","remaining_risks":["未完成最终汇总回归和服务重载核验","改动尚未提交或推送"],"business_evidence_refs":[]},
+  "closed_at": "2026-09-13T09:06:00.000000+00:00"
+}

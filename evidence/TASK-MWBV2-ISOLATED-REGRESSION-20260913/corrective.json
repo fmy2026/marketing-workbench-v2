@@ -1,0 +1,14 @@
+{
+  "suite": "individual",
+  "status": "passed",
+  "total": 1,
+  "passed": 1,
+  "results": [
+    {
+      "file": "scripts/00-case-corrective-create-smoke.mjs",
+      "status": "passed",
+      "durationMs": 80546,
+      "schemaHash": "sha256:b75618dfe13f7b30d0274924245c9e8f8cc93ef2d97405db4f8cdb211f81c0ea"
+    }
+  ]
+}

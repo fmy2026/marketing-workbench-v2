@@ -446,13 +446,13 @@ const replacementResponse = await handleWorkbenchCommand({
   },
   jobId: "JOB-EXHAUSTED-OLD-3",
   message: "重新只读准备",
-  currentUser: { user_id: "USR-ZHANGJINGWEI", qiankun_owner_key: "zhangjingwei" },
+  currentUser: { user_id: "USR-TEST-OPERATOR", qiankun_owner_key: "test_operator" },
   getJobViewFn: async () => exhaustedView,
   credentialStateFn: () => ({ status: "ready", blockers: [] }),
   createApprovedReplacementCaseAndJobFn: async (_repo, predecessor, user) => {
     replacementCreateCalls += 1;
     assert(predecessor.job_id === "JOB-EXHAUSTED-OLD-3", "replacement predecessor changed");
-    assert(user.user_id === "USR-ZHANGJINGWEI", "replacement owner missing");
+    assert(user.user_id === "USR-TEST-OPERATOR", "replacement owner missing");
     return { created: true, caseId: "CASE-REPLACEMENT-ONE-1", jobId: "JOB-REPLACEMENT-ONE-1", maximumCreateAttempts: 1 };
   },
   runWorkbenchInitialReadonlyFn: async (_repo, freshJobId, options) => {
@@ -699,20 +699,20 @@ const monitorResponse = await handleWorkbenchCommand({
   message: "确认创建 monitor",
   expectedPlanId: monitorPlan.plan_id,
   expectedPlanHash: monitorPlan.plan_hash,
-  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
+  currentUser: { user_id: "USR-TEST-OTHER", qiankun_owner_key: "test_other" },
   getJobViewFn: async () => monitorConfirmationView,
   executeConfirmedMonitorBootstrapFn: async ({ expectedPlanId, expectedPlanHash, qiankunOwnerKey }) => {
     monitorExecutionCount += 1;
     assert(expectedPlanId === monitorPlan.plan_id, "monitor_execution_plan_id_drift");
     assert(expectedPlanHash === monitorPlan.plan_hash, "monitor_execution_plan_hash_drift");
-    assert(qiankunOwnerKey === "zhangchaobo", "monitor_execution_owner_key_missing");
+    assert(qiankunOwnerKey === "test_other", "monitor_execution_owner_key_missing");
     return { status: "passed", blockers: [] };
   },
   runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
     monitorAutoAdvanceCount += 1;
     assert(receivedJobId === "JOB-MONITOR-1", "monitor_auto_advance_job_changed");
     assert(options.mode === "dry_run", "monitor_auto_advance_must_use_dry_run");
-    assert(options.qiankunOwnerKey === "zhangchaobo", "monitor_auto_advance_owner_key_missing");
+    assert(options.qiankunOwnerKey === "test_other", "monitor_auto_advance_owner_key_missing");
     return monitorNextView;
   }
 });
@@ -729,7 +729,7 @@ const blockedMonitorResponse = await handleWorkbenchCommand({
   message: "确认创建 monitor",
   expectedPlanId: monitorPlan.plan_id,
   expectedPlanHash: monitorPlan.plan_hash,
-  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
+  currentUser: { user_id: "USR-TEST-OTHER", qiankun_owner_key: "test_other" },
   getJobViewFn: async () => monitorConfirmationView,
   executeConfirmedMonitorBootstrapFn: async () => ({
     status: "blocked",
@@ -1129,18 +1129,18 @@ const normalMonitorResponse = await handleWorkbenchCommand({
   },
   jobId: "JOB-NORMAL-MONITOR-1",
   message: "继续执行",
-  currentUser: { user_id: "USR-ZHANGCHAOBO", qiankun_owner_key: "zhangchaobo" },
+  currentUser: { user_id: "USR-TEST-OTHER", qiankun_owner_key: "test_other" },
   getJobViewFn: async () => normalMonitorView,
   monitorReadonlyPlanBridge: async (_repo, _jobId, options) => {
     normalMonitorBridgeCalls += 1;
-    assert(options.qiankunOwnerKey === "zhangchaobo", "normal_monitor_bridge_owner_key_missing");
+    assert(options.qiankunOwnerKey === "test_other", "normal_monitor_bridge_owner_key_missing");
     return { view: normalMonitorResolvedView, reconcile: { runStatus: "touchpoint_resolved" } };
   },
   runWorkbenchInitialReadonlyFn: async (_repo, receivedJobId, options) => {
     normalMonitorAutoAdvanceCalls += 1;
     assert(receivedJobId === "JOB-NORMAL-MONITOR-1", "normal_monitor_continue_job_changed");
     assert(options.mode === "dry_run", "normal_monitor_continue_must_resume_dry_run");
-    assert(options.qiankunOwnerKey === "zhangchaobo", "normal_monitor_continue_owner_key_missing");
+    assert(options.qiankunOwnerKey === "test_other", "normal_monitor_continue_owner_key_missing");
     return normalMonitorNextView;
   }
 });

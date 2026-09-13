@@ -1,0 +1,2255 @@
+{
+  "platform_routes": [
+    {
+      "status": "active",
+      "version": "3.0",
+      "platform": "oceanengine",
+      "route_id": "oceanengine_3_byte_mini_game",
+      "created_at": "2026-01-01T00:00:00Z",
+      "route_name": "巨量引擎3.0-字节小游戏",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "object_type": "std_project",
+      "capabilities": {
+        "compile": true,
+        "execute": false,
+        "readback": true
+      },
+      "write_policy": "confirm_required",
+      "marketing_product": "byte_mini_game"
+    }
+  ],
+  "games": [
+    {
+      "status": "active",
+      "category": "小游戏",
+      "game_code": "JSZC",
+      "game_name": "巨兽战场",
+      "brand_name": "巨兽战场",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "product_name": "巨兽战场",
+      "product_identity": {
+        "profile_id": "PI-JSZC-HUNT-BASELINE-001",
+        "selling_points": [
+          "开局装备全靠捡",
+          "三分钟快速上手",
+          "无需下载点开即玩"
+        ],
+        "semantic_category": "字节小游戏 / 策略休闲",
+        "brand_display_name": "巨兽战场"
+      }
+    }
+  ],
+  "game_route_defaults": [
+    {
+      "id": "GRD-oceanengine_3_byte_mini_game-JSZC",
+      "bid": 366.0,
+      "budget": 66666.0,
+      "roi_goal": 0.16,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "schedule": {
+        "summary": "使用已验证排期摘要",
+        "schedule_type": "SCHEDULE_FROM_NOW",
+        "schedule_time_digest": "9e35339db1e951fd0c5b2de1908de02d1ff0d67243145c05ec195b15236c9594"
+      },
+      "game_code": "JSZC",
+      "objective": "AD_CONVERT_TYPE_PAY",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "dmp_summary": "六个月转化排除 + 10 个排除标签",
+      "raw_defaults": {
+        "schedule": {
+          "summary": "使用已验证排期摘要",
+          "schedule_time_digest": "9e35339db1e951fd0c5b2de1908de02d1ff0d67243145c05ec195b15236c9594"
+        },
+        "budget_bid": {
+          "bid": 366,
+          "budget": 66666,
+          "roi_goal": 0.16,
+          "deep_bid_type": "PER_AND_SEVEN_PAY_ROI"
+        },
+        "optimization": {
+          "external_action": "AD_CONVERT_TYPE_PAY",
+          "deep_external_action": "AD_CONVERT_TYPE_PURCHASE_ROI_7D"
+        },
+        "audience_filters": {
+          "converted_time_duration": "SIX_MONTH",
+          "dmp_audience_package_set_ref": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+          "retargeting_tags_exclude_count": 10
+        },
+        "contract_mapping": {
+          "source": "local_official_docs:std_project_create+optimized_goal_get;engineering:lossless_wire_encoder",
+          "verified_for_route": true,
+          "optimized_goal_query_app_field": "mini_program_id",
+          "optimized_goal_query_instance_field": "micro_app_instance_id",
+          "mini_game_instance_create_field_verified": true,
+          "mini_game_instance_candidate_create_field": "instance_id"
+        },
+        "payload_defaults": {
+          "product": {
+            "selling_points": [
+              "开局装备全靠捡",
+              "三分钟快速上手",
+              "无需下载点开即玩"
+            ],
+            "anchor_related_type": "OFF",
+            "call_to_action_buttons": [
+              "立即试玩",
+              "打开游戏",
+              "点击即玩",
+              "进入游戏",
+              "无需下载"
+            ]
+          },
+          "project": {
+            "ad_type": "ALL",
+            "native_type": "AWEME",
+            "landing_type": "MICRO_GAME",
+            "delivery_mode": "PROCEDURAL",
+            "marketing_goal": "VIDEO_AND_IMAGE"
+          },
+          "schedule": {
+            "schedule_time": "000000000000000000111111111111111111111111111111000000000000000000111111111111111111111111111111000000000000000000111111111111111111111111111111000000000000000000001111111111111111111111111111000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+            "schedule_type": "SCHEDULE_FROM_NOW"
+          },
+          "strategy": {
+            "pricing": "PRICING_OCPM",
+            "bid_type": "CUSTOM",
+            "budget_mode": "BUDGET_MODE_DAY",
+            "audience_type": "CUSTOM",
+            "delivery_type": "NORMAL",
+            "delivery_medium": "BYTE_GAME",
+            "layer_roi_switch": "OFF",
+            "is_comment_disable": "ON",
+            "micro_promotion_type": "BYTE_GAME",
+            "aigc_dynamic_creative_switch": "OFF"
+          },
+          "targeting": {
+            "age": [
+              "AGE_BETWEEN_18_23",
+              "AGE_BETWEEN_24_30",
+              "AGE_BETWEEN_31_40",
+              "AGE_BETWEEN_41_49",
+              "AGE_ABOVE_50"
+            ],
+            "gender": "GENDER_MALE",
+            "district": "NONE",
+            "hide_if_converted": "NO_EXCLUDE",
+            "interest_action_mode": "UNLIMITED",
+            "converted_time_duration": "SIX_MONTH"
+          },
+          "track_url_setting": {
+            "send_type": "SERVER_SEND"
+          }
+        },
+        "aweme_id_baseline": {
+          "source": "tools/aweme_auth_list",
+          "version": "2026-08-29.oe3-aweme-id-baseline-v3",
+          "auth_type": "AWEME_ACCOUNT",
+          "rule_hash": "sha256:78150e5837ec28cfa3a347e30d17a7f3c0a33fbe22a9528fb34d83489bedb46d",
+          "payload_path": "aweme_id",
+          "required_when": {
+            "native_type": "AWEME"
+          },
+          "contract_version": "2026-08-29.aweme-id-fixed-default-account-verify-v3",
+          "default_aweme_id": "57018827026",
+          "fallback_forbidden": true,
+          "official_reference": {
+            "auth_list": "open.oceanengine.com-3.0/08-工具.md",
+            "create_field": "open.oceanengine.com-3.0-waibugei/创建标准项目.md"
+          },
+          "accepted_auth_status": [
+            "AUTHRIZED"
+          ],
+          "default_aweme_id_hash": "sha256:6e5a979b1bb07720edf8d98ba7b065aa54bfe6bb9ba52a1b6eb3594bd42b2e0d",
+          "verification_strategy": "fixed_game_default_account_verify"
+        },
+        "monitor_provision": {
+          "os": 3,
+          "num": 1,
+          "usage": 0,
+          "cate_id": "122",
+          "channel": "dymini3k",
+          "vest_id": "1414",
+          "package_id": "36820",
+          "source_ref": "docs/.参考文档/投放序列号/1-2、真实案例-举例.md",
+          "server_callback_type": "2",
+          "account_specific_fields": [
+            "owner",
+            "media_account_id",
+            "agent_id"
+          ],
+          "derived_from_monitor_id": "245791",
+          "callback_contract_source": "tech_confirmed_2026-08-26",
+          "callback_contract_status": "required",
+          "server_callback_required": true,
+          "server_callback_data_types": [
+            "active",
+            "register",
+            "success_order"
+          ],
+          "touchpoint_candidate_field": "wxgame_click_url"
+        },
+        "audience_targeting": {
+          "platform_label": "平台定向不限"
+        },
+        "material_source_account": {
+          "usage": "shared_source_readonly_then_target_bind",
+          "account_role": "material_account_or_super_admin",
+          "advertiser_id": "1760246749825031"
+        },
+        "duplicate_semantic_contract": {
+          "source": "postgres:mwb.game_route_defaults.raw_defaults.duplicate_semantic_contract",
+          "version": "2026-09-09.oe3-std-project-semantic-duplicate-v1",
+          "comparison": "all_exact_normalized_values;name_and_instance_id_excluded",
+          "field_paths": [
+            "asset_id",
+            "landing_type",
+            "native_type",
+            "delivery_medium",
+            "marketing_goal",
+            "external_action",
+            "deep_external_action",
+            "deep_bid_type",
+            "bid_type"
+          ],
+          "status_first": "ALL_EXCEPT_DELETE"
+        },
+        "official_create_field_contract": {
+          "source": "official_3_0_std_project_create_contract_plus_jszc_incremental_fallback",
+          "version": "2026-09-02.oe3-jszc-incremental-fallback-v2",
+          "field_rules": {
+            "name": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "budget": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "ad_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "cpa_bid": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "pricing": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "asset_id": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "audience": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "aweme_id": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "bid_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "roi_goal": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "brand_info": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "budget_mode": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "instance_id": {
+              "reason": "field_contract_official_direct;transport_verified_by_local_decimal_bigint_json_number_encoder",
+              "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+              "send_policy": "send",
+              "applies_when": "MICRO_GAME + BYTE_GAME",
+              "evidence_level": "official_direct"
+            },
+            "native_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "landing_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "advertiser_id": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "audience_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "deep_bid_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "delivery_mode": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "delivery_type": {
+              "reason": "official_create_contract_enum_NORMAL_OR_UBX_INTELLIGENT",
+              "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:197",
+              "send_policy": "send",
+              "applies_when": "std_project_create",
+              "evidence_level": "official_direct"
+            },
+            "schedule_time": {
+              "reason": "official_48x7_binary_half_hour_schedule_contract",
+              "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:73",
+              "send_policy": "send",
+              "applies_when": "std_project_create",
+              "evidence_level": "official_direct"
+            },
+            "schedule_type": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "marketing_goal": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "delivery_medium": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "external_action": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "layer_roi_switch": {
+              "reason": "official_create_contract_enum_OFF_OR_ON",
+              "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:203",
+              "send_policy": "send",
+              "applies_when": "std_project_create",
+              "evidence_level": "official_direct"
+            },
+            "project_materials": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "track_url_setting": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "is_comment_disable": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "deep_external_action": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            },
+            "micro_promotion_type": {
+              "reason": "query_contract_not_create_contract",
+              "reference": "open.oceanengine.com-3.0-waibugei/调控任务/标准项目下获取可用优化目标.md",
+              "send_policy": "omit",
+              "evidence_level": "official_related_endpoint"
+            },
+            "aigc_dynamic_creative_switch": {
+              "reference": "open.oceanengine.com-3.0-waibugei/创建标准项目.md",
+              "send_policy": "send",
+              "evidence_level": "official_direct"
+            }
+          },
+          "nested_rules": {
+            "scope": "jszc_byte_game_verified_success_profile",
+            "groups": {
+              "audience": {
+                "rule": "male_plus_five_age_ranges;no_exclude_omits_filter_event_and_converted_time_duration;dmp_ids_integer_array_min_10",
+                "reason": "permanent_no_exclude_filter_event_omission_contract_retained_after_attempt_3",
+                "source": "route_defaults+dmp_readonly+verified_success_profile",
+                "reference": "open.oceanengine.com-3.0/09-01-2-巨量营销智擎版-项目管理-创建标准项目.md:311",
+                "applies_when": "hide_if_converted=NO_EXCLUDE",
+                "related_reference": "open.oceanengine.com-2.0-copy/06-巨量营销升级版.md:2520",
+                "filter_event_policy": "omit",
+                "expected_filter_event_present": false,
+                "converted_time_duration_policy": "omit_when_no_exclude",
+                "expected_converted_time_duration_present": false
+              },
+              "brand_info": {
+                "rule": "brand_ids_integer;brand_name_present",
+                "source": "brand_industry_readonly",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:189"
+              },
+              "track_url_setting": {
+                "rule": "route_default_server_send_single_controlled_touchpoint",
+                "source": "route_defaults.track_url_setting.send_type+controlled_touchpoint",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+                "send_policy": "send"
+              },
+              "project_materials.source": {
+                "rule": "string_chars_2_10",
+                "source": "game_identity",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:173"
+              },
+              "project_materials.product_info": {
+                "rule": "single_product_title_1_20;image_ids_1_10_verified;selling_points_1_10_each_6_9",
+                "source": "game_identity+account_resources.product_image+route_defaults.product.selling_points",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:163"
+              },
+              "project_materials.mini_program_info": {
+                "rule": "micro_game_byte_game_sends_url_only;omit_app_id_start_path_params_when_url_present",
+                "source": "mwb.game_route_launch_links",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:184",
+                "send_policy": "send"
+              },
+              "project_materials.anchor_related_type": {
+                "rule": "current_jszc_route_off;no_anchor_material_list;no_component_material_list",
+                "source": "route_defaults.product.anchor_related_type",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:168"
+              },
+              "project_materials.image_material_list": {
+                "rule": "current_jszc_video_first_route_sends_empty_array",
+                "source": "route_nested_contract",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:149",
+                "send_policy": "send_empty_array"
+              },
+              "project_materials.video_material_list": {
+                "rule": "required_video_asset_only;vertical_image_mode;target_readonly_video_id;cover_sent_only_when_explicit_cover_verified",
+                "source": "mwb.material_packs+material_pack_items+account_resources.video_asset",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:143",
+                "guide_video_policy": "fresh_readonly_auto_detect_with_account_force_required"
+              },
+              "project_materials.call_to_action_buttons": {
+                "rule": "string_array_1_10_each_2_4",
+                "source": "route_defaults.product.call_to_action_buttons",
+                "reference": "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md:167"
+              },
+              "project_materials.external_url_material_list": {
+                "rule": "exactly_one_active_https_target_visible_readback_verified_hash_matched_backup_page",
+                "source": "controlled_backup_landing_page",
+                "send_policy": "send",
+                "required_count": 1
+              }
+            },
+            "source": "postgres:mwb.game_route_defaults.raw_defaults.official_create_field_contract.nested_rules",
+            "version": "2026-09-08.oe3-std-project-create-nested-fields-v6",
+            "official_reference": "open.oceanengine.com-3.0/09-01-2-巨量营销智擎版-项目管理-创建标准项目.md:311"
+          },
+          "success_profile": {
+            "source": "jszc_incremental_fallback_plus_official_comment_management_contract",
+            "version": "2026-09-11.jszc-qiankun-ten-video-fallback-v4",
+            "fixture_hash": "sha256:9f10bcd285990f9f56962ae9084630e26917e903f9289d3d8923af0cd93441ad",
+            "material_counts": {
+              "dmp_exclusions": 10,
+              "product_image_ids": 1,
+              "image_material_list": 0,
+              "title_material_list": 3,
+              "external_url_material_list": 1
+            },
+            "raw_payload_stored": false,
+            "schedule_time_digest": "9e35339db1e951fd0c5b2de1908de02d1ff0d67243145c05ec195b15236c9594",
+            "golden_field_shape_hash": "sha256:3ca0165414980e6fc9a7f353e4d766024a560e6d6bc855821bda8b3a1060fe11",
+            "expected_ledger_path_count": 90
+          },
+          "instance_id_create_evidence": {
+            "reason": "official_docs_verify_instance_id_field_name_type_and_route_applicability;local_encoder_verifies_19_digit_json_number_token_without_js_number_precision_loss",
+            "status": "passed",
+            "references": [
+              "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/创建标准项目.md",
+              "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/获取标准项目列表.md",
+              "open.oceanengine.com-3.0-waibugei/巨量营销智擎版/调控任务/标准项目下获取可用优化目标.md"
+            ],
+            "landing_type": "MICRO_GAME",
+            "delivery_medium": "BYTE_GAME",
+            "create_field_type": "number",
+            "field_name_verified": true,
+            "field_type_verified": true,
+            "applicability_verified": true,
+            "candidate_create_field": "instance_id",
+            "long_id_transport_source": "local_engineering_lossless_wire_encoder",
+            "long_id_transport_strategy": "decimal_bigint_json_number",
+            "long_id_transport_verified": true
+          }
+        }
+      },
+      "source_usage": "runtime_truth",
+      "deep_bid_type": "PER_AND_SEVEN_PAY_ROI",
+      "deep_objective": "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
+      "targeting_summary": "平台定向不限"
+    }
+  ],
+  "game_platform_apps": [
+    {
+      "id": "GPA-JSZC-OE-BYTE-MINI-GAME",
+      "app_id": "tte95a9fe77665844607",
+      "status": "active",
+      "app_name": "巨兽战场",
+      "app_type": "byte_mini_game",
+      "metadata": {
+        "read_key": "game_code + platform + app_type",
+        "runtime_field_status": "ready",
+        "micro_app_instance_id": "7434750138926546994",
+        "micro_app_instance_id_source": "reference_only_old_project_then_stored_in_v2",
+        "replaces_games_app_id_for_runtime_reads": true
+      },
+      "platform": "oceanengine",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "game_assets": [
+    {
+      "asset_id": "JSZC-HUNT-4GE6-23",
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "material_code": "4gE6-23",
+        "duration_seconds": 81.6
+      },
+      "asset_ref": "JSZC-HUNT-4GE6-23",
+      "game_code": "JSZC",
+      "asset_hash": "8851b68d8c1d898ea826e186a2755f69321a4aafcf5ffefba9a0e2b9255692a1",
+      "asset_name": "4gE6-14组合后接",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "PI-JSZC-HUNT-BASELINE-001",
+      "metadata": {
+        "category": "小游戏",
+        "brand_name": "巨兽战场",
+        "semantic_category": "字节小游戏 / 策略休闲"
+      },
+      "asset_ref": "PI-JSZC-HUNT-BASELINE-001",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "巨兽战场产品身份",
+      "asset_type": "product_identity",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "metadata": {
+        "direction": "狩猎",
+        "required_video_count": 2,
+        "default_video_asset_ids": [
+          "JSZC-HUNT-4IG2-3",
+          "JSZC-HUNT-4GE6-14"
+        ]
+      },
+      "asset_ref": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "狩猎保底方向包",
+      "asset_type": "material_direction_pack",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "baseline_ready"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4GE6-14",
+      "metadata": {
+        "width": 720,
+        "height": 1280,
+        "video_id": "v1e033gi0000d2j87bfog65jund477s0",
+        "local_file": {
+          "path": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/videos/JSZC-HUNT-4GE6-14.mp4",
+          "sha256": "de340357f8485b85fe5240c5951d0d0af52cbacf3dcf6dbec5d076b44ca39db6",
+          "source": "v2_independent_local_asset_copy",
+          "size_bytes": 15562862,
+          "legacy_source_path_stored": false
+        },
+        "source_usage": "v2_runtime_truth_from_reference_once",
+        "material_code": "4gE6-14",
+        "video_cover_id": "web.business.image/202607084eab5c94b11dace64087af4f",
+        "duration_seconds": 17.733,
+        "platform_mapping_status": "ready"
+      },
+      "asset_ref": "JSZC-HUNT-4GE6-14",
+      "game_code": "JSZC",
+      "asset_hash": "de340357f8485b85fe5240c5951d0d0af52cbacf3dcf6dbec5d076b44ca39db6",
+      "asset_name": "射击野猪+口播改MD5=荒野狙击",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001",
+      "metadata": {
+        "width": 300,
+        "format": "png",
+        "height": 300,
+        "source_asset_hash": "5c9a0395bd05204575345178ec23d0df8465dd364faff5b749060b81db7245b8",
+        "derived_from_asset_id": "PI-JSZC-PRODUCT-IMAGE-001"
+      },
+      "asset_ref": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/account-avatar-300x300.png",
+      "game_code": "JSZC",
+      "asset_hash": "270ccf2dc35ab4175c6f37305bd4b4dbbc5720606d104c0e665beae1d12ed087",
+      "asset_name": "巨兽战场账户头像 300x300",
+      "asset_type": "avatar_image",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4H8V-53",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4h8v-53"
+      },
+      "asset_ref": "JSZC-HUNT-4H8V-53",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4h8v-53",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IG2-3",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iG2-3"
+      },
+      "asset_ref": "JSZC-HUNT-4IG2-3",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iG2-3",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "PI-JSZC-PRODUCT-IMAGE-001",
+      "metadata": {
+        "width": 108,
+        "format": "png",
+        "height": 108,
+        "required_size": "108x108",
+        "image_md5_hash": "sha256:791627b9f545134e4544ebc4b0e2d4969650009592bd86ae01b8cd2867ed3aef",
+        "file_size_bytes": 30691,
+        "generated_sha256": "sha256:46ad4d14069a5b70c318d2a88c4bc57445785091833ae673a4df864072dec645",
+        "upload_transform": "scaled_from_original",
+        "source_record_ref": "test_fixture:reference",
+        "source_copied_from": "reference_only_old_asset_dir",
+        "original_source_hash": "sha256:5c9a0395bd05204575345178ec23d0df8465dd364faff5b749060b81db7245b8",
+        "raw_file_path_stored": false,
+        "filename_literal_star": true,
+        "full_file_path_in_evidence": false
+      },
+      "asset_ref": "/Users/hys/ProjectAssets/marketing-workbench-v2/JSZC/product_image_108*108.png",
+      "game_code": "JSZC",
+      "asset_hash": "46ad4d14069a5b70c318d2a88c4bc57445785091833ae673a4df864072dec645",
+      "asset_name": "巨兽战场产品图",
+      "asset_type": "product_image",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "private_runtime",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-001",
+      "metadata": {
+        "direction": "狩猎",
+        "creative_role": "title",
+        "contract_version": "2026-08-29.official-std-project-create-title-material-v1",
+        "baseline_identity": "legacy_confirmed_baseline_title",
+        "performance_claim": false,
+        "legacy_evidence_ref": "marketing_workbench.mwb.game_assets:MD-JSZC-HUNT-HUNTING-BASELINE-001:content.creative.title_materials[0]"
+      },
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-001",
+      "game_code": "JSZC",
+      "asset_hash": "1419d6c3ee8258d1d49beca1b16c9d7fa38003848ea425af0506475bf437d69a",
+      "asset_name": "开局一把枪，装备全靠捡，看你能射多远！",
+      "asset_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "baseline_ready"
+    },
+    {
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-002",
+      "metadata": {
+        "direction": "狩猎",
+        "creative_role": "title",
+        "contract_version": "2026-08-29.official-std-project-create-title-material-v1",
+        "baseline_identity": "legacy_confirmed_baseline_title",
+        "performance_claim": false,
+        "legacy_evidence_ref": "marketing_workbench.mwb.game_assets:MD-JSZC-HUNT-HUNTING-BASELINE-001:content.creative.title_materials[1]"
+      },
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-002",
+      "game_code": "JSZC",
+      "asset_hash": "a84c908b4a30635c9bf4603fb3bd3b720984bf87630dc14b0872e6ed1cd1186d",
+      "asset_name": "3分钟上手，5分钟上头，来试试你能过多少关卡！",
+      "asset_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "baseline_ready"
+    },
+    {
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-003",
+      "metadata": {
+        "direction": "狩猎",
+        "creative_role": "title",
+        "contract_version": "2026-08-29.official-std-project-create-title-material-v1",
+        "baseline_identity": "legacy_confirmed_baseline_title",
+        "performance_claim": false,
+        "legacy_evidence_ref": "marketing_workbench.mwb.game_assets:MD-JSZC-HUNT-HUNTING-BASELINE-001:content.creative.title_materials[2]"
+      },
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-003",
+      "game_code": "JSZC",
+      "asset_hash": "845806f118d2daab884b2a9143a7ec80bda05b51d009b79a4f8a930f7bd76468",
+      "asset_name": "2026超魔性的休闲策略小游戏，无需下载，点开即玩！",
+      "asset_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source",
+      "visibility_status": "baseline_ready"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IG2-1",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iG2-1"
+      },
+      "asset_ref": "JSZC-HUNT-4IG2-1",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iG2-1",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IG2-18",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iG2-18"
+      },
+      "asset_ref": "JSZC-HUNT-4IG2-18",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iG2-18",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4ID1-1",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iD1-1"
+      },
+      "asset_ref": "JSZC-HUNT-4ID1-1",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iD1-1",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IOY-1",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iOy-1"
+      },
+      "asset_ref": "JSZC-HUNT-4IOY-1",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iOy-1",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4ID2-1",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iD2-1"
+      },
+      "asset_ref": "JSZC-HUNT-4ID2-1",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iD2-1",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IDB-1",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iDB-1"
+      },
+      "asset_ref": "JSZC-HUNT-4IDB-1",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iDB-1",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4H8V-130",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4h8v-130"
+      },
+      "asset_ref": "JSZC-HUNT-4H8V-130",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4h8v-130",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    },
+    {
+      "asset_id": "JSZC-HUNT-4IOR-2",
+      "metadata": {
+        "api_doc_ref": "docs/qiankun-api-docs-20260911.md",
+        "source_kind": "qiankun_origin_resource",
+        "qiankun_resource_type": 2,
+        "qiankun_origin_resource_id": "4iOr-2"
+      },
+      "asset_ref": "JSZC-HUNT-4IOR-2",
+      "game_code": "JSZC",
+      "asset_hash": null,
+      "asset_name": "4iOr-2",
+      "asset_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth",
+      "visibility_status": "active"
+    }
+  ],
+  "material_packs": [
+    {
+      "status": "baseline_ready",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "summary": {
+        "direction": "狩猎",
+        "source_kind": "qiankun_origin_resource",
+        "required_video_count": 10,
+        "default_video_asset_ids": [
+          "JSZC-HUNT-4H8V-53",
+          "JSZC-HUNT-4IG2-3",
+          "JSZC-HUNT-4IG2-1",
+          "JSZC-HUNT-4IG2-18",
+          "JSZC-HUNT-4ID1-1",
+          "JSZC-HUNT-4IOY-1",
+          "JSZC-HUNT-4ID2-1",
+          "JSZC-HUNT-4IDB-1",
+          "JSZC-HUNT-4H8V-130",
+          "JSZC-HUNT-4IOR-2"
+        ]
+      },
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "pack_name": "狩猎保底物料包",
+      "pack_type": "baseline",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    }
+  ],
+  "material_pack_items": [
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-TITLE-001",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-001",
+      "metadata": {
+        "role": "default_title"
+      },
+      "required": true,
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-001",
+      "item_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 101,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-TITLE-002",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-002",
+      "metadata": {
+        "role": "default_title"
+      },
+      "required": true,
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-002",
+      "item_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 102,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-TITLE-003",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "TM-JSZC-HUNT-HUNTING-BASELINE-001-003",
+      "metadata": {
+        "role": "default_title"
+      },
+      "required": true,
+      "asset_ref": "TM-JSZC-HUNT-HUNTING-BASELINE-001-003",
+      "item_type": "title_material",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 103,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "retired",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-001",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IG2-3",
+      "metadata": {
+        "role": "default_video",
+        "retired_reason": "replaced_by_qiankun_origin_resource_baseline"
+      },
+      "required": false,
+      "asset_ref": "JSZC-HUNT-4IG2-3",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 1,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "retired",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-002",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4GE6-14",
+      "metadata": {
+        "role": "default_video",
+        "retired_reason": "replaced_by_qiankun_origin_resource_baseline"
+      },
+      "required": false,
+      "asset_ref": "JSZC-HUNT-4GE6-14",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 2,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "retired",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-003",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4GE6-23",
+      "metadata": {
+        "role": "candidate_video",
+        "retired_reason": "replaced_by_qiankun_origin_resource_baseline"
+      },
+      "required": false,
+      "asset_ref": "JSZC-HUNT-4GE6-23",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 3,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "seed_source"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-01",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4H8V-53",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4h8v-53"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4H8V-53",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 1,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-02",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IG2-3",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-3"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IG2-3",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 2,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-03",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IG2-1",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-1"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IG2-1",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 3,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-04",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IG2-18",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-18"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IG2-18",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 4,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-05",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4ID1-1",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iD1-1"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4ID1-1",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 5,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-06",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IOY-1",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iOy-1"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IOY-1",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 6,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-07",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4ID2-1",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iD2-1"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4ID2-1",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 7,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-08",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IDB-1",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iDB-1"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IDB-1",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 8,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-09",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4H8V-130",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4h8v-130"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4H8V-130",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 9,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    },
+    {
+      "status": "active",
+      "item_id": "MPI-MD-JSZC-HUNT-HUNTING-BASELINE-001-QK-10",
+      "pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001",
+      "asset_id": "JSZC-HUNT-4IOR-2",
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iOr-2"
+      },
+      "required": true,
+      "asset_ref": "JSZC-HUNT-4IOR-2",
+      "item_type": "video_asset",
+      "created_at": "2026-01-01T00:00:00Z",
+      "sort_order": 10,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "runtime_truth"
+    }
+  ],
+  "landing_page_assets": [
+    {
+      "status": "active",
+      "site_id": "7450371049210462218",
+      "metadata": {},
+      "route_id": "oceanengine_3_byte_mini_game",
+      "url_hash": "67d1d55534d9b02295097e1f7f507efa5575451b9537c6727ad064656954493d",
+      "game_code": "JSZC",
+      "site_name": "巨兽战场-抖音小游戏-吃肉",
+      "created_at": "2026-01-01T00:00:00Z",
+      "is_default": false,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "landing_url": "https://fixture.invalid/04a7647f02e458d2",
+      "share_scope": "organization_accounts",
+      "source_usage": "runtime_truth",
+      "source_advertiser_id": "1760246749825031",
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-002"
+    },
+    {
+      "status": "resolved",
+      "site_id": "7582805366296346662",
+      "metadata": {},
+      "route_id": "oceanengine_3_byte_mini_game",
+      "url_hash": "2d5f821751cb6bb5b86331b66f5d097a74f5471196affec9b8c29676e65c9397",
+      "game_code": "JSZC",
+      "site_name": "巨兽战场-抖小-狙击",
+      "created_at": "2026-01-01T00:00:00Z",
+      "is_default": false,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "landing_url": "https://fixture.invalid/5b50199a6a433231",
+      "share_scope": "organization_accounts",
+      "source_usage": "reference_only",
+      "source_advertiser_id": "1760246749825031",
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-004"
+    },
+    {
+      "status": "active",
+      "site_id": "7450398108389376051",
+      "metadata": {},
+      "route_id": "oceanengine_3_byte_mini_game",
+      "url_hash": "084260a13832846c6e5fd4b12ff3be294894ecd471598ef39b9b5383c3752bf5",
+      "game_code": "JSZC",
+      "site_name": "巨兽战场-抖音小游戏-螺丝",
+      "created_at": "2026-01-01T00:00:00Z",
+      "is_default": false,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "landing_url": "https://fixture.invalid/acc8ed5c6ffcedf0",
+      "share_scope": "organization_accounts",
+      "source_usage": "runtime_truth",
+      "source_advertiser_id": "1760246749825031",
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-003"
+    },
+    {
+      "status": "active",
+      "site_id": "7624750304608649243",
+      "metadata": {},
+      "route_id": "oceanengine_3_byte_mini_game",
+      "url_hash": "556426d5eb2cb45bf6e4abd44952b2f1e0385ca48bcc79e9e43aebbfcb60006b",
+      "game_code": "JSZC",
+      "site_name": "巨兽战场-抖音小游戏-狙击狩猎",
+      "created_at": "2026-01-01T00:00:00Z",
+      "is_default": true,
+      "updated_at": "2026-01-01T00:00:00Z",
+      "landing_url": "https://fixture.invalid/e3b588eedffd0c6d",
+      "share_scope": "organization_accounts",
+      "source_usage": "runtime_truth",
+      "source_advertiser_id": "1760246749825031",
+      "landing_page_asset_id": "LPA-JSZC-OE3-BACKUP-001"
+    }
+  ],
+  "game_route_resource_blueprints": [
+    {
+      "metadata": {
+        "required_size": "108x108",
+        "selection_required": true
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-PRODUCT-IMAGE",
+      "source_usage": "reference_only",
+      "resource_name": "巨兽战场产品图",
+      "resource_type": "product_image",
+      "source_asset_id": "PI-JSZC-PRODUCT-IMAGE-001",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "target_visibility_required": true
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "landing_page_asset",
+      "blueprint_id": "BRP-JSZC-OE3-BACKUP-LANDING",
+      "source_usage": "reference_only",
+      "resource_name": "巨兽战场-抖音小游戏-狙击狩猎",
+      "resource_type": "backup_landing_page",
+      "source_asset_id": "LPA-JSZC-OE3-BACKUP-001",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "1760246749825031",
+      "candidate_platform_resource_id": "7624750304608649243"
+    },
+    {
+      "metadata": {
+        "industry": "游戏 / SLG",
+        "brand_name": "巨兽战场"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-BRAND",
+      "source_usage": "reference_only",
+      "resource_name": "巨兽战场品牌信息",
+      "resource_type": "brand_info",
+      "source_asset_id": "PI-JSZC-HUNT-BASELINE-001",
+      "inheritance_mode": "account_readonly_verify",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "platform_app_ref": "GPA-JSZC-OE-BYTE-MINI-GAME"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "platform_app",
+      "blueprint_id": "BRP-JSZC-OE3-MICRO-APP",
+      "source_usage": "reference_only",
+      "resource_name": "巨兽战场字节小游戏实例",
+      "resource_type": "micro_app_instance",
+      "source_asset_id": "GPA-JSZC-OE-BYTE-MINI-GAME",
+      "inheritance_mode": "account_readonly_verify",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "brand_name": "巨兽战场",
+        "source_role": "account_avatar",
+        "requires_target_account_submit": true
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-AVATAR",
+      "source_usage": "reference_only",
+      "resource_name": "巨兽战场账户头像候选",
+      "resource_type": "avatar",
+      "source_asset_id": "AI-JSZC-ACCOUNT-AVATAR-300-001",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "semantic_key": "converted_exclude_tags",
+        "payload_field": "audience.retargeting_tags_exclude",
+        "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+        "selection_policy": "source_target_exact_member_readonly_then_push_plan",
+        "selection_required": true,
+        "source_advertiser_id": "1871922153496588"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "route_default",
+      "blueprint_id": "BRP-JSZC-OE3-DMP",
+      "source_usage": "reference_only",
+      "resource_name": "六个月转化排除 DMP",
+      "resource_type": "dmp_audience_package",
+      "source_asset_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "inheritance_mode": "account_readonly_verify",
+      "source_advertiser_id": "1871922153496588",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "objective": "AD_CONVERT_TYPE_PAY",
+        "deep_objective": "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
+        "event_asset_provision": {
+          "version": "2026-08-30.event-asset-api-create-v2",
+          "objective": "AD_CONVERT_TYPE_PAY",
+          "asset_type": "MINI_PROGRAME",
+          "template_ref": "jszc:event_asset:mini_program:1871922434025472:20260830",
+          "deep_bid_type": "PER_AND_SEVEN_PAY_ROI",
+          "template_hash": "sha256:b54b0162ef187671e7718342a1296b10d27aea9a448950bbc51bf3eb7ba48486",
+          "deep_objective": "AD_CONVERT_TYPE_PURCHASE_ROI_7D",
+          "template_status": "ready",
+          "platform_app_ref": "GPA-JSZC-OE-BYTE-MINI-GAME",
+          "official_create_contract": {
+            "method": "POST",
+            "status": "verified",
+            "endpoint": "/open_api/2/event_manager/assets/create/",
+            "source_ref": "official:oceanengine:2.0:19-asset:event_manager/assets/create:120-180",
+            "content_hash": "sha256:f80b0648c8e79eb279d2f1e35e24dca0fa36e7e84e33d34f9c45f22fc16ad9d8",
+            "payload_persisted": false,
+            "response_persisted": false,
+            "secondary_source_ref": "official:oceanengine:2.0-copy:17-asset:event_manager/assets/create:3283-3661",
+            "request_field_manifest": [
+              "advertiser_id",
+              "asset_type",
+              "mini_program_asset.mini_program_id",
+              "mini_program_asset.mini_program_name",
+              "mini_program_asset.instance_id",
+              "mini_program_asset.mini_program_type"
+            ]
+          }
+        },
+        "event_asset_provision_status": "ready_for_single_api_create"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "route_default",
+      "blueprint_id": "BRP-JSZC-OE3-EVENT",
+      "source_usage": "reference_only",
+      "resource_name": "付费转化事件资产",
+      "resource_type": "event_asset",
+      "source_asset_id": "",
+      "inheritance_mode": "account_readonly_verify",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "retired_reason": "replaced_by_qiankun_origin_resource_baseline",
+        "material_pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001"
+      },
+      "required": false,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-4GE6-14",
+      "source_usage": "reference_only",
+      "resource_name": "射击野猪+口播改MD5=荒野狙击",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4GE6-14",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "1760246749825031",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "retired_reason": "replaced_by_qiankun_origin_resource_baseline",
+        "material_pack_id": "MD-JSZC-HUNT-HUNTING-BASELINE-001"
+      },
+      "required": false,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-4IG2-3",
+      "source_usage": "reference_only",
+      "resource_name": "4iG2+4iBP-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IG2-3",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "1760246749825031",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4h8v-53"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-01",
+      "source_usage": "runtime_truth",
+      "resource_name": "4h8v-53",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4H8V-53",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-3"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-02",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iG2-3",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IG2-3",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-1"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-03",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iG2-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IG2-1",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iG2-18"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-04",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iG2-18",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IG2-18",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iD1-1"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-05",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iD1-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4ID1-1",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iOy-1"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-06",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iOy-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IOY-1",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iD2-1"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-07",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iD2-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4ID2-1",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iDB-1"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-08",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iDB-1",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IDB-1",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4h8v-130"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-09",
+      "source_usage": "runtime_truth",
+      "resource_name": "4h8v-130",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4H8V-130",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    },
+    {
+      "metadata": {
+        "role": "default_video",
+        "source_kind": "qiankun_origin_resource",
+        "origin_resource_id": "4iOr-2"
+      },
+      "required": true,
+      "route_id": "oceanengine_3_byte_mini_game",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_kind": "game_asset",
+      "blueprint_id": "BRP-JSZC-OE3-VIDEO-QK-10",
+      "source_usage": "runtime_truth",
+      "resource_name": "4iOr-2",
+      "resource_type": "video_asset",
+      "source_asset_id": "JSZC-HUNT-4IOR-2",
+      "inheritance_mode": "baseline_candidate",
+      "source_advertiser_id": "",
+      "candidate_platform_resource_id": ""
+    }
+  ],
+  "game_route_launch_links": [
+    {
+      "app_id": "tte95a9fe77665844607",
+      "status": "active",
+      "link_ref": "GRLL-JSZC-OE3-BYTE-MINI-GAME-001",
+      "metadata": {},
+      "route_id": "oceanengine_3_byte_mini_game",
+      "url_hash": "4dc620f22e7e8041fa4e3fadf1efc7803fba8734a1a40cbfad7a08c77e6220e3",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "launch_url": "sslocal://microgame?app_id=tte95a9fe77665844607&scene=9000",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "source_usage": "private_runtime",
+      "source_summary": {
+        "source": "synthetic_fixture"
+      },
+      "platform_app_id": "GPA-JSZC-OE-BYTE-MINI-GAME"
+    }
+  ],
+  "game_route_micro_game_registration_profiles": [],
+  "dmp_package_sets": [
+    {
+      "status": "target_readonly_verified",
+      "metadata": {
+        "payload_policy": "target_readonly_verified_ids_only",
+        "reference_source": "historical_compile_json_reference_only",
+        "member_count_expected": 10,
+        "target_selection_policy": "exact_package_member_only",
+        "source_verified_member_count": 10
+      },
+      "route_id": "oceanengine_3_byte_mini_game",
+      "set_name": "JSZC 六个月转化排除保底人群包",
+      "game_code": "JSZC",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "semantic_key": "converted_exclude_tags",
+      "source_usage": "reference_only",
+      "payload_field": "audience.retargeting_tags_exclude",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "source_advertiser_id": "1871922153496588"
+    }
+  ],
+  "dmp_package_members": [
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.682Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.807Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-472360629",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "472360629",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.773Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.991Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-477464681",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "477464681",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.712Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.868Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-476398053",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "476398053",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.866Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:08.182Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-482709313",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "482709313",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.805Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:08.054Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-477503385",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "477503385",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.742Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.929Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-477250343",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "477250343",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.593Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.626Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-465498363",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "465498363",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.835Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:08.117Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-479197805",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "479197805",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.652Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.747Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-470051114",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "470051114",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    },
+    {
+      "metadata": {
+        "reference_status": "reference_candidate",
+        "runtime_payload_allowed": false,
+        "requires_source_readonly": true,
+        "requires_target_readonly": true,
+        "source_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:06.622Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:1527d961fe7a576c5c08d14f1f0e6d0d0f596c008c3140fd61a72434d7a3266f"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        },
+        "target_readonly_verify_summary": {
+          "status": "passed",
+          "read_hit": true,
+          "checked_at": "2026-09-13T06:00:07.687Z",
+          "visible_hit": true,
+          "available_hit": true,
+          "read_api_code": "0",
+          "delivery_status": "CUSTOM_AUDIENCE_DELIVERY_STATUS_AVAILABLE",
+          "response_hashes": [
+            "sha256:ddf573bbedcd780b4d7b30763f26b6291de7b5d1446987f319970b9092f22062"
+          ],
+          "select_api_code": "",
+          "request_id_present": true,
+          "select_verification": "passed"
+        }
+      },
+      "member_id": "DMPM-JSZC-CONVERTED-EXCLUDE-467421696",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z",
+      "member_role": "exclude",
+      "source_usage": "reference_only",
+      "package_set_id": "DMP-JSZC-HUNT-CONVERTED-EXCLUDE-BASELINE-001",
+      "reference_status": "source_verified",
+      "custom_audience_id": "467421696",
+      "source_evidence_ref": "test_fixture:reference",
+      "target_evidence_ref": "test_fixture:reference",
+      "source_readonly_status": "passed",
+      "target_readonly_status": "missing"
+    }
+  ]
+}
