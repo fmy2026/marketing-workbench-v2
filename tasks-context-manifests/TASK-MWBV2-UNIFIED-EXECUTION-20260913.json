@@ -1,0 +1,58 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-UNIFIED-EXECUTION-20260913",
+  "task_ref": "tasks/TASK-MWBV2-UNIFIED-EXECUTION-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T09:30:00.000000+00:00",
+  "updated_at": "2026-09-13T10:15:00.000000+00:00",
+  "base_revision": "df05d8c40c5e50cc70ce58c10b89320883dd5cfb",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-UNIFIED-EXECUTION-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIFIED-EXECUTION-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "package.json"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-UNIFIED-EXECUTION-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIFIED-EXECUTION-20260913.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-UNIFIED-EXECUTION-20260913/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/workflows/**",
+    "src/platforms/**",
+    "scripts/**",
+    "tests/**",
+    "package.json"
+  ],
+  "forbidden_actions": ["业务库写入", "真实平台调用", "更改公共 HTTP 合同", "扩大平台动作授权"],
+  "stop_conditions": ["出现无法解释的 Plan、Gate、确认或权限边界差异", "需要真实平台写入"],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"rg static checks for removed test bypasses"},
+    {"acceptance_id":"AC-02","command":"npm run test:execution-grant && npm run test:execution-plan"},
+    {"acceptance_id":"AC-03","command":"npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"rg static checks for removed test bypasses","verified_at":"2026-09-13T10:15:00.000000+00:00","summary":"runner、Plan、创建、回查、正式授权路径未保留 mock 或旧测试授权标识。","evidence_refs":["evidence/TASK-MWBV2-UNIFIED-EXECUTION-20260913/core-execution.json"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"npm run test:execution-grant","verified_at":"2026-09-13T10:15:00.000000+00:00","summary":"核心 dry-run、旧测试授权拒绝及 Plan 绑定阻断通过。","evidence_refs":["evidence/TASK-MWBV2-UNIFIED-EXECUTION-20260913/core-execution.json"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"npm run check:project -- --phase before-close","verified_at":"2026-09-13T10:15:00.000000+00:00","summary":"任务合同、变更范围与文档路由通过。","evidence_refs":["evidence/TASK-MWBV2-UNIFIED-EXECUTION-20260913/core-execution.json"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"已记录 Task 2 的完成范围及后续 Task 继续条件。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"已明确假传输和合成凭据只能通过内部依赖注入，不能改变正式判断。"},
+    {"ref":"deploy/README.md","status":"not_needed","reason":"部署入口与服务配置没有变化。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {"summary":"正式 runner、Plan 编译、创建与回查不再含测试成功捷径；旧测试授权与单动作兼容范围被拒绝。","side_effects":"未写入业务库、未调用真实平台。","remaining_risks":["仅执行核心权限链回归；其余专项测试留待后续按需执行。"],"business_evidence_refs":[]},
+  "closed_at": "2026-09-13T10:15:00.000000+00:00"
+}

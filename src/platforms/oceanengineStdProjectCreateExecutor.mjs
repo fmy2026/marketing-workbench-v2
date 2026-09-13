@@ -413,6 +413,8 @@ export async function createStdProjectForTargetOnce({
   confirmVariableValue = process.env[STD_PROJECT_CREATE_CONFIRM_ENV] || "",
   grantSource = "",
   executionGrantId = "",
+  credentialSummary = getOceanEngineCredentialSummary(),
+  credentialEnv = readOceanEngineEnv().env,
   readiness: readinessOverride = null,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   nowMs = () => Date.now()
@@ -429,8 +431,6 @@ export async function createStdProjectForTargetOnce({
   const scope = bundle.executionPlan?.metadata?.execution_scope || {};
   const rateLimitRedeliveryPolicy = redeliveryPolicyFromBundle(bundle);
   const rateLimitContractPresent = Object.hasOwn(scope, "rate_limit_redelivery");
-  const fakeTransport = grantSource === "test_fake_transport";
-  const credentialSummary = fakeTransport ? { status: "valid", blockers: [] } : getOceanEngineCredentialSummary();
   const prepared = await prepareStdProjectCreate({ repo, jobId: runtimeTarget.jobId, target: runtimeTarget });
   const readiness = readinessOverride || latestCreateReadiness(bundle);
   const attemptState = await createAttemptState(repo, runtimeTarget.jobId);
@@ -449,8 +449,8 @@ export async function createStdProjectForTargetOnce({
   const blockers = [
     ...(confirmationIntent !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirmation_intent_missing_or_invalid"] : []),
     ...(confirmVariableValue !== STD_PROJECT_CREATE_CONFIRM_VALUE ? ["confirm_variable_missing_or_invalid"] : []),
-    ...(!fakeTransport && !credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
-    ...(bundle.job.source_usage !== "runtime_truth" && !fakeTransport ? ["job_not_runtime_truth"] : []),
+    ...(!credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
+    ...(bundle.job.source_usage !== "runtime_truth" ? ["job_not_runtime_truth"] : []),
     ...((attemptState.createdObjectCount || 0) > 0 ? ["created_object_already_recorded"] : []),
     ...(caseAttemptState && Number(caseAttemptState.createdObjectCount || 0) > 0 ? ["case_created_object_already_recorded"] : []),
     ...(caseAttemptState && Number(caseAttemptState.readbackVerifiedCount || 0) > 0 ? ["case_readback_already_verified"] : []),
@@ -459,8 +459,8 @@ export async function createStdProjectForTargetOnce({
     ...(Number(runtimeTarget.createAttemptNo) !== Number(effectiveAttemptState.nextCreateAttemptNo) ? ["create_attempt_number_not_next"] : []),
     ...(Number(runtimeTarget.createAttemptNo) > Number(effectiveAttemptState.maximumCreateAttempts) ? ["create_attempt_limit_reached"] : []),
     ...(readiness.status !== "ready_for_user_create_confirmation" ? [`readiness_not_ready:${readiness.status || "missing"}`] : []),
-    ...(!fakeTransport && readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
-    ...(!fakeTransport && readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
+    ...(readiness.brandIndustryStatus !== "passed" ? ["brand_industry_not_passed"] : []),
+    ...(readiness.eventChainStatus !== "passed" ? ["event_chain_not_passed"] : []),
     ...(readiness.payloadContractStatus !== "passed" ? ["payload_contract_not_passed"] : []),
     ...(readiness.duplicateStatus !== "platform_not_duplicate" ? ["duplicate_check_not_platform_not_duplicate"] : []),
     ...(runtimeTarget.payloadHash !== bundle.draft?.payload_hash ? ["payload_hash_mismatch"] : []),
@@ -474,7 +474,7 @@ export async function createStdProjectForTargetOnce({
       bundle.draft?.payload_summary?.plan_derivation_status !== "passed"
       ? ["final_draft_plan_derivation_not_passed"] : []),
     ...(rateLimitContractPresent && !rateLimitRedeliveryPolicy ? ["rate_limit_redelivery_contract_invalid"] : []),
-    ...(!fakeTransport && !prepared.ready ? prepared.blockers : []),
+    ...(!prepared.ready ? prepared.blockers : []),
     ...(!allowNetworkWrite ? ["network_write_not_enabled_by_caller"] : [])
   ];
   if (blockers.length) {
@@ -489,7 +489,7 @@ export async function createStdProjectForTargetOnce({
     };
   }
 
-  const env = fakeTransport ? {} : readOceanEngineEnv().env;
+  const env = credentialEnv;
   const attemptLabel = String(runtimeTarget.createAttemptNo).padStart(2, "0");
   const confirmationId = planBound
     ? existingPlanConfirmation?.confirmation_id || ""
@@ -889,17 +889,17 @@ export async function readbackStdProjectOnce({
   sleepImpl = sleep,
   readbackDeadlineMs = STD_PROJECT_READBACK_DEADLINE_MS,
   observationIdFactory
+  ,credentialSummary = getOceanEngineCredentialSummary()
+  ,credentialEnv = readOceanEngineEnv().env
 } = {}) {
   if (!jobId) throw new Error("job_id_required");
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("target_job_not_found");
   const runtimeTarget = { ...targetFromBundle(bundle), ...(target || {}) };
-  const fakeTransport = target?.grantSource === "test_fake_transport";
-  const credentialSummary = fakeTransport ? { status: "ready", blockers: [] } : getOceanEngineCredentialSummary();
-  if (!fakeTransport && !credentialReady(credentialSummary)) {
+  if (!credentialReady(credentialSummary)) {
     return { status: "credential_required", blockers: credentialSummary.blockers };
   }
-  const env = fakeTransport ? {} : readOceanEngineEnv().env;
+  const env = credentialEnv;
   const attempts = [];
   const responseConfirmedByCreate = bundle.platformAction?.action_status === "succeeded" &&
     bundle.platformAction?.object_id_present === true;

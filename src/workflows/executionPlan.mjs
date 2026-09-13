@@ -272,15 +272,8 @@ export async function resolveFreshResourceActionContracts({ bundle, actionTypes 
     return { actionCallLimits, resourceActionContracts };
   }
 
-  const [{ buildVideoMaterialPreparePlan }, { mockReadyBundle }] = await Promise.all([
-    import("../platforms/oceanengineVideoMaterialExecutor.mjs"),
-    import("./skills/oe3/04-resource-verifiers.mjs")
-  ]);
-  // `test_run` has no platform inventory. Its existing deterministic fixture
-  // supplies the same verified mapping shape before plan compilation; runtime
-  // Jobs always consume the persisted material-source mapping as-is.
-  const materialBundle = bundle?.job?.source_usage === "test_run" ? mockReadyBundle(bundle) : bundle;
-  const materialPlan = buildVideoMaterialPreparePlan({ bundle: materialBundle });
+  const { buildVideoMaterialPreparePlan } = await import("../platforms/oceanengineVideoMaterialExecutor.mjs");
+  const materialPlan = buildVideoMaterialPreparePlan({ bundle });
   const selectedRequiredVideoCount = Number(materialPlan.selectedRequiredVideoCount || 0);
   const readyCount = Number(materialPlan.readyCount || 0);
   const bindActionCount = Number(materialPlan.bindActionCount || 0);

@@ -1,0 +1,6 @@
+{
+  "verified_at": "2026-09-13T10:15:00.000000+00:00",
+  "command": "npm run test:execution-grant",
+  "status": "passed",
+  "summary": "隔离数据库中的 dry-run 未产生 mock 成功结果；旧 test_fake_transport 被拒绝；缺少 Plan ID/hash 的工作台确认被阻断。"
+}

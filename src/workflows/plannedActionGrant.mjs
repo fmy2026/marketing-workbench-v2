@@ -23,12 +23,9 @@ function planHash(plan = {}) {
   return plan.plan_hash || plan.planHash || "";
 }
 
-function scopeFor({ state, bundle, plan, projectStatePath }) {
+function scopeFor({ plan }) {
   const persisted = plan?.metadata?.execution_scope || plan?.metadata?.executionScope || {};
-  const compatibility = bundle.job?.source_usage === "test_run" || projectStatePath !== defaultProjectStatePath
-    ? state.guardrails?.platform_write_scope || {}
-    : {};
-  return Object.keys(persisted).length ? persisted : compatibility;
+  return persisted;
 }
 
 async function confirmationForPlan({ repo, bundle, plan }) {
@@ -52,11 +49,11 @@ export async function validatePlannedActionGrant({
   if (!actionType) throw new Error("planned_action_type_required");
   const state = await readState(projectStatePath);
   const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
-  const scope = scopeFor({ state, bundle, plan, projectStatePath });
+  const scope = scopeFor({ plan });
   const actions = planActions(plan);
   const action = actions.find((item) => item.action_type === actionType) || null;
   const allowedActions = Array.isArray(scope.allowed_actions) ? scope.allowed_actions : [];
-  const bindingMode = scope.binding_mode || scope.bindingMode || "legacy_single_action";
+  const bindingMode = scope.binding_mode || scope.bindingMode || "";
   const isPlanBound = bindingMode === "single_confirmation_plan";
   const grant = actionGrant(scope, actionType);
   const maximumPlatformCalls = Number(
@@ -83,6 +80,7 @@ export async function validatePlannedActionGrant({
     };
   const blockers = [
     ...authorization.blockers,
+    ...(isPlanBound ? [] : ["execution_plan_single_confirmation_required"]),
     ...(bundle.case?.lifecycle_status === "active" || (!bundle.case && projectStatePath !== defaultProjectStatePath) ? [] : ["workflow_case_not_active"]),
     ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
     ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),

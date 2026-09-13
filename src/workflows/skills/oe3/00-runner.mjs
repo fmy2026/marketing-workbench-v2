@@ -38,7 +38,6 @@ import {
 import {
   brandIndustryPassed,
   eventChainPassed,
-  mockReadyBundle,
   runResourceVerifier,
   withDmpCustomAudienceIds
 } from "./04-resource-verifiers.mjs";
@@ -342,7 +341,6 @@ async function executePayloadBuild({ repo, context }) {
   const draft = await buildSkillDraft({
     repo,
     bundle: withDmpCustomAudienceIds(context.bundle, context.dmpCustomAudienceIds || []),
-    mockReady: context.mockReady,
     attemptNo: context.createAttemptNo
   });
   const plan = context.bundle.executionPlan || {};
@@ -406,7 +404,6 @@ async function executeDuplicateCheck({ repo, context }) {
   const result = await runDuplicateReadonlyCheck({
     repo,
     bundle: latestBundle,
-    mockReady: context.mockReady,
     allowReadonlyDependency: context.allowReadonlyDependency === true
   });
   return {
@@ -414,7 +411,7 @@ async function executeDuplicateCheck({ repo, context }) {
     outputSummary: {
       ...(result.outputSummary || {}),
       duplicateStatus: result.outputSummary?.status || "not_checked",
-      source: context.mockReady ? "mock_ready" : "oceanengine_std_project_list_readonly"
+      source: "oceanengine_std_project_list_readonly"
     }
   };
 }
@@ -453,11 +450,11 @@ async function executeCreateReadiness({ repo, context }) {
     ...createPreflight.blocker_codes,
     ...(!correctiveAttemptReady ? ["std_project_create_attempt_not_available"] : []),
     ...(createdObjects > 0 ? ["created_object_already_recorded"] : []),
-    ...(!brandIndustryPassed(latestBundle) && !context.mockReady ? ["brand_industry_readback_blocked"] : []),
-    ...(!eventChainPassed(latestBundle) && !context.mockReady ? ["event_chain_readback_blocked"] : [])
+    ...(!brandIndustryPassed(latestBundle) ? ["brand_industry_readback_blocked"] : []),
+    ...(!eventChainPassed(latestBundle) ? ["event_chain_readback_blocked"] : [])
   ])];
-  const effectiveBlockers = context.mockReady ? [] : blockers;
-  const ready = effectiveBlockers.length === 0;
+  const effectiveBlockers = blockers;
+  const ready = blockers.length === 0;
   const status = ready
     ? "ready_for_user_create_confirmation"
     : !correctiveAttemptReady
@@ -483,8 +480,8 @@ async function executeCreateReadiness({ repo, context }) {
         nextConfirmationRequired: ready && context.mode === "execute_once",
         platformActions,
         createdObjects,
-        brandIndustryStatus: context.mockReady ? "mock_passed" : (brandIndustryPassed(latestBundle) ? "passed" : "blocked"),
-        eventChainStatus: context.mockReady ? "mock_passed" : (eventChainPassed(latestBundle) ? "passed" : "blocked"),
+        brandIndustryStatus: brandIndustryPassed(latestBundle) ? "passed" : "blocked",
+        eventChainStatus: eventChainPassed(latestBundle) ? "passed" : "blocked",
         payloadContractStatus: context.payloadContract?.status || "not_run",
         payloadHashStable: context.payloadContract?.expectedPayloadHash === latestBundle.draft?.payload_hash,
         duplicateStatus: latestBundle.draft?.duplicate_status || "not_generated",
@@ -534,7 +531,7 @@ async function executeSkill({ repo, context, skillKey }) {
     });
   } else if (LAUNCH_PACK_SKILLS.has(skillKey)) {
     result = runLaunchPackSkill({
-      bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
+      bundle: context.bundle,
       skillKey
     });
   } else if (skillKey === "resource-bootstrap-from-blueprints") {
@@ -561,7 +558,6 @@ async function executeSkill({ repo, context, skillKey }) {
       repo,
       bundle: context.bundle,
       allowReadonlyDependency: context.allowReadonlyDependency === true,
-      mockReady: context.mockReady === true,
       client: context.awemeAuthorizationClient || undefined
     });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
@@ -573,7 +569,6 @@ async function executeSkill({ repo, context, skillKey }) {
       repo,
       bundle: context.bundle,
       allowReadonlyDependency: context.allowReadonlyDependency === true,
-      mockReady: context.mockReady === true
     });
     // Node 4 verifiers must consume the local truth written by readonly probes,
     // not the pre-bootstrap bundle held at workflow start.
@@ -588,14 +583,12 @@ async function executeSkill({ repo, context, skillKey }) {
       result = await runDmpSourceReadonlyVerifySkill({
         repo,
         bundle: context.bundle,
-        mockReady: context.mockReady,
         allowReadonlyDependency: context.allowReadonlyDependency === true
       });
     } else if (skillKey === "dmp-target-readonly-verify") {
       result = await runDmpTargetReadonlyVerifySkill({
         repo,
         bundle: context.bundle,
-        mockReady: context.mockReady,
         allowReadonlyDependency: context.allowReadonlyDependency === true
       });
     } else if (skillKey === "dmp-push-plan") {
@@ -623,19 +616,7 @@ async function executeSkill({ repo, context, skillKey }) {
   } else if (skillKey === "video-material-bind-plan") {
     result = await runVideoMaterialBindPlanSkill({ bundle: context.bundle });
   } else if (skillKey === "backup-landing-page-material-inventory") {
-    result = context.mockReady
-      ? {
-          status: "mock_passed",
-          blockers: [],
-          outputSummary: {
-            conclusion: "mock_target_already_usable",
-            target_already_usable: true,
-            default_target_hash_matches: true,
-            platform_write_called: false,
-            token_refresh_called: false
-          }
-        }
-      : context.allowReadonlyDependency === true
+    result = context.allowReadonlyDependency === true
         ? await runBackupLandingPageMaterialInventorySkill({
             repo,
             bundle: context.bundle,
@@ -657,19 +638,15 @@ async function executeSkill({ repo, context, skillKey }) {
     result = await runMicroAppInstanceAuthorityReadonlySkill({
       repo,
       bundle: context.bundle,
-      mockReady: context.mockReady,
       allowReadonlyDependency: context.allowReadonlyDependency === true
     });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
   } else if (skillKey === "event-chain-readonly") {
-    if (!context.mockReady) {
-      await syncEventAssetAccountProvisionContract({ repo, bundle: context.bundle });
-      context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
-    }
+    await syncEventAssetAccountProvisionContract({ repo, bundle: context.bundle });
+    context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     result = await runEventChainReadonlySkill({
       repo,
       bundle: context.bundle,
-      mockReady: context.mockReady,
       allowReadonlyDependency: context.allowReadonlyDependency === true
     });
     context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
@@ -686,31 +663,22 @@ async function executeSkill({ repo, context, skillKey }) {
       ? await runDmpReadonlyGate({
         repo,
         bundle: context.bundle,
-        mockReady: context.mockReady,
         allowReadonlyDependency: context.allowReadonlyDependency === true,
         previousOutputs: context.skillOutputs
       })
       : ["event_asset", "micro_app_instance"].includes(resourceType)
-        ? context.mockReady
-          ? runResourceVerifier({
-            bundle: mockReadyBundle(context.bundle),
-            resourceType,
-            mockReady: true
-          })
-          : eventChainResourceReadiness({ bundle: context.bundle, resourceType })
+        ? eventChainResourceReadiness({ bundle: context.bundle, resourceType })
       : resourceType === "video_asset"
         ? await runVideoMaterialReadonlyGate({
           repo,
           bundle: context.bundle,
-          mockReady: context.mockReady,
           allowReadonlyDependency: context.allowReadonlyDependency === true
         })
       : runResourceVerifier({
-        bundle: context.mockReady ? mockReadyBundle(context.bundle) : context.bundle,
-        resourceType,
-        mockReady: context.mockReady
+        bundle: context.bundle,
+        resourceType
       });
-    if (resourceType === "backup_landing_page" && !context.mockReady) {
+    if (resourceType === "backup_landing_page") {
       const inventory = output(context, "backup-landing-page-material-inventory");
       if (inventory.status !== "passed") {
         result = {
@@ -732,7 +700,7 @@ async function executeSkill({ repo, context, skillKey }) {
     if (resourceType === "dmp_audience_package" && Array.isArray(result.customAudienceIds)) {
       context.dmpCustomAudienceIds = result.customAudienceIds;
     }
-    if (!context.mockReady && (resourceType === "event_asset" || resourceType === "video_asset")) {
+    if (resourceType === "event_asset" || resourceType === "video_asset") {
       context.bundle = await repo.getLaunchJobBundle(context.bundle.job.job_id);
     }
   } else if (skillKey === "confirmed-resource-orchestrator") {
@@ -792,8 +760,6 @@ async function executeSkill({ repo, context, skillKey }) {
           repo,
           bundle: context.bundle,
           mode: context.mode,
-          mockReady: context.mockReady,
-          mockExecute: context.mockExecute,
           readiness: output(context, "create-readiness").outputSummary?.createReadiness || {},
           allowNetworkWrite: context.allowNetworkWrite === true,
           confirmationIntent: context.confirmationIntent || "",
@@ -801,6 +767,8 @@ async function executeSkill({ repo, context, skillKey }) {
           grantSource: context.grantSource || "",
           executionGrantId: context.executionGrantId || "",
           fetchImpl: context.fetchImpl || globalThis.fetch,
+          credentialSummary: context.credentialSummary,
+          credentialEnv: context.credentialEnv,
           deliveryWait: context.deliveryWait,
           deliveryNowMs: context.deliveryNowMs
         });
@@ -811,6 +779,9 @@ async function executeSkill({ repo, context, skillKey }) {
       mode: context.mode,
       fetchImpl: context.fetchImpl || globalThis.fetch,
       grantSource: context.grantSource || "",
+      credentialSummary: context.credentialSummary,
+      credentialEnv: context.credentialEnv,
+      readbackDelaysMs: context.readbackDelaysMs,
       createResult: output(context, "create-once")
     });
   } else {
@@ -1098,8 +1069,6 @@ export async function runOe3WorkflowSkills({
   repo,
   jobId,
   mode = "dry_run",
-  mockReady = false,
-  mockExecute = false,
   allowNetworkWrite = false,
   allowReadonlyDependency = false,
   confirmationIntent = "",
@@ -1107,6 +1076,9 @@ export async function runOe3WorkflowSkills({
   grantSource = "",
   executionGrantId = "",
   fetchImpl = globalThis.fetch,
+  credentialSummary,
+  credentialEnv,
+  readbackDelaysMs,
   deliveryWait,
   deliveryNowMs,
   env = process.env,
@@ -1125,7 +1097,7 @@ export async function runOe3WorkflowSkills({
   projectStatePath
 } = {}) {
   if (!OE3_WORKFLOW_MODES.has(mode)) throw new Error(`unsupported_oe3_workflow_mode:${mode}`);
-  if (mode === "aweme_auth_readonly" && allowReadonlyDependency !== true && mockReady !== true) {
+  if (mode === "aweme_auth_readonly" && allowReadonlyDependency !== true) {
     throw new Error("aweme_auth_readonly_requires_readonly_dependency");
   }
   const numericAttemptNo = Number(createAttemptNo || 1);
@@ -1182,21 +1154,10 @@ export async function runOe3WorkflowSkills({
     });
     bundle = await repo.getLaunchJobBundle(jobId);
   }
-  const restoreMockAwemeAuthorization = mockReady === true &&
-    (bundle.job?.source_usage || "runtime_truth") === "test_run" &&
-    mode !== "readback_only";
-  const originalAwemeAuthorization = restoreMockAwemeAuthorization &&
-    bundle.account?.aweme_authorization &&
-    typeof bundle.account.aweme_authorization === "object" &&
-    !Array.isArray(bundle.account.aweme_authorization)
-    ? bundle.account.aweme_authorization
-    : {};
   const touchpointVerification = await getTouchpointVerification(repo, bundle);
   const context = {
     bundle,
     mode,
-    mockReady,
-    mockExecute,
     allowNetworkWrite,
     allowReadonlyDependency,
     confirmationIntent,
@@ -1204,6 +1165,9 @@ export async function runOe3WorkflowSkills({
     grantSource,
     executionGrantId,
     fetchImpl,
+    credentialSummary,
+    credentialEnv,
+    readbackDelaysMs,
     deliveryWait,
     deliveryNowMs,
     env,
@@ -1299,14 +1263,5 @@ export async function runOe3WorkflowSkills({
   } catch (error) {
     if (context.skillOutputs.size) await persistNodeSnapshot();
     throw error;
-  } finally {
-    if (restoreMockAwemeAuthorization) {
-      await repo.updateAdvertiserAwemeAuthorization({
-        advertiserId: bundle.job.advertiser_id,
-        routeId: bundle.job.route_id,
-        gameCode: bundle.job.game_code,
-        authorization: originalAwemeAuthorization
-      });
-    }
   }
 }

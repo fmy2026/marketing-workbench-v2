@@ -1,21 +1,4 @@
-import { hashValue } from "./00-contracts.mjs";
 import { readbackStdProjectOnce } from "../../../platforms/oceanengineStdProjectCreateExecutor.mjs";
-
-function readbackPlaceholder({ jobId, projectName }) {
-  return {
-    artifactId: `EV-${jobId}-READBACK-MOCK`,
-    readbackId: `RB-${jobId}-STD-PROJECT-MOCK`,
-    objectType: "std_project",
-    objectId: `MOCK-STD-PROJECT-${jobId}`,
-    objectName: projectName,
-    readbackStatus: "readback_verified",
-    fieldDiffSummary: {
-      mock: true,
-      object_name_matches_draft: true,
-      raw_response_stored: false
-    }
-  };
-}
 
 function responseUnknownCreateAction(action = {}) {
   const responseSummary = action.response_summary || action.responseSummary || {};
@@ -23,9 +6,8 @@ function responseUnknownCreateAction(action = {}) {
     responseSummary.outcome_category === "platform_response_unknown";
 }
 
-export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "", createResult = null } = {}) {
+export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalThis.fetch, grantSource = "", credentialSummary, credentialEnv, readbackDelaysMs, createResult = null } = {}) {
   const latestBundle = await repo.getLaunchJobBundle(bundle.job.job_id);
-  const isMock = latestBundle.platformAction?.action_type === "mock_oceanengine_std_project_create";
   if (mode !== "readback_only" && mode !== "execute_once") {
     return {
       status: "skipped",
@@ -46,54 +28,6 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
         readbackStatus: "not_run",
         objectNameSource: "launch_drafts.project_name",
         realPlatformReadbackCalled: false
-      }
-    };
-  }
-
-  if (isMock && latestBundle.createdObject) {
-    const placeholder = readbackPlaceholder({
-      jobId: latestBundle.job.job_id,
-      projectName: latestBundle.draft.project_name
-    });
-    await repo.upsertEvidence({
-      artifactId: placeholder.artifactId,
-      jobId: latestBundle.job.job_id,
-      artifactType: "mock_readback_verified",
-      title: "mock readback verified",
-      summary: "execute_once mock 回查通过；对象名来自 launch_drafts.project_name；未调用真实平台。",
-      contentHash: hashValue(`${placeholder.artifactId}:${latestBundle.draft.project_name}:mock-readback`),
-      storageRef: `postgres:mwb.evidence_artifacts/${placeholder.artifactId}`,
-      sourceRef: "workflow-skill:readback-std-project",
-      sourceUsage: latestBundle.job.source_usage || "test_run"
-    });
-    await repo.upsertReadbackRecord({
-      readbackId: placeholder.readbackId,
-      jobId: latestBundle.job.job_id,
-      objectType: "std_project",
-      objectId: latestBundle.createdObject.object_id,
-      objectName: latestBundle.draft.project_name,
-      readbackStatus: "readback_verified",
-      fieldDiffSummary: placeholder.fieldDiffSummary,
-      evidenceRef: placeholder.artifactId
-    });
-    const planId = latestBundle.executionPlan?.plan_id || "";
-    if (planId && typeof repo.consumeConfirmedStdProjectCreatePlanAfterReadback === "function") {
-      await repo.consumeConfirmedStdProjectCreatePlanAfterReadback({
-        jobId: latestBundle.job.job_id,
-        planId
-      });
-    }
-    return {
-      status: "mock_passed",
-      blockers: [],
-      evidenceRefs: [placeholder.artifactId],
-      outputSummary: {
-        readbackStatus: "readback_verified",
-        objectNameSource: "launch_drafts.project_name",
-        objectNameMatchesDraft: true,
-        realPlatformReadbackCalled: false,
-        mockReadback: true,
-        evidenceRef: placeholder.artifactId
       }
     };
   }
@@ -133,7 +67,9 @@ export async function runReadbackSkill({ repo, bundle, mode, fetchImpl = globalT
       jobId: latestBundle.job.job_id,
       target: { grantSource },
       fetchImpl,
-      readbackDelaysMs: grantSource === "test_fake_transport" ? [0] : undefined
+      credentialSummary,
+      credentialEnv,
+      readbackDelaysMs
     });
     const projectIdMismatch = readback.status === "project_id_mismatch";
     const projectNameMismatch = readback.status === "project_name_mismatch";

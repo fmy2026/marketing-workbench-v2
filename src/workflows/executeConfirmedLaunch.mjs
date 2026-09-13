@@ -57,9 +57,6 @@ function validateGrant({ grantSource, executionIntent, envConfirm }) {
   if (grantSource === "cli_confirm") {
     return envConfirm === EXECUTION_GRANT_INTENT ? [] : [`${EXECUTION_GRANT_CONFIRM_ENV}_missing_or_invalid`];
   }
-  if (grantSource === "test_fake_transport") {
-    return executionIntent === EXECUTION_GRANT_INTENT ? [] : ["execution_intent_missing_or_invalid"];
-  }
   return ["grant_source_invalid"];
 }
 
@@ -91,6 +88,9 @@ export async function executeConfirmedLaunch({
   expectedPlanHash = "",
   envConfirm = process.env[EXECUTION_GRANT_CONFIRM_ENV] || "",
   fetchImpl = globalThis.fetch,
+  credentialSummary,
+  credentialEnv,
+  readbackDelaysMs,
   projectStatePath,
   confirmedByUserId = "",
   getJobViewFn = getJobView,
@@ -275,7 +275,6 @@ export async function executeConfirmedLaunch({
     }
     const runResult = await runJobFn(repo, jobId, {
       mode: "execute_once",
-      mockReady: grantSource === "test_fake_transport",
       allowReadonlyDependency: true,
       allowNetworkWrite: true,
       confirmationIntent: STD_PROJECT_CREATE_CONFIRM_VALUE,
@@ -292,6 +291,9 @@ export async function executeConfirmedLaunch({
       confirmedPlanExecution: Boolean(currentPlanId && currentPlanHash),
       projectStatePath,
       fetchImpl,
+      credentialSummary,
+      credentialEnv,
+      readbackDelaysMs,
       deliveryWait,
       deliveryNowMs,
       includeExecutionSummary: true

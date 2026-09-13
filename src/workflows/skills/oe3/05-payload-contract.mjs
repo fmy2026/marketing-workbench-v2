@@ -4,7 +4,7 @@ import {
   cstYyyymmdd
 } from "../../stdProjectNameBuilder.mjs";
 import { buildOe3StdProjectPayload } from "./05-payload.mjs";
-import { brandIndustryPassed, brandInfoMode, brandInfoSummary, materialItems, mockReadyBundle } from "./04-resource-verifiers.mjs";
+import { brandIndustryPassed, brandInfoMode, brandInfoSummary, materialItems } from "./04-resource-verifiers.mjs";
 import { INSTANCE_ID_WIRE_STRATEGY } from "./05-std-project-create-wire-body.mjs";
 import { SELLING_POINTS_CONTRACT } from "./05-selling-points-contract.mjs";
 import { TITLE_MATERIAL_CONTRACT } from "./05-title-materials-contract.mjs";
@@ -222,8 +222,8 @@ export async function reserveStdProjectPlanningIntent({ repo, bundle, attemptNo 
   };
 }
 
-export async function buildSkillDraft({ repo, bundle, mockReady = false, attemptNo = 1 }) {
-  const effectiveBundle = mockReady ? mockReadyBundle(bundle) : bundle;
+export async function buildSkillDraft({ repo, bundle, attemptNo = 1 }) {
+  const effectiveBundle = bundle;
   const { numericAttemptNo, yyyymmdd, namePrefix, draftId, reservation } = await reserveProjectNameForBundle({
     repo,
     bundle: effectiveBundle,
@@ -253,36 +253,12 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false, attempt
         monitorId
       })
     : null;
-  const backupLandingPageUrl = mockReady
-    ? {
-        landing_page_asset_id: "LPA-JSZC-OE3-BACKUP-MOCK",
-        site_id: "7624750304608649243",
-        site_name: "Mock backup landing page",
-        url_hash: "be2045c5206b29f2e3d08bc46a8ae6dd0f9588aaef11edab968de84a17594b78",
-        status: "active",
-        landing_url: ["https:", "", "example.invalid", "mwbv2", "mock-backup-landing-page"].join("/"),
-        resource_visibility_status: "visible",
-        resource_readback_status: "readback_verified",
-        resource_readonly_status: "passed"
-      }
-    : await repo.getControlledBackupLandingPageUrl({
+  const backupLandingPageUrl = await repo.getControlledBackupLandingPageUrl({
         routeId: effectiveBundle.job.route_id,
         gameCode: effectiveBundle.job.game_code,
         advertiserId: effectiveBundle.job.advertiser_id
       });
-  const mockMiniProgramLaunchUrl = `sslocal://microgame?app_id=${effectiveBundle.platformApp?.app_id || "tt0000000000000000"}`;
-  const miniProgramLaunchLink = mockReady
-    ? {
-        link_ref: "GRLL-JSZC-OE3-BYTE-MINI-GAME-MOCK",
-        route_id: effectiveBundle.job.route_id,
-        game_code: effectiveBundle.job.game_code,
-        platform_app_id: effectiveBundle.platformApp?.id || "GPA-JSZC-OE-BYTE-MINI-GAME",
-        app_id: effectiveBundle.platformApp?.app_id || "tt0000000000000000",
-        url_hash: sha256Text(mockMiniProgramLaunchUrl),
-        status: "active",
-        launch_url: mockMiniProgramLaunchUrl
-      }
-    : await repo.getControlledGameRouteLaunchLink({
+  const miniProgramLaunchLink = await repo.getControlledGameRouteLaunchLink({
         routeId: effectiveBundle.job.route_id,
         gameCode: effectiveBundle.job.game_code,
         platformAppId: effectiveBundle.platformApp?.id || "",
@@ -343,7 +319,7 @@ export async function buildSkillDraft({ repo, bundle, mockReady = false, attempt
     payloadSummary,
     payloadHash: finalPayload.payloadHash,
     duplicateStatus: effectiveBundle.draft?.duplicate_status || "not_checked",
-    writePolicy: mockReady ? "workflow_skill_mock_execute_once_confirm_required" : "workflow_skill_execute_once_confirm_required",
+    writePolicy: "workflow_skill_execute_once_confirm_required",
     reservationId: reservation?.reservation_id || ""
   };
 }
