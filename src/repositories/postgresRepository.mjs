@@ -3641,6 +3641,14 @@ export class PostgresRepository {
         FROM mwb.launch_confirmations
         WHERE plan_id = ${sqlLiteral(plan.planId)}
           AND confirmation_status = 'confirmed_for_execution_plan'
+      ), confirmed_job_create AS (
+        SELECT confirmation.confirmation_id
+        FROM mwb.launch_confirmations confirmation
+        JOIN mwb.launch_execution_plans confirmed_plan
+          ON confirmed_plan.plan_id = confirmation.plan_id
+        WHERE confirmed_plan.job_id = ${sqlLiteral(plan.jobId)}
+          AND coalesce(confirmed_plan.plan_kind, confirmed_plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
       ), staled AS (
         UPDATE mwb.launch_execution_plans
         SET plan_status = 'stale',
@@ -3649,6 +3657,7 @@ export class PostgresRepository {
           AND plan_version < ${Number(plan.planVersion || 1)}
           AND plan_status IN ('blocked', 'planned', 'ready', 'executing', 'waiting_readback')
           AND NOT EXISTS (SELECT 1 FROM confirmed)
+          AND NOT EXISTS (SELECT 1 FROM confirmed_job_create)
         RETURNING plan_id
       ), stale_barrier AS (
         SELECT count(*) AS stale_count FROM staled
@@ -3686,6 +3695,7 @@ export class PostgresRepository {
           now()
         FROM stale_barrier
         WHERE NOT EXISTS (SELECT 1 FROM confirmed)
+          AND NOT EXISTS (SELECT 1 FROM confirmed_job_create)
         ON CONFLICT (job_id, plan_version) DO UPDATE SET
           plan_kind = EXCLUDED.plan_kind,
           plan_status = EXCLUDED.plan_status,
@@ -3707,11 +3717,15 @@ export class PostgresRepository {
       )
       SELECT jsonb_build_object(
         'saved', EXISTS (SELECT 1 FROM persisted),
-        'immutable', EXISTS (SELECT 1 FROM confirmed)
+        'immutable', EXISTS (SELECT 1 FROM confirmed),
+        'jobConfirmedCreate', EXISTS (SELECT 1 FROM confirmed_job_create)
       )::text;
     `, this.database);
-    if (saved?.immutable || saved?.saved !== true) {
+    if (saved?.immutable) {
       throw new Error("confirmed_execution_plan_immutable");
+    }
+    if (saved?.jobConfirmedCreate || saved?.saved !== true) {
+      throw new Error("confirmed_create_job_requires_fresh_readonly_recovery");
     }
     return saved;
   }
@@ -3733,6 +3747,14 @@ export class PostgresRepository {
         FROM mwb.launch_confirmations
         WHERE plan_id = ${sqlLiteral(planId)}
           AND confirmation_status = 'confirmed_for_execution_plan'
+      ), confirmed_job_create AS (
+        SELECT confirmation.confirmation_id
+        FROM mwb.launch_confirmations confirmation
+        JOIN mwb.launch_execution_plans confirmed_plan
+          ON confirmed_plan.plan_id = confirmation.plan_id
+        WHERE confirmed_plan.job_id = ${sqlLiteral(jobId)}
+          AND coalesce(confirmed_plan.plan_kind, confirmed_plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
       ), staled AS (
         UPDATE mwb.launch_execution_plans
         SET plan_status = 'stale',
@@ -3741,6 +3763,7 @@ export class PostgresRepository {
           AND plan_version < ${Number(plan.planVersion || 1)}
           AND plan_status IN ('blocked', 'planned', 'ready', 'executing', 'waiting_readback')
           AND NOT EXISTS (SELECT 1 FROM confirmed)
+          AND NOT EXISTS (SELECT 1 FROM confirmed_job_create)
         RETURNING plan_id
       ), stale_barrier AS (
         SELECT count(*) AS stale_count FROM staled
@@ -3785,6 +3808,7 @@ export class PostgresRepository {
           now()
         FROM stale_barrier, draft_candidate
         WHERE NOT EXISTS (SELECT 1 FROM confirmed)
+          AND NOT EXISTS (SELECT 1 FROM confirmed_job_create)
         ON CONFLICT (job_id, plan_version) DO UPDATE SET
           plan_kind = EXCLUDED.plan_kind,
           plan_status = 'ready',
@@ -3821,10 +3845,17 @@ export class PostgresRepository {
       SELECT jsonb_build_object(
         'saved', EXISTS (SELECT 1 FROM persisted),
         'bound', EXISTS (SELECT 1 FROM bound),
-        'immutable', EXISTS (SELECT 1 FROM confirmed)
+        'immutable', EXISTS (SELECT 1 FROM confirmed),
+        'jobConfirmedCreate', EXISTS (SELECT 1 FROM confirmed_job_create)
       )::text;
     `, this.database);
-    if (saved?.immutable || saved?.saved !== true || saved?.bound !== true) {
+    if (saved?.immutable) {
+      throw new Error("confirmed_execution_plan_immutable");
+    }
+    if (saved?.jobConfirmedCreate) {
+      throw new Error("confirmed_create_job_requires_fresh_readonly_recovery");
+    }
+    if (saved?.saved !== true || saved?.bound !== true) {
       throw new Error("ready_create_plan_draft_binding_not_persisted");
     }
     return saved;
@@ -3992,10 +4023,13 @@ export class PostgresRepository {
     return result || { finalized: false, jobFinalized: false };
   }
 
-  async finalizeConfirmedCreatePlanBeforeAction({ jobId, planId, blockerCode = "final_draft_plan_derivation_not_passed" } = {}) {
+  async finalizeConfirmedCreatePlanBeforeAction({ jobId, planId, blockerCode = "final_draft_plan_derivation_not_passed", evidenceRefs = [] } = {}) {
     assertId("job_id", jobId);
     assertId("plan_id", planId);
     assertId("blocker_code", blockerCode);
+    if (!Array.isArray(evidenceRefs) || evidenceRefs.some((ref) => !/^[A-Za-z0-9_:\-.]{1,160}$/.test(String(ref)))) {
+      throw new Error("confirmed_create_prewrite_evidence_refs_invalid");
+    }
     const result = await queryJson(`
       WITH finalized AS (
         UPDATE mwb.launch_execution_plans plan
@@ -4003,6 +4037,7 @@ export class PostgresRepository {
             metadata = plan.metadata || jsonb_build_object(
               'confirmed_execution_outcome', 'blocked_before_create',
               'confirmed_execution_blocker', ${sqlLiteral(blockerCode)},
+              'confirmed_execution_evidence_refs', ${sqlJson([...new Set(evidenceRefs)])},
               'platform_action_count', 0,
               'retry_allowed', false
             ),
@@ -4267,6 +4302,20 @@ export class PostgresRepository {
       FROM mwb.launch_execution_plans ep
       WHERE ep.job_id = ${sqlLiteral(jobId)}
       ORDER BY ep.plan_version DESC, ep.updated_at DESC
+      LIMIT 1;
+    `, this.database);
+  }
+
+  async getConfirmedStdProjectCreatePlanForJob(jobId) {
+    assertId("job_id", jobId);
+    return queryJson(`
+      SELECT to_jsonb(plan)::text
+      FROM mwb.launch_execution_plans plan
+      JOIN mwb.launch_confirmations confirmation ON confirmation.plan_id = plan.plan_id
+      WHERE plan.job_id = ${sqlLiteral(jobId)}
+        AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
+        AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+      ORDER BY confirmation.confirmed_at DESC, plan.plan_version DESC, plan.updated_at DESC
       LIMIT 1;
     `, this.database);
   }
@@ -4995,8 +5044,55 @@ export class PostgresRepository {
     if (confirmation.confirmationStatus !== "confirmed_for_execution_plan") {
       throw new Error("plan_confirmation_status_invalid");
     }
+    const ownerEligibility = confirmation.confirmedByUserId
+      ? `workflow_case.owner_user_id = ${sqlLiteral(assertId("confirmed_by_user_id", confirmation.confirmedByUserId))}`
+      : "job.source_usage = 'test_run'";
     const result = await queryJson(`
-      WITH claimed AS (
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(confirmation.jobId)}, 0)) AS locked
+      ), target_plan AS (
+        SELECT plan.plan_id
+        FROM mwb.launch_execution_plans plan
+        JOIN mwb.launch_jobs job ON job.job_id = plan.job_id
+        JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = job.case_id
+        CROSS JOIN scope_lock
+        WHERE plan.plan_id = ${sqlLiteral(confirmation.planId)}
+          AND plan.job_id = ${sqlLiteral(confirmation.jobId)}
+          AND plan.plan_status = 'ready'
+          AND workflow_case.lifecycle_status = 'active'
+          AND job.job_id = (
+            SELECT latest.job_id
+            FROM mwb.launch_jobs latest
+            WHERE latest.case_id = workflow_case.case_id
+            ORDER BY latest.updated_at DESC, latest.created_at DESC, latest.job_id DESC
+            LIMIT 1
+          )
+          AND ${ownerEligibility}
+          AND plan.plan_hash = coalesce(${sqlLiteral(confirmation.metadata?.plan_hash || "")}, '')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.launch_confirmations prior_confirmation
+            JOIN mwb.launch_execution_plans prior_plan ON prior_plan.plan_id = prior_confirmation.plan_id
+            WHERE prior_plan.job_id = plan.job_id
+              AND prior_plan.plan_id <> plan.plan_id
+              AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = 'std_project_create'
+              AND prior_confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+        FOR UPDATE OF plan, job, workflow_case
+      ), same_plan_confirmation AS (
+        SELECT confirmation_id
+        FROM mwb.launch_confirmations
+        WHERE plan_id = ${sqlLiteral(confirmation.planId)}
+          AND confirmation_status = 'confirmed_for_execution_plan'
+      ), prior_confirmed_create AS (
+        SELECT prior_plan.plan_id
+        FROM mwb.launch_execution_plans prior_plan
+        JOIN mwb.launch_confirmations prior_confirmation ON prior_confirmation.plan_id = prior_plan.plan_id
+        WHERE prior_plan.job_id = ${sqlLiteral(confirmation.jobId)}
+          AND prior_plan.plan_id <> ${sqlLiteral(confirmation.planId)}
+          AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND prior_confirmation.confirmation_status = 'confirmed_for_execution_plan'
+      ), claimed AS (
         INSERT INTO mwb.launch_confirmations (
           confirmation_id,
           job_id,
@@ -5011,7 +5107,8 @@ export class PostgresRepository {
           plan_id,
           metadata,
           confirmed_at
-        ) VALUES (
+        )
+        SELECT
           ${sqlLiteral(confirmation.confirmationId)},
           ${sqlLiteral(confirmation.jobId)},
           ${confirmation.draftId ? sqlLiteral(confirmation.draftId) : "NULL"},
@@ -5025,16 +5122,25 @@ export class PostgresRepository {
           ${sqlLiteral(confirmation.planId)},
           ${sqlJson(confirmation.metadata || {})},
           now()
-        )
+        FROM target_plan
         ON CONFLICT DO NOTHING
         RETURNING confirmation_id
       )
       SELECT jsonb_build_object(
         'claimed', EXISTS (SELECT 1 FROM claimed),
-        'confirmationId', COALESCE((SELECT confirmation_id FROM claimed LIMIT 1), '')
+        'confirmationId', COALESCE((SELECT confirmation_id FROM claimed LIMIT 1), ''),
+        'contextValid', EXISTS (SELECT 1 FROM target_plan),
+        'alreadyConfirmed', EXISTS (SELECT 1 FROM same_plan_confirmation),
+        'jobHasConfirmedCreate', EXISTS (SELECT 1 FROM prior_confirmed_create)
       )::text;
     `, this.database);
-    return result || { claimed: false, confirmationId: "" };
+    return result || {
+      claimed: false,
+      confirmationId: "",
+      contextValid: false,
+      alreadyConfirmed: false,
+      jobHasConfirmedCreate: false
+    };
   }
 
   async getLaunchConfirmationForPlan(planId) {

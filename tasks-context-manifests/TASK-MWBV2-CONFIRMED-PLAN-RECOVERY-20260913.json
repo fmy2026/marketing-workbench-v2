@@ -1,0 +1,163 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913",
+  "task_ref": "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
+  "status": "active",
+  "created_at": "2026-09-13T05:25:44Z",
+  "updated_at": "2026-09-13T05:55:38Z",
+  "base_revision": "2610540b064b785961c4f2a10a7a3d01612109ac",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data", "security", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "deploy/README.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/02-monitor/executor.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/workbenchRuntimeWritePolicy.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/workbench-command-submission.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-runtime-write-policy-smoke.mjs",
+    "scripts/00-workflow-case-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913.json",
+    "project.state.json",
+    "db/090_confirmed_plan_recovery_integrity.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/skills/oe3/02-monitor/executor.mjs",
+    "src/workflows/skills/oe3/05-confirmed-resource-orchestrator.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/workbenchRuntimeWritePolicy.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/skills/oe3/04-aweme-authorization-readonly.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "frontend/app.js",
+    "frontend/workbench-command-submission.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "scripts/00-execution-grant-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-runtime-write-policy-smoke.mjs",
+    "scripts/00-workflow-case-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "evidence/TASK-MWBV2-CONFIRMED-PLAN-RECOVERY-20260913/**"
+  ],
+  "forbidden_actions": [
+    "真实平台创建、资源写入、OAuth 刷新、预算或出价修改",
+    "新增确认、重试、平台写入入口或账户特例",
+    "绕过 Plan-bound executor 或 Node 07 权威回查"
+  ],
+  "stop_conditions": [
+    "需要真实平台写入、扩大确认次数、重试或账户权限",
+    "Schema 与迁移假设冲突且不能以通用机制修复",
+    "无法保持已创建或结果不明对象的 readonly-only 回查边界"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:execution-plan && npm run test:workflow-case"},
+    {"acceptance_id": "AC-02", "command": "npm run test:execution-grant && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-runtime-policy"},
+    {"acceptance_id": "AC-04", "command": "npm run smoke:workflow-skills && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:execution-plan && npm run test:workflow-case",
+      "verified_at": "2026-09-13T05:51:42Z",
+      "status": "passed",
+      "summary": "复现 V1 confirmed/zero-action 停止后的 V2 发布被拒绝，summary 投影具体 blocker 与 fresh readonly recovery，历史 Plan 不会再次形成 confirmationPreview；Case Gate 回归通过。",
+      "evidence_refs": ["scripts/00-execution-plan-smoke.mjs", "scripts/00-workflow-case-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:execution-grant && npm run test:workbench-conversation",
+      "verified_at": "2026-09-13T05:50:44Z",
+      "status": "passed",
+      "summary": "Plan-bound 原子占用、并发单赢家、旧确认拒绝、Node 07 回查及对话恢复路径通过；无真实平台调用。",
+      "evidence_refs": ["scripts/00-execution-grant-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-runtime-policy",
+      "verified_at": "2026-09-13T05:41:06Z",
+      "status": "passed",
+      "summary": "前端没有第二份 confirmation 状态，显式空卡不会回退；冻结提交、轮询与 runtime policy 的单次确认回归通过。",
+      "evidence_refs": ["scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-runtime-write-policy-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run smoke:workflow-skills",
+      "verified_at": "2026-09-13T05:52:29Z",
+      "status": "passed",
+      "summary": "三阶段七 Node、runner mode、Node 04 授权只读和 execute mock 回归通过；无真实平台写入或 token 刷新。项目关闭检查与服务重载待交付步骤完成后补充。",
+      "evidence_refs": ["scripts/00-oe3-workflow-skills-smoke.mjs"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录已确认创建 Plan 的 Job 边界和 V1/V2 确认循环恢复决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "补充 Node 01–07 的旧 Job 保护、Plan 级确认身份及确认卡唯一服务端投影。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "记录 migration 090、Plan 级 confirmation claim 和 summary 的 confirmed-prewrite Plan 选择规则。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "服务重载步骤未变化；本任务不修改部署配置或 LaunchAgent 合同。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已统一 Job、Plan、confirmation claim、summary 和页面确认卡的身份与生命周期：V1 已确认且零动作停止时，同 Job 的后发 V2 不能再次发布或展示，Case 只给出具体 blocker 与 fresh readonly recovery。",
+    "side_effects": "已执行通用 migration 090：仅将命中历史条件的后发未确认 Plan 标记为 stale，并将对应旧 Job 投影为等待人工恢复；本次未新增确认、平台创建、资源写入、OAuth 刷新、预算或出价修改。",
+    "remaining_risks": [
+      "该 Case 的 fresh readonly recovery 必须由账户本人从工作台启动；完成新的只读准备后，任何新的创建仍须由本人重新确认。"
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-F13F365AA0B98E01C8",
+      "postgres:mwb.launch_execution_plans:JOB-MWBV2-20260913041225-B42A4A"
+    ]
+  },
+  "closed_at": null
+}

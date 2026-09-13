@@ -1141,6 +1141,15 @@ export async function runOe3WorkflowSkills({
   }
   let bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) throw new Error("job_not_found");
+  const confirmedCreatePlan = typeof repo.getConfirmedStdProjectCreatePlanForJob === "function"
+    ? await repo.getConfirmedStdProjectCreatePlanForJob(jobId)
+    : null;
+  const confirmedCreatePlanId = confirmedCreatePlan?.plan_id || confirmedCreatePlan?.planId || "";
+  const replayingConfirmedPlan = mode === "execute_once" && confirmedPlanExecution === true &&
+    expectedPlanId === confirmedCreatePlanId && Boolean(expectedPlanHash);
+  if (confirmedCreatePlanId && mode !== "readback_only" && !replayingConfirmedPlan) {
+    throw new Error("confirmed_create_job_requires_fresh_readonly_recovery");
+  }
   const caseMaximumCreateAttempts = Number(bundle.case?.maximum_create_attempts || numericMaximumCreateAttempts);
   if (!Number.isInteger(caseMaximumCreateAttempts) || caseMaximumCreateAttempts < 1 || caseMaximumCreateAttempts > 3) {
     throw new Error("case_maximum_create_attempts_invalid");

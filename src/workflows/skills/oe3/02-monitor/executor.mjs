@@ -1,4 +1,4 @@
-import { ACTION_ENSURE_MONITOR, PLAN_KIND_MONITOR_BOOTSTRAP } from "../../../executionPlan.mjs";
+import { ACTION_ENSURE_MONITOR, PLAN_KIND_MONITOR_BOOTSTRAP, planConfirmationId } from "../../../executionPlan.mjs";
 import { validatePlannedActionGrant } from "../../../plannedActionGrant.mjs";
 import { revokeWriteScope } from "../../../executionGrantScope.mjs";
 import { evaluatePlanBoundWriteAuthorization } from "../../../workbenchRuntimeWritePolicy.mjs";
@@ -160,7 +160,7 @@ export async function executeConfirmedMonitorBootstrap({
   });
   if (availability.status !== "passed") return result("blocked", availability.blockers);
 
-  const confirmationId = `CONFIRM-${jobId}-MONITOR-BOOTSTRAP`;
+  const confirmationId = planConfirmationId(planId(plan));
   const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId,
     jobId,
@@ -186,7 +186,11 @@ export async function executeConfirmedMonitorBootstrap({
     }
   });
   if (confirmationClaim?.claimed !== true) {
-    return result("blocked", ["execution_plan_confirmation_already_recorded"]);
+    return result("blocked", confirmationClaim?.alreadyConfirmed === true
+      ? ["execution_plan_confirmation_already_recorded"]
+      : confirmationClaim?.jobHasConfirmedCreate === true
+        ? ["execution_job_has_confirmed_create_plan"]
+        : ["execution_plan_confirmation_context_invalid"]);
   }
 
   try {

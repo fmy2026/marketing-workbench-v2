@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
 | 最后更新时间 | 2026-09-13 CST |
-| 校验基线 | 静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 共 88 个文件、编号至 `087`，最新为 `087_dynamic_required_video_contract.sql` |
+| 校验基线 | 静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `090`，最新为 `090_confirmed_plan_recovery_integrity.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -55,7 +55,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
-| L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation 保存真实 `confirmed_by_user_id`。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
+| L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation ID 从 `plan_id` 派生，并保存真实 `confirmed_by_user_id`。claim 在同一事务核验 Plan/hash、latest Job、Case 生命周期和 owner；同一 Job 已确认 `std_project_create` 后不得再发布 Plan。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
 |  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于精确 `std_project/create + 40100 + 无对象 ID`，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查观察、脱敏证据；每次 Node 7 `readback_only` 生成独立 readback/evidence ID，历史观察不覆盖，消费者按 `created_at` 选择最新记录 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
@@ -122,7 +122,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在任何 create action 前以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。它仅在无 create action、无对象且次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
+`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在任何 create action 前以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。migration `090` 将该 Job 后发且未确认的 Plan 标为 `stale`，并使 View 优先选择已确认的零动作停止 Plan，禁止新 Plan 遮盖 recovery Gate。它仅在无 create action、无对象且次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
 
 ## 5. 核心键、时间与去重
 
@@ -136,7 +136,7 @@ route_id + game_code
 | Case | `case_id` 主键、`case_key` 唯一；部分唯一索引约束同 route×game×advertiser 最多一个 active runtime Case | Case 可包含多个 Job；`updated_at` 是本地生命周期/元数据变化，不是每个子事件的时间 |
 | Job / Node / Skill | `job_id` / `node_run_id` / `skill_run_id`；Node 唯一 job×node_key，Skill 唯一 job×skill_key×attempt_no | Job 建档/更新时间、Node/Skill 开始/结束时间分别保存；不得把新 readonly 结果改写成历史运行证据 |
 | Draft / 名称预留 | `draft_id` / `reservation_id`；名称预留有 job 唯一及 scope×序号、scope×名称约束 | fresh Job 不继承旧确认；runtime 名称占用保留，测试占用单独清理 |
-| Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation 按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，授权消费留在数据库审计 |
+| Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation ID 由 Plan ID 派生并按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，确认 claim 同时校验 owner/latest Job/Case 生命周期，授权消费留在数据库审计 |
 | Action / delivery / 创建对象 | `action_id` / `(action_id, delivery_no)` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；delivery 序号限定 1–3；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合且只按逻辑 action 计数；`40100` 的物理 delivery 不增加 Attempt。外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
 | Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
 | Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
@@ -149,7 +149,7 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 
 | View | 唯一行标识 / 选取方式 | 来源与时间边界 |
 | --- | --- | --- |
-| `workflow_case_summary` | `case_id`；最新 Job 按 updated_at、created_at、job_id 倒序，最新 Plan 按版本倒序；动作/回查按 Case 合同聚合 | Case 当前投影；过程记录按 Job/Skill/Attempt 回溯；不把多 Job 统计成多 Case |
+| `workflow_case_summary` | `case_id`；最新 Job 按 updated_at、created_at、job_id 倒序；普通 Plan 按版本倒序，但已确认、零动作 `blocked_before_create` Plan 优先；动作/回查按 Case 合同聚合 | Case 当前投影；过程记录按 Job/Skill/Attempt 回溯；不把多 Job 统计成多 Case |
 | `v_monitor_readiness` | route×game×advertiser；cycle 按 cycle_no、updated_at、cycle_id 倒序，触点按 updated_at、touchpoint_id 倒序 | 当前 scope 就绪投影；来源记录时间保留，不能替代 fresh 平台回查 |
 | `v_monitor_provision_status_report` | `cycle_id`，attempt 先按 cycle 聚合再关联 | 每个 cycle 的运行审计；历史 cycle 不等于当前 Gate |
 | `v_monitor_provision_blocker_report` | 每个 scope 最多一个 actionable blocker；来自当前 readiness，关联其 cycle | 有 blocker 才有行；不是全部历史错误的明细表 |

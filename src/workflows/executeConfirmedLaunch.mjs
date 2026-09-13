@@ -6,6 +6,7 @@ import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
 } from "../platforms/oceanengineStdProjectCreateExecutor.mjs";
+import { planConfirmationId } from "./executionPlan.mjs";
 import { finalizeVerifiedStdProjectRuntimeCase } from "./finalizeVerifiedStdProjectRuntimeCase.mjs";
 
 export const EXECUTION_GRANT_CONFIRM_ENV = "MWBV2_OE_EXECUTION_CONFIRM";
@@ -38,6 +39,15 @@ function createPrewriteBlockerFromView(view = {}) {
     ["aweme_auth_probe_failed", "aweme_id_missing"].includes(blocker)
   ));
   return concreteBlocker || blockers[0] || "final_draft_plan_derivation_not_passed";
+}
+
+function createPrewriteEvidenceRefsFromView(view = {}) {
+  return [...new Set((view.phases || [])
+    .flatMap((phase) => phase.nodes || [])
+    .filter((node) => ["account_resource_prepare", "std_project_create_executor"].includes(node.id))
+    .flatMap((node) => node.evidenceRefs || [])
+    .map((ref) => String(ref || "").trim())
+    .filter((ref) => /^[A-Za-z0-9_:\-.]{1,160}$/.test(ref)))];
 }
 
 function validateGrant({ grantSource, executionIntent, envConfirm }) {
@@ -218,7 +228,7 @@ export async function executeConfirmedLaunch({
     if (planBound) {
       const planningIntent = planMetadata.planning_intent || {};
       const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
-        confirmationId: `CONFIRM-${jobId}-EXECUTION-PLAN`,
+        confirmationId: planConfirmationId(currentPlanId),
         jobId,
         draftId: "",
         objectType: latestBundleBeforeCreate.job.object_type,
@@ -250,7 +260,11 @@ export async function executeConfirmedLaunch({
           executionGrant: {
             status: "blocked",
             grantSource,
-            blockers: ["execution_plan_confirmation_already_recorded"],
+            blockers: confirmationClaim?.alreadyConfirmed === true
+              ? ["execution_plan_confirmation_already_recorded"]
+              : confirmationClaim?.jobHasConfirmedCreate === true
+                ? ["execution_job_has_confirmed_create_plan"]
+                : ["execution_plan_confirmation_context_invalid"],
             createCalled: false
           }
         };
@@ -291,7 +305,8 @@ export async function executeConfirmedLaunch({
       ? await repo.finalizeConfirmedCreatePlanBeforeAction({
           jobId,
           planId: currentPlanId,
-          blockerCode: prewriteBlocker
+          blockerCode: prewriteBlocker,
+          evidenceRefs: createPrewriteEvidenceRefsFromView(view)
         })
       : { finalized: false };
     const postPrewriteFinalizationView = finalizedPrewriteBlock.finalized === true

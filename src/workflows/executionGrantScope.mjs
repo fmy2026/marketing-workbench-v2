@@ -213,6 +213,12 @@ export async function validatePlanConfirmationScope({
   const existingConfirmation = typeof repo.getLaunchConfirmationForPlan === "function"
     ? await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "")
     : null;
+  const confirmedCreatePlan = typeof repo.getConfirmedStdProjectCreatePlanForJob === "function"
+    ? await repo.getConfirmedStdProjectCreatePlanForJob(bundle.job.job_id)
+    : null;
+  const confirmedCreatePlanId = confirmedCreatePlan?.plan_id || confirmedCreatePlan?.planId || "";
+  const currentPlanId = plan?.plan_id || plan?.planId || "";
+  const differentConfirmedCreatePlan = Boolean(confirmedCreatePlanId && confirmedCreatePlanId !== currentPlanId);
   const attemptState = await repo.getCreateAttemptState(bundle.job.job_id);
   const actionScope = validateExecutionPlanActionScope({
     plan,
@@ -234,6 +240,7 @@ export async function validatePlanConfirmationScope({
     ...(Number(scope.maximum_create_calls) === 1 ? [] : ["execution_plan_create_call_limit_invalid"]),
     ...stdProjectCreateDeliveryContractBlockers({ scope, createAction }),
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(differentConfirmedCreatePlan ? ["execution_job_has_confirmed_create_plan"] : []),
     ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : []),
     ...(Number(attemptState.createActionCount || 0) === 0 ? [] : ["std_project_create_action_already_recorded"]),
     ...(Number(attemptState.createdObjectCount || 0) === 0 ? [] : ["created_object_already_recorded"]),
@@ -257,6 +264,7 @@ export async function validatePlanConfirmationScope({
       maximumPlatformCalls: actionMaximumPlatformCalls(createAction),
       rateLimitRedeliveryAuthorized: sameRateLimitRedeliveryContract(scope.rate_limit_redelivery),
       existingConfirmation: Boolean(existingConfirmation),
+      differentConfirmedCreatePlan,
       retryAllowed: scope.retry_allowed === true
     }
   };
@@ -437,7 +445,9 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
       : await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   const alreadyAttempted = planBound
-    ? scope.blockers.includes("execution_plan_confirmation_already_recorded") || Number(scope.attemptState?.createActionCount || 0) > 0
+    ? scope.blockers.includes("execution_plan_confirmation_already_recorded") ||
+      scope.blockers.includes("execution_job_has_confirmed_create_plan") ||
+      Number(scope.attemptState?.createActionCount || 0) > 0
     : Number(scope.attemptState.nextCreateAttemptNo || 1) > Number(scope.attemptState.maximumCreateAttempts || 3);
   return {
     status: scope.status === "passed" ? "available" : (alreadyAttempted ? "consumed" : "unavailable"),

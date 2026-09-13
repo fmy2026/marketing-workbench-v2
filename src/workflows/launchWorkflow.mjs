@@ -1680,35 +1680,44 @@ export async function runJob(repo, jobId, options = {}) {
     throw new Error("case_maximum_create_attempts_invalid");
   }
   const createAttemptNo = await resolveCreateAttemptNoForRun(repo, bundle, options);
-  const result = await runOe3WorkflowSkills({
-    repo,
-    jobId,
-    mode: options.mode || "dry_run",
-    mockReady: options.mockReady === true,
-    mockExecute: options.mockExecute === true,
-    allowNetworkWrite: options.allowNetworkWrite === true,
-    allowReadonlyDependency,
-    confirmationIntent: options.confirmationIntent || "",
-    confirmVariableValue: options.confirmVariableValue || "",
-    grantSource: options.grantSource || "",
-    executionGrantId: options.executionGrantId || "",
-    fetchImpl: options.fetchImpl || globalThis.fetch,
-    deliveryWait: options.deliveryWait,
-    deliveryNowMs: options.deliveryNowMs,
-    env: options.env || process.env,
-    allowedPlanActions: options.allowedPlanActions || [],
-    mockMonitorEnsure: options.mockMonitorEnsure === true,
-    qiankunOwnerKey: options.qiankunOwnerKey || "",
-    createAttemptNo,
-    verificationSeriesId: options.verificationSeriesId || "",
-    verificationTaskRef: options.verificationTaskRef || "",
-    maximumCreateAttempts: caseMaximumCreateAttempts,
-    singleVariableExperiment: options.singleVariableExperiment || {},
-    expectedPlanId: options.expectedPlanId || "",
-    expectedPlanHash: options.expectedPlanHash || "",
-    confirmedPlanExecution: options.confirmedPlanExecution === true,
-    projectStatePath: options.projectStatePath
-  });
+  let result;
+  try {
+    result = await runOe3WorkflowSkills({
+      repo,
+      jobId,
+      mode: options.mode || "dry_run",
+      mockReady: options.mockReady === true,
+      mockExecute: options.mockExecute === true,
+      allowNetworkWrite: options.allowNetworkWrite === true,
+      allowReadonlyDependency,
+      confirmationIntent: options.confirmationIntent || "",
+      confirmVariableValue: options.confirmVariableValue || "",
+      grantSource: options.grantSource || "",
+      executionGrantId: options.executionGrantId || "",
+      fetchImpl: options.fetchImpl || globalThis.fetch,
+      deliveryWait: options.deliveryWait,
+      deliveryNowMs: options.deliveryNowMs,
+      env: options.env || process.env,
+      allowedPlanActions: options.allowedPlanActions || [],
+      mockMonitorEnsure: options.mockMonitorEnsure === true,
+      qiankunOwnerKey: options.qiankunOwnerKey || "",
+      createAttemptNo,
+      verificationSeriesId: options.verificationSeriesId || "",
+      verificationTaskRef: options.verificationTaskRef || "",
+      maximumCreateAttempts: caseMaximumCreateAttempts,
+      singleVariableExperiment: options.singleVariableExperiment || {},
+      expectedPlanId: options.expectedPlanId || "",
+      expectedPlanHash: options.expectedPlanHash || "",
+      confirmedPlanExecution: options.confirmedPlanExecution === true,
+      projectStatePath: options.projectStatePath
+    });
+  } catch (error) {
+    if (error?.message !== "confirmed_create_job_requires_fresh_readonly_recovery") throw error;
+    const view = await getJobView(repo, jobId, options);
+    return options.includeExecutionSummary === true
+      ? { view, runSummary: { createCalled: false, blockedBeforeNodeRun: true } }
+      : view;
+  }
   const view = await buildPublicJobView(repo, result.bundle, options);
   if (options.includeExecutionSummary === true) {
     return {

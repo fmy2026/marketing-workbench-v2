@@ -23,6 +23,7 @@ import {
   DMP_ENSURE_CONFIRM_VALUE
 } from "../../dmpExecutionScope.mjs";
 import { revokeWriteScope, validateResourcePlanConfirmationScope } from "../../executionGrantScope.mjs";
+import { planConfirmationId } from "../../executionPlan.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./04-resource-action-registry.mjs";
 
@@ -309,7 +310,7 @@ export async function executeConfirmedResourcePlan({
   }
 
   const actionTypes = actions(plan).map((action) => action.action_type);
-  const confirmationId = `CONFIRM-${jobId}-RESOURCE-PLAN`;
+  const confirmationId = planConfirmationId(currentPlanId);
   const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId,
     jobId,
@@ -343,7 +344,11 @@ export async function executeConfirmedResourcePlan({
   if (confirmationClaim?.claimed !== true) {
     return sanitizeForPublic({
       status: "blocked",
-      blockers: ["execution_plan_confirmation_already_recorded"],
+      blockers: confirmationClaim?.alreadyConfirmed === true
+        ? ["execution_plan_confirmation_already_recorded"]
+        : confirmationClaim?.jobHasConfirmedCreate === true
+          ? ["execution_job_has_confirmed_create_plan"]
+          : ["execution_plan_confirmation_context_invalid"],
       createCalled: false,
       retryAllowed: false
     });

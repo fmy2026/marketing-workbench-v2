@@ -28,7 +28,6 @@ import {
   let jobRevision = 0;
   let draftCaseId = "";
   let draftCaseKey = "";
-  let pendingConfirmation = null;
   let activeConfirmationSubmission = null;
   let rootHome = false;
   let currentUser = null;
@@ -468,12 +467,11 @@ import {
 
   function confirmationPreview() {
     if (viewOnly || !job?.isLatestCaseJob) return null;
-    return pendingConfirmation || job.confirmationPreview || null;
+    return job.confirmationPreview || null;
   }
 
   function setJobView(nextJob) {
     job = nextJob || null;
-    pendingConfirmation = job?.confirmationPreview || null;
     jobRevision += 1;
   }
 
@@ -1034,9 +1032,6 @@ import {
       draftCaseId = result.view.caseId;
       setActiveCaseUrl(result.view.caseId);
     }
-    pendingConfirmation = Object.prototype.hasOwnProperty.call(result.interaction || {}, "confirmationPreview")
-      ? result.interaction.confirmationPreview
-      : job.confirmationPreview || null;
     if (result.interaction?.parserSource) {
       message("agent", `${parserLabel(result.interaction.parserSource)}。`);
     }

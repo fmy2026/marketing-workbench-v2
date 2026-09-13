@@ -182,6 +182,7 @@ function buildAuthorizationRecord({
     request_id_present: diagnostic.requestIdPresent === true,
     message_hash: clean(diagnostic.messageHash),
     response_hash: clean(probe?.responseHash),
+    transport_failure_class: clean(diagnostic.transportFailureClass),
     returned_row_count: Number(diagnostic.returnedRowCount || 0),
     primary_returned_row_count: Number(diagnostic.primaryReturnedRowCount || 0),
     discovery_returned_row_count: Number(diagnostic.discoveryReturnedRowCount || 0),
@@ -197,8 +198,19 @@ function buildAuthorizationRecord({
 }
 
 async function recordEvidence({ repo, bundle, authorization, probeSummary }) {
-  const artifactId = `EV-${bundle.job.job_id}-AWEME-AUTHORIZATION-READONLY`;
   const safeAuthorization = sanitizeForPublic(authorization);
+  const observationHash = hashValue({
+    verificationStatus: safeAuthorization.verification_status,
+    verifiedAt: safeAuthorization.verified_at,
+    blockerCode: safeAuthorization.blocker_code,
+    responseHash: safeAuthorization.response_hash,
+    messageHash: safeAuthorization.message_hash,
+    transportFailureClass: safeAuthorization.transport_failure_class
+  }).replace(/^sha256:/, "").slice(0, 20);
+  // Plan metadata rejects the word "authorization" to prevent credential
+  // material from ever being persisted there. Use an opaque relation evidence
+  // ID so a confirmed prewrite stop can safely freeze this observation ref.
+  const artifactId = `EV-${bundle.job.job_id}-AWEME-RELATION-${observationHash}`;
   assertNoSensitiveLeak({ safeAuthorization, probeSummary });
   await repo.upsertEvidence({
     artifactId,
@@ -212,6 +224,7 @@ async function recordEvidence({ repo, bundle, authorization, probeSummary }) {
       `default_hit=${authorization.default_aweme_id_hit === true}`,
       `shared_seen=${authorization.shared_relation_seen === true}`,
       `response_hash_present=${Boolean(authorization.response_hash)}`,
+      `transport_failure_class=${authorization.transport_failure_class || "none"}`,
       "raw_response_stored=false"
     ].join("; "),
     contentHash: hashValue({ authorization: safeAuthorization, probeSummary }),
@@ -287,6 +300,7 @@ function buildProbeDiagnostic({ probe = {}, probeProfile = "", rows = [], primar
     platformCode: clean(probe.apiCode),
     requestIdPresent: probe.requestIdPresent === true,
     messageHash: clean(probe.messageHash),
+    transportFailureClass: clean(probe.transportFailureClass),
     returnedRowCount: rows.length,
     primaryReturnedRowCount: primaryRows.length,
     discoveryReturnedRowCount: discoveryRows.length,
@@ -493,6 +507,7 @@ export async function runAwemeAuthorizationReadonlySkill({
         platformCode: authorization.platform_code,
         requestIdPresent: authorization.request_id_present,
         messageHashPresent: Boolean(authorization.message_hash),
+        transportFailureClass: authorization.transport_failure_class || "",
         responseHashPresent: Boolean(primaryProbe.responseHash),
         evidenceRef: artifactId,
         rawResponseStored: false,
@@ -576,6 +591,7 @@ export async function runAwemeAuthorizationReadonlySkill({
             returnedRowCount: authorization.returned_row_count,
             primaryReturnedRowCount: authorization.primary_returned_row_count,
             discoveryReturnedRowCount: authorization.discovery_returned_row_count,
+            transportFailureClass: authorization.transport_failure_class || "",
             evidenceRef: artifactId,
             rawResponseStored: false,
             nextAction: authorization.next_action
@@ -643,6 +659,7 @@ export async function runAwemeAuthorizationReadonlySkill({
       sharedRelationSeen: authorization.shared_relation_seen,
       warningCode: authorization.warning_code,
       responseHashPresent: Boolean(authorization.response_hash),
+      transportFailureClass: authorization.transport_failure_class || "",
       evidenceRef: artifactId,
       rawResponseStored: false,
       nextAction: passed ? "ready_for_node5_payload_build" : authorization.next_action

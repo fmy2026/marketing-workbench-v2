@@ -506,6 +506,24 @@ function planId(jobId, planVersion = EXECUTION_PLAN_VERSION) {
   return `PLAN-${jobId}-V${planVersion}`;
 }
 
+// A confirmation belongs to one immutable Plan. Job-scoped IDs made a later
+// Plan collide with a consumed predecessor and let the UI disagree with the
+// executor about whether confirmation was still available.
+export function planConfirmationId(planIdValue) {
+  const value = String(planIdValue || "").trim();
+  if (!/^[A-Za-z0-9_:\-.]{1,160}$/.test(value)) throw new Error("execution_plan_id_invalid_for_confirmation");
+  return `CONFIRM-${value}-PLAN`;
+}
+
+async function assertNoConfirmedCreatePlanForSuccessor({ repo, jobId, targetPlanId }) {
+  if (typeof repo.getConfirmedStdProjectCreatePlanForJob !== "function") return;
+  const confirmedPlan = await repo.getConfirmedStdProjectCreatePlanForJob(jobId);
+  const confirmedPlanId = confirmedPlan?.plan_id || confirmedPlan?.planId || "";
+  if (confirmedPlanId && confirmedPlanId !== targetPlanId) {
+    throw new Error("confirmed_create_job_requires_fresh_readonly_recovery");
+  }
+}
+
 function actionKey(jobId, actionType, suffix = "") {
   return `IDEMP-${jobId}-${actionType.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}${suffix ? `-${suffix}` : ""}`;
 }
@@ -1171,6 +1189,7 @@ export async function compileAndSaveMonitorBootstrapExecutionPlan({
   if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
     throw new Error("confirmed_execution_plan_immutable");
   }
+  await assertNoConfirmedCreatePlanForSuccessor({ repo, jobId: bundle.job.job_id, targetPlanId });
   const plan = buildMonitorBootstrapExecutionPlanFromBundle(bundle, {
     planVersion: effectivePlanVersion,
     monitorContract,
@@ -1208,6 +1227,7 @@ export async function compileAndSaveSingleResourceExecutionPlan({
   if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
     throw new Error("confirmed_execution_plan_immutable");
   }
+  await assertNoConfirmedCreatePlanForSuccessor({ repo, jobId: bundle.job.job_id, targetPlanId });
   const dmpPushPlans = resourceType === "dmp_audience_package" && typeof repo.getDmpPackagePushPlans === "function"
     ? await repo.getDmpPackagePushPlans(bundle.job.job_id)
     : [];
@@ -1374,6 +1394,7 @@ export async function compileAndSaveEventConfigsExecutionPlan({
   if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
     throw new Error("confirmed_execution_plan_immutable");
   }
+  await assertNoConfirmedCreatePlanForSuccessor({ repo, jobId: bundle.job.job_id, targetPlanId });
   const plan = buildEventConfigsExecutionPlanFromBundle(bundle, {
     planVersion,
     assetIdHint,
@@ -1416,6 +1437,7 @@ export async function compileAndSaveExecutionPlan({
   if (existingConfirmation?.confirmation_status === "confirmed_for_execution_plan") {
     throw new Error("confirmed_execution_plan_immutable");
   }
+  await assertNoConfirmedCreatePlanForSuccessor({ repo, jobId: bundle.job.job_id, targetPlanId });
   const dmpPushPlans = typeof repo.getDmpPackagePushPlans === "function"
     ? await repo.getDmpPackagePushPlans(bundle.job.job_id)
     : [];

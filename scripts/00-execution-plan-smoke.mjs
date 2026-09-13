@@ -1,11 +1,15 @@
 import { PostgresRepository } from "../src/repositories/postgresRepository.mjs";
-import { createJob, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 import {
   ACTION_STD_PROJECT_CREATE,
   STD_PROJECT_40100_REDELIVERY_CONTRACT,
   buildExecutionPlanFromBundle,
   compileAndSaveExecutionPlan,
+  compileAndSaveEventConfigsExecutionPlan,
+  compileAndSaveMonitorBootstrapExecutionPlan,
+  compileAndSaveSingleResourceExecutionPlan,
   evaluateSingleVariableLedgerDiff,
+  planConfirmationId,
   validateExecutionPlanActionScope
 } from "../src/workflows/executionPlan.mjs";
 import { JSZC_SUCCESS_PROFILE_VERSION } from "../src/workflows/skills/oe3/05-jszc-success-profile.mjs";
@@ -391,7 +395,7 @@ try {
   const zeroActionPlan = await compileAndSaveExecutionPlan({ repo, jobId: zeroActionJobId });
   const zeroActionBundle = await repo.getLaunchJobBundle(zeroActionJobId);
   const zeroActionClaim = await repo.claimLaunchExecutionPlanConfirmation({
-    confirmationId: `CONFIRM-${zeroActionJobId}-EXECUTION-PLAN`,
+    confirmationId: planConfirmationId(zeroActionPlan.plan.planId),
     jobId: zeroActionJobId,
     draftId: "",
     objectType: "std_project",
@@ -401,18 +405,110 @@ try {
     confirmVariable: "test_only",
     confirmedBy: "test_fake_transport",
     planId: zeroActionPlan.plan.planId,
-    metadata: { test_only: true }
+    metadata: { plan_hash: zeroActionPlan.plan.planHash, test_only: true }
   });
   assert(zeroActionClaim.claimed === true, "zero_action_confirmation_not_claimed");
+  const repeatedZeroActionClaim = await repo.claimLaunchExecutionPlanConfirmation({
+    confirmationId: planConfirmationId(zeroActionPlan.plan.planId),
+    jobId: zeroActionJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: zeroActionBundle.draft?.project_name || "",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: zeroActionPlan.plan.planId,
+    metadata: { plan_hash: zeroActionPlan.plan.planHash, test_only: true }
+  });
+  assert(repeatedZeroActionClaim.claimed === false && repeatedZeroActionClaim.alreadyConfirmed === true, "same_plan_confirmation_replay_not_rejected");
   const zeroActionFinalized = await repo.finalizeConfirmedCreatePlanBeforeAction({
     jobId: zeroActionJobId,
     planId: zeroActionPlan.plan.planId,
-    blockerCode: "final_draft_plan_derivation_not_passed"
+    blockerCode: "final_draft_plan_derivation_not_passed",
+    evidenceRefs: [`EV-${zeroActionJobId}-PREWRITE-OBSERVATION`]
   });
   assert(zeroActionFinalized.finalized === true, "confirmed_zero_action_plan_not_finalized");
   const zeroActionClosedBundle = await repo.getLaunchJobBundle(zeroActionJobId);
   assert(zeroActionClosedBundle.executionPlan?.plan_status === "consumed", "confirmed_zero_action_plan_not_consumed");
   assert(zeroActionClosedBundle.job?.job_status === "failed_waiting_manual_review", "confirmed_zero_action_job_not_finalized");
+  assert(
+    zeroActionClosedBundle.executionPlan?.metadata?.confirmed_execution_evidence_refs?.[0] === `EV-${zeroActionJobId}-PREWRITE-OBSERVATION`,
+    "confirmed_zero_action_evidence_not_frozen"
+  );
+  let successorPlanBlocked = false;
+  try {
+    await compileAndSaveExecutionPlan({ repo, jobId: zeroActionJobId, planVersion: 2 });
+  } catch (error) {
+    successorPlanBlocked = error.message === "confirmed_create_job_requires_fresh_readonly_recovery";
+  }
+  assert(successorPlanBlocked, "confirmed_create_job_allowed_successor_plan");
+  const successorCompilerResults = await Promise.all([
+    compileAndSaveMonitorBootstrapExecutionPlan({ repo, jobId: zeroActionJobId, planVersion: 2, monitorContract: {} }),
+    compileAndSaveSingleResourceExecutionPlan({ repo, jobId: zeroActionJobId, planVersion: 2, resourceType: "event_asset" }),
+    compileAndSaveEventConfigsExecutionPlan({ repo, jobId: zeroActionJobId, planVersion: 2 })
+  ].map(async (compile) => {
+    try {
+      await compile;
+      return "saved";
+    } catch (error) {
+      return error.message;
+    }
+  }));
+  assert(
+    successorCompilerResults.every((result) => result === "confirmed_create_job_requires_fresh_readonly_recovery"),
+    "confirmed_create_job_did_not_block_all_plan_compilers"
+  );
+  const postStopRun = await runJob(repo, zeroActionJobId, { mode: "dry_run", mockReady: true });
+  assert(postStopRun.confirmationPreview === null, "stopped_job_republished_confirmation_preview");
+  assert(
+    await repo.getLaunchExecutionPlan(`PLAN-${zeroActionJobId}-V2`) === null,
+    "confirmed_create_job_persisted_successor_plan"
+  );
+
+  // Reconstruct the terminal half of the historical ordering that caused the
+  // confirmation card to reappear. Once V1 is confirmed and stops before any
+  // create action, a V2 publish is rejected; the service view retains V1's
+  // recovery Gate and never exposes a new confirmation.
+  const replayJobId = await makeTestJob(repo, `smoke:confirmed-plan-replay:${new Date().toISOString()}`, cleanupJobIds);
+  await runJob(repo, replayJobId, { mode: "dry_run", mockReady: true });
+  const replayV1 = await compileAndSaveExecutionPlan({ repo, jobId: replayJobId, planVersion: 1 });
+  await repo.upsertLaunchConfirmation({
+    confirmationId: planConfirmationId(replayV1.plan.planId),
+    jobId: replayJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: replayV1.plan.metadata.planning_intent.project_name,
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: replayV1.plan.planId,
+    metadata: { plan_hash: replayV1.plan.planHash, test_only: true }
+  });
+  await repo.finalizeConfirmedCreatePlanBeforeAction({
+    jobId: replayJobId,
+    planId: replayV1.plan.planId,
+    blockerCode: "readonly_transport_failed",
+    evidenceRefs: [`EV-${replayJobId}-PREWRITE-OBSERVATION`]
+  });
+  let replayV2Blocked = false;
+  try {
+    await compileAndSaveExecutionPlan({ repo, jobId: replayJobId, planVersion: 2 });
+  } catch (error) {
+    replayV2Blocked = error.message === "confirmed_create_job_requires_fresh_readonly_recovery";
+  }
+  const replayBundle = await repo.getLaunchJobBundle(replayJobId);
+  const replaySummary = await repo.getWorkflowCaseSummary(replayBundle.case.case_id);
+  const replayView = await getJobView(repo, replayJobId);
+  assert(replayV2Blocked, "historical_replay_v2_publish_not_rejected");
+  assert(replayBundle.executionPlan?.plan_id === replayV1.plan.planId && replayBundle.executionPlan?.plan_status === "consumed", "historical_replay_v1_not_consumed");
+  assert(replaySummary.latest_plan_status === "consumed", "confirmed_prewrite_plan_not_preferred_in_summary");
+  assert(replaySummary.current_gate === "resolve_case_blocker", "confirmed_prewrite_recovery_gate_not_projected");
+  assert(replaySummary.suggested_next_action === "create_fresh_readonly_recovery", "confirmed_prewrite_recovery_action_not_projected");
+  assert(replaySummary.root_blocker_codes?.[0] === "readonly_transport_failed", "confirmed_prewrite_concrete_blocker_not_projected");
+  assert(replayView.confirmationPreview === null, "historical_replay_resurrected_confirmation_card");
+  assert(replayView.executionAvailability?.alreadyAttempted === true, "historical_replay_confirmation_not_locked");
 
   const result = {
     status: "passed",
@@ -432,6 +528,9 @@ try {
     confirmedPlanImmutable,
     readyPlanDraftBound: true,
     confirmedZeroActionPlanFinalized: true,
+    confirmedCreateJobRecoveryLocked: true,
+    confirmedCreateJobAllCompilersLocked: true,
+    confirmedPlanReplayRecoveryProjected: true,
     leafBlockerProjection: {
       rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
       structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")

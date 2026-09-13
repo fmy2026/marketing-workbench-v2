@@ -202,6 +202,8 @@ assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "le
 assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");
 assert(clientSource.includes("freezeConfirmationSubmission"), "confirmation_submission_snapshot_helper_missing");
 assert(clientSource.includes("activeConfirmationSubmission = submission"), "confirmation_submission_state_missing");
+assert(!clientSource.includes("pendingConfirmation"), "confirmation_card_must_not_have_a_second_client_state");
+assert(clientSource.includes("return job.confirmationPreview || null;"), "confirmation_card_must_use_server_view_as_single_source");
 assert(clientSource.includes('button.textContent = "提交中…"'), "confirmation_button_local_busy_copy_missing");
 assert(clientSource.includes("await submitJobCommand(submission.message, submission)"), "confirmation_submission_must_use_frozen_context");
 assert(!clientSource.includes("setBusy(true);\n      try {\n        await submitJobCommand(preview.confirmationPhrase || \"确认创建\");"), "confirmation_button_must_not_redraw_before_submit");

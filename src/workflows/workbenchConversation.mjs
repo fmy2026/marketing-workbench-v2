@@ -472,8 +472,9 @@ export async function handleWorkbenchCommand({
       confirmationPreview: executionBlocked ? null : nextView?.confirmationPreview || null,
       message: executionBlocked
         ? (() => {
-            const blocker = (isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "";
-            const presentation = presentRootBlocker(blocker);
+            const executionBlocker = (isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "";
+            const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0] || executionBlocker);
+            const presentation = nextView?.caseGate?.rootBlocker || presentRootBlocker(blocker);
             return blocker === "qiankun_account_identity_changed_since_plan" || blocker === "monitor_fresh_readonly_contract_drift"
               ? "账户监测身份已更新，旧 Plan 已失效；请重新只读准备。"
               : resourcePlatformWriteCalled

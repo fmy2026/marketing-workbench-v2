@@ -78,6 +78,15 @@ function messageHash(payload = {}) {
   return message ? `sha256:${sha256(message)}` : "";
 }
 
+export function classifyReadonlyTransportFailure(error = {}) {
+  if (isPlatformDeadlineError(error)) return "timeout";
+  const code = clean(error?.code || error?.cause?.code || error?.name).toUpperCase();
+  if (/DNS|ENOTFOUND|EAI_AGAIN/.test(code)) return "dns";
+  if (/PROXY/.test(code)) return "proxy";
+  if (/ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|CONNECT/.test(code)) return "connection";
+  return "transport_unknown";
+}
+
 export class OceanEngineReadonlyClient {
   constructor({
     envPath = process.env.OCEANENGINE_ENV_PATH,
@@ -229,7 +238,8 @@ export class OceanEngineReadonlyClient {
         gap: timedOut
           ? "平台只读请求超时。"
           : `平台只读请求失败：${clean(error.code || error.name || "transport_error")}`,
-        timeout: timedOut
+        timeout: timedOut,
+        transportFailureClass: classifyReadonlyTransportFailure(error)
       };
     }
   }
