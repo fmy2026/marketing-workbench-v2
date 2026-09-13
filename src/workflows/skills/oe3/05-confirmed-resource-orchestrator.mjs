@@ -1,31 +1,7 @@
-import {
-  AVATAR_ENSURE_CONFIRM_VALUE,
-  ensureAvatarForTargetOnce
-} from "../../../platforms/oceanengineAvatarExecutor.mjs";
-import { ensureDmpBaselineForTargetOnce } from "../../../platforms/oceanengineDmpExecutor.mjs";
-import {
-  VIDEO_MATERIAL_CONFIRM_VALUE,
-  ensureVideoMaterialBindSetOnce
-} from "../../../platforms/oceanengineVideoMaterialExecutor.mjs";
-import {
-  PRODUCT_IMAGE_CONFIRM_VALUE,
-  ensureProductImageForTargetOnce
-} from "../../../platforms/oceanengineProductImageExecutor.mjs";
-import {
-  EVENT_ASSET_CONFIRM_VALUE,
-  ensureEventAssetForTargetOnce
-} from "../../../platforms/oceanengineEventAssetExecutor.mjs";
-import {
-  EVENT_CONFIGS_CONFIRM_VALUE,
-  ensureEventConfigsForTargetOnce
-} from "../../../platforms/oceanengineEventConfigExecutor.mjs";
-import {
-  DMP_ENSURE_CONFIRM_VALUE
-} from "../../dmpExecutionScope.mjs";
 import { revokeWriteScope, validateResourcePlanConfirmationScope } from "../../executionGrantScope.mjs";
 import { planConfirmationId } from "../../executionPlan.mjs";
 import { assertNoSensitiveLeak, hashValue, sanitizeForPublic } from "./00-contracts.mjs";
-import { FORMAL_CONFIRMED_ACTION_ORDER } from "./04-resource-action-registry.mjs";
+import { FORMAL_CONFIRMED_ACTION_ORDER, loadConfirmedActionExecutor } from "./04-resource-action-registry.mjs";
 
 const READY_STATUSES = new Set([
   "already_ready_noop",
@@ -61,59 +37,6 @@ function claimActionId(jobId, actionType, planId = "") {
 
 function claimIdempotencyKey(plannedAction = {}, actionId = "", planId = "") {
   return `${plannedAction.idempotency_key || `IDEMP-${actionId}`}:${safeIdToken(planId)}`;
-}
-
-function defaultExecutors() {
-  return {
-    "ensure_resource:avatar": ({ repo, jobId, fetchImpl, projectStatePath }) => ensureAvatarForTargetOnce({
-      repo,
-      jobId,
-      confirmVariableValue: AVATAR_ENSURE_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath
-    }),
-    "ensure_resource:dmp_audience_package": ({ repo, jobId, fetchImpl, projectStatePath }) => ensureDmpBaselineForTargetOnce({
-      repo,
-      jobId,
-      confirmVariableValue: DMP_ENSURE_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath
-    }),
-    "ensure_resource:video_asset": ({ repo, jobId, fetchImpl, projectStatePath }) => ensureVideoMaterialBindSetOnce({
-      repo,
-      jobId,
-      allowNetworkWrite: true,
-      confirmVariableValue: VIDEO_MATERIAL_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath
-    }),
-    "ensure_resource:product_image": ({ repo, jobId, fetchImpl, projectStatePath }) => ensureProductImageForTargetOnce({
-      repo,
-      jobId,
-      confirmVariableValue: PRODUCT_IMAGE_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath
-    }),
-    "ensure_resource:event_asset": ({ repo, jobId, fetchImpl, projectStatePath, plan }) => ensureEventAssetForTargetOnce({
-      repo,
-      jobId,
-      confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath,
-      deferFullEventChainUntilConfigs: actions(plan).some((action) => action.action_type === "ensure_event_configs:baseline")
-    }),
-    "ensure_event_configs:baseline": ({ repo, jobId, fetchImpl, projectStatePath, plan, plannedAction, runtimeContext }) => ensureEventConfigsForTargetOnce({
-      repo,
-      jobId,
-      confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE,
-      fetchImpl,
-      projectStatePath,
-      assetIdHint: runtimeContext?.eventAssetId || (() => {
-        const targetHint = String(plannedAction?.target_ref || "").split(":").pop();
-        return targetHint === "target_event_asset" ? "" : targetHint || plan?.metadata?.event_config_asset_id_hint || "";
-      })()
-    })
-  };
 }
 
 export async function runConfirmedResourceOrchestratorSkill({
@@ -156,7 +79,6 @@ export async function runConfirmedResourceOrchestratorSkill({
     });
   }
 
-  const executors = { ...defaultExecutors(), ...executorOverrides };
   const results = [];
   const runtimeContext = {
     eventAssetId: clean((bundle.resources || []).find((resource) =>
@@ -193,7 +115,8 @@ export async function runConfirmedResourceOrchestratorSkill({
     }
     let result;
     try {
-      result = await executors[actionType]({
+      const executor = executorOverrides[actionType] || await loadConfirmedActionExecutor(actionType);
+      result = await executor({
         repo,
         jobId: bundle.job.job_id,
         fetchImpl,

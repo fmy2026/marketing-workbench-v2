@@ -1,0 +1,1 @@
+{"verified_at":"2026-09-13T10:35:00.000000+00:00","command":"npm run test:resource-action-registry","status":"passed","summary":"资源动作集合、顺序、支持能力和缺失资源阻断保持一致。"}

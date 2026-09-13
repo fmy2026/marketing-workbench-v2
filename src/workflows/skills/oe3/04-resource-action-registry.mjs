@@ -122,6 +122,47 @@ export const FORMAL_CONFIRMED_ACTION_ORDER = Object.freeze([
   ...FORMAL_RESOURCE_PREP_ACTION_ORDER.filter((actionType) => actionType !== "ensure_resource:event_asset")
 ]);
 
+// Execution wiring lives beside the action definition. Dynamic imports keep
+// contracts independent from platform executors and avoid module cycles.
+export async function loadConfirmedActionExecutor(actionType) {
+  if (actionType === "ensure_resource:avatar") {
+    const { AVATAR_ENSURE_CONFIRM_VALUE, ensureAvatarForTargetOnce } = await import("../../../platforms/oceanengineAvatarExecutor.mjs");
+    return ({ repo, jobId, fetchImpl, projectStatePath }) => ensureAvatarForTargetOnce({ repo, jobId, confirmVariableValue: AVATAR_ENSURE_CONFIRM_VALUE, fetchImpl, projectStatePath });
+  }
+  if (actionType === "ensure_resource:dmp_audience_package") {
+    const [{ ensureDmpBaselineForTargetOnce }, { DMP_ENSURE_CONFIRM_VALUE }] = await Promise.all([
+      import("../../../platforms/oceanengineDmpExecutor.mjs"), import("../../dmpExecutionScope.mjs")
+    ]);
+    return ({ repo, jobId, fetchImpl, projectStatePath }) => ensureDmpBaselineForTargetOnce({ repo, jobId, confirmVariableValue: DMP_ENSURE_CONFIRM_VALUE, fetchImpl, projectStatePath });
+  }
+  if (actionType === "ensure_resource:video_asset") {
+    const { VIDEO_MATERIAL_CONFIRM_VALUE, ensureVideoMaterialBindSetOnce } = await import("../../../platforms/oceanengineVideoMaterialExecutor.mjs");
+    return ({ repo, jobId, fetchImpl, projectStatePath }) => ensureVideoMaterialBindSetOnce({ repo, jobId, allowNetworkWrite: true, confirmVariableValue: VIDEO_MATERIAL_CONFIRM_VALUE, fetchImpl, projectStatePath });
+  }
+  if (actionType === "ensure_resource:product_image") {
+    const { PRODUCT_IMAGE_CONFIRM_VALUE, ensureProductImageForTargetOnce } = await import("../../../platforms/oceanengineProductImageExecutor.mjs");
+    return ({ repo, jobId, fetchImpl, projectStatePath }) => ensureProductImageForTargetOnce({ repo, jobId, confirmVariableValue: PRODUCT_IMAGE_CONFIRM_VALUE, fetchImpl, projectStatePath });
+  }
+  if (actionType === "ensure_resource:event_asset") {
+    const { EVENT_ASSET_CONFIRM_VALUE, ensureEventAssetForTargetOnce } = await import("../../../platforms/oceanengineEventAssetExecutor.mjs");
+    return ({ repo, jobId, fetchImpl, projectStatePath, plan }) => ensureEventAssetForTargetOnce({
+      repo, jobId, confirmVariableValue: EVENT_ASSET_CONFIRM_VALUE, fetchImpl, projectStatePath,
+      deferFullEventChainUntilConfigs: (plan?.planned_actions || plan?.plannedActions || []).some((action) => action.action_type === "ensure_event_configs:baseline")
+    });
+  }
+  if (actionType === "ensure_event_configs:baseline") {
+    const { EVENT_CONFIGS_CONFIRM_VALUE, ensureEventConfigsForTargetOnce } = await import("../../../platforms/oceanengineEventConfigExecutor.mjs");
+    return ({ repo, jobId, fetchImpl, projectStatePath, plan, plannedAction, runtimeContext }) => ensureEventConfigsForTargetOnce({
+      repo, jobId, confirmVariableValue: EVENT_CONFIGS_CONFIRM_VALUE, fetchImpl, projectStatePath,
+      assetIdHint: runtimeContext?.eventAssetId || (() => {
+        const targetHint = String(plannedAction?.target_ref || "").split(":").pop();
+        return targetHint === "target_event_asset" ? "" : targetHint || plan?.metadata?.event_config_asset_id_hint || "";
+      })()
+    });
+  }
+  throw new Error(`confirmed_resource_action_executor_missing:${actionType}`);
+}
+
 export function formalResourcePrepActionSupported(actionType = "") {
   return FORMAL_RESOURCE_PREP_ACTION_ORDER.includes(String(actionType || ""));
 }

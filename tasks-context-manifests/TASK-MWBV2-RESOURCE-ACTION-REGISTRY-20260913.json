@@ -1,0 +1,20 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913",
+  "task_ref": "tasks/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T10:30:00.000000+00:00",
+  "updated_at": "2026-09-13T10:35:00.000000+00:00",
+  "base_revision": "b3f59cfcd3c425e9983be091eab59be62e950bd6",
+  "baseline_dirty_files": {}, "domains": ["control", "workflow"],
+  "read_order": ["AGENTS.md", "project.state.json", "tasks/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913.md", "tasks-context-manifests/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913.json", "docs/Solution Design.md", "docs/project-现在的逻辑图.md", "deploy/README.md", "package.json"],
+  "reference_only": [],
+  "allowed_writes": ["tasks/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913.md", "tasks-context-manifests/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913.json", "project.state.json", "evidence/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913/**", "docs/Solution Design.md", "docs/project-现在的逻辑图.md", "src/workflows/**", "scripts/**"],
+  "forbidden_actions": ["业务库写入", "真实平台调用", "修改资源调用上限"], "stop_conditions": ["动作顺序、Plan/hash 或权限阻断出现未解释差异"], "open_gaps": [],
+  "validation_plan": [{"acceptance_id":"AC-01","command":"static registry wiring check"},{"acceptance_id":"AC-02","command":"npm run test:resource-action-registry"},{"acceptance_id":"AC-03","command":"npm run check:project -- --phase before-close"}],
+  "validation_results": [{"acceptance_id":"AC-01","status":"passed","command":"static registry wiring check","verified_at":"2026-09-13T10:35:00.000000+00:00","summary":"编排器不再维护资源执行器映射，统一使用注册表惰性装配。","evidence_refs":["evidence/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913/action-registry.json"]},{"acceptance_id":"AC-02","status":"passed","command":"npm run test:resource-action-registry","verified_at":"2026-09-13T10:35:00.000000+00:00","summary":"资源动作核心合同通过。","evidence_refs":["evidence/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913/action-registry.json"]},{"acceptance_id":"AC-03","status":"passed","command":"npm run check:project -- --phase before-close","verified_at":"2026-09-13T10:35:00.000000+00:00","summary":"项目闭环检查通过。","evidence_refs":["evidence/TASK-MWBV2-RESOURCE-ACTION-REGISTRY-20260913/action-registry.json"]}],
+  "documentation_updates": [{"ref":"docs/Solution Design.md","status":"updated","reason":"记录注册表成为唯一执行器装配来源。"},{"ref":"docs/project-现在的逻辑图.md","status":"not_needed","reason":"动作机制保持不变，仅收束内部装配。"},{"ref":"deploy/README.md","status":"not_needed","reason":"部署入口没有变化。"}],
+  "temporary_authorizations": [],
+  "result": {"summary":"确认资源执行器惰性装配已集中到注册表。","side_effects":"未调用平台或写入业务库。","remaining_risks":[],"business_evidence_refs":[]},
+  "closed_at": "2026-09-13T10:35:00.000000+00:00"
+}
