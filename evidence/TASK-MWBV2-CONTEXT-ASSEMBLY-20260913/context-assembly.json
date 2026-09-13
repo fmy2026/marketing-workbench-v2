@@ -1,0 +1,1 @@
+{"verified_at":"2026-09-13T10:50:00.000000+00:00","command":"npm run test:workbench-auth-http","status":"passed","summary":"隔离 HTTP 工作台认证与上下文读取通过；不访问真实平台。"}

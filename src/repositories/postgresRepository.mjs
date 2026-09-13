@@ -80,6 +80,12 @@ function safeGameRouteLaunchLinkJson(alias = "grll") {
   )`;
 }
 
+// Keep shared account/route scope predicates identical while each repository
+// entrypoint retains its own one-query projection and return shape.
+function accountRouteScope(alias, routeAlias, gameAlias, advertiserAlias) {
+  return `${alias}.route_id = ${routeAlias}.route_id\n            AND ${alias}.game_code = ${gameAlias}.game_code\n            AND ${alias}.advertiser_id = ${advertiserAlias}.advertiser_id`;
+}
+
 function assertId(name, value, pattern = /^[A-Za-z0-9_:\-.]+$/) {
   const text = String(value ?? "");
   if (!text || !pattern.test(text)) {
@@ -631,9 +637,7 @@ export class PostgresRepository {
             'updated_at', v.updated_at
           )
           FROM mwb.v_monitor_provision_status_report v
-          WHERE v.route_id = r.route_id
-            AND v.game_code = g.game_code
-            AND v.advertiser_id = a.advertiser_id
+          WHERE ${accountRouteScope("v", "r", "g", "a")}
           ORDER BY v.updated_at DESC
           LIMIT 1
         ),
@@ -657,9 +661,7 @@ export class PostgresRepository {
             'updated_at', mr.updated_at
           )
           FROM mwb.v_monitor_readiness mr
-          WHERE mr.route_id = r.route_id
-            AND mr.game_code = g.game_code
-            AND mr.advertiser_id = a.advertiser_id
+          WHERE ${accountRouteScope("mr", "r", "g", "a")}
           LIMIT 1
         ),
         'defaults', (
@@ -1109,9 +1111,7 @@ export class PostgresRepository {
             'updated_at', v.updated_at
           )
           FROM mwb.v_monitor_provision_status_report v
-          WHERE v.route_id = j.route_id
-            AND v.game_code = j.game_code
-            AND v.advertiser_id = j.advertiser_id
+          WHERE ${accountRouteScope("v", "j", "j", "j")}
           ORDER BY v.updated_at DESC
           LIMIT 1
         ),
@@ -1135,9 +1135,7 @@ export class PostgresRepository {
             'updated_at', mr.updated_at
           )
           FROM mwb.v_monitor_readiness mr
-          WHERE mr.route_id = j.route_id
-            AND mr.game_code = j.game_code
-            AND mr.advertiser_id = j.advertiser_id
+          WHERE ${accountRouteScope("mr", "j", "j", "j")}
           LIMIT 1
         ),
         'defaults', (
