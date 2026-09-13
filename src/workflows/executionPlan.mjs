@@ -80,6 +80,7 @@ function compactAction(action) {
     writes_to: action.writes_to || [],
     reason: action.reason || "",
     maximum_platform_calls: Number(action.maximum_platform_calls || 0),
+    resource_contract_hash: action.resource_contract_hash || "",
     rate_limit_redelivery: action.rate_limit_redelivery || {}
   };
 }
@@ -259,13 +260,27 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
 // readonly contract has proved that no platform write remains. The compiler
 // treats this as a generic READY override; it never turns a missing or
 // unverified resource into a zero-call action.
-export async function resolveFreshResourceActionCallLimits({ bundle, actionTypes = [] } = {}) {
-  const requested = new Set(actionTypes || []);
+export async function resolveFreshResourceActionContracts({ bundle, actionTypes = [] } = {}) {
   const actionCallLimits = {};
-  if (!requested.has("ensure_resource:video_asset")) return actionCallLimits;
+  const resourceActionContracts = {};
+  const hasRequiredVideoMaterial = (bundle?.materialPack?.items || []).some((entry) =>
+    entry?.item?.item_type === "video_asset" &&
+    entry?.item?.required === true &&
+    String(entry?.item?.status || "active") === "active"
+  );
+  if (!hasRequiredVideoMaterial) {
+    return { actionCallLimits, resourceActionContracts };
+  }
 
-  const { buildVideoMaterialPreparePlan } = await import("../platforms/oceanengineVideoMaterialExecutor.mjs");
-  const materialPlan = buildVideoMaterialPreparePlan({ bundle });
+  const [{ buildVideoMaterialPreparePlan }, { mockReadyBundle }] = await Promise.all([
+    import("../platforms/oceanengineVideoMaterialExecutor.mjs"),
+    import("./skills/oe3/04-resource-verifiers.mjs")
+  ]);
+  // `test_run` has no platform inventory. Its existing deterministic fixture
+  // supplies the same verified mapping shape before plan compilation; runtime
+  // Jobs always consume the persisted material-source mapping as-is.
+  const materialBundle = bundle?.job?.source_usage === "test_run" ? mockReadyBundle(bundle) : bundle;
+  const materialPlan = buildVideoMaterialPreparePlan({ bundle: materialBundle });
   const selectedRequiredVideoCount = Number(materialPlan.selectedRequiredVideoCount || 0);
   const readyCount = Number(materialPlan.readyCount || 0);
   const bindActionCount = Number(materialPlan.bindActionCount || 0);
@@ -273,9 +288,23 @@ export async function resolveFreshResourceActionCallLimits({ bundle, actionTypes
   const uploadActionCount = Number(materialPlan.uploadActionCount || 0);
   const allRequiredVideosAccountedFor = selectedRequiredVideoCount > 0 &&
     readyCount + bindActionCount === selectedRequiredVideoCount;
-  if (uploadActionCount === 0 && allRequiredVideosAccountedFor && bindBatchCount >= 0) {
+  const contract = {
+    status: materialPlan.contractStatus || "blocked",
+    blockers: [...new Set(materialPlan.contractBlockers || ["video_material_prepare_contract_missing"])],
+    maximumPlatformCalls: bindBatchCount,
+    contractHash: materialPlan.bindBatchRequestHash || ""
+  };
+  if (contract.status === "blocked") {
+    resourceActionContracts.video_asset = contract;
+  } else if (uploadActionCount === 0 && allRequiredVideosAccountedFor && bindBatchCount >= 0) {
     actionCallLimits["ensure_resource:video_asset"] = bindBatchCount;
+    resourceActionContracts.video_asset = contract;
   }
+  return { actionCallLimits, resourceActionContracts };
+}
+
+export async function resolveFreshResourceActionCallLimits({ bundle, actionTypes = [] } = {}) {
+  const { actionCallLimits } = await resolveFreshResourceActionContracts({ bundle, actionTypes });
   return actionCallLimits;
 }
 
@@ -558,7 +587,8 @@ function draftReady(bundle = {}) {
 
 function compilePlannedActions(bundle = {}, {
   planVersion = EXECUTION_PLAN_VERSION,
-  actionCallLimits = {}
+  actionCallLimits = {},
+  resourceActionContracts = {}
 } = {}) {
   const job = bundle.job || {};
   const draft = bundle.draft || null;
@@ -576,6 +606,7 @@ function compilePlannedActions(bundle = {}, {
   for (const resourceType of OE3_REQUIRED_RESOURCE_TYPES) {
     const capability = getResourceActionCapability(resourceType);
     const records = byType.get(resourceType) || [];
+    const resourceActionContract = resourceActionContracts[resourceType] || null;
     const verifier = verifierStates.get(resourceType) || {};
     const verifierState = verifier.status || "";
     if (
@@ -603,6 +634,19 @@ function compilePlannedActions(bundle = {}, {
       });
       continue;
     }
+    // The fresh video prepare contract is more specific than the aggregate
+    // resource row. It therefore owns the video state for this compilation:
+    // a stale READY row cannot hide a newly detected missing target binding.
+    if (resourceType === "video_asset" && resourceActionContract?.status === "blocked") {
+      const blocker = resourceActionContract.blockers?.[0] || "video_asset_prepare_contract_not_executable";
+      resourceStates.push({ resource_type: resourceType, state: "BLOCKED", action_type: "", blocker });
+      blockers.push(...(resourceActionContract.blockers || [blocker]));
+      continue;
+    }
+    if (resourceType === "video_asset" && resourceActionContract?.status === "ready") {
+      resourceStates.push({ resource_type: resourceType, state: "READY", action_type: "", blocker: "" });
+      continue;
+    }
     if (verifierState === "blocked" || verifierState === "prepare_unsupported") {
       const blocker = verifier.blocker || (verifierState === "blocked"
         ? `${resourceType}_readonly_or_preflight_blocked`
@@ -611,7 +655,8 @@ function compilePlannedActions(bundle = {}, {
       blockers.push(blocker);
       continue;
     }
-    if (verifierState === "ready" || (records.length && records.some(resourceReady))) {
+    if ((resourceType !== "video_asset" || resourceActionContract?.status !== "planned") &&
+      (verifierState === "ready" || (records.length && records.some(resourceReady)))) {
       resourceStates.push({ resource_type: resourceType, state: "READY", action_type: "", blocker: "" });
       continue;
     }
@@ -648,7 +693,8 @@ function compilePlannedActions(bundle = {}, {
       depends_on: [capability.verify_skill_key],
       writes_to: ["account_resources", "launch_skill_runs", "evidence_artifacts"],
       reason: records.length ? "resource_not_ready" : "resource_missing",
-      maximum_platform_calls: grant.maximum_platform_calls
+      maximum_platform_calls: grant.maximum_platform_calls,
+      ...(resourceActionContract?.contractHash ? { resource_contract_hash: resourceActionContract.contractHash } : {})
     });
     if (resourceType === "event_asset") {
       actions.push(eventConfigsPlannedAction({
@@ -715,7 +761,8 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
   maximumCreateAttempts = 3,
   singleVariableExperiment = {},
   planningIntent = {},
-  actionCallLimits = {}
+  actionCallLimits = {},
+  resourceActionContracts = {}
 } = {}) {
   const job = bundle.job || {};
   if (!job.job_id) throw new Error("job_id_required");
@@ -723,7 +770,8 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
   const effectivePlanningIntent = planningIntentFromBundle(bundle, planningIntent);
   const { plannedActions, blockerCodes, rootBlockerCodes, resourceStates } = compilePlannedActions(bundle, {
     planVersion,
-    actionCallLimits
+    actionCallLimits,
+    resourceActionContracts
   });
   const draft = bundle.draft || null;
   const numericAttemptNo = Number(createAttemptNo || 1);
@@ -790,6 +838,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
       confirmation_model: "one_plan_one_confirmation_many_bounded_actions",
       planning_intent: effectivePlanningIntent,
       resource_states: resourceStates,
+      resource_action_contracts: resourceActionContracts,
       success_profile: successProfileSummary,
       ...verificationSeries,
       ...(Object.keys(normalizedExperiment).length ? { single_variable_experiment: normalizedExperiment } : {}),
@@ -815,6 +864,7 @@ export function buildExecutionPlanFromBundle(bundle = {}, {
             ...actionGrantDefaults(action.action_type, {
               [action.action_type]: Number(action.maximum_platform_calls || 0)
             }),
+            ...(action.resource_contract_hash ? { resource_contract_hash: action.resource_contract_hash } : {}),
             ...(action.action_type === ACTION_STD_PROJECT_CREATE
               ? { rate_limit_redelivery: { ...STD_PROJECT_40100_REDELIVERY_CONTRACT } }
               : {})
@@ -1382,11 +1432,11 @@ export async function compileAndSaveExecutionPlan({
     planningIntent: planningIntent || {},
     actionCallLimits: baseActionCallLimits
   });
-  const freshActionCallLimits = await resolveFreshResourceActionCallLimits({
+  const freshResourceActions = await resolveFreshResourceActionContracts({
     bundle,
     actionTypes: preliminary.plannedActions.map((action) => action.action_type)
   });
-  const actionCallLimits = { ...baseActionCallLimits, ...freshActionCallLimits };
+  const actionCallLimits = { ...baseActionCallLimits, ...freshResourceActions.actionCallLimits };
   let plan = buildExecutionPlanFromBundle(bundle, {
     planVersion,
     createAttemptNo,
@@ -1395,7 +1445,8 @@ export async function compileAndSaveExecutionPlan({
     maximumCreateAttempts,
     singleVariableExperiment,
     planningIntent: planningIntent || {},
-    actionCallLimits
+    actionCallLimits,
+    resourceActionContracts: freshResourceActions.resourceActionContracts
   });
   let effectivePlanningIntent = planningIntent || plan.metadata?.planning_intent || {};
   if (
@@ -1415,7 +1466,8 @@ export async function compileAndSaveExecutionPlan({
       maximumCreateAttempts,
       singleVariableExperiment,
       planningIntent: effectivePlanningIntent,
-      actionCallLimits
+      actionCallLimits,
+      resourceActionContracts: freshResourceActions.resourceActionContracts
     });
   }
   if (expectedPlanId && plan.planId !== expectedPlanId) {

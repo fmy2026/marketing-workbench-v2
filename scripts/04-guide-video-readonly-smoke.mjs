@@ -63,6 +63,17 @@ function bundle({
         }
       }))
     },
+    materialSourceResources: videos.map((sourceAssetId, index) => ({
+      resource_type: "video_asset",
+      source_asset_id: sourceAssetId,
+      metadata: {
+        oceanengine_video_mapping: {
+          status: "verified",
+          oceanengine_video_id: `video-id-${index + 1}`
+        },
+        video_cover_id: `cover-id-${index + 1}`
+      }
+    })),
     resources: [
       {
         resource_type: "micro_app_instance",
@@ -316,6 +327,13 @@ assert(autoEmpty.resourceWrites[0]?.resourceMetadata?.guide_video_readiness?.req
 const forcedEmpty = await run([], { required: true, autoDetect: true });
 assert(forcedEmpty.result.status === "blocked", "account_force_required_must_not_downgrade_empty_list");
 assert(forcedEmpty.result.blockers.includes("guide_video_candidate_missing"), "account_force_required_empty_list_blocker_missing");
+
+const guideBlockedAfterVideoProbes = await run([], { coverRequired: true });
+assert(guideBlockedAfterVideoProbes.result.status === "blocked", "guide_missing_after_video_probe_must_block");
+assert(guideBlockedAfterVideoProbes.result.blockers.includes("guide_video_candidate_missing"), "guide_missing_after_video_probe_blocker_missing");
+assert(guideBlockedAfterVideoProbes.client.calls.length === 9, "ordinary_video_probes_must_finish_before_guide_blocker");
+assert(guideBlockedAfterVideoProbes.client.calls.at(-1)?.endpoint === "/open_api/v3.0/gameplay/list/", "guide_probe_must_run_after_ordinary_video_probes");
+assert(guideBlockedAfterVideoProbes.result.outputSummary.finalMaterialReadiness.status === "passed", "ordinary_video_readiness_must_remain_visible_when_guide_blocks");
 
 const ordinary = await run([], { required: false });
 assert(ordinary.result.status === "passed", "ordinary_account_cached_video_readiness_must_remain_passed");

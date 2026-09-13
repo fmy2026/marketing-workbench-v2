@@ -7,7 +7,7 @@ import {
   PLAN_KIND_MONITOR_BOOTSTRAP,
   PLAN_KIND_RESOURCE_PREPARE,
   STD_PROJECT_40100_REDELIVERY_CONTRACT,
-  resolveFreshResourceActionCallLimits,
+  resolveFreshResourceActionContracts,
   validateExecutionPlanActionScope
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
@@ -303,13 +303,29 @@ export async function validateResourcePlanConfirmationScope({
       ...(grantLimit === actionLimit ? [] : [`execution_plan_action_grant_limit_mismatch:${actionType}`])
     ];
   });
-  const freshActionCallLimits = await resolveFreshResourceActionCallLimits({ bundle, actionTypes });
+  const freshResourceActions = await resolveFreshResourceActionContracts({ bundle, actionTypes });
+  const freshActionCallLimits = freshResourceActions.actionCallLimits;
   const freshActionCallLimitDrift = Object.entries(freshActionCallLimits).flatMap(([actionType, currentLimit]) => {
     const action = actions.find((item) => item.action_type === actionType);
     return action && actionMaximumPlatformCalls(action) === Number(currentLimit)
       ? []
       : [`resource_action_call_limit_drifted:${actionType}`];
   });
+  const videoContract = freshResourceActions.resourceActionContracts.video_asset;
+  const videoAction = actions.find((action) => action.action_type === "ensure_resource:video_asset");
+  const videoContractDrift = !videoContract
+    ? []
+    : [
+      ...(videoContract.status === "blocked" ? ["video_material_prepare_contract_not_executable"] : []),
+      ...(videoContract.status === "planned" && !videoAction ? ["video_material_prepare_action_missing"] : []),
+      ...(videoContract.status === "ready" && videoAction ? ["video_material_prepare_action_stale"] : []),
+      ...(videoAction && actionMaximumPlatformCalls(videoAction) === Number(videoContract.maximumPlatformCalls)
+        ? []
+        : videoAction ? ["video_material_prepare_call_limit_drifted"] : []),
+      ...(videoAction && videoAction.resource_contract_hash === videoContract.contractHash
+        ? []
+        : videoAction ? ["video_material_prepare_binding_set_drifted"] : [])
+    ];
   const blockers = [
     ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
@@ -326,6 +342,7 @@ export async function validateResourcePlanConfirmationScope({
     ...(Number(scope.maximum_platform_calls) === plannedMaximumPlatformCalls ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
     ...frozenActionCallLimitBlockers,
     ...freshActionCallLimitDrift,
+    ...videoContractDrift,
     ...(actionTypes.every((actionType) => FORMAL_CONFIRMED_ACTION_ORDER.includes(actionType)) ? [] : ["confirmed_resource_action_not_in_registry"]),
     ...(actionTypes.includes(ACTION_STD_PROJECT_CREATE) ? ["std_project_create_not_allowed_in_resource_execution"] : []),
     ...(Number(scope.maximum_create_calls || 0) === 0 ? [] : ["execution_plan_create_call_limit_invalid"]),

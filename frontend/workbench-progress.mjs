@@ -18,6 +18,24 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
   const gate = String(caseGate?.currentGate || "").trim();
   const blocker = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   if (gate !== "resolve_case_blocker") return null;
+  if (blocker === "video_bind_plan_empty") {
+    return {
+      message: "当前阻断：旧资源 Plan 没有冻结可执行的视频绑定批次。请输入“重新只读准备”重新核验；不会重放旧 Plan 或创建项目。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
+  if (blocker.startsWith("video_material_source_mapping_not_verified:") || blocker.startsWith("video_material_source_mapping_ambiguous:")) {
+    return {
+      message: "当前阻断：视频素材来源未能唯一核验。补齐物料户映射后请输入“重新只读准备”；系统不会猜测绑定对象。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
+  if (blocker.startsWith("video_material_bind_plan_blocked:") || blocker === "video_material_prepare_contract_not_executable") {
+    return {
+      message: "当前阻断：视频绑定的只读条件尚未完整通过。请输入“重新只读准备”重新核验；未形成新 Plan 前不会写入平台。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (IDENTITY_RECOVERY_BLOCKERS.has(blocker)) {
     return {
       message: "账户监测身份已更新，旧 Plan 已失效；请输入“重新只读准备”。",

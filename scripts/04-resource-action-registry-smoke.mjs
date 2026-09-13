@@ -4,6 +4,7 @@ import {
   buildSingleResourceExecutionPlanFromBundle,
   buildExecutionPlanFromBundle,
   compileAndSaveExecutionPlan,
+  resolveFreshResourceActionContracts,
   resolveFreshResourceActionCallLimits
 } from "../src/workflows/executionPlan.mjs";
 import {
@@ -264,6 +265,36 @@ const manyVideoCallLimits = await resolveFreshResourceActionCallLimits({
 });
 assert(manyVideoCallLimits["ensure_resource:video_asset"] === 2, "fresh_multi_batch_video_bind_must_resolve_exact_call_count");
 
+const incompleteVideoBundle = freshVideoBundle({ requiredVideoCount: 2, missingVideoCount: 2 });
+incompleteVideoBundle.materialSourceResources = [];
+const incompleteVideoContract = await resolveFreshResourceActionContracts({
+  bundle: incompleteVideoBundle,
+  actionTypes: ["ensure_resource:video_asset"]
+});
+assert(incompleteVideoContract.resourceActionContracts.video_asset?.status === "blocked", "incomplete_video_contract_must_block");
+assert(incompleteVideoContract.resourceActionContracts.video_asset?.blockers.every((item) => item.startsWith("video_material_source_mapping_")), "incomplete_video_contract_reason_missing");
+const incompleteVideoPlan = buildExecutionPlanFromBundle(bundleWithResources(
+  allReadyResources.filter((item) => item.resource_type !== "video_asset")
+), {
+  actionCallLimits: incompleteVideoContract.actionCallLimits,
+  resourceActionContracts: incompleteVideoContract.resourceActionContracts
+});
+assert(incompleteVideoPlan.planStatus === "blocked", "incomplete_video_plan_must_not_be_confirmable");
+assert(!actionTypes(incompleteVideoPlan).includes("ensure_resource:video_asset"), "incomplete_video_plan_must_not_guess_write_action");
+assert(incompleteVideoPlan.blockerCodes.some((item) => item.startsWith("video_material_source_mapping_")), "incomplete_video_plan_blocker_missing");
+
+const partialVideoContract = await resolveFreshResourceActionContracts({
+  bundle: freshVideoBundle({ requiredVideoCount: 2, missingVideoCount: 1 }),
+  actionTypes: ["ensure_resource:video_asset"]
+});
+const staleVideoReadyPlan = buildExecutionPlanFromBundle(bundleWithResources(allReadyResources), {
+  actionCallLimits: partialVideoContract.actionCallLimits,
+  resourceActionContracts: partialVideoContract.resourceActionContracts
+});
+const staleVideoReadyAction = staleVideoReadyPlan.plannedActions.find((action) => action.action_type === "ensure_resource:video_asset");
+assert(staleVideoReadyAction?.maximum_platform_calls === 1, "fresh_partial_video_contract_must_override_stale_ready_row");
+assert(staleVideoReadyAction?.resource_contract_hash === partialVideoContract.resourceActionContracts.video_asset.contractHash, "fresh_partial_video_contract_hash_missing");
+
 const zeroVideoActionPlan = buildExecutionPlanFromBundle(bundleWithResources(
   allReadyResources.filter((item) => item.resource_type !== "video_asset")
 ), { actionCallLimits: zeroVideoCallLimits });
@@ -294,6 +325,7 @@ const compiledZeroVideo = await compileAndSaveExecutionPlan({
     draft: null,
     defaults: compiledFreshZeroVideoBundle.defaults,
     materialPack: compiledFreshZeroVideoBundle.materialPack,
+    materialSourceResources: compiledFreshZeroVideoBundle.materialSourceResources,
     resources: [
       ...bundleWithResources(allReadyResources.filter((item) => item.resource_type !== "video_asset")).resources,
       ...compiledFreshZeroVideoBundle.resources
@@ -302,6 +334,7 @@ const compiledZeroVideo = await compileAndSaveExecutionPlan({
   planningIntent: {}
 });
 assert(!actionTypes(compiledZeroVideo.plan).includes("ensure_resource:video_asset"), "compiler_must_drop_fresh_zero_call_video_action");
+assert(compiledZeroVideo.plan.metadata.resource_states.find((item) => item.resource_type === "video_asset")?.state === "READY", "compiler_must_keep_ready_zero_video_contract_ready");
 assert(
   compiledZeroVideo.plan.metadata.execution_scope.maximum_platform_calls === compiledZeroVideo.plan.plannedActions.reduce(
     (sum, action) => sum + Number(action.maximum_platform_calls || 0),

@@ -743,17 +743,6 @@ export async function runVideoMaterialReadonlyGate({
     return summaryFromItems({ items: [], source: "material_pack_missing_required_video", requireExplicitCover });
   }
 
-  const guideVideoReadiness = await resolveGuideVideoReadonly({
-    repo,
-    bundle,
-    client,
-    mockReady,
-    allowReadonlyDependency
-  });
-  if (guideVideoReadiness.source !== "current_job_cached_readonly") {
-    await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
-  }
-
   const cachedItems = requiredItems.map((item) => {
     const resource = accountResourceForVideo(bundle, item.sourceAssetId);
     const cachedReady = mockReady || (!requireExplicitCover && existingVideoReady(resource));
@@ -777,26 +766,27 @@ export async function runVideoMaterialReadonlyGate({
     });
   });
   const cachedSummary = summaryFromItems({ items: cachedItems, source: mockReady ? "mock_ready" : "postgres_readonly_metadata", requireExplicitCover });
-  if (guideVideoReadiness.status === "blocked") {
-    return sanitizeForPublic({
-      status: "blocked",
-      blockers: guideVideoReadiness.blockers,
-      outputSummary: {
-        ...cachedSummary.outputSummary,
-        ready: false,
-        readonlyStatus: "guide_video_not_ready",
-        guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness),
-        nextAction: "重新只读玩法；仅在唯一审核通过引导视频可确定后继续"
-      },
-      evidenceRefs: [guideVideoReadiness.evidenceRef].filter(Boolean)
-    });
-  }
   if (cachedSummary.status === "passed") {
+    const guideVideoReadiness = await resolveGuideVideoReadonly({
+      repo,
+      bundle,
+      client,
+      mockReady,
+      allowReadonlyDependency
+    });
+    if (guideVideoReadiness.source !== "current_job_cached_readonly") {
+      await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
+    }
     return sanitizeForPublic({
       ...cachedSummary,
+      status: guideVideoReadiness.status === "blocked" ? "blocked" : cachedSummary.status,
+      blockers: guideVideoReadiness.status === "blocked" ? guideVideoReadiness.blockers : cachedSummary.blockers,
       outputSummary: {
         ...cachedSummary.outputSummary,
-        guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness)
+        ready: guideVideoReadiness.status === "blocked" ? false : cachedSummary.outputSummary.ready,
+        readonlyStatus: guideVideoReadiness.status === "blocked" ? "guide_video_not_ready" : cachedSummary.outputSummary.readonlyStatus,
+        guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness),
+        ...(guideVideoReadiness.status === "blocked" ? { nextAction: "重新只读玩法；仅在唯一审核通过引导视频可确定后继续" } : {})
       },
       evidenceRefs: [guideVideoReadiness.evidenceRef].filter(Boolean)
     });
@@ -965,19 +955,39 @@ export async function runVideoMaterialReadonlyGate({
   }
 
   const result = summaryFromItems({ items: checkedItems, source: "oceanengine_readonly_probe", requireExplicitCover });
+  // Normal video source/target probes must finish before the optional guide
+  // video dependency is evaluated. A missing instance may block creation, but
+  // it must not hide a separately repairable video source or bind condition.
+  const guideVideoReadiness = await resolveGuideVideoReadonly({
+    repo,
+    bundle,
+    client,
+    mockReady,
+    allowReadonlyDependency
+  });
+  if (guideVideoReadiness.source !== "current_job_cached_readonly") {
+    await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
+  }
   return sanitizeForPublic({
     ...result,
+    status: result.status === "passed" && guideVideoReadiness.status === "blocked" ? "blocked" : result.status,
     outputSummary: {
       ...result.outputSummary,
       guideVideoReadiness: publicGuideVideoReadiness(guideVideoReadiness),
+      ...(result.status === "passed" && guideVideoReadiness.status === "blocked" ? {
+        ready: false,
+        readonlyStatus: "guide_video_not_ready",
+        nextAction: "重新只读玩法；仅在唯一审核通过引导视频可确定后继续"
+      } : {}),
       readbackProbeSummary: readbackProbeSummaryFromItems(checkedItems)
     },
     evidenceRefs: [...evidenceRefs, guideVideoReadiness.evidenceRef].filter(Boolean),
-    blockers: result.status === "passed" ? [] : [
-      ...new Set(checkedItems
+    blockers: [...new Set([
+      ...(result.status === "passed" ? [] : checkedItems
         .filter((item) => item.readbackStatus !== "readback_verified")
-        .map((item) => `video_material_not_ready:${item.sourceAssetId}`))
-    ]
+        .map((item) => `video_material_not_ready:${item.sourceAssetId}`)),
+      ...(guideVideoReadiness.status === "blocked" ? guideVideoReadiness.blockers : [])
+    ])]
   });
 }
 

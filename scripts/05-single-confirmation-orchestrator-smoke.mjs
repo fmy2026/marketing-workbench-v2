@@ -258,10 +258,20 @@ try {
         asset: { asset_id: `VIDEO-DRIFT-${suffix}`, metadata: { video_id: `7000000000000${suffix}` } }
       }))
     },
+    materialSourceResources: ["1", "2"].map((suffix) => ({
+      resource_type: "video_asset",
+      source_asset_id: `VIDEO-DRIFT-${suffix}`,
+      metadata: {
+        oceanengine_video_mapping: {
+          status: "verified",
+          oceanengine_video_id: `7000000000000${suffix}`
+        }
+      }
+    })),
     resources: ["1", "2"].map((suffix) => ({
       resource_type: "video_asset",
       source_asset_id: `VIDEO-DRIFT-${suffix}`,
-      metadata: { readonly_check: { plan_status: "source_ready_target_ready" } }
+      metadata: { readonly_check: { plan_status: "source_ready_target_missing" } }
     }))
   };
   let driftConfirmationWrites = 0;
@@ -282,7 +292,7 @@ try {
     projectStatePath: statePath
   });
   assert(freshCallLimitDrift.status === "blocked", "fresh_resource_call_limit_drift_not_blocked");
-  assert(freshCallLimitDrift.blockers.includes("resource_action_call_limit_drifted:ensure_resource:video_asset"), "fresh_resource_call_limit_drift_blocker_missing");
+  assert(freshCallLimitDrift.blockers.includes("video_material_prepare_binding_set_drifted"), `fresh_resource_call_limit_drift_blocker_missing:${freshCallLimitDrift.blockers.join(",")}`);
   assert(driftConfirmationWrites === 0, "fresh_resource_call_limit_drift_recorded_confirmation");
 
   const order = [];

@@ -1,0 +1,155 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913",
+  "task_ref": "tasks/TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T03:47:40Z",
+  "updated_at": "2026-09-13T04:06:36Z",
+  "base_revision": "d72a3119978b8025b43a92da3e2fd1041122877d",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-VIDEO-PREP-RECOVERY-GUARD-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/videoMaterialExecutionScope.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/04-video-material-bind-plan.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/workbench-progress.mjs",
+    "frontend/app.js",
+    "scripts/04-video-material-executor-smoke.mjs",
+    "scripts/04-guide-video-readonly-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "scripts/05-single-confirmation-orchestrator-smoke.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "真实平台写入、平台重试或旧 Plan 重放",
+    "新增数据库 Schema、Node、Gate、Plan 类型或确认机制",
+    "基于账户、Case、Job 或用户 ID 的运行时分支",
+    "保存 token、secret、Cookie、完整 URL、raw request 或 raw response"
+  ],
+  "stop_conditions": [
+    "需要超出批准范围的写入或架构变更",
+    "通用视频准备合同无法表达所需 fail-closed 边界",
+    "验证揭示与批准方案冲突的安全语义"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:video-material-executor && node scripts/04-resource-action-registry-smoke.mjs && npm run test:execution-plan"},
+    {"acceptance_id": "AC-02", "command": "npm run test:execution-plan && npm run test:single-confirmation-orchestrator"},
+    {"acceptance_id": "AC-03", "command": "npm run smoke:workflow-skills && npm run test:guide-video-readonly"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-progress && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-05", "command": "npm run check:runtime-consistency && npm run test:project-contracts && git diff --check"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && node scripts/04-resource-action-registry-smoke.mjs && npm run test:execution-plan",
+      "verified_at": "2026-09-13T04:03:18Z",
+      "summary": "缺失、重复或未验证来源均阻断；全量 ready 为零动作，部分缺失覆盖陈旧 READY 并冻结精确批次与 hash。",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs",
+        "scripts/04-resource-action-registry-smoke.mjs",
+        "scripts/00-execution-plan-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:execution-plan && npm run test:single-confirmation-orchestrator",
+      "verified_at": "2026-09-13T04:03:18Z",
+      "summary": "视频绑定集合 hash 漂移在 confirmation claim 前阻断，重复确认仍只有一个成功消费者。",
+      "evidence_refs": [
+        "scripts/05-single-confirmation-orchestrator-smoke.mjs",
+        "src/workflows/executionGrantScope.mjs",
+        "src/workflows/videoMaterialExecutionScope.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run smoke:workflow-skills && npm run test:guide-video-readonly",
+      "verified_at": "2026-09-13T04:04:31Z",
+      "summary": "七 Node 注册、顺序和确认链不变；引导视频失败时普通视频 probes 已完成且其就绪结果保持可见。",
+      "evidence_refs": [
+        "scripts/00-oe3-workflow-skills-smoke.mjs",
+        "scripts/04-guide-video-readonly-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-conversation",
+      "verified_at": "2026-09-13T04:01:11Z",
+      "summary": "旧绑定计划为空、来源未核验和绑定条件不足均有具体中文说明；按钮复用既有文字恢复命令。",
+      "evidence_refs": [
+        "scripts/00-workbench-progress-smoke.mjs",
+        "scripts/00-workbench-conversation-smoke.mjs",
+        "frontend/app.js"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "npm run check:runtime-consistency && npm run test:project-contracts && git diff --check",
+      "verified_at": "2026-09-13T04:05:47Z",
+      "summary": "运行时一致性、项目合同与静态差异检查通过；测试仅使用 ephemeral test Job，零真实平台写入。",
+      "evidence_refs": [
+        "scripts/00-runtime-consistency-check.mjs",
+        "scripts/00-project-contract-check-smoke.mjs",
+        "docs/project-现在的逻辑图.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "补充统一视频准备合同、精确调用量与 hash 漂移的批准决策。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "说明 Node 04 probe 顺序、视频合同、确认前校验和既有只读恢复入口。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "未改变部署、网络、凭据录入、定时刷新或运行环境配置。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "统一视频准备合同已接入资源 Plan、确认前校验与执行前 scope；页面可说明具体视频阻断并通过既有只读命令恢复。",
+    "side_effects": "仅修改本地代码、测试、机制文档和项目协调记录；未执行真实平台写入、旧 Plan 重放或旧 Case 状态修改。",
+    "remaining_risks": [
+      "目标账户的实际视频绑定能力仍需账户本人在工作台通过“重新只读准备”触发 fresh Job 后只读核验。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-13T04:06:36Z"
+}

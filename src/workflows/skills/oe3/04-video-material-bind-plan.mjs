@@ -1,33 +1,23 @@
 import { buildVideoMaterialPreparePlan } from "../../../platforms/oceanengineVideoMaterialExecutor.mjs";
 import { assertNoSensitiveLeak, sanitizeForPublic } from "./00-contracts.mjs";
 
-function planStatusFromItems(items = []) {
-  if (!items.length) return "blocked";
-  if (items.every((item) => item.planStatus === "source_ready_target_ready")) return "ready";
-  if (items.some((item) => item.planStatus === "platform_probe_failed")) return "blocked";
-  return "planned";
-}
-
-function blockersFromItems(items = []) {
-  return [...new Set(items.flatMap((item) => {
-    if (item.planStatus === "source_ready_target_ready") return [];
-    if (item.planStatus === "source_ready_target_missing") return [];
-    return [`video_material_bind_plan_blocked:${item.sourceAssetId}:${item.planStatus || "unknown"}`];
-  }))];
-}
-
 export async function runVideoMaterialBindPlanSkill({ bundle } = {}) {
   const plan = buildVideoMaterialPreparePlan({ bundle });
-  const blockers = blockersFromItems(plan.items || []);
+  const blockers = plan.contractBlockers || [];
   const outputSummary = sanitizeForPublic({
     resourceType: "video_asset",
-    planStatus: planStatusFromItems(plan.items || []),
+    planStatus: plan.contractStatus,
+    contractStatus: plan.contractStatus,
+    contractBlockers: blockers,
+    canPrepare: plan.canPrepare === true,
     sourceAccountIdPresent: Boolean(plan.sourceAccount?.advertiserId),
     targetAdvertiserId: plan.targetAdvertiserId,
     selectedRequiredVideoCount: plan.selectedRequiredVideoCount,
     readyCount: plan.readyCount,
     uploadActionCount: plan.uploadActionCount,
     bindActionCount: plan.bindActionCount,
+    bindBatchCount: plan.bindBatchCount,
+    bindBatchRequestHash: plan.bindBatchRequestHash,
     writeGrantRequired: plan.writeGrantRequired,
     endpoint: plan.officialContract?.endpoint || "",
     requestFieldManifest: plan.officialContract?.requestFieldManifest || {},
@@ -49,7 +39,7 @@ export async function runVideoMaterialBindPlanSkill({ bundle } = {}) {
     rawResponseStored: false
   });
   const result = {
-    status: blockers.length ? "blocked" : "passed",
+    status: plan.contractStatus === "blocked" ? "blocked" : "passed",
     blockers,
     outputSummary,
     evidenceRefs: []

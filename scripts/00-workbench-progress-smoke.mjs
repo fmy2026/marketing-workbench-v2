@@ -120,6 +120,11 @@ assert(targetSharedGuidance?.message === "当前阻断：目标账户共享站�
 assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重新核验，或输入“查看状态”...", "target_shared_readonly_guidance_placeholder_mismatch");
 assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] })?.placeholder === "输入“重新只读准备”或“查看状态”…", "unrelated_blocker_must_use_recovery_guidance");
+const emptyVideoPlanGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_bind_plan_empty"] });
+assert(emptyVideoPlanGuidance?.message.includes("旧资源 Plan"), "empty_video_plan_guidance_missing");
+assert(emptyVideoPlanGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "empty_video_plan_recovery_missing");
+const missingVideoMappingGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_material_source_mapping_not_verified:VIDEO-1"] });
+assert(missingVideoMappingGuidance?.message.includes("视频素材来源未能唯一核验"), "video_mapping_guidance_missing");
 const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_not_ready"] });
 assert(brandFallbackGuidance?.message.includes("当前创建前合同"), "brand_contract_guidance_missing");
 assert(!brandFallbackGuidance.message.includes("游戏维度保底候选"), "brand_guidance_must_not_name_stale_fallback");
@@ -180,6 +185,8 @@ assert(clientSource.includes("输入“重新只读准备”准备下一 Attempt
 assert(!clientSource.includes("输入“继续执行”重新准备下一 Attempt"), "corrective_gate_legacy_input_copy_still_primary");
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
+assert(clientSource.includes('const recoveryButton = el("button", "conversation-preset", "重新只读准备")'), "readonly_recovery_button_missing");
+assert(clientSource.includes('submitJobCommand("重新只读准备")'), "readonly_recovery_button_must_use_existing_text_command");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 assert(clientSource.includes("preview.targetEmptyBrandOmit.label"), "target_empty_brand_confirmation_label_missing");
 assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");

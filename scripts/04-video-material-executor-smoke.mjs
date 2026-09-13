@@ -90,7 +90,7 @@ function bundle({ twoVideos = false, withCover = false } = {}) {
     resources.push(resourceEntry(secondSourceAssetId));
     materialSourceResources.push(materialSourceResourceEntry(secondSourceAssetId, secondVideoId));
   }
-  return {
+  const result = {
     job: {
       job_id: jobId,
       route_id: "oceanengine_3_byte_mini_game",
@@ -117,6 +117,8 @@ function bundle({ twoVideos = false, withCover = false } = {}) {
       planned_actions: [{ action_type: "ensure_resource:video_asset", status: "planned" }]
     }
   };
+  result.executionPlan.planned_actions[0].resource_contract_hash = buildVideoMaterialPreparePlan({ bundle: result }).bindBatchRequestHash;
+  return result;
 }
 
 function makeRepo(options = {}) {
@@ -199,13 +201,16 @@ assert(retiredVideoPlan.bindActionCount === 1, "retired_video_must_not_join_requ
 const legacyMetadataOnlyBundle = bundle();
 legacyMetadataOnlyBundle.materialSourceResources = [];
 legacyMetadataOnlyBundle.materialPack.items[0].asset.metadata.video_id = "legacy-video-id-must-not-bind";
-let legacyMetadataOnlyBlocked = false;
-try {
-  buildVideoMaterialPreparePlan({ bundle: legacyMetadataOnlyBundle });
-} catch (error) {
-  legacyMetadataOnlyBlocked = error.message === "video_ids_required";
-}
-assert(legacyMetadataOnlyBlocked, "legacy_video_metadata_must_not_bind");
+const legacyMetadataOnlyPlan = buildVideoMaterialPreparePlan({ bundle: legacyMetadataOnlyBundle });
+assert(legacyMetadataOnlyPlan.contractStatus === "blocked", "legacy_video_metadata_must_not_bind");
+assert(legacyMetadataOnlyPlan.contractBlockers.includes(`video_material_source_mapping_ambiguous:${sourceAssetId}`), "missing_source_mapping_must_be_explicit");
+assert(legacyMetadataOnlyPlan.bindBatchCount === 0, "missing_source_mapping_must_not_create_bind_batch");
+
+const ambiguousSourceBundle = bundle();
+ambiguousSourceBundle.materialSourceResources.push(materialSourceResourceEntry(sourceAssetId, "v02033g10000duplicate"));
+const ambiguousSourcePlan = buildVideoMaterialPreparePlan({ bundle: ambiguousSourceBundle });
+assert(ambiguousSourcePlan.contractStatus === "blocked", "duplicate_source_mapping_must_block");
+assert(ambiguousSourcePlan.contractBlockers.includes(`video_material_source_mapping_ambiguous:${sourceAssetId}`), "duplicate_source_mapping_blocker_missing");
 
 const twoVideoPlan = buildVideoMaterialPreparePlan({ bundle: bundle({ twoVideos: true }) });
 assert(twoVideoPlan.bindActionCount === 2, "video_prepare_two_video_bind_count_wrong");
@@ -318,6 +323,9 @@ assert(explicitCoverPolling.attempts[0].items[0].coverMode === "explicit_cover_v
 const dir = await mkdtemp(path.join(os.tmpdir(), "mwbv2-video-executor-"));
 try {
   const statePath = path.join(dir, "state.json");
+  const scopedBundle = bundle();
+  const scopedContractHash = buildVideoMaterialPreparePlan({ bundle: scopedBundle }).bindBatchRequestHash;
+  scopedBundle.executionPlan.planned_actions[0].resource_contract_hash = scopedContractHash;
   await writeFile(statePath, JSON.stringify({
     guardrails: {
       platform_write_allowed: true,
@@ -330,6 +338,17 @@ try {
         maximum_actions: 1,
         maximum_platform_calls: 1,
         retry_allowed: false,
+        action_grants: {
+          "ensure_resource:video_asset": {
+            maximum_platform_calls: 1,
+            resource_contract_hash: scopedContractHash,
+            official_contract: {
+              source_ref: "official-doc:test-only",
+              endpoint: "/open_api/2/file/material/bind/",
+              method: "POST"
+            }
+          }
+        },
         official_contract: {
           source_ref: "official-doc:test-only",
           endpoint: "/open_api/2/file/material/bind/",
@@ -339,7 +358,7 @@ try {
     }
   }));
   const repo = makeRepo();
-  const scope = await validateVideoMaterialWriteScope({ repo, bundle: bundle(), projectStatePath: statePath });
+  const scope = await validateVideoMaterialWriteScope({ repo, bundle: scopedBundle, projectStatePath: statePath });
   assert(scope.status === "passed", "video_scope_should_pass");
 
   const failedByFailList = await bindVideoMaterialToTargetOnce({
@@ -386,6 +405,9 @@ try {
   assert(successRepo.actions.some((item) => item.idempotencyKey), "video_action_idempotency_key_missing");
 
   const batchStatePath = path.join(dir, "batch-state.json");
+  const batchRepo = makeRepo({ twoVideos: true });
+  const batchBundle = await batchRepo.getLaunchJobBundle();
+  const batchContractHash = buildVideoMaterialPreparePlan({ bundle: batchBundle }).bindBatchRequestHash;
   await writeFile(batchStatePath, JSON.stringify({
     guardrails: {
       platform_write_allowed: true,
@@ -398,6 +420,17 @@ try {
         maximum_actions: 1,
         maximum_platform_calls: 1,
         retry_allowed: false,
+        action_grants: {
+          "ensure_resource:video_asset": {
+            maximum_platform_calls: 1,
+            resource_contract_hash: batchContractHash,
+            official_contract: {
+              source_ref: "official-doc:test-only",
+              endpoint: "/open_api/2/file/material/bind/",
+              method: "POST"
+            }
+          }
+        },
         official_contract: {
           source_ref: "official-doc:test-only",
           endpoint: "/open_api/2/file/material/bind/",
@@ -407,7 +440,6 @@ try {
     }
   }));
   let bindCalled = false;
-  const batchRepo = makeRepo({ twoVideos: true });
   const readonlyClient = {
     credentialState: () => ({ status: "ready", blockers: [], envFilePresent: true, accessTokenPresent: true, refreshTokenPresent: true, tokenExpired: false }),
     async get({ label, endpoint, summarize }) {

@@ -36,7 +36,8 @@ export async function validateVideoMaterialWriteScope({ repo, bundle, projectSta
   const materialPlan = buildVideoMaterialPreparePlan({ bundle });
   const bindItems = (materialPlan.items || []).filter((item) =>
     item.planStatus === "source_ready_target_missing" &&
-    item.actions.includes("oceanengine_material_bind_target")
+    item.actions.includes("oceanengine_material_bind_target") &&
+    item.videoId
   );
   const bindBatchCount = Number(materialPlan.bindBatchCount || materialPlan.bindBatchRequests?.length || 0);
   const common = await validatePlannedActionGrant({
@@ -56,10 +57,17 @@ export async function validateVideoMaterialWriteScope({ repo, bundle, projectSta
   });
   const blockers = [
     ...common.blockers,
+    ...(materialPlan.contractStatus === "blocked" ? (materialPlan.contractBlockers || ["video_material_prepare_contract_not_executable"]) : []),
     ...(bindBatchCount > 0 ? [] : ["platform_write_scope_maximum_platform_calls_invalid"]),
     ...(contractVerified(contractScope) ? [] : ["blocked_missing_official_video_material_bind_contract"]),
     ...(materialPlan.uploadActionCount === 0 ? [] : ["video_upload_required_not_allowed_in_bind_scope"]),
     ...(bindItems.length > 0 ? [] : ["video_bind_plan_empty"]),
+    ...(common.action?.resource_contract_hash === materialPlan.bindBatchRequestHash
+      ? []
+      : ["video_material_prepare_binding_set_drifted"]),
+    ...(common.actionGrant?.resource_contract_hash === materialPlan.bindBatchRequestHash
+      ? []
+      : ["video_material_prepare_grant_binding_set_drifted"]),
     ...(existingBindActions === 0 ? [] : ["video_material_platform_action_already_recorded_for_job"])
   ];
   return {

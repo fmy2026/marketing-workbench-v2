@@ -330,6 +330,9 @@ export function buildVideoMaterialPreparePlan({ bundle } = {}) {
       localFileHashPresent: item.localFileHashPresent,
       localFileSizeBytes: item.localFileSizeBytes,
       localFileHash: item.localFileHash ? hashValue(item.localFileHash) : "",
+      sourceResourceCount: Number(item.sourceResourceCount || 0),
+      mappingStatus: clean(item.mappingStatus),
+      videoId: clean(item.videoId),
       videoIdPresent: item.videoIdPresent,
       explicitCoverIdPresent: item.explicitCoverIdPresent,
       coverMode,
@@ -347,17 +350,46 @@ export function buildVideoMaterialPreparePlan({ bundle } = {}) {
   });
   const bindItems = items.filter((item) =>
     item.planStatus === "source_ready_target_missing" &&
-    item.actions.includes("oceanengine_material_bind_target")
+    item.actions.includes("oceanengine_material_bind_target") &&
+    item.videoId &&
+    item.sourceAccountId &&
+    item.targetAdvertiserId
   ).map((item) => ({
-    ...item,
-    videoId: requiredVideoEntries(bundle).find((entry) => entry.sourceAssetId === item.sourceAssetId)?.videoId || ""
+    ...item
   }));
   const batchBindRequests = buildBatchBindRequests({ bindItems });
   const uploadCount = items.filter((item) => item.actions.includes("oceanengine_video_upload_source")).length;
-  const bindCount = items.filter((item) => item.actions.includes("oceanengine_material_bind_target")).length;
+  const bindCount = bindItems.length;
   const readyCount = items.filter((item) => item.planStatus === "source_ready_target_ready").length;
+  const duplicateVideoIds = bindItems
+    .filter((item, index) => bindItems.findIndex((candidate) => candidate.videoId === item.videoId) !== index)
+    .map((item) => item.sourceAssetId);
+  const contractBlockers = [
+    ...(items.length > 0 ? [] : ["required_video_material_empty"]),
+    ...(sourceAccount.advertiserId ? [] : ["material_source_account_missing"]),
+    ...(targetAdvertiserId ? [] : ["target_advertiser_missing"]),
+    ...items.flatMap((item) => [
+      ...(item.sourceResourceCount === 1 ? [] : [`video_material_source_mapping_ambiguous:${item.sourceAssetId}`]),
+      ...(item.mappingStatus === "verified" && item.videoId ? [] : [`video_material_source_mapping_not_verified:${item.sourceAssetId}`]),
+      ...(["source_ready_target_ready", "source_ready_target_missing"].includes(item.planStatus)
+        ? []
+        : [`video_material_bind_plan_blocked:${item.sourceAssetId}:${item.planStatus || "unknown"}`])
+    ]),
+    ...(uploadCount === 0 ? [] : ["video_upload_required_not_allowed_in_bind_scope"]),
+    ...(duplicateVideoIds.length === 0 ? [] : ["video_material_bind_video_id_ambiguous"]),
+    ...(bindCount === 0 || batchBindRequests.length > 0 ? [] : ["video_bind_batch_plan_empty"])
+  ];
+  const normalizedContractBlockers = [...new Set(contractBlockers)];
+  const contractStatus = normalizedContractBlockers.length
+    ? "blocked"
+    : bindCount === 0
+      ? "ready"
+      : "planned";
   const result = {
-    status: readyCount === items.length && items.length > 0 ? "ready" : "action_plan_required",
+    status: contractStatus === "ready" ? "ready" : contractStatus === "planned" ? "action_plan_required" : "blocked",
+    contractStatus,
+    contractBlockers: normalizedContractBlockers,
+    canPrepare: contractStatus !== "blocked",
     mode: "dry_run_plan_only",
     routeId: bundle.job.route_id,
     gameCode: bundle.job.game_code,
@@ -374,7 +406,7 @@ export function buildVideoMaterialPreparePlan({ bundle } = {}) {
     bindBatchCount: batchBindRequests.length,
     bindBatchRequestHash: batchBindRequests.length ? hashValue(canonicalJson(batchBindRequests.map((item) => item.requestHash))) : "",
     bindBatchRequests: batchBindRequests,
-    writeGrantRequired: uploadCount + bindCount > 0,
+    writeGrantRequired: contractStatus === "planned",
     createScopeReusable: false,
     rawPayloadStored: false,
     rawResponseStored: false,
@@ -412,10 +444,11 @@ export async function preflightVideoMaterialBindSet({
   const entriesByAssetId = new Map(requiredVideoEntries(bundle).map((item) => [item.sourceAssetId, item]));
   const bindItems = (materialPlan.items || []).filter((item) =>
     item.planStatus === "source_ready_target_missing" &&
-    item.actions.includes("oceanengine_material_bind_target")
+    item.actions.includes("oceanengine_material_bind_target") &&
+    item.videoId
   ).map((item) => ({
     ...item,
-    videoId: entriesByAssetId.get(item.sourceAssetId)?.videoId || ""
+    videoId: entriesByAssetId.get(item.sourceAssetId)?.videoId || item.videoId
   }));
   const alreadyReady = (materialPlan.items || []).filter((item) => item.planStatus === "source_ready_target_ready");
   const previousSuccess = typeof repo.countPlatformActions === "function"
@@ -427,9 +460,10 @@ export async function preflightVideoMaterialBindSet({
     : 0;
   const blockers = [
     ...(expectedTargetAdvertiserId && expectedTargetAdvertiserId !== targetAdvertiserId ? ["target_advertiser_mismatch"] : []),
+    ...(materialPlan.contractBlockers || []),
     ...(materialPlan.uploadActionCount === 0 ? [] : ["video_upload_required_not_allowed_in_bind_scope"]),
     ...(materialPlan.selectedRequiredVideoCount > 0 ? [] : ["required_video_material_empty"]),
-    ...(bindItems.length > 0 || alreadyReady.length === materialPlan.selectedRequiredVideoCount ? [] : ["video_bind_plan_empty"]),
+    ...(materialPlan.contractStatus === "blocked" ? [] : bindItems.length > 0 || alreadyReady.length === materialPlan.selectedRequiredVideoCount ? [] : ["video_bind_plan_empty"]),
     ...((materialPlan.items || []).flatMap((item) => {
       if (["source_ready_target_missing", "source_ready_target_ready"].includes(item.planStatus)) return [];
       return [`video_not_bindable:${item.sourceAssetId}:${item.planStatus || "unknown"}`];

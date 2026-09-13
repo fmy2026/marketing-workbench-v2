@@ -567,6 +567,15 @@ import {
       button.addEventListener("click", () => submitConversationInput(preset.message));
       container.append(button);
     }
+    const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
+    if (job?.isLatestCaseJob && !viewOnly && readonlyRecovery?.placeholder?.includes("重新只读准备")) {
+      const recoveryButton = el("button", "conversation-preset", "重新只读准备");
+      recoveryButton.type = "button";
+      recoveryButton.disabled = disabled;
+      recoveryButton.addEventListener("click", () => submitJobCommand("重新只读准备"));
+      container.append(recoveryButton);
+      container.hidden = false;
+    }
   }
 
   function renderChat() {

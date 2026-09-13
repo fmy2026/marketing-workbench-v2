@@ -316,6 +316,32 @@ export function mockReadyBundle(bundle = {}) {
         ...source.metadata
       }
     };
+    const resourceIndex = resources.findIndex((item) =>
+      item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+    );
+    const existing = resourceIndex >= 0 ? resources[resourceIndex] : {};
+    const readyVideoResource = {
+      ...existing,
+      resource_type: "video_asset",
+      source_asset_id: sourceAssetId,
+      platform_resource_id: existing.platform_resource_id || source.platform_resource_id,
+      visibility_status: "visible",
+      readback_status: "readback_verified",
+      required: true,
+      metadata: {
+        ...(existing.metadata || {}),
+        readonly_check: {
+          ...(existing.metadata?.readonly_check || {}),
+          status: "passed",
+          plan_status: "source_ready_target_ready",
+          source_video_visible: true,
+          target_video_visible: true,
+          mock: true
+        }
+      }
+    };
+    if (resourceIndex < 0) resources.push(readyVideoResource);
+    else resources[resourceIndex] = readyVideoResource;
   });
   return {
     ...bundle,

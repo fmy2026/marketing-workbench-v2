@@ -695,6 +695,23 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
 }
 
 export function presentRootBlocker(code = "") {
+  if (String(code).startsWith("video_material_source_mapping_not_verified:") ||
+    String(code).startsWith("video_material_source_mapping_ambiguous:")) {
+    return {
+      code,
+      title: "视频素材来源未能唯一核验",
+      reason: "物料户视频映射缺失、未验证或存在多个候选，系统未生成绑定写动作。",
+      nextActionLabel: "补齐物料户映射后输入“重新只读准备”；系统将重新核验，不会复用旧 Plan。"
+    };
+  }
+  if (String(code).startsWith("video_material_bind_plan_blocked:") || code === "video_material_prepare_contract_not_executable") {
+    return {
+      code,
+      title: "视频素材绑定条件未满足",
+      reason: "当前视频来源、目标账户可见性或只读核验未形成完整的精确绑定集合。",
+      nextActionLabel: "输入“重新只读准备”重新核验；未形成可确认 Plan 前不会写入平台。"
+    };
+  }
   const catalog = {
     monitor_create_busy_retry_exhausted: {
       title: "monitor 创建周期已耗尽",
@@ -725,6 +742,11 @@ export function presentRootBlocker(code = "") {
       title: "平台只读凭据不可用",
       reason: "当前只读校验无法继续；若已有已确认资源 Plan，旧 Plan 不可重试。",
       nextActionLabel: "凭据恢复后输入“重新只读准备”，以 fresh Job 重新核验；不会确认或创建平台对象。"
+    },
+    video_bind_plan_empty: {
+      title: "旧视频绑定计划为空",
+      reason: "该已消费资源 Plan 未冻结可执行的视频绑定批次；不会重放旧 Plan。",
+      nextActionLabel: "输入“重新只读准备”创建或复用 fresh Job，重新核验视频来源和目标可见性。"
     },
     duplicate_readonly_rate_limited: {
       title: "平台查重暂时限流",
