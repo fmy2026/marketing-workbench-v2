@@ -12,6 +12,10 @@ import {
   readonlyRecoveryGuidance,
   PROGRESS_REFRESH_INTERVAL_MS
 } from "./workbench-progress.mjs";
+import {
+  freezeConfirmationSubmission,
+  resolveJobCommandSubmission
+} from "./workbench-command-submission.mjs";
 
 (function () {
   let job = null;
@@ -25,6 +29,7 @@ import {
   let draftCaseId = "";
   let draftCaseKey = "";
   let pendingConfirmation = null;
+  let activeConfirmationSubmission = null;
   let rootHome = false;
   let currentUser = null;
   let agentProfile = null;
@@ -514,18 +519,35 @@ import {
       card.append(limits);
     }
     const canExecute = job?.executionAvailability?.canExecuteOnce === true;
-    const button = el("button", "confirmation-button", canExecute ? (preview.confirmationPhrase || "确认创建") : "当前 Plan 不可确认");
+    const submittingThisPlan = activeConfirmationSubmission?.jobId === job?.jobId &&
+      activeConfirmationSubmission?.planId === preview.planId &&
+      activeConfirmationSubmission?.planHash === preview.planHash;
+    const button = el("button", "confirmation-button", submittingThisPlan
+      ? "提交中…"
+      : canExecute ? (preview.confirmationPhrase || "确认创建") : "当前 Plan 不可确认");
     button.type = "button";
     button.disabled = busy || !canExecute;
+    button.setAttribute("aria-busy", submittingThisPlan ? "true" : "false");
     button.addEventListener("click", async () => {
       if (busy) return;
-      setBusy(true);
+      const submission = freezeConfirmationSubmission({ job, preview });
+      if (!submission) {
+        message("agent", "确认卡已失效；已保留当前状态，请刷新后按最新确认卡操作。");
+        return;
+      }
+      activeConfirmationSubmission = submission;
+      busy = true;
+      button.disabled = true;
+      button.textContent = "提交中…";
+      button.setAttribute("aria-busy", "true");
       try {
-        await submitJobCommand(preview.confirmationPhrase || "确认创建");
+        await submitJobCommand(submission.message, submission);
       } catch (error) {
-        showError(error);
+        showError(error, { stage: "提交确认" });
       } finally {
-        setBusy(false);
+        activeConfirmationSubmission = null;
+        busy = false;
+        renderAll();
       }
     });
     card.append(button);
@@ -814,7 +836,7 @@ import {
     if (error?.status >= 500 || error?.message === "internal_error") {
       const fingerprint = String(error.details?.diagnostic_fingerprint || "");
       const diagnosticCode = /^sha256:[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "未返回";
-      message("agent", `启动流程在“${stage || "服务处理"}”阶段未完成；未执行确认或平台创建动作。诊断码：${diagnosticCode}。请记录诊断码后暂停重复提交。`);
+      message("agent", `“${stage || "服务处理"}”未完成；已刷新当前状态，请以确认卡和当前进度为准。诊断码：${diagnosticCode}。请记录诊断码后暂停重复提交。`);
       return;
     }
     const owner = error.details?.ownerDisplayName ? `；账户归属人：${error.details.ownerDisplayName}` : "";
@@ -991,14 +1013,20 @@ import {
     window.history.replaceState({}, "", workbenchCaseUrl(caseId));
   }
 
-  async function submitJobCommand(text) {
-    const preview = confirmationPreview();
-    const result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(job.jobId)}/command`, {
+  async function submitJobCommand(text, submission = null) {
+    const command = resolveJobCommandSubmission({
+      job,
+      preview: confirmationPreview(),
+      message: text,
+      submission
+    });
+    if (!command.jobId) throw new Error("job_command_context_missing");
+    const result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(command.jobId)}/command`, {
       method: "POST",
       body: JSON.stringify({
-        message: text,
-        expected_plan_id: preview?.planId || "",
-        expected_plan_hash: preview?.planHash || ""
+        message: command.message,
+        expected_plan_id: command.planId,
+        expected_plan_hash: command.planHash
       })
     }));
     setJobView(result.view || job);

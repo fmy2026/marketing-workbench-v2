@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-13T04:40:34Z",
+  "updated_at": "2026-09-13T05:13:30Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,7 +10,7 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

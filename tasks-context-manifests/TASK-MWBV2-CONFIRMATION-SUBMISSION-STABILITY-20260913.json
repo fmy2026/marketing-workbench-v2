@@ -1,0 +1,95 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913",
+  "task_ref": "tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T05:05:28Z",
+  "updated_at": "2026-09-13T05:13:30Z",
+  "base_revision": "0fd17007b135c144b2807d0f6b328a50f3e57f38",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "frontend/app.js",
+    "src/workflows/workbenchConversation.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-smoke-api.mjs",
+    "scripts/00-workbench-runtime-write-policy-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.json",
+    "project.state.json",
+    "frontend/app.js",
+    "frontend/workbench-command-submission.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-smoke-api.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "evidence/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913/**"
+  ],
+  "forbidden_actions": [
+    "真实平台创建、资源写入、OAuth 刷新、预算或出价修改",
+    "修改当前业务 Case、Job、Plan、confirmation、action 或资源事实",
+    "新增确认、重试、平台写入入口或账户特例"
+  ],
+  "stop_conditions": [
+    "需要修改当前业务事实、执行真实平台写入或扩大确认、重试、账户权限",
+    "无法保持 Plan-bound 单次消费和 Node 07 回查边界"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:workbench-conversation && npm run test:workbench-progress"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-conversation && npm run test:workbench-runtime-policy"},
+    {"acceptance_id": "AC-03", "command": "npm run smoke:api && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-progress",
+      "verified_at": "2026-09-13T05:11:53Z",
+      "summary": "Confirmation submission freezes Job/Plan/hash/phrase before the local busy state; stale global view changes cannot redirect the request or produce the old pre-submit full redraw.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913/validation.md#ac-01"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-runtime-policy",
+      "verified_at": "2026-09-13T05:11:53Z",
+      "summary": "Failure presentation refreshes the server projection and preserves the existing Plan-bound, single-consumption executor boundary.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913/validation.md#ac-02"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run smoke:api && npm run workbench:mode -- --mode local && host curl --noproxy '*' http://127.0.0.1:3000/",
+      "verified_at": "2026-09-13T05:11:53Z",
+      "summary": "API smoke passed with cleaned-up test jobs and zero platform writes; the local LaunchAgent was reloaded, host-root returned HTTP 200, and served app.js contains the confirmation snapshot code.",
+      "evidence_refs": ["evidence/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913/validation.md#ac-03"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "Records frozen confirmation submission and service reload as the approved UI delivery boundary."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "Defines the workbench confirmation submission snapshot and failure refresh behavior."},
+    {"ref": "deploy/README.md", "status": "updated", "reason": "Requires a LaunchAgent reload and root smoke after server or frontend delivery."}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "工作台确认提交在点击时冻结 Job、Plan/hash 与短语，局部显示提交状态；异常路径回到服务端投影，避免静默或错误状态推断。",
+    "side_effects": "本机 LaunchAgent 已切回 loopback 并重载；API smoke 仅创建并清理 test_run 数据，未执行平台写入。",
+    "remaining_risks": ["实际创建仍必须由账户本人在工作台确认；只有 Node 07 的项目 ID 与 Draft 名称回查一致才会 verified。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-13T05:13:30Z"
+}

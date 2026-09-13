@@ -20,6 +20,14 @@ LaunchAgent 使用 `RunAtLoad=true` 和 `KeepAlive=true`：用户登录时启动
 npm run workbench:mode -- --mode local
 ```
 
+每次交付涉及 `frontend/`、`src/server/` 或工作流运行代码后，都必须重载当前 LaunchAgent 并检查根地址，避免浏览器加载新前端而 Node 仍运行旧模块。本机模式重复执行上面的 `workbench:mode -- --mode local`；公司模式重复执行当前 IP 对应的 company 命令。随后执行：
+
+```sh
+curl -I http://127.0.0.1:3000/
+```
+
+再刷新浏览器工作台；确认卡、Gate 和按钮只以重载后的服务端投影为准。
+
 ## 公司共享模式
 
 回公司连接 Wi-Fi 后，先确认 Mac 当前获得的私网 IPv4，再显式切换。公司模式只接受当前 Mac 已分配的 `10.*`、`172.16.*–172.31.*` 或 `192.168.*` 地址；命令会生成对应的监听与公开地址、重载同一 LaunchAgent，并检查根地址。重载或检查失败时自动恢复原配置。

@@ -30,6 +30,7 @@
 | 工作台本机入口 | 默认固定为 `127.0.0.1:3000`，不依赖 Wi-Fi IP；本机 LaunchAgent 在用户登录后启动和异常退出后重启。局域网多人访问仅以独立显式配置开放 | [本次批准 Task](../tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md)、[部署说明](../deploy/README.md) |
 | 工作台访问模式 | 单一服务在 `local` 与 `company` 模式之间显式切换：本机固定 loopback；公司模式只接受当前 Mac 已分配的 RFC1918 IPv4，并在重载失败时恢复前一份 LaunchAgent 配置。日常从根地址登录后进入 Agent 广场 | [本次批准 Task](../tasks/TASK-MWBV2-WORKBENCH-ACCESS-MODE-SWITCH-20260913.md)、[部署说明](../deploy/README.md) |
 | 正式平台写入 | 工作台/API 通过冻结 Plan、精确确认和通用 executor 执行；普通运行不再为每份 Plan 创建仓库 Task | [原生 Plan-bound 任务](../tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md) |
+| 确认提交稳定性 | 确认卡在点击时冻结当前 Job、Plan ID/hash 与精确短语，按钮仅局部进入“提交中”；请求不能因轮询或重绘改投其他 Job。失败后刷新服务端投影并显示受控诊断，部署包含 LaunchAgent 重载，确保前后端运行同一 main 版本 | [本次批准 Task](../tasks/TASK-MWBV2-CONFIRMATION-SUBMISSION-STABILITY-20260913.md)、[当前逻辑图](project-现在的逻辑图.md)、[部署说明](../deploy/README.md) |
 | 分开确认资源和创建 | 独立 Resource Plan 与 fresh Create Plan，避免资源修正扩大项目创建授权；monitor 缺失时另用 Bootstrap Plan | [两次确认任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md) |
 | 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |

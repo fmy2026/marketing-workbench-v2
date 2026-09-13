@@ -193,13 +193,18 @@ assert(clientSource.includes('submitJobCommand("重新只读准备")'), "readonl
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 assert(clientSource.includes("preview.targetEmptyBrandOmit.label"), "target_empty_brand_confirmation_label_missing");
 assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");
-assert(clientSource.includes('启动流程在“${stage || "服务处理"}”阶段未完成'), "internal_error_stage_copy_missing");
+assert(clientSource.includes('“${stage || "服务处理"}”未完成；已刷新当前状态'), "internal_error_stage_copy_missing");
 assert(clientSource.includes("诊断码：${diagnosticCode}"), "internal_error_diagnostic_code_missing");
 assert(clientSource.includes("start_workflow_create_case"), "create_case_diagnostic_stage_missing");
 assert(clientSource.includes("start_workflow_create_job"), "create_job_diagnostic_stage_missing");
 assert(clientSource.includes("start_workflow_run_readonly"), "run_readonly_diagnostic_stage_missing");
 assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "legacy_internal_error_refresh_copy_still_present");
 assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");
+assert(clientSource.includes("freezeConfirmationSubmission"), "confirmation_submission_snapshot_helper_missing");
+assert(clientSource.includes("activeConfirmationSubmission = submission"), "confirmation_submission_state_missing");
+assert(clientSource.includes('button.textContent = "提交中…"'), "confirmation_button_local_busy_copy_missing");
+assert(clientSource.includes("await submitJobCommand(submission.message, submission)"), "confirmation_submission_must_use_frozen_context");
+assert(!clientSource.includes("setBusy(true);\n      try {\n        await submitJobCommand(preview.confirmationPhrase || \"确认创建\");"), "confirmation_button_must_not_redraw_before_submit");
 
 console.log(JSON.stringify({
   status: "passed",

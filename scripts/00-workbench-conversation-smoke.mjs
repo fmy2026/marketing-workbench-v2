@@ -12,6 +12,10 @@ import {
   createReadonlyRecoveryJob,
   presentRootBlocker
 } from "../src/workflows/launchWorkflow.mjs";
+import {
+  freezeConfirmationSubmission,
+  resolveJobCommandSubmission
+} from "../frontend/workbench-command-submission.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -37,6 +41,30 @@ const caseSummary = {
   root_blocker_codes: [],
   latest_job_id: "JOB-TEST-1"
 };
+
+const frozenConfirmationSubmission = freezeConfirmationSubmission({
+  job: { jobId: "JOB-SUBMISSION-OLD" },
+  preview: {
+    planId: "PLAN-SUBMISSION-OLD",
+    planHash: `sha256:${"a".repeat(64)}`,
+    confirmationPhrase: "确认创建"
+  }
+});
+assert(Object.isFrozen(frozenConfirmationSubmission), "confirmation_submission_must_be_immutable");
+const resolvedFrozenSubmission = resolveJobCommandSubmission({
+  job: { jobId: "JOB-SUBMISSION-NEW" },
+  preview: {
+    planId: "PLAN-SUBMISSION-NEW",
+    planHash: `sha256:${"b".repeat(64)}`
+  },
+  message: "确认创建",
+  submission: frozenConfirmationSubmission
+});
+assert(resolvedFrozenSubmission.jobId === "JOB-SUBMISSION-OLD", "confirmation_submission_job_id_must_not_drift");
+assert(resolvedFrozenSubmission.planId === "PLAN-SUBMISSION-OLD", "confirmation_submission_plan_id_must_not_drift");
+assert(resolvedFrozenSubmission.planHash === `sha256:${"a".repeat(64)}`, "confirmation_submission_plan_hash_must_not_drift");
+assert(resolvedFrozenSubmission.message === "确认创建", "confirmation_submission_phrase_must_not_drift");
+assert(freezeConfirmationSubmission({ job: { jobId: "JOB-MISSING" }, preview: { planId: "PLAN-MISSING" } }) === null, "incomplete_confirmation_submission_must_block");
 
 assert(
   presentRootBlocker("qiankun_account_identity_preflight_failed").title === "账户监测身份已更新",

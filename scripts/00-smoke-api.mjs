@@ -57,14 +57,14 @@ function assertWorkflowShape(view) {
     const expected = expectedNode4.find((item) => item.id === child.id);
     assert(expected, `unexpected node4 child:${child.id}`);
     assert(child.id === "resource-video_asset"
-      ? child.label === expected.label || /^视频 × [2-9]\d*$/.test(child.label)
+      ? child.label === expected.label || /^视频 × [1-9]\d*$/.test(child.label)
       : child.label === expected.label, `node4 child label mismatch:${child.id}`);
   }
   const node4ResourceLabels = node4.children
     .filter((child) => child.id.startsWith("resource-"))
     .map((child) => child.label);
   assert(node4ResourceLabels.every((label, index) => index === OE3_REQUIRED_RESOURCE_TYPES.indexOf("video_asset")
-    ? label === OE3_RESOURCE_LABELS.video_asset || /^视频 × [2-9]\d*$/.test(label)
+    ? label === OE3_RESOURCE_LABELS.video_asset || /^视频 × [1-9]\d*$/.test(label)
     : label === OE3_RESOURCE_LABELS[OE3_REQUIRED_RESOURCE_TYPES[index]]), "node4 resource child labels mismatch");
   assert(nodes.every((node) => Array.isArray(node.subflows) && node.subflows.every((item) => typeof item === "string")), "legacy subflows compatibility changed");
 }
