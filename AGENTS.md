@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；项目启动协议 |
-| 最后更新时间 | 2026-09-08 CST |
-| 重新校验条件 | 启动顺序、真值来源、文档职责、运行主链、权限边界或任务闭环变化时 |
+| 最后更新时间 | 2026-09-13 CST |
+| 重新校验条件 | 启动顺序、真值来源、文档职责、运行主链、权限边界、Git 交付方式或任务闭环变化时 |
 
 定位：Codex 和协作者每次任务必须遵守的启动、真值、权限与闭环协议。本文不承担工作台说明、流程状态机、数据字典或变更记录；动态业务事实只看 Postgres。
 
@@ -79,6 +79,7 @@ Markdown 只保存规则、方案、任务合同和经验；不保存动态账�
 - runtime 通用性：live `src/`、`frontend/` 与 `package.json` 的业务决策只能依据 route/game 合同、账户通用能力、Case/Gate/Plan 状态和当前已验证作用域；不得以内嵌 account/Case/Job/user ID 作为默认目标或条件分支。个体 ID 只可存在于 Postgres 动态事实、获批 migration、Task/证据或隔离测试数据；同类问题必须扩展既有通用合同并覆盖 capability 开/关正反例，不得新增账户专用入口、业务状态、Node、Gate、Plan/action 或公开脚本。
 - Intent Resolver 只理解意图和输入槽位；不得计算 Gate、选择平台动作、扩大权限或持久化 raw transcript。
 - 工作台/API → 通用 Plan-bound executor 是唯一正式业务写入链；CLI 只允许 dry-run、readback、状态和明确标注的安全诊断，不得成为旁路写入入口。
+- GitHub 交付直接使用本地 `main`，通过 Git CLI 复用既有 credential helper，提交并正常推送 `origin/main` 后核验远端 SHA；不创建功能分支或 PR，不强推。远端领先时先同步并验证；仅明确鉴权失败时处理登录，禁止读取或输出凭据。
 - `package.json` 只保留长期公开入口；一次性、历史 Task/账户绑定或已被主链替代的文件移入 `.archive/` 并登记根 `manifest.json`。live `src/`、`scripts/` 与 package 均禁止 import、调用或执行 archive。
 
 ## 权限与安全

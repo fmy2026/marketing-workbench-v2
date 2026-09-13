@@ -1,27 +1,26 @@
-# 局域网部署
+# 本机工作台部署
 
-Node 服务默认监听 `127.0.0.1:3000`。长期内网用户通过 HTTPS 反向代理访问；应用用 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
+当前默认入口是 `http://127.0.0.1:3000/agents/launch-creation`。Node 仅监听 loopback，因此 Wi-Fi 切换、断网或局域网 IP 变化不会影响本机地址；平台业务调用仍需联网。应用以 `WORKBENCH_PUBLIC_ORIGIN` 校验 Host、Origin 并决定是否签发 `Secure` 会话 Cookie。
 
-## 当前三人试用：私网 HTTP
+## 当前本机配置
 
-当前批准的临时入口为 `http://192.168.42.7:3000/`。它不需要域名、证书或反向代理；使用 [LAN HTTP LaunchAgent](launchd/com.hys.marketing-workbench.lan-http.plist.example) 设置以下四项：
+使用 [本机 LaunchAgent 样例](launchd/com.hys.marketing-workbench.lan-http.plist.example) 设置以下三项：
 
 ```text
-WORKBENCH_BIND_HOST=192.168.42.7
+WORKBENCH_BIND_HOST=127.0.0.1
 WORKBENCH_PORT=3000
-WORKBENCH_PUBLIC_ORIGIN=http://192.168.42.7:3000
-WORKBENCH_ALLOW_PRIVATE_LAN_HTTP=true
+WORKBENCH_PUBLIC_ORIGIN=http://127.0.0.1:3000
 ```
 
-应用只允许显式启用的 RFC1918 IPv4，且 bind host、public origin 和端口必须精确一致。Host、Origin、用户 owner 和 Plan-bound 校验继续生效。HTTP 不加密密码和会话，只用于当前公司内网短期试用；试用结束删除上述变量即可恢复 loopback。
+LaunchAgent 使用 `RunAtLoad=true` 和 `KeepAlive=true`：用户登录时启动，进程退出后重启。Mac 关机、用户退出登录或设备睡眠期间服务不会运行。
 
-从另一台公司网络电脑验收：
+本机验收：
 
 ```sh
-curl -I http://192.168.42.7:3000/
+curl -I http://127.0.0.1:3000/
 ```
 
-随后用浏览器登录并执行账户隔离验收。若无法连接，先确认两台电脑所在网络/VLAN 是否允许互访以及 Mac 地址是否仍为 `192.168.42.7`。
+随后用浏览器登录并执行账户隔离验收。需要让其他设备访问时，另行建立受控 HTTPS 或显式私网 HTTP 配置；不得复用本机 loopback 配置。
 
 每位试用者首次查询本人账户前，需要在这台 Mac 的终端录入其本人乾坤 Passport Token：
 

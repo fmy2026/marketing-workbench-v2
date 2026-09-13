@@ -4,7 +4,7 @@
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
 | 最后更新时间 | 2026-09-13 CST |
-| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911` |
+| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -16,6 +16,7 @@
 | 决策 | 已批准选择与理由 | 依据 / 当前合同 |
 | --- | --- | --- |
 | 项目协作合同 | 保留既有文档骨架，以两份 Schema、单一 Manifest 状态/读取清单及只读检查防止任务记录漂移；先约束新任务 | [本次批准任务](../tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md)、[启动协议](../AGENTS.md) |
+| GitHub 交付 | 直接在本地 `main` 用 Git CLI 和既有 credential helper 提交、正常推送并核验远端 SHA；不创建 PR 或功能分支，不强推，也不读取凭据 | [本次批准 Task](../tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md)、[启动协议](../AGENTS.md) |
 | 数据库文档唯一入口 | 结构、口径与数据库运维说明全部集中；旧说明及后续获批删除的早期方案由 Git 保留历史，避免重复规则漂移 | [批准任务](../tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md)、[数据契约](project-数据与报表契约.md) |
 | 3 阶段 7 Node | 节点只从注册表定义，Skill 与 runner 承接固定流程，减少消费者各自解释 | [节点统一任务](../tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md)、[逻辑图](project-现在的逻辑图.md) |
 | 当前逻辑图分层 | 当前逻辑图以唯一闭环为主线，按 7 Node 归纳 Workflow Skill，以资源四态和核心 Gate 场景说明分支，只保留一次 Plan-bound 安全约束；路线字段、接口参数、时间窗口和专项异常只链接唯一合同，避免静态总览退化为实现流水或第二套状态机 | [本次批准任务](../tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md)、[逻辑图](project-现在的逻辑图.md) |
@@ -26,7 +27,7 @@
 | Agent 只读模块 | 记忆只投影本人 Case、最新 Job、规范化槽位、状态和受控证据引用，不保存聊天原文；知识库和技能仅展示注册表与 7 Node 的公开能力说明。数据统计默认本人，管理员须显式切换“全部用户”才读取全量只读报表，且不获得代操作权限 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md)、[数据契约](project-数据与报表契约.md) |
 | Case 与单一 Gate | Case 管持续目标、Job 管一次运行；消费者统一读 summary，避免历史 blocker 冒充当前阻断 | [Case Gate 任务](../tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md)、[数据契约](project-数据与报表契约.md) |
 | 用户与账户归属 | 本人执行/确认，管理员管理用户及只读报表；账户发现前验证唯一 owner | [账户隔离任务](../tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md) |
-| 局域网入口 | 私网 HTTP 仅以显式配置开放受限试用；部署配置与恢复方式集中在运维文档 | [部署说明](../deploy/README.md) |
+| 工作台本机入口 | 默认固定为 `127.0.0.1:3000`，不依赖 Wi-Fi IP；本机 LaunchAgent 在用户登录后启动和异常退出后重启。局域网多人访问仅以独立显式配置开放 | [本次批准 Task](../tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md)、[部署说明](../deploy/README.md) |
 | 正式平台写入 | 工作台/API 通过冻结 Plan、精确确认和通用 executor 执行；普通运行不再为每份 Plan 创建仓库 Task | [原生 Plan-bound 任务](../tasks/TASK-MWBV2-WORKBENCH-NATIVE-PLAN-BOUND-CLOSURE-20260901.md) |
 | 分开确认资源和创建 | 独立 Resource Plan 与 fresh Create Plan，避免资源修正扩大项目创建授权；monitor 缺失时另用 Bootstrap Plan | [两次确认任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-TWO-CONFIRM-CLOSURE-20260831.md) |
 | 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |

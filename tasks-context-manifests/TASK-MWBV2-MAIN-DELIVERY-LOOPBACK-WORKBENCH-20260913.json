@@ -1,0 +1,128 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913",
+  "task_ref": "tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T03:19:22Z",
+  "updated_at": "2026-09-13T03:23:48Z",
+  "base_revision": "a345f8a6b65e59a62344531acd06865f87c79020",
+  "baseline_dirty_files": {},
+  "domains": ["control", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.json",
+    "docs/Solution Design.md",
+    "deploy/README.md",
+    "deploy/launchd/com.hys.marketing-workbench.lan-http.plist.example"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "AGENTS.md",
+    "project.state.json",
+    "docs/Solution Design.md",
+    "deploy/README.md",
+    "deploy/launchd/com.hys.marketing-workbench.lan-http.plist.example",
+    "tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.json"
+  ],
+  "forbidden_actions": [
+    "读取、输出、替换或提交 GitHub 凭据",
+    "创建功能分支、PR、强推或改写 Git 历史",
+    "平台写入、业务 Case 推进、数据库迁移或修改业务数据",
+    "启用局域网多人访问"
+  ],
+  "stop_conditions": [
+    "loopback 配置破坏登录、Host/Origin 校验或服务稳定性",
+    "完成需要开放多人网络访问、修改业务数据或扩大平台权限"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run check:project -- --phase start"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-address && npm run test:workbench-network-policy"},
+    {"acceptance_id": "AC-03", "command": "curl loopback page and /api/auth/me; pg_isready -d marketing_workbench_v2"},
+    {"acceptance_id": "AC-04", "command": "restart current LaunchAgent and verify listening process recovers"},
+    {"acceptance_id": "AC-05", "command": "npm run test:project-contracts; npm run check:project -- --phase before-close/after-close; git diff --check; git push origin main"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start",
+      "verified_at": "2026-09-13T03:19:22Z",
+      "summary": "启动检查通过；当前 Task、精确允许路径和 control/deploy 文档路由一致。",
+      "evidence_refs": [
+        "tasks-context-manifests/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.json",
+        "scripts/00-project-contract-check.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:workbench-address && npm run test:workbench-network-policy",
+      "verified_at": "2026-09-13T03:20:00Z",
+      "summary": "固定 loopback 地址、显式私网 HTTP 开关、绑定地址一致性和 HTTPS 代理路径均通过。",
+      "evidence_refs": [
+        "scripts/00-workbench-address-smoke.mjs",
+        "scripts/00-workbench-network-policy-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "curl http://127.0.0.1:3000/agents/launch-creation; curl http://127.0.0.1:3000/api/auth/me; psql -X -h 127.0.0.1 -d marketing_workbench_v2 -c 'BEGIN READ ONLY; SELECT 1; COMMIT;'",
+      "verified_at": "2026-09-13T03:21:11Z",
+      "summary": "页面返回 200，未登录会话接口返回 401 authentication_required，数据库只读事务返回 1。",
+      "evidence_refs": [
+        "src/server/index.mjs",
+        "src/security/workbenchNetworkPolicy.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "kill current workbench process; launchctl print gui/501/com.hys.marketing-workbench.local-server; lsof -nP -iTCP:3000 -sTCP:LISTEN; curl http://127.0.0.1:3000/agents/launch-creation",
+      "verified_at": "2026-09-13T03:21:30Z",
+      "summary": "LaunchAgent 从 PID 25844 自动恢复为 PID 25908，runs 增至 3，继续监听 127.0.0.1:3000 且页面返回 200。",
+      "evidence_refs": [
+        "deploy/launchd/com.hys.marketing-workbench.lan-http.plist.example",
+        "deploy/README.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "npm run test:project-contracts && git diff --check",
+      "verified_at": "2026-09-13T03:23:13Z",
+      "summary": "项目合同 smoke 的 80 个场景通过，Git 差异无空白错误；关闭后提交并直推 origin/main。",
+      "evidence_refs": [
+        "scripts/00-project-contract-check-smoke.mjs",
+        "scripts/00-project-contract-check.mjs"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录 GitHub 直推 main 与固定本机入口的有效决策。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "updated",
+      "reason": "将默认工作台入口、自动启动和网络边界改为 loopback。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "GitHub 交付规则已固定为直接提交并正常推送 origin/main；工作台 LaunchAgent 已从失效的公司 Wi-Fi IP 切换为固定 loopback，服务和认证保护均已验证。",
+    "side_effects": "更新本机 LaunchAgent 配置并重载服务；为验证 KeepAlive 曾短暂终止工作台进程一次，LaunchAgent 自动恢复。未修改业务 Case、Job、Plan、资源或平台状态。",
+    "remaining_risks": [
+      "本轮未主动断开或切换 Wi-Fi；loopback 与网络地址无关，已通过实际从 192.168.42.7 变为 192.168.0.102 后的地址不可用故障及修复后监听验证证明。",
+      "本机入口只对本机可用；公司多人访问需要另行启用受控网络部署。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-13T03:23:48Z"
+}
