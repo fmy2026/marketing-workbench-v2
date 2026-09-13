@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-11 CST |
-| 校验基线 | 静态核验 Task `TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 共 88 个文件、编号至 `087`，最新为 `087_dynamic_required_video_contract.sql` |
+| 最后更新时间 | 2026-09-13 CST |
+| 校验基线 | 静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911`；Postgres 38 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 共 88 个文件、编号至 `087`，最新为 `087_dynamic_required_video_contract.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -92,7 +92,7 @@ route_id + game_code
 | 内容 | 唯一来源与读取边界 |
 | --- | --- |
 | 路线默认值与创建字段合同 | `game_route_defaults.raw_defaults`；`payload_defaults` 保存静态发送参数，`official_create_field_contract.field_rules / nested_rules` 保存顶层/嵌套规则，Node 05 与 preflight 共用。`duplicate_semantic_contract` 保存未删除语义查重的字段集合与状态过滤。JSZC 静态基线为保留“立即试玩”再追加 4 项 CTA、预算/出价/ROI `66666/366/0.16`、男性与五档年龄、336 位半小时排期，以及评论管理启用 `is_comment_disable=ON`；这些是 migration `069`、`078` 的配置基线，不代替当前查询或授权 |
-| 游戏素材与账户资源 | 标题由 `game_assets.asset_type=title_material` 经物料包关联；当前必需视频集由物料包 active required video 条目决定，其 `game_assets.metadata.qiankun_origin_resource_id` 保存静态乾坤来源码，且集合须与必需视频蓝图的 `source_asset_id` 相同。物料户 `account_resources.metadata.qiankun_preheat` 保存预热记录和乾坤 `m_id` 审计，`metadata.oceanengine_video_mapping` 保存物料户 `file/video/get` 全页中唯一完整 `filename` 来源码匹配到的 OceanEngine 返回项 `id`。只有 `mapping.status=verified` 时才可作为实际 OceanEngine 视频 ID；旧 `asset.metadata.video_id`、零/多匹配都不得回退使用并阻断。目标户可见性仍保存在目标账户行。商品身份来自 `games`，卖点来自路线默认值，产品图及其他动态资源来自目标账户已核验记录。账户资源、DMP 成员状态、实例、引导视频和触点不复制进路线默认值 |
+| 游戏素材与账户资源 | 标题由 `game_assets.asset_type=title_material` 经物料包关联；当前必需视频集由物料包 active required video 条目决定，其 `game_assets.metadata.qiankun_origin_resource_id` 保存静态乾坤来源码，且集合须与必需视频蓝图的 `source_asset_id` 相同。`getLaunchJobBundle()` 仅按当前 Job 的 `route_id`、`game_code` 及 `game_route_defaults.raw_defaults.material_source_account.advertiser_id` 装载物料户的 `video_asset` 资源；不会把目标账户视频资源或历史资产字段作为回退。物料户 `account_resources.metadata.qiankun_preheat` 保存预热记录和乾坤 `m_id` 审计，`metadata.oceanengine_video_mapping` 保存物料户 `file/video/get` 全页中唯一完整 `filename` 来源码匹配到的 OceanEngine 返回项 `id`。只有 `mapping.status=verified` 时才可作为实际 OceanEngine 视频 ID；旧 `asset.metadata.video_id`、零/多匹配都不得回退使用并阻断。目标户可见性仍保存在目标账户行。商品身份来自 `games`，卖点来自路线默认值，产品图及其他动态资源来自目标账户已核验记录。账户资源、DMP 成员状态、实例、引导视频和触点不复制进路线默认值 |
 | 固定抖音号与授权 | 默认号从 `game_route_defaults.raw_defaults.aweme_id_baseline.default_aweme_id` 读取；基线保存默认号、hash、适用条件和规则依据，不表示账户已授权。`advertiser_accounts.aweme_authorization` 只保存当前默认号的脱敏只读核验快照，包括 scope、default hash、Job、时间、response hash、证据和 blocker，不保存候选列表或已选 ID。专项 readiness View 投影最近快照；平台变化须重新运行 Node 04 才会更新 |
 | 启动链接与备用页 | `game_route_launch_links` 按 route×game 读取受控深链；平台 App 关联、hash 与协议在 payload 前校验。`landing_page_assets` 保存备用页库存，目标账户可见性读取 `account_resources` 的 `backup_landing_page`；完整 URL 只进入受控字段，普通摘要仅输出 ref/hash/status/存在性 |
 | 资源核验与审计 | `account_resources` 的已核验事件资产、小游戏实例、备用页以 `visibility_status=visible` 与 `readback_status=readback_verified` 表达，写入者见本节表契约；显式省略仅可用成对的 `not_required/not_required` 加有效只读证据表达，并仍须通过资源类型的合同校验。事件资产创建响应包含资产 ID 时，执行器仅在 `0 / 1 / 3 / 5` 秒受限窗口按该 ID、目标 App 与实例做只读确认；不重复创建，ID 缺失、不匹配或窗口耗尽均记录脱敏结果并保持 Plan 已消费。Node 04 同一轮基线 readonly 的头像、品牌和产品图通过同 scope 的单条原子更新保存，任一 CHECK 失败则不允许部分资源落库。游戏维度品牌候选只保留为已消费历史 Plan 的解释，不能用于新 Draft。`brandInfoMode` 仅在目标账户 API 成功且实际 `brandListCount=0` 时允许整个省略 `brand_info`；它不保存空对象或部分字段，且非空未匹配、多匹配、行业不完整、失败或不明一律阻断。DMP 目标状态按集合成员×目标账户保存。Skill 和平台动作只保存受控证据摘要，外部动作审计包括 endpoint path、method、HTTP/API code、request ID 存在性、hash 与脱敏 metadata，不保存 raw request/response |

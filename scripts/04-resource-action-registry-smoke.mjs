@@ -118,6 +118,7 @@ assert(capabilities.length === OE3_REQUIRED_RESOURCE_TYPES.length, "resource_cap
 assert(capabilities.every((item) => item.verify_skill_key && item.verify_module_ref), "resource_capability_verify_refs_missing");
 assert(getResourceActionCapability("video_asset").prepare_supported === true, "video_prepare_should_be_supported");
 assert(getResourceActionCapability("video_asset").prepare_module_ref === "src/platforms/oceanengineVideoMaterialExecutor.mjs", "video_prepare_module_ref_wrong");
+assert(getResourceActionCapability("video_asset").evidence_requirement.includes("material-source verified OceanEngine video mapping"), "video_evidence_requirement_must_describe_verified_source_mapping");
 assert(getResourceActionCapability("dmp_audience_package").prepare_supported === true, "dmp_prepare_should_be_supported");
 assert(getResourceActionCapability("dmp_audience_package").prepare_module_ref === "src/platforms/oceanengineDmpExecutor.mjs", "dmp_prepare_module_ref_wrong");
 assert(getResourceActionCapability("avatar").prepare_supported === true, "avatar_prepare_should_be_supported");
@@ -212,8 +213,8 @@ function freshVideoBundle({ requiredVideoCount, missingVideoCount }) {
   const items = Array.from({ length: requiredVideoCount }, (_, index) => {
     const sourceAssetId = `VIDEO-ASSET-${index + 1}`;
     return {
-      item: { item_type: "video_asset", required: true, asset_id: sourceAssetId },
-      asset: { asset_id: sourceAssetId, metadata: { video_id: `7000000000000${index + 1}` } }
+      item: { item_type: "video_asset", required: true, status: "active", asset_id: sourceAssetId },
+      asset: { asset_id: sourceAssetId, metadata: {} }
     };
   });
   return {
@@ -225,6 +226,16 @@ function freshVideoBundle({ requiredVideoCount, missingVideoCount }) {
     },
     defaults: { raw_defaults: { material_source_account: { advertiser_id: "8990000000000002" } } },
     materialPack: { items },
+    materialSourceResources: items.map((entry, index) => ({
+      resource_type: "video_asset",
+      source_asset_id: entry.item.asset_id,
+      metadata: {
+        oceanengine_video_mapping: {
+          status: "verified",
+          oceanengine_video_id: `7000000000000${index + 1}`
+        }
+      }
+    })),
     resources: items.map((entry, index) => ({
       resource_type: "video_asset",
       source_asset_id: entry.item.asset_id,

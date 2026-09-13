@@ -38,7 +38,7 @@ const RESOURCE_ACTION_CAPABILITIES = Object.freeze({
     verifyModuleRef: "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     prepareSupported: true,
     prepareModuleRef: "src/platforms/oceanengineVideoMaterialExecutor.mjs",
-    evidenceRequirement: "video material source/target readonly evidence and local file metadata"
+    evidenceRequirement: "active required material-pack set, material-source verified OceanEngine video mapping, and target-account readonly evidence"
   },
   product_image: {
     verifyModuleRef: DEFAULT_VERIFY_MODULE,

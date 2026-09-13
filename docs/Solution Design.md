@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
-| 最后更新时间 | 2026-09-11 CST |
-| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-CURRENT-LOGIC-DOC-CONSISTENCY-20260911` |
+| 最后更新时间 | 2026-09-13 CST |
+| 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
@@ -32,7 +32,7 @@
 | 正式入口与文件隔离 | 业务写入只走主链；`.archive/` 是唯一可恢复归档根，SQL migration 与 Task/Manifest 历史原位保留 | [入口隔离任务](../tasks/TASK-MWBV2-SCRIPT-ENTRYPOINT-ISOLATION-20260901.md)、[文件收口任务](../tasks/TASK-MWBV2-PROJECT-FILE-CONSOLIDATION-20260908.md) |
 | 新账户只读推进 | 精确账户预检后建立 Case，Gate 驱动有界只读推进；在确认卡或真实 blocker 停止 | [新账户桥接任务](../tasks/TASK-MWBV2-NEW-ACCOUNT-MONITOR-BOOTSTRAP-BRIDGE-20260902.md) |
 | 账户当前状态 | 使用账户 canonical readiness 纠正历史缺失/未就绪投影，保留历史 Skill 证据 | [账户投影任务](../tasks/TASK-MWBV2-CANONICAL-ACCOUNT-READINESS-PROJECTION-20260902.md) |
-| 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产创建响应有 ID 后只作有界精确 readonly 回查，绝不重发创建；配置与目标绑定保持既有顺序核验，部分完成也要有准确 blocker | [本次批准 Task](../tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md)、[逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
+| 资源准备与回查 | 只为注册表支持的资源编译动作；事件资产创建响应有 ID 后只作有界精确 readonly 回查，绝不重发创建；视频 ID 只从当前 Job 装载的物料户 verified 映射解析，配置与目标绑定保持既有顺序核验，部分完成也要有准确 blocker | [事件资产 Task](../tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md)、[视频来源 Task](../tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md)、[逻辑图](project-现在的逻辑图.md)、[资源能力注册表](../src/workflows/skills/oe3/04-resource-action-registry.mjs) |
 | 品牌来源与字段形态 | 新鲜目标账户品牌/行业回查是唯一运行时来源；跨账户游戏候选只保留为已消费历史 Plan 的解释证据，不能进入新 Draft 或被重放 | [本次批准 Task](../tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md)、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 目标空品牌列表的整组省略 | `oceanengine_std_project_create` 的每个 fresh Job 都按当前目标账户品牌查询决定唯一 `brand_mode`：列表非空且唯一完整命中品牌/行业时发送四字段 `brand_info`；API 成功且实际返回空列表时整个省略 `brand_info`；失败、不明、非空未匹配、多匹配或行业不完整均阻断。空列表不用 Case 特批、历史白名单或游戏候选；`not_required/not_required` 必须带当前 Job、响应 hash 和证据引用。Node 04、Node 05、嵌套合同、payload、preflight、账本、wire body 和确认卡共用该模式。条件字段合同严格检查五条品牌 omit 账本，并继续用黄金形态校验所有非品牌字段；不发送空或部分对象，也不跳过 hash/数量校验 | [本次批准 Task](../tasks/TASK-MWBV2-GAME-BRAND-FALLBACK-VALIDATION-20260910.md)、官方创建字段文档、[逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | 资源动作精确调用量 | 资源 executor 的 fresh readonly 结果是该动作唯一调用量来源：0 表示已满足、不生成写动作；正整数同时冻结在 planned action、action grant 与 Plan 总调用量。确认前重新计算；任一数量或授权不一致均在 confirmation claim 前 fail-closed，必须走 fresh Job/Plan，不能改写旧 Plan | [本次批准任务](../tasks/TASK-MWBV2-GENERIC-RESOURCE-ACTION-CALL-LIMIT-20260908.md)、[当前逻辑](project-现在的逻辑图.md) |

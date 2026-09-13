@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911",
   "task_ref": "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-11T14:10:00Z",
-  "updated_at": "2026-09-12T01:46:03Z",
+  "updated_at": "2026-09-13T02:49:39Z",
   "base_revision": "d1983caa613bb4b5826d77129e17416d38ddead2",
   "baseline_dirty_files": {
     "db/087_dynamic_required_video_contract.sql": "sha256:c375087eeab4df8a5756352a99acb6f8af98b4e2903e6a0176b19298bc3f3926",
@@ -55,11 +55,39 @@
   ],
   "reference_only": [],
   "allowed_writes": [
+    "db/087_dynamic_required_video_contract.sql",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "project.state.json",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/03-baseline-resource-inheritance-smoke.mjs",
+    "scripts/04-event-asset-executor-smoke.mjs",
+    "scripts/04-resource-action-registry-smoke.mjs",
+    "scripts/04-video-material-executor-smoke.mjs",
+    "scripts/05-guide-video-payload-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/06-launch-job-bundle-video-source-smoke.mjs",
+    "src/platforms/oceanengineEventAssetExecutor.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/skills/oe3/03-launch-pack.mjs",
+    "src/workflows/skills/oe3/04-event-chain-readiness.mjs",
+    "src/workflows/skills/oe3/04-resource-action-registry.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-IDENTITY-READY-FOR-BASIS-20260911.json",
+    "tasks-context-manifests/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.json",
+    "tasks-context-manifests/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.json",
     "tasks/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.md",
     "tasks-context-manifests/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.json",
-    "project.state.json",
-    "src/repositories/postgresRepository.mjs",
-    "scripts/06-launch-job-bundle-video-source-smoke.mjs"
+    "tasks/TASK-MWBV2-EVENT-ASSET-IDENTITY-READY-FOR-BASIS-20260911.md",
+    "tasks/TASK-MWBV2-EVENT-ASSET-READBACK-DYNAMIC-VIDEO-20260911.md",
+    "tasks/TASK-MWBV2-REQUIRED-BLUEPRINT-BOOTSTRAP-20260911.md"
   ],
   "forbidden_actions": [
     "新增平台写入动作或重试策略",
@@ -75,24 +103,125 @@
   "validation_plan": [
     {
       "acceptance_id": "AC-01",
-      "command": "npm run validate:schemas"
+      "command": "npm run check:project -- --phase start"
     },
     {
       "acceptance_id": "AC-02",
-      "command": "npm run test:video-material-executor"
+      "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:guide-video-payload && npm run test:resource-action-registry"
     },
     {
       "acceptance_id": "AC-03",
-      "command": "node scripts/06-launch-job-bundle-video-source-smoke.mjs"
+      "command": "npm run test:event-asset-executor && npm run test:workbench-conversation"
     },
     {
       "acceptance_id": "AC-04",
-      "command": "npm run check:project -- --phase start"
+      "command": "node scripts/06-launch-job-bundle-video-source-smoke.mjs --case-id CASE-MWBV2-F13F365AA0B98E01C8"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -c \"BEGIN READ ONLY; required active material-pack video source_asset_id set equals required video blueprint source_asset_id set; COMMIT;\""
+    },
+    {
+      "acceptance_id": "AC-06",
+      "command": "npm run test:project-contracts && git diff --check"
     }
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start",
+      "verified_at": "2026-09-13T02:44:00Z",
+      "summary": "范围检查通过；31 个继承变更和本轮 8 个收尾文件均逐项落在精确 allowed_writes 内，未放宽基线或检查器。",
+      "evidence_refs": [
+        "scripts/00-project-contract-check.mjs",
+        "tasks-context-manifests/TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:guide-video-payload && npm run test:resource-action-registry",
+      "verified_at": "2026-09-13T02:47:00Z",
+      "summary": "视频执行器、动态 payload、引导视频及资源注册表回归均通过；注册表 fixture 明确构造 active required 条目与 material-source verified 映射，不再依赖旧 asset metadata。",
+      "evidence_refs": [
+        "scripts/04-video-material-executor-smoke.mjs",
+        "scripts/05-payload-contract-smoke.mjs",
+        "scripts/05-guide-video-payload-smoke.mjs",
+        "scripts/04-resource-action-registry-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:event-asset-executor && npm run test:workbench-conversation",
+      "verified_at": "2026-09-13T02:44:00Z",
+      "summary": "事件资产有界回查与工作台“已调用但未确认不重发”受控反馈均通过，无真实平台写入或 token 刷新。",
+      "evidence_refs": [
+        "scripts/04-event-asset-executor-smoke.mjs",
+        "scripts/00-workbench-conversation-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "node scripts/06-launch-job-bundle-video-source-smoke.mjs --case-id CASE-MWBV2-F13F365AA0B98E01C8",
+      "verified_at": "2026-09-13T02:48:00Z",
+      "summary": "未提供 --case-id 时脚本以 case_id_required fail-fast；显式目标 Case 读取 10 条 required 视频和 10 条 verified 物料户映射，成功构建视频准备计划。",
+      "evidence_refs": [
+        "scripts/06-launch-job-bundle-video-source-smoke.mjs",
+        "src/repositories/postgresRepository.mjs",
+        "src/workflows/skills/oe3/04-resource-verifiers.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -c \"BEGIN READ ONLY; required active material-pack video source_asset_id set equals required video blueprint source_asset_id set; COMMIT;\"",
+      "verified_at": "2026-09-13T02:48:00Z",
+      "summary": "只读集合核验得到 active required 物料视频 10、required 视频蓝图 10、差异 0；本轮 payload 临时 test_run Job 已清理。",
+      "evidence_refs": [
+        "docs/project-数据与报表契约.md",
+        "scripts/03-baseline-resource-inheritance-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-06",
+      "status": "passed",
+      "command": "npm run test:project-contracts && git diff --check",
+      "verified_at": "2026-09-13T02:49:00Z",
+      "summary": "项目合同 smoke 的 80 个场景通过，Git 差异无空白错误。",
+      "evidence_refs": [
+        "scripts/00-project-contract-check-smoke.mjs",
+        "scripts/00-project-contract-check.mjs"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "补充视频 ID 唯一来自 Job 物料户 verified 映射的有效决策。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "明确 Job bundle 装载物料户视频资源的 route、game 与配置账户边界。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "更新当前静态核验基线，流程结构与运行边界保持不变。"
+    }
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "完成已提交动态必需视频集、事件资产回查与 Job bundle 物料来源装载的集成验收；诊断脚本要求显式 Case，资源注册表与当前合同一致。",
+    "side_effects": "仅更新任务合同、文档、测试 fixture 与本地 test_run 验证；临时 test_run Job 已清理，未修改 runtime Case/Job/Plan/资源、未调用真实平台、未刷新 OAuth。",
+    "remaining_risks": [
+      "CASE-MWBV2-F13F365AA0B98E01C8 仍投影历史 video_bind_plan_empty；需由账户本人在工作台显式执行一次重新只读准备后重新读取 summary。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-13T02:49:39Z"
 }

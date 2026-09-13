@@ -24,7 +24,7 @@ function uniqueSorted(items = []) {
   return [...new Set(items)].sort();
 }
 
-const caseId = getArg("case-id", "CASE-MWBV2-F13F365AA0B98E01C8");
+const caseId = getArg("case-id");
 if (!caseId) {
   throw new Error("case_id_required");
 }
