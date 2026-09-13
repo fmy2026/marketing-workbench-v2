@@ -292,7 +292,11 @@ try {
           outputSummary: {
             createNodeStatus: "blocked_before_create",
             createCalled: false,
-            blockers: ["final_draft_plan_derivation_not_passed"]
+            blockers: [
+              "readiness_not_ready:new_runtime_job_required",
+              "aweme_auth_probe_failed",
+              "readonly_transport_failed"
+            ]
           }
         }]
       }]
@@ -301,6 +305,7 @@ try {
   assert(prewriteFinalizations === 1, "confirmed_zero_action_prewrite_plan_not_finalized");
   assert(prewriteResult.executionGrant?.status === "blocked", "prewrite_finalization_should_report_blocked");
   assert(prewriteResult.executionGrant?.createCalled === false, "prewrite_finalization_must_not_create");
+  assert(JSON.stringify(prewriteResult.executionGrant?.blockers) === JSON.stringify(["readonly_transport_failed"]), "prewrite_finalization_must_preserve_concrete_blocker");
 
   console.log(JSON.stringify({
     status: "passed",

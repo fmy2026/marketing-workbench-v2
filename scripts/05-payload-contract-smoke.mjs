@@ -286,6 +286,7 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
     }
   };
   const bundle = {
+    job: { job_id: "JOB-NESTED-CONTRACT" },
     game: { game_name: "巨兽战场", product_name: "巨兽战场", brand_name: "巨兽战场" },
     defaults: {
       raw_defaults: {
@@ -324,6 +325,8 @@ function nestedContractCase(mutator = () => {}, { externalUrlMaterialListPolicy 
           status: "passed",
           video_id_present: true,
           cover_mode: "explicit_cover_verified",
+          explicit_cover_visible: true,
+          verified_by_job_id: "JOB-NESTED-CONTRACT",
           evidence_refs: ["EVIDENCE-VIDEO-1"]
         }
       }

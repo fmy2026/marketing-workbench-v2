@@ -1,0 +1,103 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913",
+  "task_ref": "tasks/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.md",
+  "status": "completed",
+  "created_at": "2026-09-13T04:23:53Z",
+  "updated_at": "2026-09-13T04:40:34Z",
+  "base_revision": "645e1db5c5ac078b07cf03746cfb18681cbe8b5b",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "docs/project-lessons.md",
+    "deploy/README.md",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/00-runner.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.md",
+    "tasks-context-manifests/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913.json",
+    "project.state.json",
+    "db/088_confirmed_prewrite_recovery_gate.sql",
+    "db/089_confirmed_prewrite_blocker_resolution.sql",
+    "src/repositories/postgresRepository.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "src/workflows/skills/oe3/04-resource-verifiers.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
+    "src/workflows/skills/oe3/05-payload.mjs",
+    "src/workflows/skills/oe3/05-nested-field-contract.mjs",
+    "src/workflows/skills/oe3/05-create-preflight-diagnostics.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "scripts/00-workbench-runtime-write-policy-smoke.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "scripts/04-video-material-executor-smoke.mjs",
+    "scripts/05-payload-contract-smoke.mjs",
+    "scripts/06-std-project-create-wire-body-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "evidence/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913/**"
+  ],
+  "forbidden_actions": [
+    "真实平台创建、资源写入、OAuth 刷新、预算或出价修改",
+    "修改当前业务 Case、Job、Plan、confirmation、action 或资源事实",
+    "账户、Case、Job 或项目 ID 特例和运行时历史成功依赖",
+    "自动重试或新的平台写入入口"
+  ],
+  "stop_conditions": [
+    "需要真实平台写入或修改当前业务事实",
+    "Schema 与 migration 假设冲突且无法无特例修正",
+    "需要扩大确认、重试或账户权限"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:execution-plan && npm run test:workbench-runtime-policy && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-progress && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:std-project-create-wire-body"},
+    {"acceptance_id": "AC-04", "command": "npm run smoke:workflow-skills && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id": "AC-01", "status": "passed", "command": "npm run test:execution-plan && npm run test:workbench-runtime-policy && npm run test:workbench-conversation; read-only workflow_case_summary query", "verified_at": "2026-09-13T04:39:33Z", "summary": "Confirmed zero-action prewrite finalization preserves the concrete blocker; the current Case projects readonly_transport_failed, fresh readonly recovery, zero create actions, and zero created objects.", "evidence_refs": ["evidence/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913/validation.md#ac-01"]},
+    {"acceptance_id": "AC-02", "status": "passed", "command": "npm run test:workbench-progress && npm run test:workbench-conversation", "verified_at": "2026-09-13T04:39:33Z", "summary": "Confirmation availability, card rendering, and conversation actions share the server-side Gate/Plan result.", "evidence_refs": ["evidence/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913/validation.md#ac-02"]},
+    {"acceptance_id": "AC-03", "status": "passed", "command": "npm run test:video-material-executor && npm run test:payload-contract && npm run test:std-project-create-wire-body", "verified_at": "2026-09-13T04:39:33Z", "summary": "Dynamic ten-item, duplicate, current-Job explicit-cover, default-cover, payload, and wire-body contracts pass.", "evidence_refs": ["evidence/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913/validation.md#ac-03"]},
+    {"acceptance_id": "AC-04", "status": "passed", "command": "npm run smoke:workflow-skills && git diff --check && npm run check:project -- --phase start", "verified_at": "2026-09-13T04:39:33Z", "summary": "Seven-Node workflow smoke, diff integrity, and active Task start-contract check pass with no real platform write.", "evidence_refs": ["evidence/TASK-MWBV2-UNIVERSAL-CREATE-CLOSURE-20260913/validation.md#ac-04"]}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "Records the universal zero-action prewrite recovery and the unified target-cover decision."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "Defines the dynamic video-to-target-cover chain, confirmation boundary, and readonly-only recovery behavior."},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "Documents target-cover evidence and workflow_case_summary projection semantics."},
+    {"ref": "docs/project-lessons.md", "status": "not_needed", "reason": "No new verified platform creation result was produced in this development task."},
+    {"ref": "deploy/README.md", "status": "not_needed", "reason": "Deployment, networking, credentials, and OAuth operations did not change."}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "三阶段七 Node 的 confirmed prewrite zero-action recovery、具体 blocker 投影、动态视频/封面统一合同与确认卡边界已完成并通过回归。",
+    "side_effects": "应用了 db/088 与 db/089 的 workflow_case_summary 投影迁移；未执行平台写入、OAuth 刷新、资源写入或当前业务事实写入。",
+    "remaining_risks": ["当前账户仍需由账户本人在工作台启动 fresh readonly recovery；只有新 Draft/Plan 全部通过并经本人确认后，才可执行创建与 Node 7 权威回查。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-13T04:40:34Z"
+}

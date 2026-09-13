@@ -916,6 +916,31 @@ const recoveryDecision = evaluateGateAction({
 });
 assert(recoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed resource blocker must create a fresh readonly job");
 
+const confirmedPrewriteBlockerCase = {
+  lifecycle_status: "active",
+  current_gate: "resolve_case_blocker",
+  suggested_next_action: "create_fresh_readonly_recovery",
+  root_blocker_codes: ["readonly_transport_failed"],
+  latest_job_id: "JOB-PREWRITE-RECOVERY-1",
+  latest_job_status: "failed_waiting_manual_review",
+  latest_plan_status: "consumed",
+  monitor_resolved: true
+};
+const prewriteRecoveryDecision = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: confirmedPrewriteBlockerCase,
+  isLatestCaseJob: true
+});
+assert(prewriteRecoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed zero-action prewrite blocker must create a fresh readonly job");
+const confirmedCreateFailureCase = {
+  ...confirmedPrewriteBlockerCase,
+  root_blocker_codes: ["corrective_attempt_requires_new_payload_version"]
+};
+assert(
+  evaluateGateAction({ intent: readonlyRecoveryIntent, caseSummary: confirmedCreateFailureCase, isLatestCaseJob: true }).effect === "run_dry_run",
+  "generic corrective blocker must not bypass the actual-create recovery gate"
+);
+
 const confirmedMonitorBlockerCase = {
   ...confirmedResourceBlockerCase,
   root_blocker_codes: ["monitor_plan_required"],

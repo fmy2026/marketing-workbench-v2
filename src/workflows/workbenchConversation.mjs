@@ -116,7 +116,7 @@ export async function handleWorkbenchCommand({
     repo.getWorkflowCaseSummary(bundle.job.case_id)
   ]);
   const intent = await resolveConversationIntent({ message, jobView: view, resolver });
-  const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
+  const confirmationPreview = view?.confirmationPreview || null;
   const interaction = evaluateGateAction({
     intent,
     message,

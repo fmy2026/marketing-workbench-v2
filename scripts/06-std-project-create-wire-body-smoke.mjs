@@ -267,7 +267,7 @@ assertBlocked("-7434750138926546994", "invalid_decimal_bigint_json_number:instan
 assertBlocked("9223372036854775808", "instance_id_exceeds_signed_int64");
 assertBlocked("7434750138926546994abc", "invalid_decimal_bigint_json_number:instance_id");
 
-const manifestPreflight = evaluateStdProjectCreatePreflight({
+const syntheticManifestPreflight = evaluateStdProjectCreatePreflight({
   requestFieldManifest: {
     requiredFieldsPresent: true,
     blockers: [],
@@ -312,7 +312,9 @@ const manifestPreflight = evaluateStdProjectCreatePreflight({
   },
   payloadContractStatus: "passed"
 });
-assert.equal(manifestPreflight.status, "passed", JSON.stringify(manifestPreflight.blocker_codes));
+assert.equal(syntheticManifestPreflight.status, "blocked");
+assert(syntheticManifestPreflight.blocker_codes.includes("jszc_success_profile_not_verified"));
+assert(syntheticManifestPreflight.blocker_codes.includes("create_field_ledger_not_verified"));
 
 const unverifiedPreflight = evaluateStdProjectCreatePreflight({
   requestFieldManifest: {

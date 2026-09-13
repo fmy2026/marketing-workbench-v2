@@ -216,6 +216,21 @@ const twoVideoPlan = buildVideoMaterialPreparePlan({ bundle: bundle({ twoVideos:
 assert(twoVideoPlan.bindActionCount === 2, "video_prepare_two_video_bind_count_wrong");
 assert(twoVideoPlan.bindBatchCount === 1, "video_prepare_two_video_batch_count_wrong");
 assert(twoVideoPlan.bindBatchRequests[0].requestFieldManifest.sourceAssetCount === 2, "video_prepare_two_video_batch_item_count_wrong");
+const tenVideoBundle = bundle();
+for (let index = 0; index < 9; index += 1) {
+  const id = `ASSET-${String(index).padStart(2, "0")}`;
+  tenVideoBundle.materialPack.items.push(videoEntry(id));
+  tenVideoBundle.resources.push(resourceEntry(id));
+  tenVideoBundle.materialSourceResources.push(materialSourceResourceEntry(id, `v02033g10000bulk${index}`));
+}
+const tenVideoPlan = buildVideoMaterialPreparePlan({ bundle: tenVideoBundle });
+assert(tenVideoPlan.selectedRequiredVideoCount === 10, "video_prepare_dynamic_ten_video_set_count_wrong");
+assert(tenVideoPlan.bindActionCount === 10, "video_prepare_dynamic_ten_video_bind_count_wrong");
+assert(tenVideoPlan.bindBatchRequests[0].requestFieldManifest.sourceAssetCount === 10, "video_prepare_dynamic_ten_video_batch_count_wrong");
+const duplicateRequiredBundle = bundle({ twoVideos: true });
+duplicateRequiredBundle.materialPack.items.push(videoEntry(sourceAssetId));
+const duplicateRequiredPlan = buildVideoMaterialPreparePlan({ bundle: duplicateRequiredBundle });
+assert(duplicateRequiredPlan.contractStatus === "blocked", "duplicate_required_video_set_must_block");
 
 const manyItems = Array.from({ length: 51 }, (_, index) => ({
   sourceAssetId: `ASSET-${String(index).padStart(2, "0")}`,

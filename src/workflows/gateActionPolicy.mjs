@@ -44,8 +44,14 @@ function canRecoverReadonlyBlocker({ caseSummary = null, isLatestCaseJob = false
 }
 
 export function requiresFreshReadonlyRecovery({ caseSummary = null, isLatestCaseJob = false } = {}) {
-  return canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob }) &&
-    ["blocked_confirmed_resource_plan", "blocked_confirmed_monitor_plan"].includes(clean(caseSummary?.latest_job_status));
+  if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) return false;
+  const status = clean(caseSummary?.latest_job_status);
+  if (["blocked_confirmed_resource_plan", "blocked_confirmed_monitor_plan"].includes(status)) return true;
+  const blocker = clean((caseSummary?.root_blocker_codes || [])[0]);
+  return status === "failed_waiting_manual_review" &&
+    clean(caseSummary?.latest_plan_status) === "consumed" &&
+    Boolean(blocker) &&
+    blocker !== "corrective_attempt_requires_new_payload_version";
 }
 
 function readonlyRecoveryHint({ caseSummary = null, isLatestCaseJob = false } = {}) {
@@ -105,6 +111,14 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       label: "品牌模式：目标账户品牌列表为空；创建字段整组省略 brand_info"
     }
     : null;
+  const finalManifest = bundle.draft?.payload_summary?.final_payload_manifest || {};
+  const finalMaterials = finalManifest.finalMaterialReadiness || {};
+  const materialSummary = isSingleCreatePlan ? {
+    videoCount: Number(finalMaterials.selectedRequiredVideoCount || finalManifest.videoMaterialCount || 0),
+    guideVideoPolicy: finalMaterials.guideVideoRequired === true ? "每条已核验引导视频" : "无需引导视频",
+    coverPolicy: finalMaterials.videoCoverRequired === true ? "逐条显式封面已核验" : "允许平台默认封面",
+    brandMode: clean(finalManifest.brandMode || bundle.draft?.payload_summary?.brand_mode) || "待核验"
+  } : null;
   const actionLimits = actionTypes.map((type) => ({
     actionType: type,
     maximumPlatformCalls: Number(
@@ -132,6 +146,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     planId: clean(plan.plan_id),
     planHash: clean(plan.plan_hash),
     targetEmptyBrandOmit,
+    materialSummary,
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),
@@ -198,7 +213,7 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     return { ...base, effect: "run_monitor_readonly", message: "将执行一次 fresh readonly monitor 回查，不会创建 monitor。" };
   }
-  if (currentGate === "prepare_corrective_attempt" &&
+  if (currentGate === "prepare_corrective_attempt" && !requiresFreshReadonlyRecovery({ caseSummary, isLatestCaseJob }) &&
     ["request_readonly_recovery", "continue_workflow"].includes(intent.intent)) {
     return {
       ...base,

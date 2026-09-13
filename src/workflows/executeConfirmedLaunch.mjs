@@ -29,7 +29,15 @@ function createPrewriteBlockerFromView(view = {}) {
     .find((node) => node.id === "std_project_create_executor");
   const output = createNode?.outputSummary || {};
   if (output.createNodeStatus !== "blocked_before_create" || output.createCalled === true) return "";
-  return String((output.blockers || [])[0] || "final_draft_plan_derivation_not_passed").trim();
+  const blockers = (output.blockers || [])
+    .map((blocker) => String(blocker || "").trim())
+    .filter(Boolean);
+  const concreteBlocker = blockers.find((blocker) => !(
+    blocker.startsWith("readiness_not_ready:") ||
+    blocker.startsWith("aweme_id_invalid_shape:") ||
+    ["aweme_auth_probe_failed", "aweme_id_missing"].includes(blocker)
+  ));
+  return concreteBlocker || blockers[0] || "final_draft_plan_derivation_not_passed";
 }
 
 function validateGrant({ grantSource, executionIntent, envConfirm }) {

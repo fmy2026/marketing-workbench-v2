@@ -471,7 +471,7 @@ function checkFinalMaterialReadiness(manifest = {}) {
     expectedTypeOrRule: "selected_required_video_count === verified_video_count === cover_ready_count; guide-required accounts also equal guide_video_ready_count",
     actualValue: { selectedRequiredVideoCount: selected, verifiedVideoCount: verified, coverReadyCount: covers, guideVideoRequired: guideRequired, guideVideoReadyCount: guideReady },
     blockerCode: "final_material_readiness_not_passed",
-    repairHint: "两条最终视频必须在目标账户可读；封面需显式验证或允许平台默认封面。"
+    repairHint: "全部当前必需视频必须在目标账户可读；封面需逐条显式验证或允许平台默认封面。"
   });
 }
 

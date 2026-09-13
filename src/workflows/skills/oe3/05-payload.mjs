@@ -281,15 +281,12 @@ function videoMaterials(bundle = {}) {
   const guideRequired = guideReadiness.required === true;
   return requiredVerifiedVideoMaterialEntries(bundle)
     .map((entry) => {
-      const resourceItem = resourceBySourceAsset(bundle, "video_asset", entry.sourceAssetId);
-      const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
-      const videoCoverId = clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id || "");
       const item = {
         image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
         video_id: entry.videoId
       };
-      if (coverMode === "explicit_cover_verified" && videoCoverId) {
-        item.video_cover_id = videoCoverId;
+      if (entry.coverMode === "explicit_cover_verified" && entry.coverReady) {
+        item.video_cover_id = entry.coverId;
       }
       if (guideRequired && guideReadiness.status === "passed" && clean(guideReadiness.guideVideoId)) {
         item.guide_video_id = clean(guideReadiness.guideVideoId);
@@ -308,14 +305,9 @@ function requiredVideoMaterialReadiness(bundle = {}) {
       const sourceAssetId = entry.sourceAssetId;
       const resourceItem = resourceBySourceAsset(bundle, "video_asset", sourceAssetId);
       const readonlyStatus = clean(resourceItem.metadata?.readonly_check?.status);
-      const coverMode = clean(resourceItem.metadata?.readonly_check?.cover_mode || resourceItem.metadata?.final_material_readiness?.cover_mode);
-      const verifiedByCurrentJob = clean(
-        resourceItem.metadata?.readonly_check?.verified_by_job_id ||
-        resourceItem.metadata?.final_material_readiness?.verified_by_job_id
-      ) === clean(bundle.job?.job_id);
       const coverReady = coverRequired
-        ? coverMode === "explicit_cover_verified" && verifiedByCurrentJob
-        : ["explicit_cover_verified", "platform_default_cover_allowed"].includes(coverMode);
+        ? entry.coverMode === "explicit_cover_verified" && entry.coverReady
+        : entry.coverReady;
       const guideReady = !guideRequired || guideReadiness.status === "passed";
       const ready = sourceAssetId &&
         resourceReady(resourceItem) &&
@@ -326,10 +318,10 @@ function requiredVideoMaterialReadiness(bundle = {}) {
       return {
         sourceAssetId,
         videoIdPresent: entry.videoIdPresent,
-        videoCoverIdPresent: Boolean(clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id)),
-        coverMode: coverMode || "not_checked",
+        videoCoverIdPresent: Boolean(entry.coverId),
+        coverMode: entry.coverMode || "not_checked",
         videoCoverRequired: coverRequired,
-        videoCoverVerifiedByCurrentJob: coverRequired ? verifiedByCurrentJob : false,
+        videoCoverVerifiedByCurrentJob: coverRequired ? entry.coverVerifiedByCurrentJob : false,
         guideVideoRequired: guideRequired,
         guideVideoReady: guideReady,
         guideVideoIdPresent: Boolean(clean(guideReadiness.guideVideoId)),

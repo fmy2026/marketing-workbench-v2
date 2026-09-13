@@ -489,6 +489,12 @@ import {
       [callLimitLabel, `${preview.maximumPlatformCalls || 1} 次`],
       ...(preview.planKind === "std_project_create" ? [["Case 创建上限", `${preview.maximumCreateAttempts || 1} 次`]] : []),
       ...(preview.targetEmptyBrandOmit ? [["品牌模式", preview.targetEmptyBrandOmit.label]] : []),
+      ...(preview.materialSummary ? [
+        ["必需视频", `${preview.materialSummary.videoCount} 条`],
+        ["引导视频", preview.materialSummary.guideVideoPolicy],
+        ["视频封面", preview.materialSummary.coverPolicy],
+        ["品牌模式", preview.materialSummary.brandMode]
+      ] : []),
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
       ["Plan", preview.planId || "未生成"],
       ["Hash", preview.planHash || "未生成"]

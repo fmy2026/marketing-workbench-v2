@@ -120,6 +120,9 @@ assert(targetSharedGuidance?.message === "当前阻断：目标账户共享站�
 assert(targetSharedGuidance?.placeholder === "输入“重新只读准备”重新核验，或输入“查看状态”...", "target_shared_readonly_guidance_placeholder_mismatch");
 assert(!targetSharedGuidance.message.includes("resolve_root_blocker:"), "target_shared_guidance_must_not_expose_internal_action_code");
 assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["credential_required"] })?.placeholder === "输入“重新只读准备”或“查看状态”…", "unrelated_blocker_must_use_recovery_guidance");
+const prewriteTransportGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["readonly_transport_failed"] });
+assert(prewriteTransportGuidance?.message.includes("当前阻断仍待处理"), "prewrite_transport_failure_must_keep_specific_blocker_guidance");
+assert(prewriteTransportGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "prewrite_transport_failure_must_offer_readonly_recovery");
 const emptyVideoPlanGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_bind_plan_empty"] });
 assert(emptyVideoPlanGuidance?.message.includes("旧资源 Plan"), "empty_video_plan_guidance_missing");
 assert(emptyVideoPlanGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "empty_video_plan_recovery_missing");

@@ -185,6 +185,21 @@ export function requiredVerifiedVideoMaterialEntries(bundle = {}) {
     const videoId = clean(mapping.status === "verified"
       ? mapping.oceanengine_video_id || sourceResource.platform_resource_id
       : "");
+    const targetResources = (bundle.resources || []).filter((item) =>
+      item.resource_type === "video_asset" && clean(item.source_asset_id) === sourceAssetId
+    );
+    const targetResource = targetResources.length === 1 ? targetResources[0] : {};
+    const targetReadonly = targetResource.metadata?.readonly_check || {};
+    const targetFinalReadiness = targetResource.metadata?.final_material_readiness || {};
+    const coverId = clean(
+      sourceResource.metadata?.video_cover_id || sourceResource.metadata?.cover_id ||
+      entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id
+    );
+    const coverMode = clean(targetReadonly.cover_mode || targetFinalReadiness.cover_mode || "not_checked");
+    const coverVerifiedByCurrentJob = clean(
+      targetReadonly.verified_by_job_id || targetFinalReadiness.verified_by_job_id
+    ) === clean(bundle.job?.job_id);
+    const coverTargetVisible = targetReadonly.explicit_cover_visible === true;
     return {
       sourceAssetId,
       assetRef: clean(entry.item?.asset_ref || entry.asset?.asset_ref),
@@ -196,7 +211,15 @@ export function requiredVerifiedVideoMaterialEntries(bundle = {}) {
       sourceResourceCount: sourceResources.length,
       mappingStatus: clean(mapping.status || "missing"),
       videoId,
-      videoIdPresent: Boolean(videoId)
+      videoIdPresent: Boolean(videoId),
+      targetResource,
+      targetResourceCount: targetResources.length,
+      coverId,
+      coverMode,
+      coverVerifiedByCurrentJob,
+      coverTargetVisible,
+      coverReady: coverMode === "platform_default_cover_allowed" ||
+        (coverMode === "explicit_cover_verified" && Boolean(coverId) && coverTargetVisible && coverVerifiedByCurrentJob)
     };
   });
 }

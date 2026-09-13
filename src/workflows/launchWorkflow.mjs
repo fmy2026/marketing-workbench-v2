@@ -962,7 +962,9 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const createReadiness = createReadinessView(bundle, runtimeChecks);
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
-  const confirmationPreview = buildConfirmationPreview(bundle, caseSummary);
+  const confirmationPreview = executionAvailability.canExecuteOnce === true
+    ? buildConfirmationPreview(bundle, caseSummary)
+    : null;
   caseGate.progressNarrative = presentWorkflowProgress({
     caseGate,
     confirmationPreview,

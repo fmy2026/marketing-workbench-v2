@@ -127,8 +127,8 @@ function requiredVideoEntries(bundle = {}) {
       return {
         sourceAssetId,
         expectedVideoId: entry.videoId,
-        expectedCoverId: clean(entry.asset?.metadata?.video_cover_id || entry.asset?.metadata?.cover_id),
-        coverMode: clean(readonly.cover_mode || finalReadiness.cover_mode || "not_checked"),
+        expectedCoverId: clean(entry.coverId),
+        coverMode: clean(entry.coverMode || readonly.cover_mode || finalReadiness.cover_mode || "not_checked"),
         videoIdPresent: readonly.video_id_present === true && entry.videoIdPresent,
         evidenceRefPresent: Boolean(clean(readonly.evidence_refs?.[0] || finalReadiness.evidence_ref)),
         guideVideoRequired: guideRequired,
@@ -137,7 +137,7 @@ function requiredVideoEntries(bundle = {}) {
         ready: Boolean(sourceAssetId) &&
           resourceReady(resourceItem) &&
           ["passed", "passed_by_manual_confirmation"].includes(clean(readonly.status)) &&
-          readonly.video_id_present === true
+          readonly.video_id_present === true && entry.coverReady === true
       };
     });
 }

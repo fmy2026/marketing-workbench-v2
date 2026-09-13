@@ -2997,7 +2997,42 @@ export class PostgresRepository {
           AND j.source_usage = 'runtime_truth'
           AND wc.lifecycle_status = 'active'
           AND wc.source_usage = 'runtime_truth'
-          AND j.job_status IN ('blocked_confirmed_resource_plan', 'blocked_confirmed_monitor_plan')
+          AND (
+            j.job_status IN ('blocked_confirmed_resource_plan', 'blocked_confirmed_monitor_plan')
+            OR (
+              j.job_status = 'failed_waiting_manual_review'
+              AND EXISTS (
+                SELECT 1
+                FROM mwb.launch_execution_plans plan
+                WHERE plan.job_id = j.job_id
+                  AND plan.plan_kind = 'std_project_create'
+                  AND plan.plan_status = 'consumed'
+                  AND coalesce(plan.metadata->>'confirmed_execution_outcome', '') = 'blocked_before_create'
+                  AND coalesce(plan.metadata->>'confirmed_execution_blocker', '') <> ''
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM mwb.platform_actions action
+                WHERE action.job_id = j.job_id
+                  AND action.action_type = 'oceanengine_std_project_create'
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM mwb.created_objects object
+                JOIN mwb.launch_jobs object_job ON object_job.job_id = object.job_id
+                WHERE object_job.case_id = j.case_id
+                  AND object_job.source_usage = 'runtime_truth'
+                  AND object.object_type = 'std_project'
+              )
+              AND (
+                SELECT count(*)
+                FROM mwb.platform_actions action
+                JOIN mwb.launch_jobs action_job ON action_job.job_id = action.job_id
+                WHERE action_job.case_id = j.case_id
+                  AND action_job.source_usage = 'runtime_truth'
+                  AND action.action_type = 'oceanengine_std_project_create'
+              ) < wc.maximum_create_attempts
+            )
+          )
         LIMIT 1
       ),
       latest AS (
