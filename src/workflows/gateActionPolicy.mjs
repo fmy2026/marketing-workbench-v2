@@ -259,6 +259,13 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
           : "当前尚无已批准的人工复盘证据，未创建替代 Case、未执行平台操作。"
       };
     }
+    if (currentGate === "run_fresh_readiness") {
+      return {
+        ...base,
+        effect: "run_dry_run",
+        message: "将开始当前 Job 的只读核验；不会确认、推送或追加视频。"
+      };
+    }
     if (!canRecoverReadonlyBlocker({ caseSummary, isLatestCaseJob })) {
       return { ...base, effect: "readonly_recovery_unavailable", message: "当前 Case 不满足重新只读准备条件，未执行平台操作。" };
     }

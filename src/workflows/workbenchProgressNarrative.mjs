@@ -39,7 +39,14 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
     run_readback_only: "项目已创建，正在确认项目 ID 和名称；不会重复创建。",
     first_std_project_create_completed: "项目已通过平台回查，本次创建流程已完成。"
   };
-  if (messages[currentGate]) return Object.freeze({ shortLabel: "流程进行中", message: messages[currentGate] });
+  if (messages[currentGate]) {
+    return Object.freeze({
+      shortLabel: currentGate === "run_fresh_readiness" ? "待只读核验" : "流程进行中",
+      message: currentGate === "run_fresh_readiness"
+        ? (append ? "已完成初步匹配，待开始核验指定视频；不会追加视频。" : "已完成初步匹配，待开始账户资源核验；不会创建项目。")
+        : messages[currentGate]
+    });
+  }
   if (currentGate === "await_job_write_authorization") {
     const phrase = clean(confirmationPreview?.confirmationPhrase);
     const action = confirmationLabel(confirmationPreview);

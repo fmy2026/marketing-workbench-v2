@@ -202,6 +202,10 @@ assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_o
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes('const recoveryButton = el("button", "conversation-preset", "重新只读准备")'), "readonly_recovery_button_missing");
 assert(clientSource.includes('submitJobCommand("重新只读准备")'), "readonly_recovery_button_must_use_existing_text_command");
+assert(clientSource.includes('const readinessButton = el("button", "conversation-preset", "开始只读核验")'), "fresh_readiness_button_missing");
+assert(clientSource.includes('submitJobCommand("继续执行")'), "fresh_readiness_button_must_use_continue_command");
+assert(clientSource.includes('点击“开始只读核验”，或输入“继续执行”...'), "fresh_readiness_input_copy_missing");
+assert(!readonlyRecoveryGuidance({ currentGate: "run_fresh_readiness", rootBlockerCodes: [] }), "fresh_readiness_must_not_present_recovery_guidance");
 assert(clientSource.includes("平台限流，正在等待第"), "rate_limit_operational_message_missing");
 assert(clientSource.includes("preview.targetEmptyBrandOmit.label"), "target_empty_brand_confirmation_label_missing");
 assert(clientSource.includes('error?.status >= 500 || error?.message === "internal_error"'), "internal_error_ui_boundary_missing");

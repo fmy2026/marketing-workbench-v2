@@ -128,7 +128,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 创建对象和回查证据完整 | `first_std_project_create_completed` | 只读完成投影并收口 Case |
 | 其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试 |
 
-- 工作台固定为 `受控咨询与临时 Intake → allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；首屏不预选事项、不显示七节点或进度。完整 Intake 仅在最新对话下提供一张启动卡片，输入变化即失效；点击时冻结完整的服务端校验请求，并将同一快照依次提交给 Case 与 fresh Job，页面不得增删字段。右侧先显示创建 Case、创建 Job 等真实请求阶段，取得实际 Job 后才展示服务端七节点投影。追加视频隐藏新建项目专用子检查，只显示追加专用节点；受阻时顶部、侧栏和对话共同消费 summary 的唯一 blocker，并提供既有“重新只读准备”，不自动重试。历史 Job 只读，越权或冲突 scope fail-closed。
+- 工作台固定为 `受控咨询与临时 Intake → allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；首屏不预选事项、不显示七节点或进度。完整 Intake 仅在最新对话下提供一张启动卡片，输入变化即失效；点击时冻结完整的服务端校验请求，并将同一快照依次提交给 Case 与 fresh Job，页面不得增删字段。右侧先显示创建 Case、创建 Job 等真实请求阶段，取得实际 Job 后才展示服务端七节点投影。`run_fresh_readiness` 只显示“开始只读核验”并提交“继续执行”；仅 `resolve_case_blocker` 显示“重新只读准备”。为兼容旧提示，前一 Gate 收到“重新只读准备”时也只重跑当前 Job 的 readonly。追加视频隐藏新建项目专用子检查，只显示追加专用节点；受阻时顶部、侧栏和对话共同消费 summary 的唯一 blocker，不自动重试。历史 Job 只读，越权或冲突 scope fail-closed。
 - `resolve_case_blocker` 只展示 summary 投影的唯一具体原因与 Gate Policy 允许的下一步。旧视频绑定 Plan 为空、视频来源未唯一核验或绑定条件不完整时，提供既有“重新只读准备”文字命令；它只创建或复用同一 Case 的 fresh Job，不重放旧 Plan、不确认也不创建平台对象。
 - consumed Create Plan 的确认前停止只在确有 `blocked_before_create`、零 create action 与零创建对象时进入该同一 readonly 恢复入口；通用 `readiness_not_ready:*`、授权探测包装原因不会覆盖 Skill 的具体传输或合同 blocker。确认卡、提示和按钮都读取同一服务端 Gate/Plan/confirmation 可用性；确认被登记或 Plan 被消费后不再显示陈旧的可确认卡。
 - 确认卡点击时先冻结当前 `jobId`、`planId`、`planHash` 与精确确认短语；提交中只锁定该按钮并显示“提交中”，轮询或界面重绘不得改写本次请求目标。请求结束后只消费同一服务端投影的 `confirmationPreview`；显式 `null` 必须清卡，页面不得以旧 Plan 状态回填。未分类服务错误仅显示受控诊断与最新状态，不推断 confirmation 或平台动作是否已发生。

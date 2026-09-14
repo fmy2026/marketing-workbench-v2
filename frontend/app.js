@@ -799,14 +799,24 @@ import {
       button.addEventListener("click", () => submitConversationInput(preset.message));
       container.append(button);
     }
-    const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
-    if (job?.isLatestCaseJob && !viewOnly && readonlyRecovery?.placeholder?.includes("重新只读准备")) {
-      const recoveryButton = el("button", "conversation-preset", "重新只读准备");
-      recoveryButton.type = "button";
-      recoveryButton.disabled = disabled;
-      recoveryButton.addEventListener("click", () => submitJobCommand("重新只读准备"));
-      container.append(recoveryButton);
+    const currentGate = String(job?.caseGate?.currentGate || "").trim();
+    if (job?.isLatestCaseJob && !viewOnly && currentGate === "run_fresh_readiness") {
+      const readinessButton = el("button", "conversation-preset", "开始只读核验");
+      readinessButton.type = "button";
+      readinessButton.disabled = disabled;
+      readinessButton.addEventListener("click", () => submitJobCommand("继续执行"));
+      container.append(readinessButton);
       container.hidden = false;
+    } else {
+      const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
+      if (job?.isLatestCaseJob && !viewOnly && readonlyRecovery?.placeholder?.includes("重新只读准备")) {
+        const recoveryButton = el("button", "conversation-preset", "重新只读准备");
+        recoveryButton.type = "button";
+        recoveryButton.disabled = disabled;
+        recoveryButton.addEventListener("click", () => submitJobCommand("重新只读准备"));
+        container.append(recoveryButton);
+        container.hidden = false;
+      }
     }
   }
 
@@ -1115,6 +1125,8 @@ import {
             : "等待人工复盘；可输入“查看状态”..."
         : job?.caseGate?.currentGate === "prepare_corrective_attempt"
           ? "输入“重新只读准备”准备下一 Attempt，或输入“查看状态”..."
+          : job?.caseGate?.currentGate === "run_fresh_readiness"
+            ? "点击“开始只读核验”，或输入“继续执行”..."
           : readonlyRecovery
             ? readonlyRecovery.placeholder
           : "输入“继续执行”或“查看状态”..."

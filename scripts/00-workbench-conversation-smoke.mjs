@@ -944,6 +944,70 @@ const recoveryDecision = evaluateGateAction({
 });
 assert(recoveryDecision.effect === "create_fresh_readonly_recovery_job", "confirmed resource blocker must create a fresh readonly job");
 
+const freshReadinessCase = {
+  lifecycle_status: "active",
+  current_gate: "run_fresh_readiness",
+  suggested_next_action: "run_readonly_readiness",
+  root_blocker_codes: [],
+  latest_job_id: "JOB-FRESH-READINESS-1",
+  latest_job_status: "created"
+};
+const freshReadinessDecision = evaluateGateAction({
+  intent: readonlyRecoveryIntent,
+  caseSummary: freshReadinessCase,
+  isLatestCaseJob: true
+});
+assert(freshReadinessDecision.effect === "run_dry_run", "fresh readiness must accept the readonly recovery alias");
+assert(freshReadinessDecision.message.includes("不会确认、推送或追加视频"), "fresh readiness alias must retain readonly boundary");
+const freshReadinessView = {
+  ...jobView,
+  jobId: "JOB-FRESH-READINESS-1",
+  caseId: "CASE-FRESH-READINESS-1",
+  caseGate: {
+    currentGate: "run_fresh_readiness",
+    suggestedNextAction: "run_readonly_readiness",
+    rootBlockerCodes: [],
+    lifecycleStatus: "active",
+    isLatestCaseJob: true
+  }
+};
+const completedFreshReadinessView = {
+  ...freshReadinessView,
+  caseGate: {
+    ...freshReadinessView.caseGate,
+    currentGate: "resolve_case_blocker",
+    rootBlockerCodes: ["video_origin_mapping_ambiguous"]
+  }
+};
+let freshReadinessRuns = 0;
+const freshReadinessResponse = await handleWorkbenchCommand({
+  repo: {
+    async getLaunchJobBundle() {
+      return {
+        ...bundle,
+        job: {
+          ...bundle.job,
+          job_id: "JOB-FRESH-READINESS-1",
+          case_id: "CASE-FRESH-READINESS-1",
+          source_usage: "runtime_truth"
+        }
+      };
+    },
+    async getWorkflowCaseSummary() { return freshReadinessCase; }
+  },
+  jobId: "JOB-FRESH-READINESS-1",
+  message: "重新只读准备",
+  getJobViewFn: async () => freshReadinessView,
+  runJobFn: async (_repo, jobId, options) => {
+    freshReadinessRuns += 1;
+    assert(jobId === "JOB-FRESH-READINESS-1", "fresh readiness alias changed job");
+    assert(options.mode === "dry_run", "fresh readiness alias must remain readonly");
+    return completedFreshReadinessView;
+  }
+});
+assert(freshReadinessRuns === 1, "fresh readiness alias must execute exactly one readonly run");
+assert(freshReadinessResponse.interaction.message.includes("已重新完成当前 Job 的只读准备"), "fresh readiness alias result changed");
+
 const confirmedPrewriteBlockerCase = {
   lifecycle_status: "active",
   current_gate: "resolve_case_blocker",
