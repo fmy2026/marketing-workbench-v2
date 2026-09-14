@@ -61,6 +61,8 @@ npm run setup:qiankun-user -- --user zhangchaobo --gui
 
 投放创建页面支持自然语言和完整 `launch-request.v1` JSON。自然语言可分次补齐路线、游戏和账户；JSON 必须包含 `schema_version`、`operation`、`route_id`、`game_code` 和字符串形式的 `advertiser_id`，并且只支持 `create_std_project`、`oceanengine_3_byte_mini_game`、`JSZC`。模型只辅助自然语言缺项，JSON 不调用模型；两者在启动前都只会创建 Case、fresh Job 和 readonly 准备，后续每张 Plan 仍须由本人确认。
 
+配置 DeepSeek 时使用 `https://api.deepseek.com/v1`。工作台对该主机的固定 Schema 连接测试与运行时槽位解析都会关闭 thinking；连接测试通过后，输入“巨兽战场走抖小”应显示“已使用模型辅助解析：推广路线”。若显示受控回退原因，修正配置或输入后重新提交；页面不会显示模型原始响应，且不能由该次失败结果启动流程。
+
 ## 长期 HTTPS 上线参数
 
 上线前需要公司内网提供两个值：

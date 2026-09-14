@@ -12,6 +12,7 @@ import {
   normalizeOpenAiCompatibleModelConfig,
   testOpenAiCompatibleModelConfig
 } from "../src/agents/openaiCompatibleModelConfigTest.mjs";
+import { createOpenAiCompatibleIntentAdapter } from "../src/agents/conversationIntentResolver.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -57,10 +58,30 @@ try {
   assert(requested.url === "https://models.example.test/v1/chat/completions", "model_test_endpoint_invalid");
   const requestBody = JSON.parse(requested.options.body);
   assert(requestBody.temperature === 0 && requestBody.response_format?.type === "json_object", "model_test_schema_controls_missing");
+  assert(!requestBody.thinking, "non_deepseek_must_not_receive_thinking_extension");
   assert(!JSON.stringify(requestBody).match(/advertiser|route_id|game_code|case_id|job_id/i), "model_test_contains_business_data");
   assert(requested.options.headers.authorization === `Bearer ${apiKey}`, "model_test_credential_transport_missing");
   const failed = await testOpenAiCompatibleModelConfig({ ...normalized, apiKey, fetchFn: async () => ({ ok: false, json: async () => ({}) }) });
   assert(failed.status === "failed" && failed.reason === "provider_rejected", "model_test_failure_not_safely_classified");
+  let deepSeekConfigRequest = null;
+  const deepSeekConfig = await testOpenAiCompatibleModelConfig({
+    apiBase: "https://api.deepseek.com/v1", modelName: "deepseek-v4-pro", apiKey,
+    fetchFn: async (_url, options) => {
+      deepSeekConfigRequest = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ choices: [{ message: { content: '{"ok":true}' } }] }) };
+    }
+  });
+  assert(deepSeekConfig.status === "passed" && deepSeekConfigRequest.thinking?.type === "disabled", "deepseek_config_thinking_not_disabled");
+  let deepSeekRuntimeRequest = null;
+  const adapter = createOpenAiCompatibleIntentAdapter({
+    apiKey,
+    fetchFn: async (_url, options) => {
+      deepSeekRuntimeRequest = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ choices: [{ message: { content: '{"intent":"intake_update","confidence":1,"slots":{}}' } }] }) };
+    }
+  });
+  await adapter.resolve({ userMessage: "走抖小" }, { apiBase: "https://api.deepseek.com/v1", model: "deepseek-v4-pro" });
+  assert(deepSeekRuntimeRequest.thinking?.type === "disabled", "deepseek_runtime_thinking_not_disabled");
   let invalidBaseRejected = false;
   try { normalizeOpenAiCompatibleModelConfig({ apiBase: "https://key@example.test/v1?token=x", modelName: "test" }); } catch (error) { invalidBaseRejected = error.message === "invalid_model_api_base"; }
   assert(invalidBaseRejected, "credential_bearing_api_base_not_rejected");

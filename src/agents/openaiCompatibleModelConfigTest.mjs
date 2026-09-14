@@ -1,3 +1,5 @@
+import { openAiCompatibleJsonRequestBody } from "./openaiCompatibleModelRequestProfile.mjs";
+
 const PROTOCOL = "openai_compatible";
 
 function clean(value) {
@@ -34,15 +36,14 @@ export async function testOpenAiCompatibleModelConfig({ apiBase, modelName, apiK
     const response = await fetchFn(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-      body: JSON.stringify({
+      body: JSON.stringify(openAiCompatibleJsonRequestBody({
+        apiBase: config.apiBase,
         model: config.modelName,
-        temperature: 0,
-        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "Return only a JSON object matching the fixed schema {\\\"ok\\\": true}." },
           { role: "user", content: "Return the fixed schema now." }
         ]
-      }),
+      })),
       signal: controller.signal
     });
     if (!response.ok) return { status: "failed", reason: "provider_rejected" };

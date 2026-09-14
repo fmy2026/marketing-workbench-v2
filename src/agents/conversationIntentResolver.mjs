@@ -13,6 +13,7 @@ import {
   toLaunchRequestResponse,
   validateLaunchRequest
 } from "./launchRequest.mjs";
+import { openAiCompatibleJsonRequestBody } from "./openaiCompatibleModelRequestProfile.mjs";
 
 function intakeRequestError(message) {
   const error = new Error(message);
@@ -87,6 +88,23 @@ function unknownIntent({ source = "deterministic", issue = "unrecognized" } = {}
     source,
     issues: [issue]
   };
+}
+
+function modelAssist({ attempted = false, outcome = "not_attempted", acceptedSlots = [] } = {}) {
+  return { attempted, outcome, accepted_slots: [...new Set(acceptedSlots)].filter((key) => LAUNCH_INTAKE_FIELDS.includes(key)) };
+}
+
+function providerFailureOutcome(error) {
+  if (error?.name === "AbortError" || error?.code === "intent_provider_timeout") return "timeout";
+  if (error?.code === "intent_provider_rejected") return "provider_rejected";
+  if (error?.code === "intent_provider_non_json") return "non_json";
+  return "provider_unavailable";
+}
+
+function modelAssistError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
 }
 
 export function intentProviderConfig(env = process.env) {
@@ -171,7 +189,8 @@ export function validateIntent(candidate, { source = "adapter" } = {}) {
     slots: safeSlots(rawSlots),
     slotEvidence,
     source: clean(candidate.source) || source,
-    issues: []
+    issues: [],
+    modelAssist: candidate.modelAssist
   };
 }
 
@@ -217,12 +236,19 @@ export function createConversationIntentResolver({ provider, model, apiBase, ada
       if (deterministic.confidence === 1 && !(allowPartialIntakeAssistance && partialIntake)) return deterministic;
       try {
         const result = await adapter.resolve(buildIntentContext({ message, jobView }), configuration);
-        return validateIntent(result, { source: `llm:${selectedProvider}` });
-      } catch {
+        const validated = validateIntent(result, { source: `llm:${selectedProvider}` });
+        const outcome = validated.intent !== "unknown"
+          ? "accepted_candidate"
+          : (validated.issues.includes("confidence_not_accepted") || validated.issues.includes("intent_not_allowed")
+            ? "intent_confidence_rejected"
+            : "non_json");
+        return { ...validated, modelAssist: modelAssist({ attempted: true, outcome }) };
+      } catch (error) {
         return {
           ...deterministicIntent({ message }),
           source: "deterministic_fallback",
-          issues: ["intent_provider_failed"]
+          issues: ["intent_provider_failed"],
+          modelAssist: modelAssist({ attempted: true, outcome: providerFailureOutcome(error) })
         };
       }
     }
@@ -233,29 +259,32 @@ export function createOpenAiCompatibleIntentAdapter({ apiKey, fetchFn = globalTh
   const key = clean(apiKey);
   return {
     async resolve(context = {}, configuration = {}) {
-      if (!key || typeof fetchFn !== "function") throw new Error("intent_provider_unavailable");
+      if (!key || typeof fetchFn !== "function") throw modelAssistError("intent_provider_unavailable");
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const endpoint = new URL(`${clean(configuration.apiBase).replace(/\/$/, "")}/chat/completions`);
         if (!/^https?:$/.test(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-          throw new Error("intent_provider_configuration_invalid");
+          throw modelAssistError("intent_provider_configuration_invalid");
         }
         const response = await fetchFn(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-          body: JSON.stringify({
-            model: clean(configuration.model), temperature: 0, response_format: { type: "json_object" },
+          body: JSON.stringify(openAiCompatibleJsonRequestBody({
+            apiBase: configuration.apiBase,
+            model: configuration.model,
             messages: [
               { role: "system", content: "Return JSON only: {intent,confidence,slots:{route_id:{value,evidence},game_code:{value,evidence},advertiser_id:{value,evidence}}}. intent must be one allowed intent. Every non-empty slot requires an exact evidence quote from userMessage. Never infer, default, select, or invent a missing value. Never return a Gate, Plan, action, confirmation, budget, bid, or platform instruction." },
               { role: "user", content: JSON.stringify(context) }
             ]
-          }), signal: controller.signal
+          })), signal: controller.signal
         });
-        if (!response.ok) throw new Error("intent_provider_rejected");
-        const body = await response.json();
+        if (!response.ok) throw modelAssistError("intent_provider_rejected");
+        let body;
+        try { body = await response.json(); } catch { throw modelAssistError("intent_provider_non_json"); }
         const content = body?.choices?.[0]?.message?.content;
-        return typeof content === "string" ? JSON.parse(content) : content;
+        if (typeof content !== "string") throw modelAssistError("intent_provider_non_json");
+        try { return JSON.parse(content); } catch { throw modelAssistError("intent_provider_non_json"); }
       } finally {
         clearTimeout(timer);
       }
@@ -266,11 +295,12 @@ export function createOpenAiCompatibleIntentAdapter({ apiKey, fetchFn = globalTh
 export async function resolveConversationIntent({ message = "", jobView = {}, resolver, allowPartialIntakeAssistance = false } = {}) {
   const effectiveResolver = resolver || createConversationIntentResolver();
   try {
-    return validateIntent(await effectiveResolver.resolve({ message: boundedText(message), jobView, allowPartialIntakeAssistance }), {
+    const resolved = await effectiveResolver.resolve({ message: boundedText(message), jobView, allowPartialIntakeAssistance });
+    return { ...validateIntent(resolved, {
       source: effectiveResolver.provider || "resolver"
-    });
+    }), modelAssist: resolved?.modelAssist };
   } catch {
-    return unknownIntent({ source: "deterministic_fallback", issue: "intent_resolver_failed" });
+    return { ...unknownIntent({ source: "deterministic_fallback", issue: "intent_resolver_failed" }), modelAssist: modelAssist({ attempted: true, outcome: "provider_unavailable" }) };
   }
 }
 
@@ -279,12 +309,12 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
   const values = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, launchIntakeFieldValue(deterministic, key)]));
   const slotSources = Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((key) => [key, values[key] ? "rules" : "missing"]));
   if (deterministic.issues?.length) {
-    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: deterministic.issues };
+    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: deterministic.issues, modelAssist: modelAssist() };
   }
   if (hasCompleteLaunchIntake(values)) {
-    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [] };
+    return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [], modelAssist: modelAssist() };
   }
-  if (!resolver) return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [] };
+  if (!resolver) return { ...deterministic, ...values, parseSource: "rules", slotSources, issues: [], modelAssist: modelAssist() };
 
   const intent = await resolveConversationIntent({
     message,
@@ -292,6 +322,7 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
     allowPartialIntakeAssistance: true
   });
   let accepted = false;
+  const acceptedSlots = [];
   if (intent.intent === "intake_update" && intent.source.startsWith("llm:")) {
     for (const key of LAUNCH_INTAKE_FIELDS) {
       if (values[key]) continue;
@@ -305,10 +336,10 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
       values[key] = normalized;
       slotSources[key] = "llm";
       accepted = true;
+      acceptedSlots.push(key);
     }
   }
-  const failed = intent.source === "deterministic_fallback" ||
-    (intent.source.startsWith("llm:") && !accepted);
+  const failed = intent.modelAssist?.attempted === true && !accepted;
   return {
     ...deterministic,
     ...values,
@@ -319,7 +350,10 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
     missingFields: LAUNCH_INTAKE_FIELDS.filter((key) => !values[key]),
     parseSource: accepted ? "llm_assisted" : failed ? "rules_fallback" : "rules",
     slotSources,
-    issues: []
+    issues: [],
+    modelAssist: accepted
+      ? modelAssist({ attempted: true, outcome: "accepted", acceptedSlots })
+      : modelAssist({ attempted: intent.modelAssist?.attempted === true, outcome: intent.modelAssist?.outcome === "accepted_candidate" ? "slot_evidence_rejected" : (intent.modelAssist?.outcome || "intent_confidence_rejected") })
   };
 }
 
@@ -352,6 +386,7 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     parseSource: resolved.parseSource,
     source: "natural_language",
     slotSources: resolved.slotSources,
+    modelAssist: resolved.modelAssist,
     issues: issueCodes.map(launchRequestIssue)
   });
 }

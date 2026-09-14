@@ -47,6 +47,7 @@ import {
   let intakeMode = "natural";
   let intakeIssues = [];
   let intakeParseSource = "rules";
+  let intakeModelAssist = null;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -602,10 +603,24 @@ import {
     return gate.progressNarrative?.message || "流程状态正在更新，请刷新查看。";
   }
 
-  function parserLabel(source = "rules") {
+  function parserLabel(source = "rules", modelAssist = intakeModelAssist) {
     if (source === "structured_json") return "已使用标准 JSON 校验";
-    if (source === "llm" || source === "llm_assisted") return "已使用模型辅助解析";
-    if (source === "rules_fallback") return "模型不可用或结果未通过校验，已回退规则解析";
+    if (source === "llm" || source === "llm_assisted") {
+      const labels = { route_id: "推广路线", game_code: "游戏标识", advertiser_id: "账户 ID" };
+      const slots = Array.isArray(modelAssist?.accepted_slots) ? modelAssist.accepted_slots.map((key) => labels[key]).filter(Boolean) : [];
+      return `已使用模型辅助解析${slots.length ? `：${slots.join("、")}` : ""}`;
+    }
+    if (source === "rules_fallback") {
+      const reasons = {
+        timeout: "模型请求超时",
+        provider_rejected: "模型服务拒绝请求",
+        non_json: "模型未返回有效 JSON",
+        intent_confidence_rejected: "模型意图或置信度未通过校验",
+        slot_evidence_rejected: "模型槽位值或原文证据未通过校验",
+        provider_unavailable: "模型暂不可用"
+      };
+      return `${reasons[modelAssist?.outcome] || "模型结果未通过校验"}，已回退规则解析`;
+    }
     return "已使用规则解析";
   }
 
@@ -675,14 +690,17 @@ import {
     const hint = document.getElementById("intakeHint");
     const action = document.getElementById("intakeAction");
     const hasIssues = !job && intakeIssues.length > 0;
-    const isDraftReady = !job && fields.length > 0 && missing.length === 0 && !hasIssues;
+    const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
+    const isDraftReady = !job && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
     action.hidden = Boolean(job);
     startButton.disabled = !isDraftReady || busy || viewOnly;
     hint.textContent = hasIssues
       ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")
-      : (isDraftReady
+      : (modelAssistFailed
+        ? `${parserLabel(intakeParseSource)}；请修正后重新提交。`
+        : (isDraftReady
         ? `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`
-        : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。"));
+        : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。")));
     const tip = document.getElementById("configTip");
     if (tip) tip.textContent = parserLabel(intakeParseSource);
     renderIntakeMode();
@@ -692,6 +710,7 @@ import {
     for (const key of Object.keys(draftIntake)) draftIntake[key] = "";
     intakeIssues = [];
     intakeParseSource = "rules";
+    intakeModelAssist = null;
     draftCaseId = "";
     draftCaseKey = "";
   }
@@ -994,7 +1013,7 @@ import {
   }
 
   async function startWorkflow() {
-    if (busy || viewOnly || job || missingFields().length || intakeIssues.length) return;
+    if (busy || viewOnly || job || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
     setBusy(true);
     let startupStage = "创建 Case";
     try {
@@ -1047,6 +1066,7 @@ import {
     for (const field of requiredFields()) draftIntake[field.key] = fieldValue(request, field.key);
     intakeIssues = Array.isArray(intake?.issues) ? intake.issues : [];
     intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
+    intakeModelAssist = intake?.model_assist || intake?.modelAssist || null;
     draftCaseId = "";
     draftCaseKey = "";
   }
@@ -1399,7 +1419,7 @@ import {
         });
         mergeIntake(intake);
         const missing = missingFields();
-        const label = parserLabel(intake.parse_source || intake.parseSource);
+        const label = parserLabel(intake.parse_source || intake.parseSource, intake.model_assist || intake.modelAssist);
         const identified = requiredFields().length - missing.length;
         message("agent", intakeIssues.length
           ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")

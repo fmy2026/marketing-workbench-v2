@@ -112,6 +112,33 @@ try {
   assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "partial_natural_input_enabled_start");
   assert((await evaluate("document.querySelector('#configTip').textContent")).includes("规则解析"), "natural_parse_label_missing");
 
+  await evaluate(`(() => {
+    window.__mwbOriginalFetch = window.fetch.bind(window);
+    window.__mwbModelAssistMode = "success";
+    window.fetch = async (input, init) => {
+      if (String(input).includes("/api/launch/intake")) {
+        const fallback = window.__mwbModelAssistMode === "fallback";
+        return new Response(JSON.stringify({
+          request: { route_id: "oceanengine_3_byte_mini_game", game_code: "JSZC", advertiser_id: fallback ? "1871922999999999" : "" },
+          missing_fields: fallback ? [] : ["advertiser_id"], parse_source: fallback ? "rules_fallback" : "llm_assisted",
+          model_assist: fallback ? { attempted: true, outcome: "slot_evidence_rejected", accepted_slots: [] } : { attempted: true, outcome: "accepted", accepted_slots: ["route_id"] },
+          issues: []
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return window.__mwbOriginalFetch(input, init);
+    };
+  })()`);
+  await fill("#chatInput", "巨兽战场走抖小");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#configTip').textContent.includes('模型辅助解析：推广路线')"), "model_assist_label");
+  assert(await evaluate("document.querySelector('#intentCard').textContent.includes('JSZC')"), "model_assist_rule_slot_not_retained");
+  await evaluate("window.__mwbModelAssistMode = 'fallback'");
+  await fill("#chatInput", "巨兽战场走抖小");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#configTip').textContent.includes('槽位值或原文证据未通过校验')"), "model_assist_fallback_label");
+  assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "model_assist_fallback_enabled_start");
+  await evaluate("window.fetch = window.__mwbOriginalFetch");
+
   await click('[data-intake-mode="json"]');
   await until(() => visible("#structuredRequestPanel"), "json_panel");
   assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "switch_mode_retained_stale_ready_draft");

@@ -69,6 +69,7 @@ assert(explicitAlias.route_id === "oceanengine_3_byte_mini_game", "explicit_alia
 assert(explicitAlias.game_code === "JSZC" && explicitAlias.advertiser_id === accountB, "rule_slots_must_be_retained");
 assert(explicitAlias.parseSource === "llm_assisted", "explicit_model_slot_not_labeled");
 assert(explicitAlias.slotSources.game_code === "rules" && explicitAlias.slotSources.route_id === "llm", "model_overrode_rule_or_source_lost");
+assert(explicitAlias.modelAssist?.outcome === "accepted" && explicitAlias.modelAssist.accepted_slots.join(",") === "route_id", "accepted_model_slots_not_reported");
 assert(!JSON.stringify(observedContext).includes("JOB-"), "provider_context_leaked_job_state");
 assert(!JSON.stringify(observedContext).includes("caseGate"), "provider_context_leaked_case_state");
 assert(Array.isArray(observedContext.explicitSlotSchema.route_id), "provider_alias_contract_missing");
@@ -88,6 +89,20 @@ assert(injectionAction.effect === "clarify", "prompt_injection_must_not_choose_a
 
 const status = await resolveConversationIntent({ message: "为什么卡住？", resolver });
 assert(status.intent === "request_status", "status_phrase_must_stay_deterministic");
+
+for (const [name, adapter, expectedOutcome] of [
+  ["timeout", { async resolve() { const error = new Error("ignored raw response"); error.name = "AbortError"; throw error; } }, "timeout"],
+  ["provider", { async resolve() { const error = new Error("ignored raw response"); error.code = "intent_provider_rejected"; throw error; } }, "provider_rejected"],
+  ["non_json", { async resolve() { const error = new Error("ignored raw response"); error.code = "intent_provider_non_json"; throw error; } }, "non_json"],
+  ["confidence", { async resolve() { return { intent: "intake_update", confidence: 0.1, slots: {} }; } }, "intent_confidence_rejected"],
+  ["evidence", { async resolve() { return { intent: "intake_update", confidence: 1, slots: { route_id: { value: "oceanengine_3_byte_mini_game", evidence: "not-in-message" } } }; } }, "slot_evidence_rejected"]
+]) {
+  const failureResolver = createConversationIntentResolver({ provider: `mock-${name}`, adapters: { [`mock-${name}`]: adapter } });
+  const failure = await resolveExplicitLaunchIntake({ message: "巨兽战场走抖小", resolver: failureResolver });
+  assert(failure.parseSource === "rules_fallback", `${name}_must_fallback`);
+  assert(failure.modelAssist?.outcome === expectedOutcome, `${name}_safe_outcome_invalid`);
+  assert(!JSON.stringify(failure.modelAssist).includes("ignored raw response") && !JSON.stringify(failure.modelAssist).includes("巨兽战场"), `${name}_diagnostic_leaked_input_or_output`);
+}
 
 const readback = presentWorkflowProgress({
   caseGate: { currentGate: "run_readback_only" },

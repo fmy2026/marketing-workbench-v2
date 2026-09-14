@@ -136,7 +136,7 @@ export function missingLaunchRequestFields(request) {
   return DRAFT_FIELDS.filter((field) => !request[field]);
 }
 
-export function toLaunchRequestResponse({ draft, parseSource, source, slotSources = {}, issues = [] }) {
+export function toLaunchRequestResponse({ draft, parseSource, source, slotSources = {}, modelAssist, issues = [] }) {
   const request = createLaunchRequestDraft(draft);
   return {
     request,
@@ -146,6 +146,7 @@ export function toLaunchRequestResponse({ draft, parseSource, source, slotSource
     missing_fields: missingLaunchRequestFields(request),
     parse_source: parseSource,
     slot_sources: slotSources,
+    ...(modelAssist ? { model_assist: modelAssist } : {}),
     source,
     issues
   };
