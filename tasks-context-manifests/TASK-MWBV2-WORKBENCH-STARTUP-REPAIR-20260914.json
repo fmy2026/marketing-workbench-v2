@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T10:40:00.000Z",
+  "updated_at": "2026-09-14T10:50:00.000Z",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -31,12 +31,14 @@
     "tests/support/http-server.mjs",
     "tests/run.mjs",
     "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/materialCodeMatcher.mjs",
     "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/launchOperationContracts.mjs",
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/workbenchConversation.mjs",
     "src/workflows/workbenchProgressNarrative.mjs",
+    "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
@@ -62,7 +64,7 @@
     {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages; npm run check:project -- --phase before-close"},
     {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"},
-    {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages"}
+    {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; case-sensitive readonly recheck"}
   ],
   "validation_results": [
     {
@@ -108,10 +110,10 @@
     {
       "acceptance_id": "AC-06",
       "status": "passed",
-      "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages",
-      "verified_at": "2026-09-14T10:15:00.000Z",
-      "summary": "项目素材分页查询使用 filtering.material_type；零、唯一和多个来源分别被保留或阻断。追加来源歧义与项目素材查询失败均投影为唯一 blocker，浏览器回归确认启动和七节点布局保持可用。",
-      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/launchWorkflow.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+      "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:launch-request; npm run test:workbench-client-pages; npm run test:workbench-auth-http",
+      "verified_at": "2026-09-14T10:50:00.000Z",
+      "summary": "项目素材分页查询使用 filtering.material_type；素材标识码以原始大小写精确匹配，大小写变体和前缀均不命中，两个完全同大小写候选仍安全阻断。追加与通用素材核验共用匹配方法，歧义 blocker 保留原始标识码和候选数量。",
+      "evidence_refs": ["src/platforms/materialCodeMatcher.mjs", "src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/skills/oe3/04-video-material-readiness.mjs", "src/workflows/launchWorkflow.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
@@ -133,9 +135,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；公司模式已发布至 release 171be4fb123a288a23d9b1cc5971a2d4dd77c3da，待账户本人在既有 Case 上执行新版只读核验。",
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配，待发布并由账户本人在既有 Case 上执行新版只读核验。",
     "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上开始只读核验；4iLE-2 的两个真实候选必须明确唯一来源后才能继续。"],
+    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认 4iLE-2 的两个候选是否仅为大小写变体；若两个候选的大小写也相同，仍须明确唯一来源后才能继续。"],
     "business_evidence_refs": ["release:171be4fb123a288a23d9b1cc5971a2d4dd77c3da", "runtime:http://192.168.42.7:3000/app.js:sha256:01855f23f8db54a6004d1f2184bd6d161d7c8e0aebd45e31a70bfa25ea8bdcb5"]
   },
   "closed_at": null

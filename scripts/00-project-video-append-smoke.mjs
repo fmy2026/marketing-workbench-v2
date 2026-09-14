@@ -7,7 +7,9 @@ import {
   scanOceanEngineVideoInventory,
   validateProjectVideoAppendReadback
 } from "../src/platforms/oceanengineProjectVideoAppendExecutor.mjs";
-import { validateLaunchRequest } from "../src/agents/launchRequest.mjs";
+import { reconcileQiankunMaterialSourceVideoInventory } from "../src/workflows/skills/oe3/04-video-material-readiness.mjs";
+import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/platforms/materialCodeMatcher.mjs";
+import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
 
 function assert(value, message) { if (!value) throw new Error(message); }
@@ -97,6 +99,86 @@ const inventory = await scanOceanEngineVideoInventory({
 });
 assert(inventory.status === "blocked" && inventory.blocker === "video_origin_mapping_ambiguous", "video_inventory_ambiguity_not_blocked");
 assert(inventory.items.map((item) => item.candidateCount).join(",") === "0,1,2", "video_inventory_candidate_counts_invalid");
+assert(exactMaterialCodePattern("4iLE-2")?.flags === "", "material_code_pattern_must_be_case_sensitive");
+assert(filenameMatchesMaterialCode("4iLE-2.mp4", "4iLE-2"), "exact_case_material_code_not_matched");
+assert(!filenameMatchesMaterialCode("4ile-2.mp4", "4iLE-2"), "lowercase_material_code_must_not_match");
+assert(!filenameMatchesMaterialCode("4iLE-20.mp4", "4iLE-2"), "material_code_prefix_must_not_match");
+const exactCaseInventory = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["4iLE-2"],
+  client: {
+    async get() {
+      return {
+        status: "passed",
+        responseHash: "sha256:exact-case",
+        summary: {
+          totalPage: 1,
+          items: [
+            { filename: "4iLE-2.mp4", video_id: "exact-uppercase" },
+            { filename: "4ile-2.mp4", video_id: "lowercase-variant" },
+            { filename: "4iLE-20.mp4", video_id: "prefix-variant" }
+          ]
+        }
+      };
+    }
+  }
+});
+assert(exactCaseInventory.status === "passed" && exactCaseInventory.items[0].videoId === "exact-uppercase" && exactCaseInventory.items[0].candidateCount === 1, "append_inventory_must_match_exact_case_only");
+const duplicateExactCaseInventory = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["4iLE-2"],
+  client: {
+    async get() {
+      return {
+        status: "passed",
+        responseHash: "sha256:duplicate-exact-case",
+        summary: {
+          totalPage: 1,
+          items: [
+            { filename: "first_4iLE-2.mp4", video_id: "exact-one" },
+            { filename: "second_4iLE-2.mp4", video_id: "exact-two" }
+          ]
+        }
+      };
+    }
+  }
+});
+assert(duplicateExactCaseInventory.status === "blocked" && duplicateExactCaseInventory.items[0].candidateCount === 2, "same_case_duplicate_must_remain_blocked");
+const caseDistinctRequest = validateLaunchRequest({ ...request, origin_resource_ids: ["4iLE-2", "4ile-2"] });
+assert(caseDistinctRequest.origin_resource_ids.length === 2, "case_distinct_material_codes_must_not_be_deduplicated");
+assert(
+  launchRequestFingerprint({ ...request, origin_resource_ids: ["4iLE-2"] }) !== launchRequestFingerprint({ ...request, origin_resource_ids: ["4ile-2"] }),
+  "case_distinct_material_codes_must_have_distinct_fingerprints"
+);
+const genericMappings = [];
+const genericExactCase = await reconcileQiankunMaterialSourceVideoInventory({
+  repo: {
+    async updateAccountResourceQiankunVideoMapping() { throw new Error("generic_exact_case_must_not_block"); },
+    async upsertAccountResourceReadonlyBySourceAsset(input) { genericMappings.push(input); }
+  },
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  materialAccountId: "2234567890123456",
+  videos: [{ sourceAssetId: "SOURCE-4iLE-2", originResourceId: "4iLE-2" }],
+  client: {
+    async get() {
+      return {
+        status: "passed",
+        responseHash: "sha256:generic-exact-case",
+        summary: {
+          totalPage: 1,
+          totalNumber: 3,
+          items: [
+            { filename: "4iLE-2.mp4", id: "generic-uppercase" },
+            { filename: "4ile-2.mp4", id: "generic-lowercase" },
+            { filename: "4iLE-20.mp4", id: "generic-prefix" }
+          ]
+        }
+      };
+    }
+  }
+});
+assert(genericExactCase.status === "passed" && genericMappings.length === 1 && genericMappings[0].platformResourceId === "generic-uppercase", "generic_inventory_must_match_exact_case_only");
 const hundred = Array.from({ length: 100 }, (_, index) => `resource-${index}`);
 assert(validateLaunchRequest({ ...request, origin_resource_ids: hundred }).origin_resource_ids.length === 100, "hundred_ids_rejected");
 for (const size of [1, 50, 51]) {

@@ -79,6 +79,10 @@ assert(
   "brand_confirmation_blocker_must_have_controlled_presentation"
 );
 assert(
+  presentRootBlocker("video_origin_mapping_ambiguous", { originResourceId: "4iLE-2", candidateCount: 2 }).reason.includes("4iLE-2 匹配到 2 个同大小写来源"),
+  "ambiguous_video_blocker_must_preserve_material_code_case"
+);
+assert(
   presentRootBlocker("jszc_success_profile").title === "创建字段形态合同未通过",
   "field_shape_blocker_must_have_controlled_presentation"
 );

@@ -3,6 +3,7 @@ import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs
 import { createQiankunMonitorClient } from "./qiankunMonitorClient.mjs";
 import { credentialReady, getOceanEngineCredentialSummary, readOceanEngineEnv } from "./oceanengineCredentialStore.mjs";
 import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
+import { filenameMatchesMaterialCode } from "./materialCodeMatcher.mjs";
 
 export const PROJECT_VIDEO_APPEND_ENDPOINT = "/open_api/v3.0/oc_project/material/create/";
 export const PROJECT_VIDEO_APPEND_ACTION = "oc_project_video_append";
@@ -54,8 +55,7 @@ export async function scanOceanEngineVideoInventory({ client = createOceanEngine
       const filename = clean(item.filename || item.name || item.title);
       const id = videoId(item);
       originIds.forEach((originResourceId) => {
-        const escaped = originResourceId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (id && new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`, "i").test(filename)) wanted.get(originResourceId).push(id);
+        if (id && filenameMatchesMaterialCode(filename, originResourceId)) wanted.get(originResourceId).push(id);
       });
     });
   };

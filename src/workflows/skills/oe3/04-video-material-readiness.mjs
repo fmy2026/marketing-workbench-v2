@@ -1,4 +1,5 @@
 import { createOceanEngineReadonlyClient } from "../../../platforms/oceanengineReadonlyClient.mjs";
+import { exactMaterialCodePattern } from "../../../platforms/materialCodeMatcher.mjs";
 import { hashValue, sanitizeForPublic } from "./00-contracts.mjs";
 import { readonlyPermissionState } from "./00-readonly-permission.mjs";
 import {
@@ -16,11 +17,6 @@ function requiredVideoEntries(bundle = {}) {
     sourcePreheatStatus: clean(entry.sourceResource.metadata?.qiankun_preheat?.status_name),
     sourcePreheatRecordId: clean(entry.sourceResource.metadata?.qiankun_preheat?.record_id)
   }));
-}
-
-function sourceCodePattern(value = "") {
-  const escaped = clean(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return escaped ? new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`, "i") : null;
 }
 
 export async function reconcileQiankunMaterialSourceVideoInventory({
@@ -42,7 +38,7 @@ export async function reconcileQiankunMaterialSourceVideoInventory({
   if (!repo || !clean(routeId) || !clean(gameCode) || !clean(materialAccountId) || !sources.length || duplicateSourceCodes.length) {
     throw new Error("invalid_qiankun_material_source_inventory_input");
   }
-  const patterns = new Map(sources.map((entry) => [entry.originResourceId, sourceCodePattern(entry.originResourceId)]));
+  const patterns = new Map(sources.map((entry) => [entry.originResourceId, exactMaterialCodePattern(entry.originResourceId)]));
   const fetchPage = async (page) => client.get({
     label: `material_source_video_inventory_${page}`,
     endpoint: "file/video/get",

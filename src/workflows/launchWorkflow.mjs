@@ -789,12 +789,16 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
   });
 }
 
-export function presentRootBlocker(code = "") {
+export function presentRootBlocker(code = "", { originResourceId = "", candidateCount = 0 } = {}) {
   if (code === "video_origin_mapping_ambiguous") {
+    const identifier = String(originResourceId || "").trim();
+    const count = Number(candidateCount || 0);
     return {
       code,
       title: "指定视频存在多个来源",
-      reason: "至少一条视频标识码在物料户匹配到多个候选，系统不能安全选择其中一个。",
+      reason: identifier && count > 1
+        ? `视频 ${identifier} 匹配到 ${count} 个同大小写来源，系统不能安全选择其中一个。`
+        : "至少一条视频标识码在物料户匹配到多个候选，系统不能安全选择其中一个。",
       nextActionLabel: "确认唯一视频来源后输入“重新只读准备”；不会猜测、推送或追加视频。"
     };
   }
@@ -947,13 +951,23 @@ export function presentRootBlocker(code = "") {
   }) };
 }
 
-function caseGateView(summary = null, jobId = "", workflowCase = {}) {
+function appendAmbiguousVideoDetail(executionPlan = {}) {
+  const items = executionPlan?.metadata?.readonly_checks?.source_inventory?.items;
+  const match = Array.isArray(items)
+    ? items.find((item) => Number(item?.candidateCount || 0) > 1)
+    : null;
+  return match
+    ? { originResourceId: String(match.originResourceId || "").trim(), candidateCount: Number(match.candidateCount || 0) }
+    : {};
+}
+
+function caseGateView(summary = null, jobId = "", workflowCase = {}, executionPlan = {}) {
   const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
   const rootBlockerCode = Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes[0] || "" : "";
   const publicBlockerCode = (value = "") => String(value)
     .replaceAll("touchpoint_url", "touchpoint")
     .replaceAll("landing_url", "landing_page");
-  const rootBlocker = presentRootBlocker(rootBlockerCode);
+  const rootBlocker = presentRootBlocker(rootBlockerCode, appendAmbiguousVideoDetail(executionPlan));
   return {
     operation: workflowCase?.operation || "create_std_project",
     currentGate: summary?.current_gate || "",
@@ -1067,7 +1081,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       evidenceRefs: row.evidence_refs || []
     };
   });
-  const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {});
+  const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {}, bundle.executionPlan || {});
   const progress = workflowProgressView(nodes, bundle, operationView);
   const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
     currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false,

@@ -111,7 +111,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 七个固定 Node ID 不变；服务端按 `workflow_cases.operation` 提供展示名称：追加需求核对、账户与目标项目核验、指定视频识别、视频可用性与推送准备、追加计划核对、单次追加、追加结果回查。工作台只展示该服务端投影，默认展开当前阶段，其余阶段和子检查项按需展开。
 
-追加的只读准备依次核验乾坤视频标识码、物料户和目标账户的巨量视频库存，以及目标项目的现有视频。项目素材查询固定使用官方 `filtering.material_type=VIDEO`；分页、查询失败和零/多个来源均停止。全部待新增项在目标账户可用时才形成 `project_video_append` Plan；已存在项仅计入摘要。每轮只读结果写入既有 Plan 元数据：首个有序 blocker 进入 `root_blocker_codes`，Job 当前节点同步到实际失败点；其他受控查询结果仅供诊断，不能冒充第二个 Gate。
+追加的只读准备依次核验乾坤视频标识码、物料户和目标账户的巨量视频库存，以及目标项目的现有视频。项目素材查询固定使用官方 `filtering.material_type=VIDEO`；素材标识码只清理首尾空格，原始大小写贯穿 Intake、Case、乾坤查询、库存匹配、Plan 与幂等键。文件名匹配使用大小写敏感的完整边界，`4iLE-2` 不匹配 `4ile-2` 或 `4iLE-20`。分页、查询失败和零/多个同大小写来源均停止。全部待新增项在目标账户可用时才形成 `project_video_append` Plan；已存在项仅计入摘要。每轮只读结果写入既有 Plan 元数据：首个有序 blocker 进入 `root_blocker_codes`，Job 当前节点同步到实际失败点；其他受控查询结果仅供诊断，不能冒充第二个 Gate。
 
 `mwb.workflow_case_summary` 决定 Gate 优先级；下表只定义消费者行为，不构成第二套 Gate 计算规则。
 
