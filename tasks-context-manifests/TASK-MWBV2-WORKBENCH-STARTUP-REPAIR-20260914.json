@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T10:15:00.000Z",
+  "updated_at": "2026-09-14T10:20:00.000Z",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -97,10 +97,10 @@
     {
       "acceptance_id": "AC-05",
       "status": "not_run",
-      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; curl static checksum; owner launch verification",
-      "verified_at": "2026-09-14T08:33:39.056Z",
-      "summary": "本次请求快照修复尚未发布到公司模式。",
-      "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/964333e83ea189fff126757339f853d8a44b0922; curl http://192.168.42.7:3000/app.js SHA-256; owner recheck of existing Case",
+      "verified_at": "2026-09-14T10:20:00.000Z",
+      "summary": "公司模式已切换到 release 964333e83ea189fff126757339f853d8a44b0922；运行中 app.js 与 release 文件 SHA-256 一致。账户本人对既有 Case 的重新只读准备尚待执行，因此本项保持未完成。",
+      "evidence_refs": [".local/releases/964333e83ea189fff126757339f853d8a44b0922", "scripts/00-workbench-mode-switch.mjs"]
     },
     {
       "acceptance_id": "AC-06",
@@ -130,10 +130,10 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题，并修复追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示；等待本次 release 发布与本人工作台验证。",
-    "side_effects": "本轮仅执行隔离测试；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["本次修复尚未发布到公司模式；实际账户需在既有 Case 上重新只读准备以核实唯一来源后续。"],
-    "business_evidence_refs": []
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题，并修复追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示；公司模式已发布至 release 964333e83ea189fff126757339f853d8a44b0922。",
+    "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
+    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备；4iLE-2 的两个真实候选必须明确唯一来源后才能继续。"],
+    "business_evidence_refs": ["release:964333e83ea189fff126757339f853d8a44b0922", "runtime:http://192.168.42.7:3000/app.js:sha256:5165de82d5779cc90ea124ff713d662b8611207d96f7c580d854be508adcad63"]
   },
   "closed_at": null
 }
