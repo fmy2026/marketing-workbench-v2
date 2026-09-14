@@ -105,46 +105,33 @@ try {
   await until(() => present(".agent-open-button:not([disabled])"), "agent_hub");
   await click(".agent-open-button:not([disabled])");
   await until(() => present("#conversationModule:not([hidden])"), "conversation_workspace");
+  assert(await evaluate("document.querySelector('#workflowRail').hidden"), "initial_workflow_rail_visible");
+  assert(await evaluate("document.querySelector('#commandBar').hidden"), "initial_progress_visible");
+  assert(await evaluate("document.querySelector('#intakeAction').hidden"), "initial_start_visible");
+  assert((await evaluate("document.querySelector('#chatStream').textContent")).includes("请输入投放需求"), "initial_welcome_missing");
 
-  await fill("#chatInput", "路线 oceanengine_3_byte_mini_game，游戏 JSZC");
+  await fill("#chatInput", "你能做什么");
   await evaluate("document.querySelector('#chatForm').requestSubmit()");
-  await until(() => evaluate("document.querySelector('#intakeHint').textContent.includes('账户 ID')"), "natural_missing_account");
-  assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "partial_natural_input_enabled_start");
+  await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('追加视频')"), "bounded_help_reply");
+  assert(await evaluate("document.querySelector('#intakeAction').hidden"), "help_enabled_start");
+
+  await fill("#chatInput", "游戏 JSZC");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('你想新建项目')"), "partial_game_reply");
+  assert(await evaluate("document.querySelector('#intakeAction').hidden"), "partial_natural_start_visible");
+
+  await fill("#chatInput", "新建项目，路线 oceanengine_3_byte_mini_game，账户 1871922999999999");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("!document.querySelector('#intakeAction').hidden"), "natural_ready");
+  assert(!await evaluate("document.querySelector('#startWorkflowButton').disabled"), "complete_natural_input_did_not_enable_start");
   assert((await evaluate("document.querySelector('#configTip').textContent")).includes("规则解析"), "natural_parse_label_missing");
-
-  await evaluate(`(() => {
-    window.__mwbOriginalFetch = window.fetch.bind(window);
-    window.__mwbModelAssistMode = "success";
-    window.fetch = async (input, init) => {
-      if (String(input).includes("/api/launch/intake")) {
-        const fallback = window.__mwbModelAssistMode === "fallback";
-        return new Response(JSON.stringify({
-          request: { route_id: "oceanengine_3_byte_mini_game", game_code: "JSZC", advertiser_id: fallback ? "1871922999999999" : "" },
-          missing_fields: fallback ? [] : ["advertiser_id"], parse_source: fallback ? "rules_fallback" : "llm_assisted",
-          model_assist: fallback ? { attempted: true, outcome: "slot_evidence_rejected", accepted_slots: [] } : { attempted: true, outcome: "accepted", accepted_slots: ["route_id"] },
-          issues: []
-        }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      return window.__mwbOriginalFetch(input, init);
-    };
-  })()`);
-  await fill("#chatInput", "巨兽战场走抖小");
-  await evaluate("document.querySelector('#chatForm').requestSubmit()");
-  await until(() => evaluate("document.querySelector('#configTip').textContent.includes('模型辅助解析：推广路线')"), "model_assist_label");
-  assert(await evaluate("document.querySelector('#intentCard').textContent.includes('JSZC')"), "model_assist_rule_slot_not_retained");
-  await evaluate("window.__mwbModelAssistMode = 'fallback'");
-  await fill("#chatInput", "巨兽战场走抖小");
-  await evaluate("document.querySelector('#chatForm').requestSubmit()");
-  await until(() => evaluate("document.querySelector('#configTip').textContent.includes('槽位值或原文证据未通过校验')"), "model_assist_fallback_label");
-  assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "model_assist_fallback_enabled_start");
-  await evaluate("window.fetch = window.__mwbOriginalFetch");
 
   await click('[data-intake-mode="json"]');
   await until(() => visible("#structuredRequestPanel"), "json_panel");
   assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "switch_mode_retained_stale_ready_draft");
-  await click("#copyLaunchRequestTemplate");
   const templateText = await evaluate("document.querySelector('#structuredRequestInput').value");
   assert(templateText.includes("launch-request.v1"), "json_template_not_available");
+  assert(!await present("#copyLaunchRequestTemplate"), "copy_template_button_retained");
   const request = {
     schema_version: "launch-request.v1",
     operation: "create_std_project",

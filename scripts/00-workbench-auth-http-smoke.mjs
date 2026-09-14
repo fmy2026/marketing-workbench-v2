@@ -106,6 +106,14 @@ try {
   assert(structuredIntake.status === 200, "structured_intake_rejected");
   assert(structuredIntakeBody.parse_source === "structured_json", "structured_intake_used_non_json_parser");
   assert(JSON.stringify(structuredIntakeBody.request) === JSON.stringify(launchRequest), "structured_intake_request_changed");
+  assert(structuredIntakeBody.can_start === true && structuredIntakeBody.draft?.operation === "create_std_project", "structured_intake_start_contract_missing");
+  const helpIntake = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ user_intent: "你能做什么", draft: { operation: "", route_id: "", game_code: "", advertiser_id: "", project_id: "", origin_resource_ids: [] } })
+  });
+  const helpIntakeBody = await helpIntake.json();
+  assert(helpIntake.status === 200 && helpIntakeBody.request === null && helpIntakeBody.can_start === false && helpIntakeBody.reply?.includes("追加视频"), "help_intake_contract_invalid");
   const unknownField = await fetch(`${origin}/api/launch/intake`, {
     method: "POST",
     headers: { "content-type": "application/json", origin, cookie: changedCookie },

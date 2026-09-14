@@ -1,0 +1,89 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T06:30:57.000000+00:00",
+  "updated_at": "2026-09-14T06:41:00.000000+00:00",
+  "base_revision": "d256d7c9a9d2b221e2d97df80939ad22312ec82e",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/agents/launchRequest.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/agents/launchRequest.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/agents/agentRegistry.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/**"
+  ],
+  "forbidden_actions": [
+    "保存原始对话、原始 JSON、模型 Key 或跨会话草稿",
+    "新增数据库迁移、账户权限、Gate、Plan、确认、执行、回查或可运行事项",
+    "真实平台写入、OAuth 刷新、预算或出价修改"
+  ],
+  "stop_conditions": [
+    "需要扩大模型职责或修改 Case/Job 的请求合同",
+    "需要修改账户归属、Gate、Plan、确认、执行、回查或真实平台权限",
+    "无法以隔离测试证实旧请求合同和页面启动链保持一致"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"npm run test:workbench-client-pages"},
+    {"acceptance_id":"AC-02","command":"npm run test:launch-request && npm run test:project-video-append && npm run test:workbench-auth-http"},
+    {"acceptance_id":"AC-03","command":"npm run test:launch-request && npm run test:workbench-client-pages"},
+    {"acceptance_id":"AC-04","command":"npm run test:workbench-client-pages && npm run test:workbench-conversation && npm run test:workbench-user-isolation"},
+    {"acceptance_id":"AC-05","command":"npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"npm run test:workbench-client-pages","verified_at":"2026-09-14T06:39:13.000000+00:00","summary":"隔离浏览器验证首屏欢迎语、隐藏 Workflow/进度/启动按钮、咨询、自然语言和 JSON 启动前状态。","evidence_refs":["evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/validation.md"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"npm run test:launch-request && npm run test:project-video-append && npm run test:workbench-auth-http","verified_at":"2026-09-14T06:39:13.000000+00:00","summary":"受控咨询、零散槽位、事项切换、连续追加、异常输入和严格 JSON 均由隔离合同测试覆盖。","evidence_refs":["evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/validation.md"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"npm run test:launch-request && npm run test:workbench-client-pages","verified_at":"2026-09-14T06:39:13.000000+00:00","summary":"编辑 JSON 与切换输入方式清除旧启动资格；页面不再提供复制模板按钮。","evidence_refs":["evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/validation.md"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"npm run test:workbench-client-pages && npm run test:workbench-conversation && npm run test:workbench-user-isolation && npm run test:agent-model-config && npm run test:workbench-progress","verified_at":"2026-09-14T06:39:13.000000+00:00","summary":"页面、对话、模型边界、进度投影和用户隔离回归通过；全部为隔离测试，无真实平台写入。","evidence_refs":["evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/validation.md"]}
+    ,{"acceptance_id":"AC-05","status":"passed","command":"npm run check:project -- --phase before-close","verified_at":"2026-09-14T06:40:30.000000+00:00","summary":"项目检查器验证当前 Task 的文档、改动范围与全部验收记录。","evidence_refs":["evidence/TASK-MWBV2-WORKBENCH-INTAKE-ENTRY-20260914/validation.md"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"登记首屏事项选择、受控咨询和可启动请求边界。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"说明临时 Intake、首屏显隐和 Case/Job 请求边界。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "工作台首屏改为先收集投放需求；受控咨询、自然语言和 JSON 均只在事项完整时生成可启动请求。",
+    "side_effects": "更新页面内存草稿与同源 Intake 响应；未修改数据库、账户权限、Gate、Plan、确认、执行、回查或真实平台状态。",
+    "remaining_risks": ["真实账户仍需在用户完成登录后按既有确认链路逐步操作。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-14T06:41:00.000000+00:00"
+}

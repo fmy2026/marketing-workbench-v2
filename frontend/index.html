@@ -123,11 +123,11 @@
 
           <div class="identity-strip" id="intentCard" aria-label="识别结果"></div>
           <section class="active-cases" id="activeCases" aria-label="活动账户" hidden></section>
-          <div class="intake-action" id="intakeAction" aria-live="polite">
+          <div class="intake-action" id="intakeAction" aria-live="polite" hidden>
             <span class="intake-hint" id="intakeHint"></span>
             <button class="start-button" id="startWorkflowButton" type="button" disabled>启动流程</button>
           </div>
-          <div class="chat-stream" id="chatStream" aria-live="polite"></div>
+          <div class="chat-stream" id="chatStream" aria-live="polite"><div class="chat-message is-agent"><div class="message-bubble">请输入投放需求，比如新建项目、追加视频；也可以问我能做什么。</div></div></div>
           <div class="conversation-presets" id="conversationPresets" aria-label="快捷输入"></div>
 
           <div class="intake-mode-switch" id="intakeModeSwitch" role="tablist" aria-label="输入方式">
@@ -147,12 +147,11 @@
                 <button type="button" class="copy-template-button is-active" data-request-operation="create_std_project">新建项目</button>
                 <button type="button" class="copy-template-button" data-request-operation="append_project_videos">追加视频</button>
               </span>
-              <button type="button" class="copy-template-button" id="copyLaunchRequestTemplate">复制模板</button>
             </div>
             <textarea id="structuredRequestInput" spellcheck="false" aria-label="LaunchRequest JSON"></textarea>
             <button type="button" class="structured-submit-button" id="submitStructuredRequest">校验 JSON</button>
           </section>
-          <footer class="command-bar" id="commandBar">
+          <footer class="command-bar" id="commandBar" hidden>
             <div class="progress-text" id="progressText" aria-live="polite">进度 0 / 7</div>
             <button class="progress-refresh" id="progressRefreshButton" type="button" disabled>等待流程</button>
           </footer>
@@ -190,7 +189,7 @@
         </section>
       </section>
 
-      <aside class="workflow-rail" id="workflowRail" aria-label="固定 Workflow">
+      <aside class="workflow-rail" id="workflowRail" aria-label="固定 Workflow" hidden>
         <div class="workflow-title">
           <div><h2 id="workflowHeading">Workflow</h2><p>固定流程，不由对话改变</p></div>
         </div>

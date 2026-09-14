@@ -47,8 +47,8 @@ import {
   const expandedNodeDetails = new Set();
   const agentModules = new Set(["overview", "conversation", "memory", "knowledge", "skills", "statistics"]);
   const draftIntake = {
-    schema_version: "launch-request.v1",
-    operation: "create_std_project",
+    schema_version: "",
+    operation: "",
     route_id: "",
     game_code: "",
     advertiser_id: "",
@@ -59,6 +59,7 @@ import {
   let intakeIssues = [];
   let intakeParseSource = "rules";
   let intakeModelAssist = null;
+  let intakeCanStart = false;
   let projectRecommendations = null;
   let projectRecommendationAccountId = "";
 
@@ -484,7 +485,14 @@ import {
         { key: "origin_resource_ids", label: "视频标识码" }
       ];
     }
-    return job?.intake?.requiredFields || workbench?.intake?.requiredFields || [];
+    if ((job?.operation || job?.intake?.operation || draftIntake.operation) === "create_std_project") {
+      return [
+        { key: "route_id", label: "推广路线" },
+        { key: "game_code", label: "游戏标识" },
+        { key: "advertiser_id", label: "账户 ID" }
+      ];
+    }
+    return [];
   }
 
   function fieldValue(intake, key) {
@@ -707,7 +715,13 @@ import {
 
   function renderConversationPresets() {
     const container = document.getElementById("conversationPresets");
-    const presets = agentProfile?.conversationPresets?.[job ? "active" : "intake"] || [];
+    const presets = !job && !draftIntake.operation
+      ? [
+          { label: "新建项目", message: "新建项目" },
+          { label: "追加视频", message: "追加视频" },
+          { label: "能做什么", message: "你能做什么" }
+        ]
+      : (agentProfile?.conversationPresets?.[job ? "active" : "intake"] || []);
     container.innerHTML = "";
     container.hidden = presets.length === 0;
     const disabled = busy || viewOnly || Boolean(job && !job.isLatestCaseJob);
@@ -733,8 +747,8 @@ import {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
     const messages = [...chatMessages];
-    if (!messages.length && workbench?.intake?.prompt) {
-      messages.push({ role: "agent", text: workbench.intake.prompt });
+    if (!messages.length && !job) {
+      messages.push({ role: "agent", text: "请输入投放需求，比如新建项目、追加视频；也可以问我能做什么。" });
     }
     for (const item of messages) {
       if (item?.text) appendRenderedMessage(stream, item.role === "user" ? "user" : "agent", item.text);
@@ -755,7 +769,7 @@ import {
       ? "历史运行，只读"
       : job
         ? (job?.caseGate?.progressNarrative?.shortLabel || "等待处理")
-        : (missing.length ? "等待补齐" : "已规范化");
+        : (!draftIntake.operation ? "等待输入需求" : intakeCanStart ? "可启动" : "等待补齐");
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
@@ -773,18 +787,14 @@ import {
     const action = document.getElementById("intakeAction");
     const hasIssues = !job && intakeIssues.length > 0;
     const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
-    const isDraftReady = !job && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
-    action.hidden = Boolean(job);
+    const isDraftReady = !job && intakeCanStart && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
+    action.hidden = Boolean(job) || !isDraftReady;
     startButton.disabled = !isDraftReady || busy || viewOnly;
-    hint.textContent = hasIssues
-      ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")
-      : (modelAssistFailed
-        ? `${parserLabel(intakeParseSource)}；请修正后重新提交。`
-        : (isDraftReady
+    hint.textContent = isDraftReady
         ? (draftIntake.operation === "append_project_videos"
           ? `将给项目追加 ${draftIntake.origin_resource_ids.length} 条视频：${draftIntake.route_id} · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id}。`
           : `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`)
-        : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。")));
+        : "";
     const tip = document.getElementById("configTip");
     if (tip) tip.textContent = parserLabel(intakeParseSource);
     renderIntakeMode();
@@ -792,12 +802,13 @@ import {
 
   function clearDraftIntake() {
     for (const key of Object.keys(draftIntake)) draftIntake[key] = "";
-    draftIntake.schema_version = "launch-request.v1";
-    draftIntake.operation = "create_std_project";
+    draftIntake.schema_version = "";
+    draftIntake.operation = "";
     draftIntake.origin_resource_ids = [];
     intakeIssues = [];
     intakeParseSource = "rules";
     intakeModelAssist = null;
+    intakeCanStart = false;
     draftCaseId = "";
     draftCaseKey = "";
     projectRecommendations = null;
@@ -866,6 +877,9 @@ import {
   }
 
   function renderWorkflow() {
+    const rail = document.getElementById("workflowRail");
+    rail.hidden = !job;
+    if (!job) return;
     const workflowPhases = phases();
     const currentNodeNumber = Number(job?.progress?.currentNodeNumber || job?.progress?.current_node || 0);
     const currentPhaseKey = workflowPhases.find((phase) => (phase.nodes || []).some((node) => Number(node.number) === currentNodeNumber))?.id || "";
@@ -962,6 +976,9 @@ import {
   }
 
   function renderCommand() {
+    const commandBar = document.getElementById("commandBar");
+    commandBar.hidden = !job;
+    if (!job) return;
     const nodes = allNodes();
     const preview = confirmationPreview();
     document.getElementById("progressText").textContent = progressPresentation({
@@ -1139,7 +1156,7 @@ import {
   }
 
   async function startWorkflow() {
-    if (busy || viewOnly || job || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
+    if (busy || viewOnly || job || !intakeCanStart || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
     setBusy(true);
     let startupStage = "创建 Case";
     try {
@@ -1188,15 +1205,16 @@ import {
   }
 
   function mergeIntake(intake) {
-    const request = intake?.request || intake || {};
-    draftIntake.schema_version = request.schema_version || "launch-request.v1";
-    draftIntake.operation = request.operation || "create_std_project";
+    const request = intake?.draft || intake?.request || intake || {};
+    draftIntake.schema_version = request.schema_version || "";
+    draftIntake.operation = request.operation || "";
     for (const field of ["route_id", "game_code", "advertiser_id", "project_id", "origin_resource_ids"]) {
       if (Object.hasOwn(request, field)) draftIntake[field] = fieldValue(request, field);
     }
     intakeIssues = Array.isArray(intake?.issues) ? intake.issues : [];
     intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
     intakeModelAssist = intake?.model_assist || intake?.modelAssist || null;
+    intakeCanStart = intake?.can_start === true;
     draftCaseId = "";
     draftCaseKey = "";
   }
@@ -1504,7 +1522,7 @@ import {
         if (busy || viewOnly || job) return;
         intakeMode = button.dataset.intakeMode || "natural";
         clearDraftIntake();
-        document.getElementById("structuredRequestInput").value = "";
+        document.getElementById("structuredRequestInput").value = intakeMode === "json" ? JSON.stringify(launchRequestTemplate(), null, 2) : "";
         renderAll();
       });
     }
@@ -1515,22 +1533,12 @@ import {
         draftIntake.schema_version = draftIntake.operation === "append_project_videos" ? "launch-request.v2" : "launch-request.v1";
         draftIntake.project_id = "";
         draftIntake.origin_resource_ids = [];
+        intakeCanStart = false;
         for (const item of document.querySelectorAll("[data-request-operation]")) item.classList.toggle("is-active", item === button);
         document.getElementById("structuredRequestInput").value = JSON.stringify(launchRequestTemplate(), null, 2);
         renderAll();
       });
     }
-    document.getElementById("copyLaunchRequestTemplate").addEventListener("click", async () => {
-      const text = JSON.stringify(launchRequestTemplate(), null, 2);
-      const input = document.getElementById("structuredRequestInput");
-      input.value = text;
-      try {
-        await navigator.clipboard?.writeText(text);
-      } catch {
-        input.focus();
-        input.select();
-      }
-    });
     document.getElementById("submitStructuredRequest").addEventListener("click", async () => {
       const input = document.getElementById("structuredRequestInput");
       let request;
@@ -1543,6 +1551,11 @@ import {
         return;
       }
       await submitStructuredRequest(request);
+    });
+    document.getElementById("structuredRequestInput").addEventListener("input", () => {
+      if (intakeMode !== "json" || job) return;
+      intakeCanStart = false;
+      renderIntake();
     });
   }
 
@@ -1583,16 +1596,7 @@ import {
         });
         mergeIntake(intake);
         await refreshProjectRecommendations();
-        const missing = missingFields();
-        const label = parserLabel(intake.parse_source || intake.parseSource, intake.model_assist || intake.modelAssist);
-        const identified = requiredFields().length - missing.length;
-        message("agent", intakeIssues.length
-          ? intakeIssues.map((issue) => issue.message || "当前输入需要澄清。").join(" ")
-          : (identified === 0
-          ? "我只处理推广路线、游戏标识和账户 ID；请补充所需信息。"
-          : (missing.length
-            ? `${label}，已识别 ${identified}/${requiredFields().length} 项；请补充：${missing.map((field) => field.label).join("、")}`
-            : `${label}，三项输入已规范化；请核对后点击“启动流程”。`)));
+        message("agent", intake.reply || "输入需要修正后再试。");
       } catch (error) {
         clearDraftIntake();
         showError(error);
@@ -1611,7 +1615,7 @@ import {
         body: JSON.stringify({ request })
       });
       mergeIntake(intake);
-      message("agent", "已完成标准 JSON 校验；请核对新建标准项目、路线、游戏和账户后启动流程。");
+      message("agent", intake.reply || "已完成标准 JSON 校验；请核对后启动流程。");
     } catch (error) {
       clearDraftIntake();
       showError(error);

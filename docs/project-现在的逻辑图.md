@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
-| 最后更新时间 | 2026-09-13 CST |
+| 最后更新时间 | 2026-09-14 CST |
 | 校验基线 | 当前代码、Node/Skill/资源注册表与数据契约；Schema 版本与文件数只查数据契约；静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911` |
 | 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
 | 重新校验条件 | Node/Skill、runner mode、资源能力、Plan/确认、Case summary、工作台入口或 Schema/View 变化时 |
@@ -13,7 +13,7 @@
 ## 1. 唯一闭环与真值分工
 
 ```text
-自然语言 / 标准 JSON → `LaunchRequest v1` → 本人作用域 Intake → active Case + fresh Job → 3 阶段 7 Node
+受控咨询 / 自然语言临时草稿 / 标准 JSON → 已选事项的 `LaunchRequest v1/v2` → 本人作用域 Intake → active Case + fresh Job → 3 阶段 7 Node
 → monitor / 资源 / Draft 就绪 → BLOCKED、WAITING 或冻结 Plan
 → plan_id + plan_hash + 本人精确确认 + action grant
 → 统一 Plan-bound 执行层（monitor、resource、create）
@@ -128,14 +128,14 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 创建对象和回查证据完整 | `first_std_project_create_completed` | 只读完成投影并收口 Case |
 | 其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试 |
 
-- 工作台固定为 `allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；历史 Job 只读，越权或冲突 scope fail-closed。
+- 工作台固定为 `受控咨询与临时 Intake → allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；首屏不预选事项、不显示七节点或进度，只有实际 Job 才展示服务端投影。历史 Job 只读，越权或冲突 scope fail-closed。
 - `resolve_case_blocker` 只展示 summary 投影的唯一具体原因与 Gate Policy 允许的下一步。旧视频绑定 Plan 为空、视频来源未唯一核验或绑定条件不完整时，提供既有“重新只读准备”文字命令；它只创建或复用同一 Case 的 fresh Job，不重放旧 Plan、不确认也不创建平台对象。
 - consumed Create Plan 的确认前停止只在确有 `blocked_before_create`、零 create action 与零创建对象时进入该同一 readonly 恢复入口；通用 `readiness_not_ready:*`、授权探测包装原因不会覆盖 Skill 的具体传输或合同 blocker。确认卡、提示和按钮都读取同一服务端 Gate/Plan/confirmation 可用性；确认被登记或 Plan 被消费后不再显示陈旧的可确认卡。
 - 确认卡点击时先冻结当前 `jobId`、`planId`、`planHash` 与精确确认短语；提交中只锁定该按钮并显示“提交中”，轮询或界面重绘不得改写本次请求目标。请求结束后只消费同一服务端投影的 `confirmationPreview`；显式 `null` 必须清卡，页面不得以旧 Plan 状态回填。未分类服务错误仅显示受控诊断与最新状态，不推断 confirmation 或平台动作是否已发生。
 - “启动流程”在创建 Case、创建 fresh Job 与启动 readonly 任一阶段遇到未分类 5xx 时，只显示该阶段与脱敏诊断码；服务端只写本地受控诊断（方法、路径、阶段、指纹、受控错误码和不含错误消息的栈帧）。它不是业务 blocker，不触发自动重试、confirmation 或平台创建。
 - 数字员工广场以“市场情报提供依据 → 投放策略形成建议 → 投放创建承接受控执行”说明职责；当前只有投放创建属于服务端公开注册、可进入工作区的 Agent。市场情报和投放策略是前端静态预告卡，没有路由、模型配置、API 或执行权限。
 - Agent 壳层、右侧 Workflow 和统计只消费受控投影：壳层不计算 Gate、blocker、next action、Plan 或执行动作；普通用户仅本人范围，管理员读取全量报表也不获得账户操作权。
-- JSON 是完整的新请求，不与自然语言草稿混用，且不调用模型；未知 schema/version/operation/字段或无效类型直接拒绝。自然语言草稿仅保留在页面内存，刷新或切换输入方式即重新输入，服务端不保存原始文本或 JSON。
+- JSON 是完整的新请求，不与自然语言草稿混用，且不调用模型；未知 schema/version/operation/字段或无效类型直接拒绝。自然语言在事项未明确时只返回临时草稿、受控回复和不可启动状态，不创建 Case、Job、Plan 或确认；选择事项并补齐字段后才生成可启动请求。草稿仅保留在页面内存与单次 Intake 响应，刷新或切换输入方式即重新输入，服务端不保存原始文本或 JSON。
 - 模型仅在规则未完整识别自然语言 Intake 且本人配置已测试启用时补槽位；确认、取消、状态和恢复始终规则优先。DeepSeek `api.deepseek.com` 的固定测试和运行时槽位请求均使用关闭 thinking 的同一请求配置。模型不接收 Case、Job、Gate、Plan 或执行状态，输出只能使用输入中可验证的证据；用户仅看到采用槽位名，或超时、供应商拒绝、非 JSON、意图/置信度、槽位/证据等受控回退分类，绝不显示或保存模型原始输出。
 
 ## 6. 权威来源索引

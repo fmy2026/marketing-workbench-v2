@@ -770,7 +770,7 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
     workbenchUrl: workbenchHomeUrl(),
     activeCases: (activeCases || []).map(activeCaseView),
     intake: {
-      prompt: "请提供推广路线、游戏标识和账户 ID；可分多条消息输入。",
+      prompt: "请输入投放需求，比如新建项目、追加视频；也可以问我能做什么。",
       requiredFields: WORKBENCH_INTAKE_FIELDS
     },
     phases: workflowPhasesView(nodes)
@@ -1176,7 +1176,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       credentialBlockers: runtimeChecks.platformReadonly?.credential?.blockers || []
     },
     chat: [
-      { role: "agent", text: "请提供推广路线、游戏标识和账户 ID。" },
+      { role: "agent", text: "已建立受控流程；请以当前节点、Gate 和确认卡为准。" },
       { role: "agent", text: `${bundle.job.route_id} / ${bundle.job.game_code} / ${bundle.job.advertiser_id}` },
       { role: "agent", text: headline.nextAction }
     ],

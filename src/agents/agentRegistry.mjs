@@ -94,7 +94,7 @@ export function getPublicAgent(agentKey) {
   return {
     ...publicAgent(agent),
     positioning: "任务型投放创建 Agent；模型只可参与意图与槽位识别，Workflow、Gate、Plan 与执行权限保持确定性。",
-    supportedScope: "当前仅支持 OE3 字节小游戏单账户标准项目创建流程。",
+    supportedScope: "当前支持 OE3 字节小游戏、JSZC 的单账户新建项目和已有项目追加视频流程。",
     knowledgeTopics: agent.knowledgeTopics.map((topic) => ({ ...topic })),
     plans: PLAN_KINDS.map(({ key, label }) => ({ key, label })),
     workflowNodes: WORKFLOW_NODES.map(publicNode)

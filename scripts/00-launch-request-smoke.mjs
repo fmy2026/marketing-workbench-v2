@@ -27,34 +27,43 @@ assert(JSON.stringify(structured.request) === JSON.stringify(request), "structur
 assert(modelCalls === 0, "structured_request_called_model");
 
 const natural = await resolveLaunchRequestIntake({
-  userIntent: "路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922999999999",
+  userIntent: "新建项目，路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922999999999",
   draft: {}
 });
 assert(JSON.stringify(natural.request) === JSON.stringify(request), "natural_request_not_equivalent");
 
 const partial = await resolveLaunchRequestIntake({
-  userIntent: "路线 oceanengine_3_byte_mini_game，游戏 JSZC",
+  userIntent: "游戏 JSZC",
   draft: {}
 });
 const corrected = await resolveLaunchRequestIntake({
-  userIntent: "账户 1871922999999999",
-  draft: partial.request
+  userIntent: "新建项目，路线 oceanengine_3_byte_mini_game，账户 1871922999999999",
+  draft: partial.draft
 });
 assert(JSON.stringify(corrected.request) === JSON.stringify(request), "partial_correction_not_merged");
+
+const help = await resolveLaunchRequestIntake({ userIntent: "你能做什么", draft: partial.draft, resolver: { resolve: async () => { throw new Error("help_called_model"); } } });
+assert(help.request === null && help.can_start === false && help.draft.operation === "" && help.reply.includes("追加视频"), "help_response_not_bounded");
+const invalidGame = await resolveLaunchRequestIntake({ userIntent: "游戏：OTHER", draft: partial.draft });
+assert(invalidGame.request === null && invalidGame.issues?.[0]?.code === "game_not_supported", "invalid_game_not_clarified");
+const operationOnly = await resolveLaunchRequestIntake({ userIntent: "追加视频", draft: partial.draft });
+assert(operationOnly.request === null && operationOnly.draft.operation === "append_project_videos" && operationOnly.draft.game_code === "JSZC", "operation_selection_dropped_common_slot");
+const appendFollowup = await resolveLaunchRequestIntake({ userIntent: "视频标识码：video-A", draft: operationOnly.draft });
+assert(appendFollowup.draft.operation === "append_project_videos" && appendFollowup.draft.game_code === "JSZC" && appendFollowup.draft.origin_resource_ids[0] === "video-A", "append_followup_dropped_prior_slots");
 
 const multipleAccounts = await resolveLaunchRequestIntake({
   userIntent: "账户 1871922999999999 和账户 1871922888888888",
   draft: request
 });
 assert(multipleAccounts.issues?.[0]?.code === "multiple_advertiser_ids", "multiple_accounts_not_clarified");
-assert(!multipleAccounts.request.advertiser_id, "multiple_accounts_retained_stale_account");
+assert(multipleAccounts.request === null && !multipleAccounts.draft.advertiser_id, "multiple_accounts_retained_stale_account");
 
 const unsupported = await resolveLaunchRequestIntake({
   userIntent: "给已有项目只改 ROI 系数",
   draft: request
 });
 assert(unsupported.issues?.[0]?.code === "operation_not_supported", "unsupported_operation_not_reported");
-assert(unsupported.missing_fields.length === 3, "unsupported_operation_retained_draft");
+assert(unsupported.request === null && unsupported.draft.operation === "", "unsupported_operation_retained_draft");
 
 for (const [value, code] of [
   [{ ...request, extra: true }, "launch_request_unknown_field"],
@@ -81,7 +90,7 @@ const projectOnly = await resolveLaunchRequestIntake({ userIntent: "项目 76848
 assert(projectOnly.request.advertiser_id === request.advertiser_id, "project_id_overwrote_advertiser_id");
 assert(projectOnly.request.project_id === "7684895789612826667", "project_id_not_updated");
 const noAppend = await resolveLaunchRequestIntake({ userIntent: "只改 ROI，不要追加素材", draft: appendDraft });
-assert(noAppend.issues?.[0]?.code === "operation_not_supported" && noAppend.missing_fields.length === 3, "unsupported_update_reused_append_draft");
+assert(noAppend.issues?.[0]?.code === "operation_not_supported" && noAppend.request === null && noAppend.draft.operation === "", "unsupported_update_reused_append_draft");
 const unknownLegacyOperation = () => normalizeLaunchRequestFromBody({ ...request, operation: "change_roi" });
 try { unknownLegacyOperation(); throw new Error("unknown_legacy_operation_accepted"); } catch (error) {
   assert(error.code === "launch_request_operation_not_supported", "unknown_legacy_operation_wrong_error");

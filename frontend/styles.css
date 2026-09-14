@@ -1272,6 +1272,7 @@ p {
   overflow: hidden;
   background: #fff;
 }
+.agent-workspace:has(.workflow-rail[hidden]) { grid-template-columns: 216px minmax(0, 1fr); }
 .agent-sidebar { min-width: 0; overflow-y: auto; border-right: 1px solid var(--line); background: #fff; }
 .agent-sidebar-heading { min-height: 76px; gap: 9px; padding: 14px 12px; border-bottom: 1px solid var(--line); }
 .agent-sidebar-icon { width: 30px; height: 30px; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 8px; background: #5b4de5; color: #fff; font-size: 12px; font-weight: 900; }
@@ -1320,6 +1321,7 @@ p {
 .workflow-rail .workflow-title h2 { font-size: 15px; }
 
 .agent-workspace.sidebar-is-collapsed { grid-template-columns: 54px minmax(0, 1fr) 340px; }
+.agent-workspace.sidebar-is-collapsed:has(.workflow-rail[hidden]) { grid-template-columns: 54px minmax(0, 1fr); }
 .agent-workspace.sidebar-is-collapsed .agent-sidebar-heading > div,
 .agent-workspace.sidebar-is-collapsed .agent-module-button { font-size: 0; }
 .agent-workspace.sidebar-is-collapsed .agent-sidebar-heading { justify-content: center; padding: 14px 7px; }

@@ -38,6 +38,7 @@ export const CONVERSATION_INTENTS = Object.freeze([
 const INTENT_SET = new Set(CONVERSATION_INTENTS);
 const MIN_CONFIDENCE = 0.8;
 const MAX_MESSAGE_LENGTH = 1000;
+const INTAKE_HELP_REPLY = "当前支持 OE3 字节小游戏、JSZC 的新建项目，以及为已有项目追加视频。可直接说“新建项目，游戏 JSZC，账户 1234567890123456”，或“给项目 1234567890123456 追加视频，账户 1234567890123456，视频标识码：video-A”。";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -51,6 +52,68 @@ function normalizedCommand(value) {
 
 function boundedText(value) {
   return clean(value).slice(0, MAX_MESSAGE_LENGTH);
+}
+
+function emptyIntakeDraft(values = {}) {
+  const operation = ["create_std_project", PROJECT_VIDEO_APPEND_OPERATION].includes(values.operation) ? values.operation : "";
+  return {
+    operation,
+    route_id: String(values.route_id || "").trim() === "oceanengine_3_byte_mini_game" ? "oceanengine_3_byte_mini_game" : "",
+    game_code: String(values.game_code || "").trim().toUpperCase() === "JSZC" ? "JSZC" : "",
+    advertiser_id: /^\d{8,24}$/.test(String(values.advertiser_id || "").trim()) ? String(values.advertiser_id).trim() : "",
+    project_id: operation === PROJECT_VIDEO_APPEND_OPERATION ? String(values.project_id || "").trim() : "",
+    origin_resource_ids: operation === PROJECT_VIDEO_APPEND_OPERATION && Array.isArray(values.origin_resource_ids)
+      ? values.origin_resource_ids.map((item) => String(item || "").trim()).filter(Boolean) : []
+  };
+}
+
+function intakeDraft(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return emptyIntakeDraft();
+  return emptyIntakeDraft(value);
+}
+
+function intakeFields(operation = "") {
+  return operation === PROJECT_VIDEO_APPEND_OPERATION
+    ? ["route_id", "game_code", "advertiser_id", "project_id", "origin_resource_ids"]
+    : operation === "create_std_project" ? ["route_id", "game_code", "advertiser_id"] : [];
+}
+
+function intakeMissing(draft) {
+  return intakeFields(draft.operation).filter((field) => !draft[field] || (Array.isArray(draft[field]) && draft[field].length === 0));
+}
+
+function buildIntakeResponse({ draft, reply, issues = [], parseSource = "rules", slotSources = {}, modelAssist = null, source = "natural_language" }) {
+  const normalizedDraft = emptyIntakeDraft(draft);
+  const missing = intakeMissing(normalizedDraft);
+  const canStart = Boolean(normalizedDraft.operation) && missing.length === 0 && issues.length === 0;
+  let request = null;
+  if (canStart) {
+    request = normalizedDraft.operation === PROJECT_VIDEO_APPEND_OPERATION
+      ? validateLaunchRequest({ schema_version: "launch-request.v2", ...normalizedDraft })
+      : validateLaunchRequest({
+          schema_version: "launch-request.v1",
+          operation: "create_std_project",
+          route_id: normalizedDraft.route_id,
+          game_code: normalizedDraft.game_code,
+          advertiser_id: normalizedDraft.advertiser_id
+        });
+  }
+  return {
+    draft: normalizedDraft,
+    request,
+    can_start: canStart,
+    reply,
+    missing_fields: missing,
+    parse_source: parseSource,
+    slot_sources: slotSources,
+    ...(modelAssist ? { model_assist: modelAssist } : {}),
+    source,
+    issues
+  };
+}
+
+function isHelpQuestion(text = "") {
+  return /(?:能做什么|可以做什么|怎么使用|如何使用|能.*(?:追加视频|新建项目)|支持什么)/i.test(text);
 }
 
 function redactForProvider(value) {
@@ -365,48 +428,43 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
   if (hasRequest && hasNatural) throw intakeRequestError("一次提交只能使用一种投放创建输入。");
   if (hasRequest) {
     const normalized = validateLaunchRequest(request);
-    return toLaunchRequestResponse({
-      draft: normalized,
-      parseSource: "structured_json",
-      source: "structured_json",
-      slotSources: Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((field) => [field, "structured_json"]))
+    return buildIntakeResponse({
+      draft: normalized, reply: normalized.operation === PROJECT_VIDEO_APPEND_OPERATION ? "已完成追加视频 JSON 校验；请核对项目、账户和视频标识码后启动流程。" : "已完成新建项目 JSON 校验；请核对路线、游戏和账户后启动流程。",
+      parseSource: "structured_json", source: "structured_json",
+      slotSources: Object.fromEntries(intakeFields(normalized.operation).map((field) => [field, "structured_json"]))
     });
   }
   if (!hasNatural) throw intakeRequestError("请输入投放创建需求。");
   const text = String(userIntent);
   if (text.length > 20_000) throw intakeRequestError("输入过长，请将视频标识码分批粘贴（每次最多 100 条）。");
+  const priorDraft = intakeDraft(draft);
+  if (isHelpQuestion(text)) {
+    return buildIntakeResponse({ draft: priorDraft, reply: INTAKE_HELP_REPLY });
+  }
   const hasAppendWords = /(?:追加|添加|新增|增加)(?:[^。；，,\n]{0,20})(?:视频|素材)|(?:项目|project)[^。；，,\n]{0,20}(?:视频|素材)/i.test(text);
   const negatesAppend = /(?:不|不要|无需|别)(?:[^。；，,\n]{0,8})(?:追加|添加|新增|增加)(?:[^。；，,\n]{0,20})(?:视频|素材)?/i.test(text);
   const hasCreateWords = /(?:新建|创建|从零建|建立)(?:[^。；，,\n]{0,20})(?:项目|投放|广告)/i.test(text);
   const hasUnsupportedWords = /(?:只改|修改|调整|变更)(?:[^。；，,\n]{0,20})(?:roi|出价|预算|时段|定向|配置)/i.test(text);
   if (hasUnsupportedWords) {
-    return toLaunchRequestResponse({
-      draft: createLaunchRequestDraft(),
-      parseSource: "rules",
-      source: "natural_language",
-      slotSources: {},
-      modelAssist: modelAssist(),
-      issues: [launchRequestIssue("operation_not_supported")]
-    });
+    const issue = launchRequestIssue("operation_not_supported");
+    return buildIntakeResponse({ draft: emptyIntakeDraft(), reply: issue.message, issues: [issue], modelAssist: modelAssist() });
   }
   if ((hasAppendWords && hasCreateWords) || (hasAppendWords && negatesAppend && hasCreateWords)) {
-    return toLaunchRequestResponse({
-      draft: createLaunchRequestDraft(), parseSource: "rules", source: "natural_language",
-      slotSources: {}, modelAssist: modelAssist(), issues: [launchRequestIssue("operation_conflict")]
-    });
+    const issue = launchRequestIssue("operation_conflict");
+    return buildIntakeResponse({ draft: emptyIntakeDraft(), reply: issue.message, issues: [issue], modelAssist: modelAssist() });
   }
   if (negatesAppend && !hasCreateWords) {
-    return toLaunchRequestResponse({
-      draft: createLaunchRequestDraft(), parseSource: "rules", source: "natural_language",
-      slotSources: {}, modelAssist: modelAssist(), issues: [launchRequestIssue("operation_ambiguous")]
-    });
+    const issue = launchRequestIssue("operation_ambiguous");
+    return buildIntakeResponse({ draft: emptyIntakeDraft(), reply: issue.message, issues: [issue], modelAssist: modelAssist() });
   }
   const explicitOperation = hasAppendWords ? PROJECT_VIDEO_APPEND_OPERATION : hasCreateWords ? "create_std_project" : "";
-  const appendIntent = explicitOperation === PROJECT_VIDEO_APPEND_OPERATION || (!explicitOperation && draft?.operation === PROJECT_VIDEO_APPEND_OPERATION);
+  const selectedOperation = explicitOperation || priorDraft.operation;
+  const switchingOperation = Boolean(explicitOperation && priorDraft.operation && priorDraft.operation !== explicitOperation);
+  const appendIntent = selectedOperation === PROJECT_VIDEO_APPEND_OPERATION;
   if (appendIntent) {
     // An explicit switch starts a fresh operation draft. A follow-up only
     // merges labelled fields, so a project ID can never become an account ID.
-    const prior = explicitOperation ? createProjectVideoAppendRequestDraft() : createProjectVideoAppendRequestDraft(draft || {});
+    const prior = switchingOperation ? createProjectVideoAppendRequestDraft() : createProjectVideoAppendRequestDraft({ ...priorDraft, operation: PROJECT_VIDEO_APPEND_OPERATION });
     const advertiserMatches = [...text.matchAll(/(?:advertiser_id|广告账户|账户|账号|advertiser)\s*[:：]?\s*(\d{8,24})/gi)].map((match) => match[1]);
     const projectMatches = [...text.matchAll(/(?:project_id|项目)\s*[:：]?\s*(\d{8,24})/gi)].map((match) => match[1]);
     const advertiser = advertiserMatches.length === 1 ? advertiserMatches[0] : "";
@@ -439,10 +497,10 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
       if (advertiserMatches.length > 1) next.advertiser_id = "";
       if (projectMatches.length > 1) next.project_id = "";
     }
-    return toLaunchRequestResponse({
+    const normalized = buildIntakeResponse({
       draft: next,
-      parseSource: "rules",
-      source: "natural_language",
+      reply: issues.length ? issues.map((item) => item.message).join(" ") : "",
+      parseSource: "rules", source: "natural_language",
       slotSources: {
         route_id: next.route_id ? "rules" : "missing",
         game_code: next.game_code ? "rules" : "missing",
@@ -450,28 +508,51 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
         project_id: next.project_id ? "rules" : "missing",
         origin_resource_ids: next.origin_resource_ids.length ? "rules" : "missing"
       },
-      modelAssist: modelAssist(),
-      issues
+      modelAssist: modelAssist(), issues
     });
+    if (!normalized.reply) {
+      normalized.reply = normalized.can_start
+        ? `已记录追加视频所需信息，可启动流程。`
+        : `已记录${explicitOperation ? "追加视频事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => ({ route_id: "推广路线", game_code: "游戏标识", advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`;
+    }
+    return normalized;
   }
-  const prior = explicitOperation ? createLaunchRequestDraft() : normalizeLaunchRequestDraft(draft || {});
+  const prior = switchingOperation ? createLaunchRequestDraft() : createLaunchRequestDraft({ ...priorDraft, operation: "create_std_project" });
   const resolved = await resolveExplicitLaunchIntake({ message: userIntent, resolver });
   const issueCodes = resolved.issues || [];
+  const invalidGame = Boolean(resolved.game_code && resolved.game_code !== "JSZC");
   let next = { ...prior };
   if (issueCodes.includes("operation_not_supported")) {
     next = createLaunchRequestDraft();
   } else {
-    for (const field of LAUNCH_INTAKE_FIELDS) if (resolved[field]) next[field] = resolved[field];
+    for (const field of LAUNCH_INTAKE_FIELDS) if (resolved[field] && !(field === "game_code" && invalidGame)) next[field] = resolved[field];
     if (issueCodes.includes("multiple_advertiser_ids")) next.advertiser_id = "";
   }
-  return toLaunchRequestResponse({
-    draft: next,
-    parseSource: resolved.parseSource,
-    source: "natural_language",
+  if (!selectedOperation) {
+    next.operation = "";
+    next.schema_version = "";
+  }
+  const normalized = buildIntakeResponse({
+    draft: next, reply: "", parseSource: resolved.parseSource, source: "natural_language",
     slotSources: resolved.slotSources,
     modelAssist: resolved.modelAssist,
-    issues: issueCodes.map(launchRequestIssue)
+    issues: [
+      ...issueCodes.map(launchRequestIssue),
+      ...(invalidGame ? [{ code: "game_not_supported", message: "当前仅支持 JSZC 游戏，请更正游戏标识。" }] : [])
+    ]
   });
+  if (!normalized.reply) {
+    const labels = { route_id: "推广路线", game_code: "游戏标识", advertiser_id: "账户 ID" };
+    const recorded = Object.entries(normalized.draft).filter(([key, value]) => ["route_id", "game_code", "advertiser_id"].includes(key) && value).map(([key]) => labels[key]);
+    normalized.reply = normalized.issues.length
+      ? normalized.issues.map((item) => item.message).join(" ")
+      : !normalized.draft.operation
+        ? (recorded.length ? `已记录${recorded.join("、")}。你想新建项目，还是给已有项目追加视频？` : "请说明投放需求：新建项目或追加视频；也可以问我能做什么。")
+        : normalized.can_start
+          ? "已记录新建项目所需信息，可启动流程。"
+          : `已记录${explicitOperation ? "新建项目事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => labels[field]).join("、")}。`;
+  }
+  return normalized;
 }
 
 export function isExplicitCreateConfirmation(message = "") {
