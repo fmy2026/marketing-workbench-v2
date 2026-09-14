@@ -540,17 +540,26 @@ import {
 
   function intakeSummary() {
     if (draftIntake.operation === "append_project_videos") {
-      return `将给项目追加 ${draftIntake.origin_resource_ids.length} 条视频：${draftIntake.route_id} · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id}。`;
+      return `追加视频 · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id} · ${draftIntake.origin_resource_ids.length} 条。`;
     }
-    return `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`;
+    return `新建标准项目 · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id}。`;
   }
 
   function accountBootstrapMessage(blockers = []) {
     const blocker = String(Array.isArray(blockers) ? blockers[0] || "" : "");
     if (blocker.startsWith("account_identity_unresolved:")) return "账户索引未确认唯一的账户身份。";
     if (blocker.startsWith("account_query_failed:")) return "账户索引查询未完成。";
+    if (blocker === "credential_not_active:missing") return "服务未读取到乾坤授权配置。";
+    if (blocker.startsWith("credential_not_active:")) return "账户乾坤授权未处于可用状态。";
     if (blocker === "account_bootstrap_failed") return "账户预检暂未完成。";
     return "账户身份预检尚未完成。";
+  }
+
+  function accountBootstrapNextStep(blockers = []) {
+    const list = Array.isArray(blockers) ? blockers : [];
+    return list.includes("credential_not_active:missing")
+      ? "请联系管理员修复服务配置后重新检查。"
+      : "请检查账户配置或稍后重新检查。";
   }
 
   function message(role, text) {
@@ -827,12 +836,12 @@ import {
     const starting = feedback.status === "starting";
     const card = el("section", `conversation-start-card${blocked ? " is-blocked" : ""}${starting ? " is-starting" : ""}`);
     card.setAttribute("aria-label", "流程启动检查");
-    card.append(el("strong", "", blocked ? "账户预检未通过，流程尚未建立" : starting ? "正在启动流程" : "输入已齐全，是否开始检查？"));
+    card.append(el("strong", "", blocked ? "启动受阻" : starting ? "正在启动流程" : "输入已齐全，是否开始检查？"));
     card.append(el("p", "", feedback.message || (starting ? feedback.stage : intakeSummary())));
-    if (!starting && ready) {
-      const button = el("button", "start-button", blocked ? "重新检查" : "启动流程");
+    if (starting || ready) {
+      const button = el("button", "start-button", starting ? "启动中…" : blocked ? "重新检查" : "启动流程");
       button.type = "button";
-      button.disabled = busy || viewOnly;
+      button.disabled = starting || busy || viewOnly;
       button.addEventListener("click", () => startWorkflow());
       card.append(button);
     }
@@ -847,7 +856,7 @@ import {
       ? "历史运行，只读"
       : job
         ? (startupFeedback?.status === "blocked" ? "启动受阻" : (job?.caseGate?.progressNarrative?.shortLabel || "等待处理"))
-        : (!draftIntake.operation ? "等待输入需求" : intakeCanStart ? "待启动" : "等待补齐");
+        : (startupFeedback?.status === "blocked" ? "启动受阻" : startupFeedback?.status === "starting" ? "启动中" : !draftIntake.operation ? "等待输入需求" : intakeCanStart ? "待启动" : "等待补齐");
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
@@ -1130,7 +1139,7 @@ import {
 
   function showError(error, { stage = "" } = {}) {
     if (error?.message === "account_bootstrap_blocked") {
-      message("agent", `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} 请检查账户配置或稍后重新检查。`);
+      message("agent", `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} ${accountBootstrapNextStep(error.details?.blockers)}`);
       return;
     }
     if (error?.status >= 500 || error?.message === "internal_error") {
@@ -1251,7 +1260,7 @@ import {
   }
 
   async function startWorkflow() {
-    if (busy || viewOnly || job || !intakeCanStart || !validatedIntakeRequest || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
+    if (busy || viewOnly || job || !canStartCurrentDraft()) return;
     startupFeedback = { status: "starting", stage: "正在核验账户并建立流程" };
     setBusy(true);
     let startupStage = "创建 Case";
@@ -1302,12 +1311,12 @@ import {
         status: "blocked",
         stage: startupStage,
         message: error?.message === "account_bootstrap_blocked"
-          ? `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} 请检查账户配置或稍后重新检查。`
+          ? `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} ${accountBootstrapNextStep(error.details?.blockers)}`
           : job
             ? `“${startupStage}”未完成；已保留当前节点进度，请查看状态后再处理。`
             : `“${startupStage}”未完成；当前未建立可继续的流程。请处理后重新检查。`
       };
-      showError(error, { stage: startupStage });
+      if (error?.message !== "account_bootstrap_blocked") showError(error, { stage: startupStage });
     } finally {
       setBusy(false);
     }
@@ -1335,7 +1344,23 @@ import {
 
   function frozenLaunchRequest() {
     if (!validatedIntakeRequest) throw new Error("intake_request_not_validated");
-    return validatedIntakeRequest;
+    const request = validatedIntakeRequest;
+    if (request.operation === "append_project_videos") {
+      return Object.freeze({
+        schema_version: request.schema_version,
+        operation: request.operation,
+        advertiser_id: request.advertiser_id,
+        project_id: request.project_id,
+        origin_resource_ids: [...(request.origin_resource_ids || [])]
+      });
+    }
+    return Object.freeze({
+      schema_version: request.schema_version,
+      operation: request.operation,
+      route_id: request.route_id,
+      game_code: request.game_code,
+      advertiser_id: request.advertiser_id
+    });
   }
 
   function setActiveCaseUrl(caseId) {
@@ -1614,7 +1639,15 @@ import {
       await submitConversationInput(text);
     });
     const chatInput = document.getElementById("chatInput");
-    chatInput.addEventListener("input", resizeChatInput);
+    chatInput.addEventListener("input", () => {
+      resizeChatInput();
+      if (intakeMode !== "natural" || job || !canStartCurrentDraft()) return;
+      intakeCanStart = false;
+      validatedIntakeRequest = null;
+      matchedAppendProject = null;
+      startupFeedback = null;
+      renderAll();
+    });
     chatInput.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
       event.preventDefault();
@@ -1661,7 +1694,7 @@ import {
       validatedIntakeRequest = null;
       matchedAppendProject = null;
       startupFeedback = null;
-      renderIntake();
+      renderAll();
     });
   }
 

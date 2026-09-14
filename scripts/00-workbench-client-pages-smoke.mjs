@@ -134,6 +134,41 @@ try {
   assert((await evaluate("document.querySelector('#agentStatus').textContent")) === "待启动", "natural_ready_status_not_pending_start");
   assert((await evaluate("document.querySelector('#configTip').textContent")).includes("规则解析"), "natural_parse_label_missing");
 
+  await fill("#chatInput", "需要修改");
+  assert(!await present(".conversation-start-card"), "editing_natural_input_retained_stale_start_card");
+  assert((await evaluate("document.querySelector('#agentStatus').textContent")) === "等待补齐", "editing_natural_input_retained_pending_status");
+  await fill("#chatInput", "新建项目，路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1871922999999999");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => present(".conversation-start-card"), "natural_ready_after_edit");
+
+  await evaluate(`(() => {
+    const originalFetch = window.fetch;
+    window.__originalFetch = originalFetch;
+    window.__startCaseCalls = 0;
+    window.fetch = async (...args) => {
+      const request = String(args[0]);
+      const options = args[1] || {};
+      if (request === "/api/workflow-cases" && options.method === "POST") {
+        window.__startCaseCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      const response = await originalFetch(...args);
+      return response;
+    };
+  })()`);
+  await click(".conversation-start-card .start-button");
+  assert(await visible("#workflowRail"), "startup_click_did_not_open_workflow_rail");
+  assert(await evaluate("document.querySelector('.conversation-start-card .start-button').textContent === '启动中…'"), "startup_button_did_not_show_busy_state");
+  assert(await evaluate("document.querySelector('.conversation-start-card .start-button').disabled"), "startup_button_not_disabled");
+  await click(".conversation-start-card .start-button");
+  assert((await evaluate("window.__startCaseCalls")) === 1, "startup_request_repeated_while_busy");
+  await until(() => evaluate("document.querySelector('#agentStatus').textContent === '启动受阻'"), "startup_preflight_failure");
+  assert(await evaluate("document.querySelector('#workflowRail').textContent.includes('流程尚未建立')"), "preflight_failure_missing_startup_rail_state");
+  const startupFailureCopy = await evaluate("document.querySelector('.conversation-start-card').textContent");
+  assert(/服务未读取到乾坤授权配置|账户预检暂未完成/.test(startupFailureCopy), `preflight_failure_missing_controlled_copy:${startupFailureCopy}`);
+  assert(await evaluate("document.querySelectorAll('.conversation-start-card').length === 1"), "preflight_failure_duplicated_start_card");
+  await evaluate("window.fetch = window.__originalFetch");
+
   await click('[data-intake-mode="json"]');
   await until(() => visible("#structuredRequestPanel"), "json_panel");
   assert(!await present(".conversation-start-card"), "switch_mode_retained_stale_ready_draft");
@@ -150,7 +185,7 @@ try {
   await fill("#structuredRequestInput", JSON.stringify(request));
   await click("#submitStructuredRequest");
   await until(() => present(".conversation-start-card"), "structured_ready");
-  assert((await evaluate("document.querySelector('.conversation-start-card').textContent")).includes("将新建标准项目"), "structured_launch_summary_missing");
+  assert((await evaluate("document.querySelector('.conversation-start-card').textContent")).includes("新建标准项目"), "structured_launch_summary_missing");
   assert((await evaluate("document.querySelector('#configTip').textContent")).includes("JSON"), "structured_parse_label_missing");
   await click('[data-intake-mode="natural"]');
   await until(() => visible("#chatForm"), "natural_panel_restored");
@@ -170,7 +205,8 @@ try {
   assert(await evaluate("document.querySelector('#chatInput').value.includes('\\n')"), "multiline_video_paste_not_preserved");
   await evaluate("(() => { const input = document.querySelector('#chatInput'); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()");
   await until(() => present(".conversation-start-card"), "append_ready_after_project_selection");
-  assert((await evaluate("document.querySelector('.conversation-start-card').textContent")).includes("将给项目追加 2 条视频"), "append_summary_missing");
+  assert((await evaluate("document.querySelector('.conversation-start-card').textContent")).includes("追加视频"), "append_summary_missing");
+  assert((await evaluate("document.querySelector('.conversation-start-card').textContent")).includes("2 条"), "append_video_count_missing");
   assert(await evaluate("document.querySelectorAll('.conversation-start-card').length === 1"), "append_start_card_not_unique");
   await browser.call("Emulation.setDeviceMetricsOverride", { width: 560, height: 700, deviceScaleFactor: 1, mobile: false });
   assert(await evaluate("(() => { const card = document.querySelector('.conversation-start-card'); const input = document.querySelector('#chatInput'); const cardRect = card?.getBoundingClientRect(); const inputRect = input?.getBoundingClientRect(); return cardRect && inputRect && cardRect.width <= window.innerWidth && inputRect.bottom <= window.innerHeight - 16; })()"), "narrow_start_card_or_input_layout_invalid");

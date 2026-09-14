@@ -1,10 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { stat } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolveWorkbenchNetworkPolicy } from "../src/security/workbenchNetworkPolicy.mjs";
+import { resolveQiankunCredentialStorePath } from "../src/platforms/qiankunCredentialStore.mjs";
 
 const SERVICE_LABEL = "com.hys.marketing-workbench.local-server";
 const PORT = 3000;
@@ -38,13 +40,27 @@ export function parseModeArguments(argv) {
   return { mode, host, releaseRoot, dryRun };
 }
 
-function stableRuntimeEnv() {
+export function stableRuntimeEnv() {
   return {
     MWBV2_PROJECT_STATE_PATH: join(projectRoot, "project.state.json"),
     MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH: join(projectRoot, ".local", "workbench-llm-credentials.json"),
     OCEANENGINE_ENV_PATH: join(projectRoot, ".local", "oceanengine.env"),
-    QIANKUN_MONITOR_ENV_PATH: join(projectRoot, ".local", "qiankun-monitor.env")
+    QIANKUN_MONITOR_ENV_PATH: join(projectRoot, ".local", "qiankun-monitor.env"),
+    QIANKUN_CREDENTIAL_STORE_PATH: join(projectRoot, ".local", "qiankun-passport-credentials.json")
   };
+}
+
+export async function verifySharedQiankunCredentialStore(runtimeEnv = stableRuntimeEnv()) {
+  const storePath = resolveQiankunCredentialStorePath({
+    envPath: runtimeEnv.QIANKUN_MONITOR_ENV_PATH,
+    storePath: runtimeEnv.QIANKUN_CREDENTIAL_STORE_PATH
+  });
+  try {
+    await access(storePath, fsConstants.R_OK);
+  } catch {
+    throw new Error("workbench_qiankun_credential_store_unreadable");
+  }
+  return storePath;
 }
 
 async function resolveReleaseRoot(releaseRoot = "") {
@@ -161,6 +177,7 @@ function reload(plist) {
 }
 
 export async function applyModeConfiguration(configuration, { workingDirectory = projectRoot } = {}) {
+  await verifySharedQiankunCredentialStore();
   const filePaths = paths();
   const previous = await readFile(filePaths.plist);
   const plist = buildLaunchAgentPlist({
@@ -190,6 +207,7 @@ async function main() {
   const request = parseModeArguments(process.argv.slice(2));
   const configuration = resolveModeConfiguration(request);
   const workingDirectory = await resolveReleaseRoot(request.releaseRoot);
+  await verifySharedQiankunCredentialStore();
   if (!request.dryRun) await applyModeConfiguration(configuration, { workingDirectory });
   console.log(JSON.stringify({
     status: request.dryRun ? "validated" : "applied",

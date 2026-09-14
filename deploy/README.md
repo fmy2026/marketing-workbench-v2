@@ -28,7 +28,7 @@ curl -I http://127.0.0.1:3000/
 
 再刷新浏览器工作台；确认卡、Gate 和按钮只以重载后的服务端投影为准。
 
-开发验证使用独立测试工作台：`npm run workbench:test` 启动在 `http://127.0.0.1:3100`，页面会标明“测试环境”，并且只连接临时数据库、临时凭据路径和阻断外网的模拟边界。业务工作台从固定提交快照启动：交付时先执行 `npm run workbench:release`，再把输出的 `release_root` 传给 `workbench:mode`；开发目录里的未发布修改不会直接改变业务页面或运行链。
+开发验证使用独立测试工作台：`npm run workbench:test` 启动在 `http://127.0.0.1:3100`，页面会标明“测试环境”，并且只连接临时数据库、临时凭据路径和阻断外网的模拟边界。业务工作台从固定提交快照启动：交付时先执行 `npm run workbench:release`，再把输出的 `release_root` 传给 `workbench:mode`；开发目录里的未发布修改不会直接改变业务页面或运行链。模式切换会向 release 注入共享根目录的绝对 `QIANKUN_CREDENTIAL_STORE_PATH`，并在重载前验证该文件可读；不得把凭据复制进 release 或输出其路径、内容。
 
 ## 公司共享模式
 

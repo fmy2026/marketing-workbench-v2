@@ -1,0 +1,61 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
+  "status": "active",
+  "created_at": "2026-09-14T08:06:01.646Z",
+  "updated_at": "2026-09-14T08:06:01.646Z",
+  "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.json",
+    "project.state.json",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-workbench-mode-switch.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "tests/run.mjs",
+    "src/platforms/qiankunCredentialStore.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    ".local/releases/**"
+  ],
+  "forbidden_actions": [
+    "平台写入、Plan 确认或扩大账户授权",
+    "复制、记录或输出 token、Cookie、secret 或凭据内容",
+    "修改数据库结构、Node、Gate 或公开 API"
+  ],
+  "stop_conditions": [
+    "共享凭据文件不存在或格式无效",
+    "发布重载失败且自动恢复后仍无法提供服务",
+    "修复需要扩大权限或平台写入"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "node scripts/00-workbench-mode-switch.mjs --mode local --dry-run; credential path smoke"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress; npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages; npm run check:project -- --phase before-close"},
+    {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>"}
+  ],
+  "validation_results": [],
+  "documentation_updates": [],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

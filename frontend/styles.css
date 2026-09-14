@@ -340,16 +340,18 @@ p {
 
 .conversation-start-card {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 12px;
   border: 1px solid #9bb8ff;
   border-radius: 10px;
   background: #f5f8ff;
 }
 
-.conversation-start-card strong { color: #214fae; font-size: 14px; }
-.conversation-start-card p { margin: 0; color: #4c5a70; font-size: 12px; line-height: 1.55; }
-.conversation-start-card .start-button { justify-self: start; }
+.conversation-start-card strong { min-width: 0; color: #214fae; font-size: 14px; }
+.conversation-start-card p { grid-column: 1 / -1; min-width: 0; margin: 0; color: #4c5a70; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.conversation-start-card .start-button { grid-column: 2; grid-row: 1; }
 .conversation-start-card.is-starting { border-color: #b9c9f7; background: #fbfcff; }
 .conversation-start-card.is-blocked { border-color: #edc6c6; background: #fff8f8; }
 .conversation-start-card.is-blocked strong { color: #a53a3a; }

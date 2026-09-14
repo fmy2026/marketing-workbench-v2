@@ -211,8 +211,14 @@ assert(clientSource.includes("startupFeedback = { status: \"starting\", stage: \
 assert(clientSource.includes("账户预检已通过，正在建立运行记录"), "job_creation_startup_state_missing");
 assert(clientSource.includes("账户预检未通过，流程尚未建立"), "account_bootstrap_failure_copy_missing");
 assert(clientSource.includes("function accountBootstrapMessage(blockers = [])"), "account_bootstrap_blocker_mapping_missing");
+assert(clientSource.includes('blocker === "credential_not_active:missing"'), "credential_store_blocker_mapping_missing");
+assert(clientSource.includes("服务未读取到乾坤授权配置"), "credential_store_blocker_copy_missing");
 assert(clientSource.includes("rail.hidden = !job && !startupFeedback"), "startup_rail_visibility_missing");
 assert(clientSource.includes("workflow-startup-state"), "startup_rail_state_missing");
+assert(clientSource.includes('starting ? "启动中…"'), "startup_button_busy_copy_missing");
+assert(clientSource.includes("if (busy || viewOnly || job || !canStartCurrentDraft()) return;"), "startup_must_use_current_validated_draft");
+assert(clientSource.includes('if (request.operation === "append_project_videos")'), "frozen_request_operation_shape_missing");
+assert(clientSource.includes("origin_resource_ids: [...(request.origin_resource_ids || [])]"), "append_request_video_codes_not_frozen");
 assert(clientSource.includes("启动阶段未完成"), "job_startup_failure_state_missing");
 assert(clientSource.includes("已保留当前节点进度，请查看状态后再处理"), "job_startup_failure_progress_copy_missing");
 assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "legacy_internal_error_refresh_copy_still_present");

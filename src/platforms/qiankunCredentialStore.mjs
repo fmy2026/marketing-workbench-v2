@@ -139,7 +139,7 @@ export function readQiankunMonitorEnv({ envPath, ensure = false } = {}) {
 
 export function resolveQiankunCredentialStorePath({ envPath, storePath, ensure = false } = {}) {
   const config = readQiankunMonitorEnv({ envPath, ensure });
-  const configured = clean(storePath || config.env.QIANKUN_CREDENTIAL_STORE_PATH || DEFAULT_QIANKUN_CREDENTIAL_STORE_PATH);
+  const configured = clean(storePath || process.env.QIANKUN_CREDENTIAL_STORE_PATH || config.env.QIANKUN_CREDENTIAL_STORE_PATH || DEFAULT_QIANKUN_CREDENTIAL_STORE_PATH);
   return resolveProjectPath(configured);
 }
 

@@ -28,14 +28,17 @@ for (const file of files) {
   let server;
   const directory = await mkdtemp(join(tmpdir(), "mwb-test-process-"));
   try {
+    const qiankunCredentialStorePath = join(directory, "qiankun-passport-credentials.json");
     if (databaseTest) {
       database = await createTestDatabase();
       await seedTestDatabase(database.database);
     }
     if (httpTest) server = await startTestServer(database.database, {
-      OCEANENGINE_ENV_PATH: join(directory, "oceanengine.env"), QIANKUN_MONITOR_ENV_PATH: join(directory, "qiankun.env")
+      OCEANENGINE_ENV_PATH: join(directory, "oceanengine.env"), QIANKUN_MONITOR_ENV_PATH: join(directory, "qiankun.env"),
+      QIANKUN_CREDENTIAL_STORE_PATH: qiankunCredentialStorePath
     });
     const env = { ...process.env, OCEANENGINE_ENV_PATH: join(directory, "oceanengine.env"), QIANKUN_MONITOR_ENV_PATH: join(directory, "qiankun.env"),
+      QIANKUN_CREDENTIAL_STORE_PATH: qiankunCredentialStorePath,
       NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --import=${resolve(root, "tests/support/network.mjs")}`.trim(),
       MWBV2_TEST_DATABASE: database?.database || "", MWBV2_TEST_ORIGIN: server?.origin || "",
       MWBV2_TEST_LOGIN_NAME: "test_admin", MWBV2_TEST_ADMIN_LOGIN: "test_admin", MWBV2_TEST_OPERATOR_LOGIN: "test_operator",
