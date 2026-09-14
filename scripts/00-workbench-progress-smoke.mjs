@@ -205,6 +205,16 @@ assert(clientSource.includes("诊断码：${diagnosticCode}"), "internal_error_d
 assert(clientSource.includes("start_workflow_create_case"), "create_case_diagnostic_stage_missing");
 assert(clientSource.includes("start_workflow_create_job"), "create_job_diagnostic_stage_missing");
 assert(clientSource.includes("start_workflow_run_readonly"), "run_readonly_diagnostic_stage_missing");
+assert(clientSource.includes("function renderStartCard(stream)"), "conversation_start_card_renderer_missing");
+assert(clientSource.includes("输入已齐全，是否开始检查？"), "conversation_start_card_prompt_missing");
+assert(clientSource.includes("startupFeedback = { status: \"starting\", stage: \"正在核验账户并建立流程\" }"), "startup_progress_state_missing");
+assert(clientSource.includes("账户预检已通过，正在建立运行记录"), "job_creation_startup_state_missing");
+assert(clientSource.includes("账户预检未通过，流程尚未建立"), "account_bootstrap_failure_copy_missing");
+assert(clientSource.includes("function accountBootstrapMessage(blockers = [])"), "account_bootstrap_blocker_mapping_missing");
+assert(clientSource.includes("rail.hidden = !job && !startupFeedback"), "startup_rail_visibility_missing");
+assert(clientSource.includes("workflow-startup-state"), "startup_rail_state_missing");
+assert(clientSource.includes("启动阶段未完成"), "job_startup_failure_state_missing");
+assert(clientSource.includes("已保留当前节点进度，请查看状态后再处理"), "job_startup_failure_progress_copy_missing");
 assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "legacy_internal_error_refresh_copy_still_present");
 assert(!clientSource.includes('message("agent", `唯一阻断：${error.message}${owner}`);\n      return;'), "internal_error_must_not_render_as_root_blocker");
 assert(clientSource.includes("freezeConfirmationSubmission"), "confirmation_submission_snapshot_helper_missing");

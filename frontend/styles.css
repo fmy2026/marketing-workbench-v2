@@ -338,24 +338,21 @@ p {
   font-weight: 800;
 }
 
-.intake-action {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 0 12px;
+.conversation-start-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #9bb8ff;
+  border-radius: 10px;
+  background: #f5f8ff;
 }
 
-.intake-action[hidden] {
-  display: none;
-}
-
-.intake-hint {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
+.conversation-start-card strong { color: #214fae; font-size: 14px; }
+.conversation-start-card p { margin: 0; color: #4c5a70; font-size: 12px; line-height: 1.55; }
+.conversation-start-card .start-button { justify-self: start; }
+.conversation-start-card.is-starting { border-color: #b9c9f7; background: #fbfcff; }
+.conversation-start-card.is-blocked { border-color: #edc6c6; background: #fff8f8; }
+.conversation-start-card.is-blocked strong { color: #a53a3a; }
 
 .start-button {
   flex: 0 0 auto;
@@ -1377,6 +1374,11 @@ p {
 .workflow-rail { min-width: 0; overflow-y: auto; padding: 20px 16px; border-left: 1px solid var(--line); background: #fbfcfe; }
 .workflow-rail .workflow-title { min-height: auto; }
 .workflow-rail .workflow-title h2 { font-size: 15px; }
+.workflow-startup-state { display: grid; gap: 8px; padding: 14px; border: 1px solid #b9c9f7; border-radius: 10px; background: #fff; }
+.workflow-startup-state strong { color: #214fae; font-size: 14px; }
+.workflow-startup-state p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.workflow-startup-state.is-blocked { border-color: #edc6c6; background: #fff8f8; }
+.workflow-startup-state.is-blocked strong { color: #a53a3a; }
 
 .agent-workspace.sidebar-is-collapsed { grid-template-columns: 54px minmax(0, 1fr) 340px; }
 .agent-workspace.sidebar-is-collapsed:has(.workflow-rail[hidden]) { grid-template-columns: 54px minmax(0, 1fr); }

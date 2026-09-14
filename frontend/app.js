@@ -61,6 +61,7 @@ import {
   let intakeModelAssist = null;
   let intakeCanStart = false;
   let validatedIntakeRequest = null;
+  let startupFeedback = null;
   let matchedAppendProject = null;
   let projectRecommendations = null;
   let projectRecommendationAccountId = "";
@@ -529,6 +530,29 @@ import {
     });
   }
 
+  function canStartCurrentDraft() {
+    const fields = requiredFields();
+    const hasIssues = intakeIssues.length > 0;
+    const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
+    return !job && intakeCanStart && Boolean(validatedIntakeRequest) && fields.length > 0 &&
+      missingFields().length === 0 && !hasIssues && !modelAssistFailed;
+  }
+
+  function intakeSummary() {
+    if (draftIntake.operation === "append_project_videos") {
+      return `将给项目追加 ${draftIntake.origin_resource_ids.length} 条视频：${draftIntake.route_id} · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id}。`;
+    }
+    return `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`;
+  }
+
+  function accountBootstrapMessage(blockers = []) {
+    const blocker = String(Array.isArray(blockers) ? blockers[0] || "" : "");
+    if (blocker.startsWith("account_identity_unresolved:")) return "账户索引未确认唯一的账户身份。";
+    if (blocker.startsWith("account_query_failed:")) return "账户索引查询未完成。";
+    if (blocker === "account_bootstrap_failed") return "账户预检暂未完成。";
+    return "账户身份预检尚未完成。";
+  }
+
   function message(role, text) {
     chatMessages.push({ role, text });
     renderChat();
@@ -547,6 +571,7 @@ import {
 
   function setJobView(nextJob) {
     job = nextJob || null;
+    if (job && startupFeedback?.status === "starting") startupFeedback = null;
     jobRevision += 1;
   }
 
@@ -788,21 +813,41 @@ import {
     }
     const current = operationalMessage();
     if (current) appendRenderedMessage(stream, "agent", current);
+    renderStartCard(stream);
     renderProjectRecommendations(stream);
     renderConfirmationCard(stream);
     stream.scrollTop = stream.scrollHeight;
+  }
+
+  function renderStartCard(stream) {
+    const ready = canStartCurrentDraft();
+    if (job || (!ready && !startupFeedback)) return;
+    const feedback = startupFeedback || {};
+    const blocked = feedback.status === "blocked";
+    const starting = feedback.status === "starting";
+    const card = el("section", `conversation-start-card${blocked ? " is-blocked" : ""}${starting ? " is-starting" : ""}`);
+    card.setAttribute("aria-label", "流程启动检查");
+    card.append(el("strong", "", blocked ? "账户预检未通过，流程尚未建立" : starting ? "正在启动流程" : "输入已齐全，是否开始检查？"));
+    card.append(el("p", "", feedback.message || (starting ? feedback.stage : intakeSummary())));
+    if (!starting && ready) {
+      const button = el("button", "start-button", blocked ? "重新检查" : "启动流程");
+      button.type = "button";
+      button.disabled = busy || viewOnly;
+      button.addEventListener("click", () => startWorkflow());
+      card.append(button);
+    }
+    stream.append(card);
   }
 
   function renderIntake() {
     const intake = activeIntake();
     const fields = requiredFields();
     const agentStatus = document.getElementById("agentStatus");
-    const missing = job ? [] : missingFields();
     agentStatus.textContent = viewOnly
       ? "历史运行，只读"
       : job
-        ? (job?.caseGate?.progressNarrative?.shortLabel || "等待处理")
-        : (!draftIntake.operation ? "等待输入需求" : intakeCanStart ? "可启动" : "等待补齐");
+        ? (startupFeedback?.status === "blocked" ? "启动受阻" : (job?.caseGate?.progressNarrative?.shortLabel || "等待处理"))
+        : (!draftIntake.operation ? "等待输入需求" : intakeCanStart ? "待启动" : "等待补齐");
 
     const intentCard = document.getElementById("intentCard");
     intentCard.innerHTML = "";
@@ -821,19 +866,6 @@ import {
       intentCard.append(item);
     }
 
-    const startButton = document.getElementById("startWorkflowButton");
-    const hint = document.getElementById("intakeHint");
-    const action = document.getElementById("intakeAction");
-    const hasIssues = !job && intakeIssues.length > 0;
-    const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
-    const isDraftReady = !job && intakeCanStart && Boolean(validatedIntakeRequest) && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
-    action.hidden = Boolean(job) || !isDraftReady;
-    startButton.disabled = !isDraftReady || busy || viewOnly;
-    hint.textContent = isDraftReady
-        ? (draftIntake.operation === "append_project_videos"
-          ? `将给项目追加 ${draftIntake.origin_resource_ids.length} 条视频：${draftIntake.route_id} · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id}。`
-          : `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`)
-        : "";
     const tip = document.getElementById("configTip");
     if (tip) tip.textContent = parserLabel(intakeParseSource);
     renderIntakeMode();
@@ -848,6 +880,7 @@ import {
     intakeParseSource = "rules";
     intakeModelAssist = null;
     intakeCanStart = false;
+    startupFeedback = null;
     validatedIntakeRequest = null;
     matchedAppendProject = null;
     draftCaseId = "";
@@ -919,13 +952,30 @@ import {
 
   function renderWorkflow() {
     const rail = document.getElementById("workflowRail");
-    rail.hidden = !job;
-    if (!job) return;
+    rail.hidden = !job && !startupFeedback;
+    if (!job) {
+      if (!startupFeedback) return;
+      const blocked = startupFeedback.status === "blocked";
+      document.getElementById("workflowHeading").textContent = blocked ? "启动受阻" : "启动检查";
+      const grid = document.getElementById("workflowGrid");
+      grid.innerHTML = "";
+      const state = el("section", `workflow-startup-state${blocked ? " is-blocked" : ""}`);
+      state.append(el("strong", "", blocked ? "流程尚未建立" : "正在建立流程"));
+      state.append(el("p", "", startupFeedback.message || startupFeedback.stage || "正在处理启动请求。"));
+      grid.append(state);
+      return;
+    }
     const workflowPhases = phases();
     const currentNodeNumber = Number(job?.progress?.currentNodeNumber || job?.progress?.current_node || 0);
     const currentPhaseKey = workflowPhases.find((phase) => (phase.nodes || []).some((node) => Number(node.number) === currentNodeNumber))?.id || "";
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
+    if (startupFeedback?.status === "blocked") {
+      const state = el("section", "workflow-startup-state is-blocked");
+      state.append(el("strong", "", "启动阶段未完成"));
+      state.append(el("p", "", startupFeedback.message));
+      grid.append(state);
+    }
 
     for (const phase of workflowPhases) {
       const nodes = phase.nodes || [];
@@ -1079,6 +1129,10 @@ import {
   }
 
   function showError(error, { stage = "" } = {}) {
+    if (error?.message === "account_bootstrap_blocked") {
+      message("agent", `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} 请检查账户配置或稍后重新检查。`);
+      return;
+    }
     if (error?.status >= 500 || error?.message === "internal_error") {
       const fingerprint = String(error.details?.diagnostic_fingerprint || "");
       const diagnosticCode = /^sha256:[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "未返回";
@@ -1198,6 +1252,7 @@ import {
 
   async function startWorkflow() {
     if (busy || viewOnly || job || !intakeCanStart || !validatedIntakeRequest || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
+    startupFeedback = { status: "starting", stage: "正在核验账户并建立流程" };
     setBusy(true);
     let startupStage = "创建 Case";
     try {
@@ -1218,10 +1273,13 @@ import {
         return;
       }
       if (selectedCase.reusedActiveCase) {
+        startupFeedback = null;
         window.location.assign(workbenchCaseUrl(selectedCase.caseId));
         return;
       }
       startupStage = "创建 fresh Job";
+      startupFeedback = { status: "starting", stage: "账户预检已通过，正在建立运行记录" };
+      renderAll();
       const created = await api("/api/launch/jobs", {
         method: "POST",
         diagnosticStage: "start_workflow_create_job",
@@ -1235,10 +1293,20 @@ import {
       setJobView(created);
       setActiveCaseUrl(job.caseId);
       startupStage = "启动 readonly";
+      renderAll();
       await refreshProgress();
       message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
       await runWorkflow(job.jobId, { diagnosticStage: "start_workflow_run_readonly" });
     } catch (error) {
+      startupFeedback = {
+        status: "blocked",
+        stage: startupStage,
+        message: error?.message === "account_bootstrap_blocked"
+          ? `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} 请检查账户配置或稍后重新检查。`
+          : job
+            ? `“${startupStage}”未完成；已保留当前节点进度，请查看状态后再处理。`
+            : `“${startupStage}”未完成；当前未建立可继续的流程。请处理后重新检查。`
+      };
       showError(error, { stage: startupStage });
     } finally {
       setBusy(false);
@@ -1256,6 +1324,7 @@ import {
     intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
     intakeModelAssist = intake?.model_assist || intake?.modelAssist || null;
     intakeCanStart = intake?.can_start === true;
+    if (!job) startupFeedback = null;
     validatedIntakeRequest = intakeCanStart && intake?.request
       ? Object.freeze({ ...intake.request, origin_resource_ids: [...(intake.request.origin_resource_ids || [])] })
       : null;
@@ -1551,9 +1620,6 @@ import {
       event.preventDefault();
       document.getElementById("chatForm").requestSubmit();
     });
-    document.getElementById("startWorkflowButton").addEventListener("click", () => {
-      startWorkflow();
-    });
     for (const button of document.querySelectorAll("[data-intake-mode]")) {
       button.addEventListener("click", () => {
         if (busy || viewOnly || job) return;
@@ -1594,6 +1660,7 @@ import {
       intakeCanStart = false;
       validatedIntakeRequest = null;
       matchedAppendProject = null;
+      startupFeedback = null;
       renderIntake();
     });
   }

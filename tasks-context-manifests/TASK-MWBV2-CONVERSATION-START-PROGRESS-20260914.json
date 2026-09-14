@@ -1,0 +1,92 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914",
+  "task_ref": "tasks/TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T07:45:37.000Z",
+  "updated_at": "2026-09-14T09:15:01.000Z",
+  "base_revision": "0bd3d3e0e5431ea4b5897c4dd39625c640c491a2",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-CONVERSATION-START-PROGRESS-20260914.json",
+    "project.state.json",
+    "frontend/app.js",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "forbidden_actions": [
+    "修改账户预检、平台写入、Plan confirmation 或数据库合同",
+    "执行未授权的外部平台写入",
+    "保存凭据或原始平台响应"
+  ],
+  "stop_conditions": [
+    "需要修改账户预检、平台写入、API 或数据库合同",
+    "无法取得隔离页面回归的验证证据"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-02", "command": "npm run test:workbench-progress"},
+    {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation && npm run test:workbench-client-pages && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T07:50:00.000Z",
+      "summary": "隔离浏览器覆盖自然语言、JSON、追加视频、草稿切换和 560px 窄屏下唯一对话启动卡片。",
+      "evidence_refs": ["scripts/00-workbench-client-pages-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-address",
+      "verified_at": "2026-09-14T07:50:00.000Z",
+      "summary": "进度回归验证启动前侧栏、取得 Job 后服务端节点投影和已有 Job 启动失败时保留节点进度。",
+      "evidence_refs": ["scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-address-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:workbench-conversation && npm run test:new-account-monitor-bridge && npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T07:50:00.000Z",
+      "summary": "对话回归、账户预检 fail-closed 回归和浏览器回归均通过；未执行平台写入。",
+      "evidence_refs": ["scripts/00-workbench-conversation-smoke.mjs", "scripts/00-new-account-monitor-bootstrap-bridge-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "不改变已批准的统一 LaunchRequest、Gate 或执行方案，仅改善其既有工作台反馈。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "补充启动前前端状态与实际 Job 服务端节点投影之间的边界。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "启动入口移至对话卡片；启动即显示右侧受控阶段，Job 建立后展示既有节点投影，并保留启动失败提示。",
+    "side_effects": "仅修改前端展示、当前逻辑图和隔离回归；未调用平台写入。",
+    "remaining_risks": ["账户预检的实际业务阻断仍需按受控提示处理，本任务不改变其规则。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-14T09:15:01.000Z"
+}
