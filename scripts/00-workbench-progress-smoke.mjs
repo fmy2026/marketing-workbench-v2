@@ -217,8 +217,10 @@ assert(clientSource.includes("rail.hidden = !job && !startupFeedback"), "startup
 assert(clientSource.includes("workflow-startup-state"), "startup_rail_state_missing");
 assert(clientSource.includes('starting ? "启动中…"'), "startup_button_busy_copy_missing");
 assert(clientSource.includes("if (busy || viewOnly || job || !canStartCurrentDraft()) return;"), "startup_must_use_current_validated_draft");
-assert(clientSource.includes('if (request.operation === "append_project_videos")'), "frozen_request_operation_shape_missing");
-assert(clientSource.includes("origin_resource_ids: [...(request.origin_resource_ids || [])]"), "append_request_video_codes_not_frozen");
+assert(clientSource.includes("function freezeLaunchRequestSnapshot(request)"), "frozen_request_snapshot_helper_missing");
+assert(clientSource.includes("if (Array.isArray(request.origin_resource_ids))"), "append_request_video_codes_not_frozen");
+assert(clientSource.includes("return validatedIntakeRequest;"), "frozen_request_snapshot_not_reused");
+assert(!clientSource.includes("request.operation === \"append_project_videos\") {\n      return Object.freeze"), "launch_request_must_not_be_field_filtered_by_operation");
 assert(clientSource.includes("启动阶段未完成"), "job_startup_failure_state_missing");
 assert(clientSource.includes("已保留当前节点进度，请查看状态后再处理"), "job_startup_failure_progress_copy_missing");
 assert(!clientSource.includes("本次处理未完成，请刷新后重试"), "legacy_internal_error_refresh_copy_still_present");

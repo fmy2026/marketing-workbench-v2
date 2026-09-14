@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T08:17:45.981Z",
+  "updated_at": "2026-09-14T08:33:39.056Z",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -28,6 +28,7 @@
     "scripts/00-workbench-mode-switch.mjs",
     "scripts/00-workbench-client-pages-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
+    "tests/support/http-server.mjs",
     "tests/run.mjs",
     "src/platforms/qiankunCredentialStore.mjs",
     "docs/Solution Design.md",
@@ -66,33 +67,33 @@
       "acceptance_id": "AC-02",
       "status": "passed",
       "command": "npm run test:workbench-client-pages",
-      "verified_at": "2026-09-14T08:12:00.000Z",
-      "summary": "自然语言和 JSON 均只呈现一个启动卡片；编辑输入即时失效，点击后按钮原位显示启动中。",
+      "verified_at": "2026-09-14T08:33:39.056Z",
+      "summary": "自然语言和 JSON 的完整 Intake 均只呈现一个启动卡片；编辑输入即时失效，点击期间按钮原位显示启动中。",
       "evidence_refs": ["scripts/00-workbench-client-pages-smoke.mjs", "frontend/app.js"]
     },
     {
       "acceptance_id": "AC-03",
       "status": "passed",
       "command": "npm run test:workbench-client-pages; npm run test:workbench-progress",
-      "verified_at": "2026-09-14T08:12:00.000Z",
-      "summary": "慢启动立即展开侧栏、重复点击只发起一次请求；预检失败显示受控说明，Job 进度仍只读取服务端投影。",
+      "verified_at": "2026-09-14T08:33:39.056Z",
+      "summary": "慢启动立即展开侧栏、重复点击只发起一次请求；追加视频和 JSON 都实际创建 Case/Job、发起 readonly，并由服务端投影节点。",
       "evidence_refs": ["scripts/00-workbench-client-pages-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs"]
     },
     {
       "acceptance_id": "AC-04",
       "status": "passed",
-      "command": "npm run test:workbench-client-pages; npm run test:workbench-auth-http; npm run validate:schemas",
-      "verified_at": "2026-09-14T08:14:00.000Z",
-      "summary": "隔离浏览器、认证 HTTP 与 Schema 回归均通过，浏览器回归包含窄屏卡片和输入框布局检查。",
+      "command": "npm run test:launch-request; npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; npm run test:workbench-auth-http",
+      "verified_at": "2026-09-14T08:33:39.056Z",
+      "summary": "请求合同、追加视频、进度、隔离浏览器和认证 HTTP 回归均通过；浏览器回归覆盖窄屏、输入失效、慢请求和重复点击。",
       "evidence_refs": ["scripts/00-workbench-client-pages-smoke.mjs", "tests/run.mjs"]
     },
     {
       "acceptance_id": "AC-05",
-      "status": "passed",
-      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root /Users/hys/Projects/marketing-workbench-v2/.local/releases/24f92005f636fe763af34b5edebe8f1e3b56eb0e; curl static checksum; sanitized account preflight",
-      "verified_at": "2026-09-14T08:17:45.981Z",
-      "summary": "revision 24f9200 已在公司模式运行；LAN 返回的 app.js 与 release 文件一致，运行版凭据路径可读；受影响账户的乾坤只读预检通过并实际调用 accountIndex。",
-      "evidence_refs": [".local/releases/24f92005f636fe763af34b5edebe8f1e3b56eb0e/.workbench-release.json", "scripts/00-workbench-mode-switch.mjs"]
+      "status": "not_run",
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; curl static checksum; owner launch verification",
+      "verified_at": "2026-09-14T08:33:39.056Z",
+      "summary": "本次请求快照修复尚未发布到公司模式。",
+      "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
     }
   ],
   "documentation_updates": [
@@ -114,9 +115,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "修复发布版共享乾坤凭据读取，收拢启动入口并补齐启动反馈和浏览器回归；受影响账户的只读预检已通过。",
-    "side_effects": "发布新的固定 release 并重载本机公司模式 LaunchAgent；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["已打开的浏览器标签需要刷新后加载新的静态页面。"],
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题，并补齐实际 Case/Job/readonly 浏览器回归；等待本次 release 发布与本人工作台验证。",
+    "side_effects": "本轮仅执行隔离测试；未执行平台写入或 Plan 确认。",
+    "remaining_risks": ["本次修复尚未发布到公司模式；实际账户只读启动仍待发布后验证。"],
     "business_evidence_refs": []
   },
   "closed_at": null

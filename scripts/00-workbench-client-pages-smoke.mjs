@@ -1,15 +1,26 @@
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { upsertQiankunCredential } from "../src/platforms/qiankunCredentialStore.mjs";
 
 const origin = process.env.MWBV2_TEST_ORIGIN;
 const loginName = process.env.MWBV2_TEST_LOGIN_NAME || "";
 const password = process.env.MWBV2_TEST_PASSWORD || "";
 const nextPassword = process.env.MWBV2_TEST_NEW_PASSWORD || "";
+const qiankunEnvPath = process.env.QIANKUN_MONITOR_ENV_PATH || "";
+const qiankunCredentialStorePath = process.env.QIANKUN_CREDENTIAL_STORE_PATH || "";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-if (!origin || !loginName || !password || !nextPassword) throw new Error("isolated_browser_test_credentials_required");
+if (!origin || !loginName || !password || !nextPassword || !qiankunEnvPath || !qiankunCredentialStorePath) throw new Error("isolated_browser_test_credentials_required");
 await access(chromePath);
+await writeFile(qiankunEnvPath, `QIANKUN_API_BASE_URL=https://qiankun.test\nQIANKUN_CREDENTIAL_STORE_PATH=${qiankunCredentialStorePath}\n`, { mode: 0o600 });
+upsertQiankunCredential({
+  ownerKey: "test_admin",
+  ownerName: "Test Admin",
+  passportToken: "synthetic-passport-token",
+  envPath: qiankunEnvPath,
+  storePath: qiankunCredentialStorePath
+});
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -64,6 +75,7 @@ const chrome = spawn(chromePath, [
   "about:blank"
 ], { stdio: "ignore" });
 
+let jsonBrowser = null;
 try {
   process.env.MWBV2_TEST_ORIGIN = `http://127.0.0.1:${port}`;
   const target = await until(async () => {
@@ -145,12 +157,16 @@ try {
     const originalFetch = window.fetch;
     window.__originalFetch = originalFetch;
     window.__startCaseCalls = 0;
+    window.__workflowRequests = [];
     window.fetch = async (...args) => {
       const request = String(args[0]);
       const options = args[1] || {};
       if (request === "/api/workflow-cases" && options.method === "POST") {
         window.__startCaseCalls += 1;
         await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      if (options.method === "POST" && (request === "/api/workflow-cases" || request === "/api/launch/jobs" || /\\/api\\/launch\\/jobs\\/[^/]+\\/run$/.test(request))) {
+        window.__workflowRequests.push({ request, body: options.body ? JSON.parse(options.body) : null });
       }
       const response = await originalFetch(...args);
       return response;
@@ -165,9 +181,9 @@ try {
   await until(() => evaluate("document.querySelector('#agentStatus').textContent === '启动受阻'"), "startup_preflight_failure");
   assert(await evaluate("document.querySelector('#workflowRail').textContent.includes('流程尚未建立')"), "preflight_failure_missing_startup_rail_state");
   const startupFailureCopy = await evaluate("document.querySelector('.conversation-start-card').textContent");
-  assert(/服务未读取到乾坤授权配置|账户预检暂未完成/.test(startupFailureCopy), `preflight_failure_missing_controlled_copy:${startupFailureCopy}`);
+  assert(/账户索引未确认唯一的账户身份|账户预检暂未完成/.test(startupFailureCopy), `preflight_failure_missing_controlled_copy:${startupFailureCopy}`);
   assert(await evaluate("document.querySelectorAll('.conversation-start-card').length === 1"), "preflight_failure_duplicated_start_card");
-  await evaluate("window.fetch = window.__originalFetch");
+  await evaluate("window.__startCaseCalls = 0; window.__workflowRequests = []");
 
   await click('[data-intake-mode="json"]');
   await until(() => visible("#structuredRequestPanel"), "json_panel");
@@ -211,11 +227,98 @@ try {
   await browser.call("Emulation.setDeviceMetricsOverride", { width: 560, height: 700, deviceScaleFactor: 1, mobile: false });
   assert(await evaluate("(() => { const card = document.querySelector('.conversation-start-card'); const input = document.querySelector('#chatInput'); const cardRect = card?.getBoundingClientRect(); const inputRect = input?.getBoundingClientRect(); return cardRect && inputRect && cardRect.width <= window.innerWidth && inputRect.bottom <= window.innerHeight - 16; })()"), "narrow_start_card_or_input_layout_invalid");
   await browser.call("Emulation.clearDeviceMetricsOverride");
+  await click(".conversation-start-card .start-button");
+  assert(await visible("#workflowRail"), "append_start_did_not_open_workflow_rail");
+  assert(await evaluate("document.querySelector('.conversation-start-card .start-button').disabled"), "append_start_button_not_disabled");
+  await click(".conversation-start-card .start-button");
+  assert((await evaluate("window.__startCaseCalls")) === 1, "append_start_request_repeated_while_busy");
+  await until(() => visible("#commandBar"), "append_job_created");
+  await until(() => evaluate("window.__workflowRequests.some((item) => /\\/api\\/launch\\/jobs\\/[^/]+\\/run$/.test(item.request))"), "append_readonly_started");
+  const appendRequests = await evaluate("window.__workflowRequests");
+  const appendCaseRequest = appendRequests.find((item) => item.request === "/api/workflow-cases")?.body?.request;
+  const appendJobRequest = appendRequests.find((item) => item.request === "/api/launch/jobs")?.body?.request;
+  assert(JSON.stringify(appendCaseRequest) === JSON.stringify(appendJobRequest), "append_case_and_job_request_snapshot_diverged");
+  assert(appendCaseRequest?.route_id === "oceanengine_3_byte_mini_game" && appendCaseRequest?.game_code === "JSZC", "append_hydrated_context_missing_from_start_request");
+  assert((appendCaseRequest?.origin_resource_ids || []).join(",") === "video-A,video-B", "append_start_request_videos_changed");
+  assert(await evaluate("document.querySelectorAll('#workflowRail .phase-section').length === 3"), "append_job_nodes_not_rendered");
   const inputBottom = await evaluate("(() => { const rect = document.querySelector('#chatInput').getBoundingClientRect(); return { bottom: rect.bottom, height: window.innerHeight }; })()");
   assert(inputBottom.bottom <= inputBottom.height - 24, `chat_input_bottom_spacing_missing:${JSON.stringify(inputBottom)}`);
+  const createdTarget = await browser.call("Target.createTarget", { url: "about:blank" });
+  process.env.MWBV2_TEST_ORIGIN = `http://127.0.0.1:${port}`;
+  const jsonTarget = await until(async () => {
+    try {
+      const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+      return tabs.find((tab) => tab.id === createdTarget.targetId) || false;
+    } catch {
+      return false;
+    }
+  }, "json_cdp_target");
+  jsonBrowser = cdp(jsonTarget.webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => {
+    jsonBrowser.socket.addEventListener("open", resolve, { once: true });
+    jsonBrowser.socket.addEventListener("error", reject, { once: true });
+  });
+  process.env.MWBV2_TEST_ORIGIN = origin;
+  await jsonBrowser.call("Page.enable");
+  await jsonBrowser.call("Runtime.enable");
+  const jsonEvaluate = async (expression) => {
+    const result = await jsonBrowser.call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+    if (result.exceptionDetails) throw new Error(`json_page_exception:${result.exceptionDetails.text}`);
+    return result.result?.value;
+  };
+  const jsonPresent = (selector) => jsonEvaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+  const jsonVisible = (selector) => jsonEvaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); return Boolean(node && !node.hidden); })()`);
+  const jsonFill = (selector, value) => jsonEvaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  const jsonClick = (selector) => jsonEvaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  await jsonBrowser.call("Page.navigate", { url: `${origin}/agents/launch-creation` });
+  await until(() => jsonPresent("#conversationModule:not([hidden])") || jsonPresent(".agent-open-button:not([disabled])"), "json_workspace_or_hub");
+  if (await jsonPresent(".agent-open-button:not([disabled])")) {
+    await jsonClick(".agent-open-button:not([disabled])");
+    await until(() => jsonPresent("#conversationModule:not([hidden])"), "json_conversation_workspace");
+  }
+  await jsonClick('[data-intake-mode="json"]');
+  await until(() => jsonVisible("#structuredRequestPanel"), "json_panel_for_start");
+  const jsonRequest = {
+    schema_version: "launch-request.v1",
+    operation: "create_std_project",
+    route_id: "oceanengine_3_byte_mini_game",
+    game_code: "JSZC",
+    advertiser_id: "9000000000000001"
+  };
+  await jsonFill("#structuredRequestInput", JSON.stringify(jsonRequest));
+  await jsonClick("#submitStructuredRequest");
+  await until(() => jsonPresent(".conversation-start-card"), "json_ready_for_start");
+  await jsonFill("#structuredRequestInput", JSON.stringify({ ...jsonRequest, advertiser_id: "9000000000000002" }));
+  assert(!await jsonPresent(".conversation-start-card"), "editing_json_input_retained_stale_start_card");
+  await jsonFill("#structuredRequestInput", JSON.stringify(jsonRequest));
+  await jsonClick("#submitStructuredRequest");
+  await until(() => jsonPresent(".conversation-start-card"), "json_ready_after_edit");
+  await jsonEvaluate(`(() => {
+    const originalFetch = window.fetch;
+    window.__workflowRequests = [];
+    window.fetch = async (...args) => {
+      const request = String(args[0]);
+      const options = args[1] || {};
+      if (options.method === "POST" && (request === "/api/workflow-cases" || request === "/api/launch/jobs" || /\\/api\\/launch\\/jobs\\/[^/]+\\/run$/.test(request))) {
+        window.__workflowRequests.push({ request, body: options.body ? JSON.parse(options.body) : null });
+      }
+      return originalFetch(...args);
+    };
+  })()`);
+  await jsonClick(".conversation-start-card .start-button");
+  await until(() => jsonVisible("#commandBar"), "json_job_created");
+  await until(() => jsonEvaluate("window.__workflowRequests.some((item) => /\\/api\\/launch\\/jobs\\/[^/]+\\/run$/.test(item.request))"), "json_readonly_started");
+  const jsonRequests = await jsonEvaluate("window.__workflowRequests");
+  const jsonCaseRequest = jsonRequests.find((item) => item.request === "/api/workflow-cases")?.body?.request;
+  const jsonJobRequest = jsonRequests.find((item) => item.request === "/api/launch/jobs")?.body?.request;
+  assert(JSON.stringify(jsonCaseRequest) === JSON.stringify(jsonRequest), "json_case_request_not_preserved");
+  assert(JSON.stringify(jsonJobRequest) === JSON.stringify(jsonRequest), "json_job_request_not_preserved");
+  assert(await jsonEvaluate("document.querySelectorAll('#workflowRail .phase-section').length === 3"), "json_job_nodes_not_rendered");
+  jsonBrowser.socket.close();
   browser.socket.close();
-  console.log(JSON.stringify({ status: "passed", browser: "chrome-headless", interactions: ["login", "natural-partial", "input-switch", "json-template", "structured-validate", "verified-project-append"], realPlatformWrites: 0 }, null, 2));
+  console.log(JSON.stringify({ status: "passed", browser: "chrome-headless", interactions: ["login", "natural-partial", "input-switch", "append-start", "json-start"], realPlatformWrites: 0 }, null, 2));
 } finally {
+  jsonBrowser?.socket.close();
   chrome.kill("SIGTERM");
   await rm(directory, { recursive: true, force: true });
 }

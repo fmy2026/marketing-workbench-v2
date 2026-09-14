@@ -35,7 +35,8 @@ for (const file of files) {
     }
     if (httpTest) server = await startTestServer(database.database, {
       OCEANENGINE_ENV_PATH: join(directory, "oceanengine.env"), QIANKUN_MONITOR_ENV_PATH: join(directory, "qiankun.env"),
-      QIANKUN_CREDENTIAL_STORE_PATH: qiankunCredentialStorePath
+      QIANKUN_CREDENTIAL_STORE_PATH: qiankunCredentialStorePath,
+      ...(file === "scripts/00-workbench-client-pages-smoke.mjs" ? { MWBV2_TEST_QIANKUN_ACCOUNT_INDEX: "1" } : {})
     });
     const env = { ...process.env, OCEANENGINE_ENV_PATH: join(directory, "oceanengine.env"), QIANKUN_MONITOR_ENV_PATH: join(directory, "qiankun.env"),
       QIANKUN_CREDENTIAL_STORE_PATH: qiankunCredentialStorePath,

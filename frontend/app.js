@@ -1138,6 +1138,10 @@ import {
   }
 
   function showError(error, { stage = "" } = {}) {
+    if (isLaunchRequestValidationError(error)) {
+      message("agent", "启动参数校验失败，请重新检查后再试。");
+      return;
+    }
     if (error?.message === "account_bootstrap_blocked") {
       message("agent", `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} ${accountBootstrapNextStep(error.details?.blockers)}`);
       return;
@@ -1226,7 +1230,7 @@ import {
     return draftCaseKey;
   }
 
-  async function ensureWorkflowCase({ diagnosticStage = "" } = {}) {
+  async function ensureWorkflowCase({ request, diagnosticStage = "" } = {}) {
     if (draftCaseId) return { caseId: draftCaseId, reusedActiveCase: false };
     try {
       const workflowCase = await api("/api/workflow-cases", {
@@ -1234,7 +1238,7 @@ import {
         diagnosticStage,
         body: JSON.stringify({
           case_key: createCaseKey(),
-          request: frozenLaunchRequest(),
+          request,
           business_goal: draftIntake.operation === "append_project_videos"
             ? "从工作台启动一次受控项目视频追加流程。"
             : "从工作台启动一次受控标准项目创建流程。",
@@ -1265,7 +1269,8 @@ import {
     setBusy(true);
     let startupStage = "创建 Case";
     try {
-      const selectedCase = await ensureWorkflowCase({ diagnosticStage: "start_workflow_create_case" });
+      const request = frozenLaunchRequest();
+      const selectedCase = await ensureWorkflowCase({ request, diagnosticStage: "start_workflow_create_case" });
       if (selectedCase.approvedReplacementCase && selectedCase.replacementJobId) {
         startupStage = "启动 readonly";
         setJobView(await api(jobViewPath(selectedCase.replacementJobId)));
@@ -1293,7 +1298,7 @@ import {
         method: "POST",
         diagnosticStage: "start_workflow_create_job",
         body: JSON.stringify({
-          request: frozenLaunchRequest(),
+          request,
           case_id: selectedCase.caseId,
           source_usage: "runtime_truth",
           source_record_ref: `workbench:${draftIntake.schema_version}`
@@ -1307,16 +1312,19 @@ import {
       message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
       await runWorkflow(job.jobId, { diagnosticStage: "start_workflow_run_readonly" });
     } catch (error) {
+      const validationError = isLaunchRequestValidationError(error);
       startupFeedback = {
         status: "blocked",
         stage: startupStage,
         message: error?.message === "account_bootstrap_blocked"
           ? `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} ${accountBootstrapNextStep(error.details?.blockers)}`
+          : validationError
+            ? "启动参数校验失败，请重新检查后再试。"
           : job
             ? `“${startupStage}”未完成；已保留当前节点进度，请查看状态后再处理。`
             : `“${startupStage}”未完成；当前未建立可继续的流程。请处理后重新检查。`
       };
-      if (error?.message !== "account_bootstrap_blocked") showError(error, { stage: startupStage });
+      if (error?.message !== "account_bootstrap_blocked" && !validationError) showError(error, { stage: startupStage });
     } finally {
       setBusy(false);
     }
@@ -1335,7 +1343,7 @@ import {
     intakeCanStart = intake?.can_start === true;
     if (!job) startupFeedback = null;
     validatedIntakeRequest = intakeCanStart && intake?.request
-      ? Object.freeze({ ...intake.request, origin_resource_ids: [...(intake.request.origin_resource_ids || [])] })
+      ? freezeLaunchRequestSnapshot(intake.request)
       : null;
     matchedAppendProject = intake?.project || null;
     draftCaseId = "";
@@ -1344,23 +1352,20 @@ import {
 
   function frozenLaunchRequest() {
     if (!validatedIntakeRequest) throw new Error("intake_request_not_validated");
-    const request = validatedIntakeRequest;
-    if (request.operation === "append_project_videos") {
-      return Object.freeze({
-        schema_version: request.schema_version,
-        operation: request.operation,
-        advertiser_id: request.advertiser_id,
-        project_id: request.project_id,
-        origin_resource_ids: [...(request.origin_resource_ids || [])]
-      });
+    return validatedIntakeRequest;
+  }
+
+  function freezeLaunchRequestSnapshot(request) {
+    const snapshot = { ...request };
+    if (Array.isArray(request.origin_resource_ids)) {
+      snapshot.origin_resource_ids = Object.freeze([...request.origin_resource_ids]);
     }
-    return Object.freeze({
-      schema_version: request.schema_version,
-      operation: request.operation,
-      route_id: request.route_id,
-      game_code: request.game_code,
-      advertiser_id: request.advertiser_id
-    });
+    return Object.freeze(snapshot);
+  }
+
+  function isLaunchRequestValidationError(error) {
+    const fields = error?.details?.fields;
+    return Array.isArray(fields) && /request (缺少必填字段|包含未知字段)/.test(String(error?.message || ""));
   }
 
   function setActiveCaseUrl(caseId) {
