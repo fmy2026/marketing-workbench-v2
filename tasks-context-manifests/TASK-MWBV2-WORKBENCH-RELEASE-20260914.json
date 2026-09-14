@@ -1,0 +1,81 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-RELEASE-20260914",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-RELEASE-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T07:56:00.000Z",
+  "updated_at": "2026-09-14T09:15:02.000Z",
+  "base_revision": "35d056a7a105a7ad7ab1fbc9cba2bcd0abbee618",
+  "baseline_dirty_files": {},
+  "domains": ["control"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-RELEASE-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-RELEASE-20260914.json",
+    "docs/Solution Design.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-WORKBENCH-RELEASE-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-RELEASE-20260914.json",
+    "project.state.json",
+    ".local/releases/**"
+  ],
+  "forbidden_actions": [
+    "修改代码、数据库、账户预检、平台写入或业务 Plan",
+    "保存或输出凭据"
+  ],
+  "stop_conditions": [
+    "release 构建或 LaunchAgent 重载失败且无法自动恢复",
+    "根地址无法验证最新静态页面"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run workbench:release"},
+    {"acceptance_id": "AC-02", "command": "npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>"},
+    {"acceptance_id": "AC-03", "command": "curl --noproxy '*' http://192.168.42.7:3000/app.js"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run workbench:release",
+      "verified_at": "2026-09-14T09:15:02.000Z",
+      "summary": "生成的 release revision 为 35d056a7a105a7ad7ab1fbc9cba2bcd0abbee618。",
+      "evidence_refs": [".local/releases/35d056a7a105a7ad7ab1fbc9cba2bcd0abbee618/.workbench-release.json"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root /Users/hys/Projects/marketing-workbench-v2/.local/releases/35d056a7a105a7ad7ab1fbc9cba2bcd0abbee618",
+      "verified_at": "2026-09-14T09:15:02.000Z",
+      "summary": "公司模式已应用，192.168.42.7:3000 根地址返回 HTTP 200。",
+      "evidence_refs": ["deploy/README.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "curl --noproxy '*' http://192.168.42.7:3000/app.js",
+      "verified_at": "2026-09-14T09:15:02.000Z",
+      "summary": "返回内容包含对话启动卡片、启动阶段和右侧启动状态标识；运行进程 cwd 为该 release。",
+      "evidence_refs": ["frontend/app.js"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "仅将已批准并已验证的提交发布到本机服务，不改变方案或运行合同。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "工作台已从旧 release 切换到 35d056a，并由局域网 HTTP 响应验证。",
+    "side_effects": "重载本机 LaunchAgent；未执行平台业务写入。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-14T09:15:02.000Z"
+}
