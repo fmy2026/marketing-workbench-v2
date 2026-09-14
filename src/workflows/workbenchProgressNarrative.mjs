@@ -28,9 +28,6 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
     return Object.freeze({ shortLabel: "历史运行，只读", message: "这是历史运行，只读查看；不会执行或创建。" });
   }
   const currentGate = clean(caseGate.currentGate || caseGate.current_gate);
-  if (progress?.executionPhase) {
-    return Object.freeze({ shortLabel: "已确认执行", message: `已完成 ${progress.completedCount}/${progress.totalCount}，当前第 ${progress.currentNodeNumber} 节点：${progress.currentNodeLabel}；${progress.executionPhase}。` });
-  }
   const append = clean(caseGate.operation) === "append_project_videos";
   const messages = {
     create_fresh_job: "已收到完整需求，正在建立本次流程。",
@@ -58,6 +55,9 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
         ? `检查已完成，等待你核对并输入完整短语“${phrase}”确认${action}。`
         : "检查已完成，等待你核对并完成受控确认。"
     });
+  }
+  if (progress?.executionPhase) {
+    return Object.freeze({ shortLabel: "执行中", message: `已完成 ${progress.completedCount}/${progress.totalCount}，当前第 ${progress.currentNodeNumber} 节点：${progress.currentNodeLabel}；${progress.executionPhase}。` });
   }
   if (currentGate === "resolve_case_blocker") {
     return Object.freeze({ shortLabel: "流程受阻", message: blockerMessage(caseGate) });

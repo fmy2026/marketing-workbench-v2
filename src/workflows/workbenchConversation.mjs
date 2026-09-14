@@ -15,7 +15,12 @@ import {
 } from "./launchWorkflow.mjs";
 import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
 import { executeConfirmedMonitorBootstrap } from "./skills/oe3/02-monitor/executor.mjs";
-import { PLAN_KIND_MONITOR_BOOTSTRAP, PLAN_KIND_RESOURCE_PREPARE } from "./executionPlan.mjs";
+import {
+  PLAN_KIND_MONITOR_BOOTSTRAP,
+  PLAN_KIND_PROJECT_VIDEO_APPEND,
+  PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH,
+  PLAN_KIND_RESOURCE_PREPARE
+} from "./executionPlan.mjs";
 import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
 import { finalizeVerifiedStdProjectRuntimeCase } from "./finalizeVerifiedStdProjectRuntimeCase.mjs";
 
@@ -473,13 +478,20 @@ export async function handleWorkbenchCommand({
       message: executionBlocked
         ? (() => {
             const executionBlocker = (isMonitorBootstrap || isResourcePrepare ? executed.blockers?.[0] : executed.executionGrant?.blockers?.[0]) || "";
-            const blocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0] || executionBlocker);
-            const presentation = nextView?.caseGate?.rootBlocker || presentRootBlocker(blocker);
+            const summaryBlocker = clean(nextView?.caseGate?.rootBlockerCodes?.[0]);
+            const blocker = summaryBlocker || clean(executionBlocker);
+            const presentation = blocker
+              ? (summaryBlocker ? (nextView?.caseGate?.rootBlocker || presentRootBlocker(blocker)) : presentRootBlocker(blocker))
+              : null;
             return blocker === "qiankun_account_identity_changed_since_plan" || blocker === "monitor_fresh_readonly_contract_drift"
               ? "账户监测身份已更新，旧 Plan 已失效；请重新只读准备。"
               : resourcePlatformWriteCalled
-                ? `受控资源动作已调用平台，但权威只读回查未确认；不会重发该平台动作。${presentation.nextActionLabel}`
-              : `未执行受控动作：${presentation.title}。${presentation.nextActionLabel}`;
+                ? presentation
+                  ? `受控资源动作已调用平台，但权威只读回查未确认；不会重发该平台动作。${presentation.nextActionLabel}`
+                  : "受控资源动作已调用平台，但权威只读回查未确认；不会重发，请重新只读核验。"
+                : presentation
+                ? `未执行受控动作：${presentation.title}。${presentation.nextActionLabel}`
+                : "受控动作未完成权威回查；不会重发，请重新只读核验。";
           })()
         : isMonitorBootstrap
           ? "monitor 已按单次 Plan 执行并完成只读回查；工作台已自动按 Gate 继续 readonly。"
@@ -497,6 +509,15 @@ export async function handleWorkbenchCommand({
                   : "资源 Plan 已执行并完成回查；fresh Job 尚未生成创建确认卡，请刷新后按当前 Gate 继续。";
               })()
             : (() => {
+                if (confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH) {
+                  const appendConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
+                    nextView?.confirmationPreview?.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND;
+                  if (appendConfirmation) return "素材推送已完成权威回查；当前 Job 已生成追加视频确认卡。";
+                  return "素材推送已完成；当前 Job 尚未完成只读回查，请按当前状态继续核验。";
+                }
+                if (confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND) {
+                  return "追加视频已执行；正在按当前 Plan 的结果回查。";
+                }
                 const readback = nextView?.execution?.readbackStatus || nextView?.readback?.readback_status || "";
                 return ["readback_verified", "created_pending_readback", "not_found_after_create", "project_id_mismatch", "project_name_mismatch", "confirmed_create_object_id_missing"].includes(readback)
                   ? "单次创建已提交，已按结果进入只读回查。"

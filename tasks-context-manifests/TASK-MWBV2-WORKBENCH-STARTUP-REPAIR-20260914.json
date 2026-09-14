@@ -4,10 +4,10 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T18:09:16.000+08:00",
+  "updated_at": "2026-09-14T19:10:00.000+08:00",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
-  "domains": ["control", "workflow", "deploy"],
+  "domains": ["control", "workflow", "data", "deploy"],
   "read_order": [
     "AGENTS.md",
     "project.state.json",
@@ -15,6 +15,7 @@
     "tasks-context-manifests/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.json",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
     "docs/qiankun-api-docs-20260911.md",
     "deploy/README.md"
   ],
@@ -40,6 +41,8 @@
     "src/workflows/gateActionPolicy.mjs",
     "src/workflows/workbenchConversation.mjs",
     "src/workflows/workbenchProgressNarrative.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/repositories/postgresRepository.mjs",
     "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
@@ -47,6 +50,7 @@
     "scripts/00-workbench-conversation-smoke.mjs",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
     "deploy/README.md",
     ".local/releases/**"
   ],
@@ -69,6 +73,7 @@
     {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"},
     {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; case-sensitive readonly recheck"},
     {"acceptance_id": "AC-07", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; owner readonly recheck of existing Case"}
+    ,{"acceptance_id": "AC-08", "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; owner readonly recheck of existing Case"}
   ],
   "validation_results": [
     {
@@ -109,7 +114,7 @@
       "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b; launchctl print; curl http://192.168.42.7:3000/ and /app.js SHA-256",
       "verified_at": "2026-09-14T18:32:09+08:00",
       "summary": "公司模式已成功重载至 release 17ccc80c8c00a91787c0e110ef007e4fe1e6195b；LaunchAgent 工作目录、根地址响应和在线 app.js 摘要均与该 release 一致，共享凭据可读检查由模式切换器完成。账户本人对既有 Case 的新版只读核验待浏览器连接恢复后执行。",
-      "evidence_refs": [".local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b", "scripts/00-workbench-mode-switch.mjs"]
+      "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
     },
     {
       "acceptance_id": "AC-06",
@@ -126,6 +131,14 @@
       "verified_at": "2026-09-14T18:29:49+08:00",
       "summary": "32 位字母数字视频 ID 在推送 Plan、请求 hash 与追加请求体中保持原始字符串及大小写；空值受控阻断。单批、双批、本人/非本人、旧 Plan、关闭策略和重复确认均按冻结 Plan 的一次确认规则验证；右侧标题继续按事项固定显示 3 阶段 7 节点。",
       "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/platforms/oceanengineVideoMaterialExecutor.mjs", "src/workflows/executionGrantScope.mjs", "src/workflows/workbenchProgressNarrative.mjs", "frontend/app.js", "frontend/workbench-progress.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-runtime-write-policy-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-08",
+      "status": "passed",
+      "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-runtime-policy; npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T19:10:00.000+08:00",
+      "summary": "隔离数据库验证推送动作与目标库存回查分开落库：只有 readback_verified 才使 Job 回到后续 readonly；未确认时 Plan 被消费、Job 停在 Node 04 并保留具体 blocker。追加 Plan 仅保留待追加项，确认卡显示总核验、项目已有和待追加数量；确认 Gate 不再显示为已确认执行。",
+      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/repositories/postgresRepository.mjs", "src/workflows/executeConfirmedLaunch.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
@@ -140,6 +153,11 @@
       "reason": "明确启动卡片、真实启动阶段、追加项目素材过滤与字符串视频 ID 合同、唯一 blocker、右侧固定标题和 Job 后节点投影。"
     },
     {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "明确追加素材推送与目标库存回查分别记录，以及未确认回查的单次消费边界。"
+    },
+    {
       "ref": "deploy/README.md",
       "status": "updated",
       "reason": "说明固定 release 的共享凭据路径注入与可读检查。"
@@ -147,10 +165,10 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。当前补充修复素材推送与追加链错误限定数字视频 ID 的问题，并打通推送 Plan 的本人确认资格。",
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。素材推送现在以独立库存回查收口：只有回查通过才自动编译后续追加 Plan，未确认时保留具体 blocker 且不重发。",
     "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认不透明字符串视频 ID 生成独立素材推送确认卡；不得在验证中确认推送或追加视频。浏览器自动化连接尚不可用，未能代为刷新或发起该只读核验。"],
-    "business_evidence_refs": ["release:17ccc80c8c00a91787c0e110ef007e4fe1e6195b", "runtime:http://192.168.42.7:3000/app.js:sha256:c45d56d7c9ef21aed1891f0ee94fac691e298778d11bb13b08acd16d04b67c96"]
+    "remaining_risks": ["账户本人仍需在既有 Case 上点击“开始只读核验”，以在不重发已消费推送 Plan 的前提下生成只含待追加视频的“确认追加视频”卡；不得在验证中确认追加视频。浏览器自动化连接尚不可用，未能代为刷新或发起该只读核验。"],
+    "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-718FF962130E387B3A", "postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260914083827-59ABB4-APPEND-V6"]
   },
   "closed_at": null
 }

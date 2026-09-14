@@ -150,6 +150,13 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     presentation: actions.find((action) => actionType(action) === type)?.presentation || null
   }));
   const maximumPlatformCalls = Number(scope.maximum_platform_calls || actions.reduce((sum, action) => sum + Number(action.maximum_platform_calls || 0), 0) || scope.maximum_actions || 1);
+  const appendSummary = isProjectVideoAppendPlan || isProjectVideoMaterialPushPlan
+    ? {
+      requestedCount: Number(metadata.append_summary?.requested_count || 0),
+      alreadyInProjectCount: Number(metadata.append_summary?.already_in_project_count || 0),
+      pendingAppendCount: Number(metadata.append_summary?.append_ready_count || 0) + Number(metadata.append_summary?.target_push_required_count || 0)
+    }
+    : null;
   return {
     status: "confirmation_required",
     planKind,
@@ -173,6 +180,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     planHash: clean(plan.plan_hash),
     targetEmptyBrandOmit,
     materialSummary,
+    appendSummary,
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),

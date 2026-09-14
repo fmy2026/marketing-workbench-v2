@@ -458,9 +458,29 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
   const wanted = batches.flatMap((batch) => batch.origin_resource_ids || batch.originResourceIds || []);
   const target = await scanOceanEngineVideoInventory({ client: readonlyClient, advertiserId, originResourceIds: wanted });
   const unresolved = (target.items || []).filter((item) => !item.videoId).map((item) => item.originResourceId);
-  return unresolved.length || target.status !== "passed"
-    ? { status: "failed_or_unconfirmed", writeCalled: true, blockers: [target.blocker || "project_video_material_push_readback_unresolved"], unresolvedOriginResourceIds: unresolved }
-    : { status: "readback_verified", writeCalled: true, pushedCount: wanted.length, projectId };
+  const readbackVerified = !unresolved.length && target.status === "passed";
+  const blocker = readbackVerified ? "" : (target.blocker || "project_video_material_push_readback_unresolved");
+  if (typeof repo.upsertReadbackRecord === "function") {
+    await repo.upsertReadbackRecord({
+      readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH`,
+      jobId: bundle.job.job_id,
+      objectType: "oc_project_video_material_push",
+      objectId: advertiserId,
+      objectName: "project_video_material_push",
+      readbackStatus: readbackVerified ? "readback_verified" : "not_found_or_mismatch",
+      fieldDiffSummary: {
+        requested_count: wanted.length,
+        verified_count: wanted.length - unresolved.length,
+        unresolved_count: unresolved.length,
+        blocker,
+        raw_response_stored: false
+      },
+      evidenceRef: `EV-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH-READBACK`
+    });
+  }
+  return readbackVerified
+    ? { status: "readback_verified", writeCalled: true, pushedCount: wanted.length, projectId }
+    : { status: "failed_or_unconfirmed", writeCalled: true, blockers: [blocker], unresolvedOriginResourceIds: unresolved };
 }
 
 export function validateProjectVideoAppendReadback({ plannedOriginResourceIds = [], foundVideoIds = [], itemMap = [] } = {}) {

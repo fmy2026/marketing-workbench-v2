@@ -108,6 +108,15 @@ assert(
   "project_append_confirmation_label_mismatch"
 );
 assert(
+  presentWorkflowProgress({
+    isLatestCaseJob: true,
+    caseGate: { currentGate: "await_job_write_authorization" },
+    confirmationPreview: { planKind: "project_video_append", confirmationPhrase: "确认追加视频" },
+    progress: { completedCount: 4, totalCount: 7, currentNodeNumber: 5, currentNodeLabel: "准备追加计划", executionPhase: "等待资源确认" }
+  }).shortLabel === "等待确认",
+  "confirmation_gate_must_not_render_as_confirmed_execution"
+);
+assert(
   progressPresentation({
     nodes,
     caseGate: { currentGate: "await_job_write_authorization", rootBlockerCodes: [], rootBlocker: { title: "无阻断" } },
@@ -223,6 +232,9 @@ assert(!clientSource.includes("输入“继续执行”重新准备下一 Attemp
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
 assert(clientSource.includes('const recoveryButton = el("button", "conversation-preset", "重新只读准备")'), "readonly_recovery_button_missing");
+assert(clientSource.includes('["本次核验", `${preview.appendSummary.requestedCount} 条`]'), "append_confirmation_requested_count_missing");
+assert(clientSource.includes('["项目已有", `${preview.appendSummary.alreadyInProjectCount} 条`]'), "append_confirmation_existing_count_missing");
+assert(clientSource.includes('["待追加", `${preview.appendSummary.pendingAppendCount} 条`]'), "append_confirmation_pending_count_missing");
 assert(clientSource.includes('submitJobCommand("重新只读准备")'), "readonly_recovery_button_must_use_existing_text_command");
 assert(clientSource.includes('const readinessButton = el("button", "conversation-preset", "开始只读核验")'), "fresh_readiness_button_missing");
 assert(clientSource.includes('submitJobCommand("继续执行")'), "fresh_readiness_button_must_use_continue_command");

@@ -737,11 +737,9 @@ function workflowProgressView(nodes = [], bundle = {}, presentation = {}) {
         ? "资源准备与回查中"
         : planStatus === "executing" && planKind === "monitor_bootstrap"
           ? "Monitor 创建与回查中"
-          : currentNode?.status === "needs_confirmation"
-            ? (currentNode.number === 6 ? "等待创建确认" : "等待资源确认")
-            : currentNode?.status === "running"
-              ? "正在处理"
-              : "";
+        : currentNode?.status === "running"
+          ? "正在处理"
+          : "";
   return {
     completedCount,
     totalCount,

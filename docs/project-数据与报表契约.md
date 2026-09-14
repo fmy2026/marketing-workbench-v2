@@ -57,7 +57,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
 | L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation ID 从 `plan_id` 派生，并保存真实 `confirmed_by_user_id`。claim 在同一事务核验 Plan/hash、latest Job、Case 生命周期和 owner；同一 Job 已确认 `std_project_create` 后不得再发布 Plan。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
 |  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于精确 `std_project/create + 40100 + 无对象 ID`，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
-|  | `readback_records`、`evidence_artifacts` | Job×回查观察、脱敏证据；每次 Node 7 `readback_only` 生成独立 readback/evidence ID，历史观察不覆盖，消费者按 `created_at` 选择最新记录 | Node 04/07 与各 executor | Case summary、审计与诊断 |
+|  | `readback_records`、`evidence_artifacts` | Job×回查观察、脱敏证据；每次 Node 7 `readback_only` 生成独立 readback/evidence ID，历史观察不覆盖，消费者按 `created_at` 选择最新记录。追加素材推送同样写独立目标库存回查，摘要只保存请求、已验证和未解决数量及受控 blocker，不保存视频 ID 或原始响应 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
 ### 核心关联
 
@@ -231,4 +231,4 @@ npm run db:backup
 
 `npm run test:unit` 运行无业务库依赖的合同测试；`npm run test:integration` 运行独立数据库及 HTTP 测试；`npm run test:workflow-regression` 聚合两者。既有专项测试命令委托同一入口。`tests/isolation.test.mjs` 单独验证禁止业务库连接、仅导入结构和清理结果。缺少夹具或未配置的外部请求使测试失败，不能作为跳过项。测试库所需 PostgreSQL 建库权限仅用于本地回归；应用默认数据库仍由仓储构造器定义。
 
-追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。
+追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。推送动作和目标库存回查分别记录；回查未通过也消费推送 Plan 并保留受控 blocker，回查通过才可在同一 Job 生成下一份追加 Plan。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。

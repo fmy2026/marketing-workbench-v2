@@ -3,6 +3,7 @@ import {
   buildProjectVideoAppendPlan,
   buildProjectVideoMaterialPushPlan,
   executeProjectVideoAppendOnce,
+  executeProjectVideoMaterialPushOnce,
   prepareProjectVideoAppendReadonly,
   readProjectVideoIds,
   recommendProjectVideoAppendProjects,
@@ -14,6 +15,8 @@ import { reconcileQiankunMaterialSourceVideoInventory } from "../src/workflows/s
 import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/platforms/materialCodeMatcher.mjs";
 import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
+import { operationContract } from "../src/workflows/launchOperationContracts.mjs";
+import { PostgresRepository } from "../tests/support/repository.mjs";
 
 function assert(value, message) { if (!value) throw new Error(message); }
 
@@ -24,6 +27,8 @@ const request = validateLaunchRequest({
   origin_resource_ids: ["video-A", "video-B", "video-C"]
 });
 assert(request.origin_resource_ids.length === 3, "append_request_not_normalized");
+const appendPresentation = operationContract("append_project_videos");
+assert(appendPresentation.nodeChildren.std_project_draft_builder.length === 0 && appendPresentation.nodeSubflows.std_project_draft_builder.length === 0, "append_plan_node_must_not_show_create_project_checks");
 const structured = await resolveLaunchRequestIntake({ request });
 assert(structured.request.operation === "append_project_videos" && structured.request.origin_resource_ids.length === 3, "append_structured_intake_lost_fields");
 const natural = await resolveLaunchRequestIntake({
@@ -45,6 +50,68 @@ const opaqueVideoId = "v02033g11111d03jhjnog65p1u6b6mr0";
 const push = buildProjectVideoMaterialPushPlan({ advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id, items: items.map((item) => item.status === "target_push_required" ? { ...item, sourceVideoId: opaqueVideoId } : item) });
 assert(push.status === "ready" && push.batches.length === 1 && push.batches[0].itemCount === 1, "target_push_plan_not_ready");
 assert(push.batches[0].sourceVideoIds[0] === opaqueVideoId, "target_push_plan_lost_opaque_video_id");
+const pushReadbacks = [];
+const pushActionFinishes = [];
+let pushWire = "";
+const pushResult = await executeProjectVideoMaterialPushOnce({
+  repo: {
+    async claimPlannedExecutionAction() { return { claimed: true }; },
+    async finishPlannedExecutionAction(input) { pushActionFinishes.push(input); },
+    async upsertReadbackRecord(input) { pushReadbacks.push(input); }
+  },
+  bundle: {
+    job: { job_id: "JOB-PUSH-READBACK", advertiser_id: request.advertiser_id },
+    case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-PUSH-READBACK", plan_hash: "sha256:push-readback", plan_status: "executing",
+      metadata: {
+        material_account_id: "2234567890123456",
+        project_id: request.project_id,
+        push_batches: [{ batch_index: 1, origin_resource_ids: ["video-C"], source_video_ids: [opaqueVideoId] }]
+      }
+    }
+  },
+  confirmationId: "CONFIRM-PUSH-READBACK",
+  allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] },
+  credentialEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+  readonlyClient: {
+    async get() {
+      return { status: "passed", responseHash: "sha256:push-readback", summary: { totalPage: 1, items: [{ filename: "video-C.mp4", video_id: opaqueVideoId }] } };
+    }
+  },
+  fetchImpl: async (_url, options) => {
+    pushWire = options.body;
+    return new Response(JSON.stringify({ code: 0 }), { status: 200 });
+  }
+});
+assert(pushResult.status === "readback_verified" && pushResult.writeCalled === true, "material_push_readback_not_verified");
+assert(JSON.parse(pushWire).video_ids[0] === opaqueVideoId, "material_push_request_lost_opaque_video_id");
+assert(pushActionFinishes.length === 1 && pushActionFinishes[0].actionStatus === "succeeded", "material_push_action_not_recorded");
+assert(pushReadbacks.length === 1 && pushReadbacks[0].readbackStatus === "readback_verified" && pushReadbacks[0].fieldDiffSummary.unresolved_count === 0, "material_push_verified_readback_not_recorded");
+const unconfirmedPushReadbacks = [];
+const unconfirmedPush = await executeProjectVideoMaterialPushOnce({
+  repo: {
+    async claimPlannedExecutionAction() { return { claimed: true }; },
+    async finishPlannedExecutionAction() {},
+    async upsertReadbackRecord(input) { unconfirmedPushReadbacks.push(input); }
+  },
+  bundle: {
+    job: { job_id: "JOB-PUSH-UNCONFIRMED", advertiser_id: request.advertiser_id },
+    case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-PUSH-UNCONFIRMED", plan_hash: "sha256:push-unconfirmed", plan_status: "executing",
+      metadata: { material_account_id: "2234567890123456", project_id: request.project_id, push_batches: [{ batch_index: 1, origin_resource_ids: ["video-C"], source_video_ids: [opaqueVideoId] }] }
+    }
+  },
+  confirmationId: "CONFIRM-PUSH-UNCONFIRMED",
+  allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] },
+  credentialEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+  readonlyClient: { async get() { return { status: "passed", responseHash: "sha256:push-unconfirmed", summary: { totalPage: 1, items: [] } }; } },
+  fetchImpl: async () => new Response(JSON.stringify({ code: 0 }), { status: 200 })
+});
+assert(unconfirmedPush.status === "failed_or_unconfirmed" && unconfirmedPushReadbacks[0]?.readbackStatus === "not_found_or_mismatch", "material_push_unconfirmed_readback_not_recorded");
 const opaqueVideoTransport = videoMaterialBatchBindTransportPayload({ sourceAdvertiserId: "2234567890123456", targetAdvertiserId: request.advertiser_id, videoIds: [opaqueVideoId] });
 assert(typeof opaqueVideoTransport.video_ids[0] === "string" && opaqueVideoTransport.video_ids[0] === opaqueVideoId, "target_push_transport_must_keep_opaque_video_id_string");
 const caseVariant = opaqueVideoId.replace("v020", "V020");
@@ -248,4 +315,96 @@ assert(duplicate, "duplicate_ids_not_reported");
 let overLimit = false;
 try { validateLaunchRequest({ ...request, origin_resource_ids: [...hundred, "resource-100"] }); } catch (error) { overLimit = error.code === "launch_request_origin_resource_ids_exceed_limit"; }
 assert(overLimit, "over_limit_not_rejected");
+const repository = new PostgresRepository();
+const testScope = {
+  routeId: "oceanengine_3_byte_mini_game",
+  gameCode: "JSZC",
+  advertiserId: "9000000000000001"
+};
+async function createPushClosureFixture(suffix) {
+  const caseId = `CASE-TEST-PUSH-CLOSURE-${suffix}`;
+  const jobId = `JOB-TEST-PUSH-CLOSURE-${suffix}`;
+  const planId = `PLAN-TEST-PUSH-CLOSURE-${suffix}`;
+  const planHash = `sha256:${suffix === "VERIFIED" ? "a".repeat(64) : "b".repeat(64)}`;
+  await repository.createWorkflowCase({
+    caseId,
+    caseKey: `test-push-closure-${suffix.toLowerCase()}`,
+    ...testScope,
+    sourceUsage: "test_run",
+    operation: "append_project_videos",
+    targetProjectId: "9000000000000002",
+    originResourceIds: ["video-C"]
+  });
+  await repository.createLaunchJob({
+    jobId,
+    caseId,
+    ...testScope,
+    objectType: "std_project",
+    sourceUsage: "test_run",
+    sourceRecordRef: `test:push-closure:${suffix}`
+  });
+  await repository.upsertLaunchExecutionPlan({
+    planId,
+    jobId,
+    planVersion: 1,
+    planKind: "project_video_material_push",
+    planStatus: "ready",
+    planHash,
+    plannedActions: [{ action_type: "oc_project_video_material_push", status: "ready", maximum_platform_calls: 1 }],
+    blockerCodes: [],
+    sourceUsage: "test_run",
+    metadata: { plan_kind: "project_video_material_push", execution_scope: { binding_mode: "single_confirmation_plan" } }
+  });
+  const confirmationId = `CONFIRM-TEST-PUSH-CLOSURE-${suffix}`;
+  const confirmation = await repository.claimLaunchExecutionPlanConfirmation({
+    confirmationId,
+    jobId,
+    draftId: "",
+    objectType: "oc_project_video_material_push",
+    objectName: "project_video_material_push",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "TEST=CONFIRM",
+    confirmedBy: "test",
+    planId,
+    metadata: { plan_kind: "project_video_material_push", plan_hash: planHash }
+  });
+  assert(confirmation.claimed === true, `push_closure_confirmation_not_claimed:${suffix}`);
+  await repository.upsertPlatformAction({
+    actionId: `ACTION-TEST-PUSH-CLOSURE-${suffix}`,
+    jobId,
+    confirmationId,
+    planId,
+    actionType: "oc_project_video_material_push",
+    endpoint: "test:material/bind",
+    method: "POST",
+    actionStatus: "succeeded",
+    attemptNo: 1,
+    idempotencyKey: `test-push-closure:${suffix}`
+  });
+  return { jobId, planId };
+}
+const verifiedClosure = await createPushClosureFixture("VERIFIED");
+await repository.upsertReadbackRecord({
+  readbackId: `READBACK-${verifiedClosure.jobId}-PROJECT-VIDEO-MATERIAL-PUSH`,
+  jobId: verifiedClosure.jobId,
+  objectType: "oc_project_video_material_push",
+  objectId: testScope.advertiserId,
+  objectName: "project_video_material_push",
+  readbackStatus: "readback_verified",
+  fieldDiffSummary: { requested_count: 1, verified_count: 1, unresolved_count: 0, blocker: "" },
+  evidenceRef: `EV-${verifiedClosure.jobId}-PUSH-READBACK`
+});
+const verifiedFinalization = await repository.finalizeConfirmedProjectVideoMaterialPushPlan(verifiedClosure);
+assert(verifiedFinalization.consumed === true && verifiedFinalization.readbackVerified === true, "verified_push_finalization_must_require_readback");
+assert((await repository.getLaunchJobBundle(verifiedClosure.jobId))?.job?.job_status === "running", "verified_push_must_keep_job_ready_for_followup_readonly");
+assert((await repository.getWorkflowCaseSummary(`CASE-TEST-PUSH-CLOSURE-VERIFIED`))?.current_gate === "run_fresh_readiness", "verified_push_must_resume_followup_readonly_gate");
+const unresolvedClosure = await createPushClosureFixture("UNCONFIRMED");
+const unresolvedFinalization = await repository.finalizeConfirmedProjectVideoMaterialPushPlan(unresolvedClosure);
+const unresolvedBundle = await repository.getLaunchJobBundle(unresolvedClosure.jobId);
+assert(unresolvedFinalization.consumed === true && unresolvedFinalization.readbackVerified === false, "unconfirmed_push_must_not_be_marked_readback_verified");
+assert(unresolvedBundle?.job?.job_status === "blocked", "unconfirmed_push_must_stop_for_readonly_recovery");
+assert(unresolvedBundle?.executionPlan?.metadata?.root_blocker_codes?.[0] === "project_video_material_push_readback_unresolved", "unconfirmed_push_must_keep_real_blocker");
+const unresolvedSummary = await repository.getWorkflowCaseSummary("CASE-TEST-PUSH-CLOSURE-UNCONFIRMED");
+assert(unresolvedSummary?.current_gate === "resolve_case_blocker" && unresolvedSummary.root_blocker_codes?.[0] === "project_video_material_push_readback_unresolved", "unconfirmed_push_summary_must_project_real_blocker");
 console.log(JSON.stringify({ status: "passed", appendItems: 100, realPlatformWrites: 0 }));

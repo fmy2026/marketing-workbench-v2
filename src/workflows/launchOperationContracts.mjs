@@ -25,11 +25,13 @@ export const LAUNCH_OPERATION_CONTRACTS = Object.freeze({
     }),
     nodeSubflows: Object.freeze({
       game_launch_pack: Object.freeze([]),
-      account_resource_prepare: Object.freeze([])
+      account_resource_prepare: Object.freeze([]),
+      std_project_draft_builder: Object.freeze([])
     }),
     nodeChildren: Object.freeze({
       game_launch_pack: Object.freeze([]),
-      account_resource_prepare: Object.freeze([])
+      account_resource_prepare: Object.freeze([]),
+      std_project_draft_builder: Object.freeze([])
     })
   })
 });

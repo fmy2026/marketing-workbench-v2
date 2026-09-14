@@ -4471,11 +4471,22 @@ export class PostgresRepository {
           AND action.plan_id = ${sqlLiteral(planId)}
           AND action.action_type = 'oc_project_video_material_push'
           AND action.action_status IN ('succeeded', 'failed', 'failed_or_unconfirmed')
+      ), latest_readback AS (
+        SELECT
+          readback.readback_status,
+          coalesce(readback.field_diff_summary->>'blocker', '') AS blocker
+        FROM mwb.readback_records readback
+        WHERE readback.job_id = ${sqlLiteral(jobId)}
+          AND readback.object_type = 'oc_project_video_material_push'
+        ORDER BY readback.created_at DESC
+        LIMIT 1
       ), consumed AS (
         UPDATE mwb.launch_execution_plans plan
         SET plan_status = 'consumed',
             metadata = plan.metadata || jsonb_build_object(
-              'confirmed_execution_outcome', CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) THEN 'readback_verified' ELSE 'failed_or_unconfirmed' END,
+              'confirmed_execution_outcome', CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) AND coalesce((SELECT readback_status FROM latest_readback), '') = 'readback_verified' THEN 'readback_verified' ELSE 'failed_or_unconfirmed' END,
+              'confirmed_execution_blocker', CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) AND coalesce((SELECT readback_status FROM latest_readback), '') = 'readback_verified' THEN '' ELSE coalesce(nullif((SELECT blocker FROM latest_readback), ''), 'project_video_material_push_readback_unresolved') END,
+              'root_blocker_codes', CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) AND coalesce((SELECT readback_status FROM latest_readback), '') = 'readback_verified' THEN '[]'::jsonb ELSE jsonb_build_array(coalesce(nullif((SELECT blocker FROM latest_readback), ''), 'project_video_material_push_readback_unresolved')) END,
               'retry_allowed', false,
               'platform_action_count', coalesce((SELECT total FROM terminal_actions), 0)
             ), updated_at = now()
@@ -4487,15 +4498,15 @@ export class PostgresRepository {
         RETURNING plan.plan_id
       ), job_updated AS (
         UPDATE mwb.launch_jobs job
-        SET job_status = CASE WHEN (SELECT total = succeeded FROM terminal_actions) THEN 'running' ELSE 'failed_waiting_manual_review' END,
+        SET job_status = CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) AND coalesce((SELECT readback_status FROM latest_readback), '') = 'readback_verified' THEN 'running' ELSE 'blocked' END,
             current_node = CASE WHEN (SELECT total = succeeded FROM terminal_actions) THEN '4' ELSE '4' END,
             updated_at = now()
         WHERE job.job_id = ${sqlLiteral(jobId)} AND EXISTS (SELECT 1 FROM consumed)
         RETURNING job.job_id
       )
-      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobUpdated', EXISTS (SELECT 1 FROM job_updated), 'allSucceeded', coalesce((SELECT total = succeeded AND total > 0 FROM terminal_actions), false))::text;
+      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobUpdated', EXISTS (SELECT 1 FROM job_updated), 'allSucceeded', coalesce((SELECT total = succeeded AND total > 0 FROM terminal_actions), false), 'readbackVerified', coalesce((SELECT readback_status FROM latest_readback), '') = 'readback_verified')::text;
     `, this.database);
-    return result || { consumed: false, jobUpdated: false, allSucceeded: false };
+    return result || { consumed: false, jobUpdated: false, allSucceeded: false, readbackVerified: false };
   }
 
   async getLaunchExecutionPlan(planId) {
