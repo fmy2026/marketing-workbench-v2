@@ -24,6 +24,18 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "video_origin_mapping_ambiguous") {
+    return {
+      message: "当前阻断：指定视频存在多个来源。请确认唯一来源后输入“重新只读准备”；系统不会猜测、推送或追加视频。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
+  if (blocker === "project_material_readonly_failed") {
+    return {
+      message: "当前阻断：项目素材暂无法核验。请输入“重新只读准备”再次查询；不会推送或追加视频。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker.startsWith("video_material_source_mapping_not_verified:") || blocker.startsWith("video_material_source_mapping_ambiguous:")) {
     return {
       message: "当前阻断：视频素材来源未能唯一核验。补齐物料户映射后请输入“重新只读准备”；系统不会猜测绑定对象。",

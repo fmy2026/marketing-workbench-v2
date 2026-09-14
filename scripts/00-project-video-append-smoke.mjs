@@ -2,7 +2,9 @@ import {
   classifyProjectVideoAppendItems,
   buildProjectVideoAppendPlan,
   buildProjectVideoMaterialPushPlan,
+  readProjectVideoIds,
   recommendProjectVideoAppendProjects,
+  scanOceanEngineVideoInventory,
   validateProjectVideoAppendReadback
 } from "../src/platforms/oceanengineProjectVideoAppendExecutor.mjs";
 import { validateLaunchRequest } from "../src/agents/launchRequest.mjs";
@@ -44,6 +46,57 @@ assert(push51.status === "ready" && push51.batches.length === 2 && push51.batche
 const ready = buildProjectVideoAppendPlan({ advertiserId: request.advertiser_id, projectId: request.project_id, items: items.slice(0, 2), projectSnapshotHash: "sha256:snapshot" });
 assert(ready.status === "ready" && ready.itemCount === 1 && ready.alreadyPresentCount === 1, "append_plan_invalid");
 assert(validateProjectVideoAppendReadback({ plannedOriginResourceIds: ready.originResourceIds, foundVideoIds: ["target-B"], itemMap: items }).status === "passed", "append_readback_invalid");
+const projectMaterialRequests = [];
+const projectVideoRead = await readProjectVideoIds({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  client: {
+    async get(query) {
+      projectMaterialRequests.push(query);
+      const page = Number(query.query.page);
+      return {
+        status: "passed",
+        responseHash: `sha256:project-${page}`,
+        summary: {
+          projectIdPresent: true,
+          totalPage: 2,
+          videoIds: page === 1 ? ["target-A"] : ["target-B"]
+        }
+      };
+    }
+  }
+});
+assert(projectVideoRead.status === "passed" && projectVideoRead.videoIds.join(",") === "target-A,target-B", "project_material_pagination_invalid");
+assert(projectMaterialRequests.length === 2 && projectMaterialRequests.every((item) => item.query.filtering?.material_type === "VIDEO"), "project_material_filtering_contract_invalid");
+assert(projectMaterialRequests.every((item) => !Object.hasOwn(item.query, "material_type")), "project_material_filtering_must_not_be_flat");
+const failedProjectRead = await readProjectVideoIds({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  client: { async get() { return { status: "blocked", responseHash: "sha256:blocked", summary: {} }; } }
+});
+assert(failedProjectRead.status === "blocked" && failedProjectRead.blocker === "project_material_readonly_failed", "project_material_failure_not_classified");
+const inventory = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["video-zero", "video-unique", "video-ambiguous"],
+  client: {
+    async get() {
+      return {
+        status: "passed",
+        responseHash: "sha256:inventory",
+        summary: {
+          totalPage: 1,
+          items: [
+            { filename: "video-unique.mp4", video_id: "target-unique" },
+            { filename: "video-ambiguous-a.mp4", video_id: "target-ambiguous-a" },
+            { filename: "video-ambiguous-b.mp4", video_id: "target-ambiguous-b" }
+          ]
+        }
+      };
+    }
+  }
+});
+assert(inventory.status === "blocked" && inventory.blocker === "video_origin_mapping_ambiguous", "video_inventory_ambiguity_not_blocked");
+assert(inventory.items.map((item) => item.candidateCount).join(",") === "0,1,2", "video_inventory_candidate_counts_invalid");
 const hundred = Array.from({ length: 100 }, (_, index) => `resource-${index}`);
 assert(validateLaunchRequest({ ...request, origin_resource_ids: hundred }).origin_resource_ids.length === 100, "hundred_ids_rejected");
 for (const size of [1, 50, 51]) {

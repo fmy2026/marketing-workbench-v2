@@ -29,10 +29,13 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
   if (progress?.executionPhase) {
     return Object.freeze({ shortLabel: "已确认执行", message: `已完成 ${progress.completedCount}/${progress.totalCount}，当前第 ${progress.currentNodeNumber} 节点：${progress.currentNodeLabel}；${progress.executionPhase}。` });
   }
+  const append = clean(caseGate.operation) === "append_project_videos";
   const messages = {
     create_fresh_job: "已收到完整需求，正在建立本次流程。",
     run_monitor_readonly: "正在核对这个账户的监测配置，目前不会创建任何对象。",
-    run_fresh_readiness: "正在核对账户资源并准备创建草稿，目前不会创建项目。",
+    run_fresh_readiness: append
+      ? "正在核验指定视频并准备追加计划，目前不会追加视频。"
+      : "正在核对账户资源并准备创建草稿，目前不会创建项目。",
     run_readback_only: "项目已创建，正在确认项目 ID 和名称；不会重复创建。",
     first_std_project_create_completed: "项目已通过平台回查，本次创建流程已完成。"
   };
@@ -48,7 +51,7 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
     });
   }
   if (currentGate === "resolve_case_blocker") {
-    return Object.freeze({ shortLabel: "等待处理", message: blockerMessage(caseGate) });
+    return Object.freeze({ shortLabel: "流程受阻", message: blockerMessage(caseGate) });
   }
   if (currentGate === "prepare_corrective_attempt") {
     return Object.freeze({ shortLabel: "等待只读准备", message: "上一轮创建未完成；可继续进行新的只读准备，生成新确认卡前不会创建项目。" });

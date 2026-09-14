@@ -133,6 +133,11 @@ assert(prewriteTransportGuidance?.placeholder === "输入“重新只读准备�
 const emptyVideoPlanGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_bind_plan_empty"] });
 assert(emptyVideoPlanGuidance?.message.includes("旧资源 Plan"), "empty_video_plan_guidance_missing");
 assert(emptyVideoPlanGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "empty_video_plan_recovery_missing");
+const ambiguousAppendGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_origin_mapping_ambiguous"] });
+assert(ambiguousAppendGuidance?.message.includes("多个来源"), "append_ambiguous_source_guidance_missing");
+assert(ambiguousAppendGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "append_ambiguous_source_recovery_missing");
+const projectMaterialGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["project_material_readonly_failed"] });
+assert(projectMaterialGuidance?.message.includes("项目素材"), "append_project_material_guidance_missing");
 const missingVideoMappingGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_material_source_mapping_not_verified:VIDEO-1"] });
 assert(missingVideoMappingGuidance?.message.includes("视频素材来源未能唯一核验"), "video_mapping_guidance_missing");
 const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_not_ready"] });
@@ -181,7 +186,7 @@ assert(!styleSource.includes(".case-gate"), "duplicate_case_gate_styles_still_pr
 assert(!htmlSource.includes('id="runState"'), "workflow_dynamic_run_state_must_be_removed");
 assert(!clientSource.includes('getElementById("runState")'), "workflow_dynamic_run_state_renderer_must_be_removed");
 assert(clientSource.includes("function operationalMessage()"), "left_conversation_gate_projection_missing");
-assert(clientSource.includes("progressNarrative?.shortLabel || \"等待处理\""), "headline_must_use_compact_gate_status");
+assert(clientSource.includes("job?.caseGate?.rootBlockerCodes?.length ? \"流程受阻\""), "headline_must_surface_actual_root_blocker");
 assert(htmlSource.includes('id="progressText"'), "bottom_progress_text_removed");
 assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refresh_removed");
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");
@@ -232,6 +237,10 @@ assert(clientSource.includes("return job.confirmationPreview || null;"), "confir
 assert(clientSource.includes('button.textContent = "提交中…"'), "confirmation_button_local_busy_copy_missing");
 assert(clientSource.includes("await submitJobCommand(submission.message, submission)"), "confirmation_submission_must_use_frozen_context");
 assert(!clientSource.includes("setBusy(true);\n      try {\n        await submitJobCommand(preview.confirmationPhrase || \"确认创建\");"), "confirmation_button_must_not_redraw_before_submit");
+assert(workflowSource.includes("root_blocker_codes: blockers.slice(0, 1)"), "append_blocker_must_project_to_case_summary");
+assert(workflowSource.includes("status: blockers.length ? \"blocked\" : \"ready_for_user_confirmation\""), "append_job_status_must_follow_readonly_result");
+assert(workflowSource.includes("nodeChildren: contract.nodeChildren || {}"), "append_operation_children_override_missing");
+assert(!workflowSource.includes("game_launch_pack: \"指定视频识别\""), "append_legacy_node_label_still_present");
 
 console.log(JSON.stringify({
   status: "passed",

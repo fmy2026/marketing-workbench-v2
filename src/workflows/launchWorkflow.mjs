@@ -85,7 +85,12 @@ function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", output
 
 function operationPresentation(operation = "create_std_project") {
   const contract = operationContract(operation);
-  return { heading: contract.heading, nodeNames: contract.nodeNames };
+  return {
+    heading: contract.heading,
+    nodeNames: contract.nodeNames,
+    nodeSubflows: contract.nodeSubflows || {},
+    nodeChildren: contract.nodeChildren || {}
+  };
 }
 
 function initialNodeRuns(operation = "create_std_project") {
@@ -657,8 +662,8 @@ function childStatus({ descriptor, node, bundle, executionAvailability, currentC
   return nodeFallback;
 }
 
-function childView(node, bundle, executionAvailability, presentation = {}) {
-  return (node.children || []).map((descriptor) => {
+function childView(node, bundle, executionAvailability, presentation = {}, descriptors = node.children || []) {
+  return descriptors.map((descriptor) => {
     const status = childStatus({
       descriptor,
       node,
@@ -681,28 +686,35 @@ function childView(node, bundle, executionAvailability, presentation = {}) {
 
 function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {}, presentation = {}) {
   const names = presentation.nodeNames || {};
+  const subflowsByNode = presentation.nodeSubflows || {};
+  const childrenByNode = presentation.nodeChildren || {};
   return PHASES.map((phase) => ({
     ...phase,
-    nodes: nodes.filter((node) => node.phase === phase.title).map((node) => ({
-      id: node.nodeKey,
-      number: node.number,
-      name: names[node.nodeKey] || node.nodeName,
-      status: node.status || "waiting",
-      statusLabel: statusLabel(node.status || "waiting"),
-      subflows: node.subflows,
-      children: bundle
-        ? childView(node, bundle, executionAvailability, presentation)
-        : (node.children || []).map((child) => ({
-          id: child.id,
-          label: child.label,
-          status: "waiting",
-          statusLabel: statusLabel("waiting")
-        })),
-      detail: node.detail || "等待执行。",
-      output: node.output,
-      readonlyChecks: node.outputSummary?.checks || [],
-      outputSummary: node.outputSummary || {}
-    }))
+    nodes: nodes.filter((node) => node.phase === phase.title).map((node) => {
+      const children = Object.hasOwn(childrenByNode, node.nodeKey)
+        ? childrenByNode[node.nodeKey]
+        : (node.children || []);
+      return {
+        id: node.nodeKey,
+        number: node.number,
+        name: names[node.nodeKey] || node.nodeName,
+        status: node.status || "waiting",
+        statusLabel: statusLabel(node.status || "waiting"),
+        subflows: Object.hasOwn(subflowsByNode, node.nodeKey) ? subflowsByNode[node.nodeKey] : node.subflows,
+        children: bundle
+          ? childView(node, bundle, executionAvailability, presentation, children)
+          : children.map((child) => ({
+            id: child.id,
+            label: child.label,
+            status: "waiting",
+            statusLabel: statusLabel("waiting")
+          })),
+        detail: node.detail || "等待执行。",
+        output: node.output,
+        readonlyChecks: node.outputSummary?.checks || [],
+        outputSummary: node.outputSummary || {}
+      };
+    })
   }));
 }
 
@@ -778,6 +790,22 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
 }
 
 export function presentRootBlocker(code = "") {
+  if (code === "video_origin_mapping_ambiguous") {
+    return {
+      code,
+      title: "指定视频存在多个来源",
+      reason: "至少一条视频标识码在物料户匹配到多个候选，系统不能安全选择其中一个。",
+      nextActionLabel: "确认唯一视频来源后输入“重新只读准备”；不会猜测、推送或追加视频。"
+    };
+  }
+  if (code === "project_material_readonly_failed") {
+    return {
+      code,
+      title: "项目素材暂无法核验",
+      reason: "目标项目的素材列表未获得可用只读结果，系统未生成追加计划。",
+      nextActionLabel: "输入“重新只读准备”重新核验；不会推送或追加视频。"
+    };
+  }
   if (String(code).startsWith("video_material_source_mapping_not_verified:") ||
     String(code).startsWith("video_material_source_mapping_ambiguous:")) {
     return {
@@ -927,6 +955,7 @@ function caseGateView(summary = null, jobId = "", workflowCase = {}) {
     .replaceAll("landing_url", "landing_page");
   const rootBlocker = presentRootBlocker(rootBlockerCode);
   return {
+    operation: workflowCase?.operation || "create_std_project",
     currentGate: summary?.current_gate || "",
     rootBlockerCodes: Array.isArray(summary?.root_blocker_codes)
       ? summary.root_blocker_codes.map(publicBlockerCode)
@@ -1812,7 +1841,9 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     endpoint: effectivePlan.endpoint,
     method: effectivePlan.method
   } : null;
-  const blockers = effectivePlan.blockerCodes || prepared.blockerCodes || [];
+  const blockers = [...new Set((effectivePlan.blockerCodes || prepared.blockerCodes || []).map((value) => String(value || "").trim()).filter(Boolean))];
+  const primaryBlocker = blockers[0] || "";
+  const videoIdentificationBlocked = /^(qiankun_video_|video_inventory_|video_origin_mapping_)/.test(primaryBlocker);
   const plan = {
     planId,
     jobId: bundle.job.job_id,
@@ -1843,6 +1874,8 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       material_account_id: isMaterialPush ? effectivePlan.materialAccountId : "",
       push_batches: isMaterialPush ? (effectivePlan.batches || []).map((batch) => ({ batch_index: batch.batchIndex, origin_resource_ids: batch.originResourceIds, source_video_ids: batch.sourceVideoIds })) : [],
       original_project_video_ids: [...(prepared.projectVideoIds || [])].sort(),
+      root_blocker_codes: blockers.slice(0, 1),
+      readonly_checks: prepared.readonlyChecks || {},
       append_summary: {
         requested_count: (bundle.case?.origin_resource_ids || []).length,
         already_in_project_count: (prepared.items || []).filter((item) => item.status === "already_in_project").length,
@@ -1873,13 +1906,31 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   const nodeStatuses = [
     nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
     nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已进入只读核验。" }),
-    nodeStatus({ nodeKey: "game_launch_pack", status: prepared.status === "blocked" ? "blocked" : "passed", summary: prepared.status === "blocked" ? "指定视频未形成可追加映射。" : "指定视频已唯一识别。", outputSummary: { checks: [] } }),
-    nodeStatus({ nodeKey: "account_resource_prepare", status: prepared.status === "blocked" ? "blocked" : "passed", summary: prepared.status === "blocked" ? `只读准备受阻：${blockers[0] || "unknown"}` : "视频可用性已核验。", outputSummary: { appendItems: prepared.items || [] } }),
-    nodeStatus({ nodeKey: "std_project_draft_builder", status: plan.planStatus === "ready" ? "needs_confirmation" : "blocked", summary: plan.planStatus === "ready" ? (isMaterialPush ? "素材推送 Plan 已冻结，等待本人确认。" : "追加 Plan 已冻结，等待本人确认。") : "未生成受控 Plan。" }),
+    nodeStatus({
+      nodeKey: "game_launch_pack",
+      status: videoIdentificationBlocked ? "blocked" : "passed",
+      summary: videoIdentificationBlocked ? "指定视频来源未能唯一核验。" : "指定视频已完成唯一核验。",
+      outputSummary: { readonlyChecks: prepared.readonlyChecks || {} }
+    }),
+    nodeStatus({
+      nodeKey: "account_resource_prepare",
+      status: blockers.length && !videoIdentificationBlocked ? "blocked" : blockers.length ? "waiting" : "passed",
+      summary: blockers.length && !videoIdentificationBlocked
+        ? "目标账户或项目素材只读核验未完成。"
+        : blockers.length
+          ? "等待指定视频来源唯一后继续核验视频可用性。"
+          : "视频可用性已核验。",
+      outputSummary: { appendItems: prepared.items || [], readonlyChecks: prepared.readonlyChecks || {} }
+    }),
+    nodeStatus({ nodeKey: "std_project_draft_builder", status: plan.planStatus === "ready" ? "needs_confirmation" : blockers.length ? "waiting" : "blocked", summary: plan.planStatus === "ready" ? (isMaterialPush ? "素材推送计划已冻结，等待本人确认。" : "追加计划已冻结，等待本人确认。") : blockers.length ? "等待当前唯一卡点处理后准备追加计划。" : "未生成受控追加计划。" }),
     nodeStatus({ nodeKey: "std_project_create_executor", status: "waiting", summary: isMaterialPush ? "等待分批素材推送。" : "等待单次追加。" }),
     nodeStatus({ nodeKey: "readback_closer", status: "waiting", summary: isMaterialPush ? "推送后将重新只读核验并生成追加 Plan。" : "等待追加结果回查。" })
   ];
   await repo.upsertNodeRuns(bundle.job.job_id, nodeStatuses);
+  await repo.updateJob(bundle.job.job_id, {
+    status: blockers.length ? "blocked" : "ready_for_user_confirmation",
+    currentNode: blockers.length ? (videoIdentificationBlocked ? "3" : "4") : "5"
+  });
   return getJobView(repo, bundle.job.job_id, options);
 }
 

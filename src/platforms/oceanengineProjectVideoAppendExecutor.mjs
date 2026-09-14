@@ -100,8 +100,14 @@ export async function readProjectVideoIds({ client = createOceanEngineReadonlyCl
   const fetchPage = (page) => client.get({
     label: `project_video_append_project_material_readonly_${page}`,
     endpoint: "/open_api/v3.0/oc_project/material/get/",
-    query: { advertiser_id: advertiser, project_id: project, material_type: "VIDEO", page: String(page), page_size: "100" },
-    requestFieldManifest: ["advertiser_id", "project_id", "material_type", "page", "page_size"],
+    query: {
+      advertiser_id: advertiser,
+      project_id: project,
+      filtering: { material_type: "VIDEO" },
+      page: String(page),
+      page_size: "100"
+    },
+    requestFieldManifest: ["advertiser_id", "project_id", "filtering.material_type", "page", "page_size"],
     summarize: (payload) => ({
       videoIds: (payload?.data?.video_material_list || []).map(videoId).filter(Boolean),
       totalPage: Number(payload?.data?.page_info?.total_page || 1),
@@ -148,8 +154,33 @@ export async function prepareProjectVideoAppendReadonly({
     scanOceanEngineVideoInventory({ client: oceanEngineClient, advertiserId, originResourceIds: ids }),
     readProjectVideoIds({ client: oceanEngineClient, advertiserId, projectId })
   ]);
+  const readonlyChecks = {
+    source_inventory: {
+      status: source.status,
+      blocker: source.blocker || "",
+      items: (source.items || []).map((item) => ({ originResourceId: item.originResourceId, candidateCount: Number(item.candidateCount || 0) })),
+      responseHash: source.responseHash || ""
+    },
+    target_inventory: {
+      status: target.status,
+      blocker: target.blocker || "",
+      items: (target.items || []).map((item) => ({ originResourceId: item.originResourceId, candidateCount: Number(item.candidateCount || 0) })),
+      responseHash: target.responseHash || ""
+    },
+    project_materials: {
+      status: project.status,
+      blocker: project.blocker || "",
+      itemCount: (project.videoIds || []).length,
+      responseHash: project.responseHash || ""
+    }
+  };
   if (source.status !== "passed" || target.status !== "passed" || project.status !== "passed") {
-    return { status: "blocked", blockerCodes: [source.blocker, target.blocker, project.blocker].filter(Boolean), items: [] };
+    return {
+      status: "blocked",
+      blockerCodes: [source.blocker, target.blocker, project.blocker].filter(Boolean),
+      items: [],
+      readonlyChecks
+    };
   }
   const items = classifyProjectVideoAppendItems({
     originResourceIds: ids,
@@ -170,7 +201,16 @@ export async function prepareProjectVideoAppendReadonly({
     items
   });
   const effectivePlan = pushPlan.status === "ready" ? pushPlan : plan;
-  return { status: effectivePlan.status, items, plan, pushPlan, effectivePlan, projectVideoIds: project.videoIds, qiankunVerifiedCount: found.size };
+  return {
+    status: effectivePlan.status,
+    items,
+    plan,
+    pushPlan,
+    effectivePlan,
+    projectVideoIds: project.videoIds,
+    qiankunVerifiedCount: found.size,
+    readonlyChecks
+  };
 }
 
 export async function executeProjectVideoAppendOnce({

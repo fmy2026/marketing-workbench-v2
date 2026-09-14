@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T08:33:39.056Z",
+  "updated_at": "2026-09-14T10:15:00.000Z",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -31,6 +31,12 @@
     "tests/support/http-server.mjs",
     "tests/run.mjs",
     "src/platforms/qiankunCredentialStore.mjs",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/launchOperationContracts.mjs",
+    "src/workflows/workbenchProgressNarrative.mjs",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "deploy/README.md",
@@ -52,7 +58,8 @@
     {"acceptance_id": "AC-02", "command": "npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress; npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages; npm run check:project -- --phase before-close"},
-    {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"}
+    {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"},
+    {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages"}
   ],
   "validation_results": [
     {
@@ -94,6 +101,14 @@
       "verified_at": "2026-09-14T08:33:39.056Z",
       "summary": "本次请求快照修复尚未发布到公司模式。",
       "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
+    },
+    {
+      "acceptance_id": "AC-06",
+      "status": "passed",
+      "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T10:15:00.000Z",
+      "summary": "项目素材分页查询使用 filtering.material_type；零、唯一和多个来源分别被保留或阻断。追加来源歧义与项目素材查询失败均投影为唯一 blocker，浏览器回归确认启动和七节点布局保持可用。",
+      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/launchWorkflow.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
@@ -105,7 +120,7 @@
     {
       "ref": "docs/project-现在的逻辑图.md",
       "status": "updated",
-      "reason": "明确启动卡片、真实启动阶段与 Job 后节点投影的界面合同。"
+      "reason": "明确启动卡片、真实启动阶段、追加项目素材过滤合同、唯一 blocker 与 Job 后节点投影。"
     },
     {
       "ref": "deploy/README.md",
@@ -115,9 +130,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题，并补齐实际 Case/Job/readonly 浏览器回归；等待本次 release 发布与本人工作台验证。",
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题，并修复追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示；等待本次 release 发布与本人工作台验证。",
     "side_effects": "本轮仅执行隔离测试；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["本次修复尚未发布到公司模式；实际账户只读启动仍待发布后验证。"],
+    "remaining_risks": ["本次修复尚未发布到公司模式；实际账户需在既有 Case 上重新只读准备以核实唯一来源后续。"],
     "business_evidence_refs": []
   },
   "closed_at": null

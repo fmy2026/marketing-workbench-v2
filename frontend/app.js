@@ -855,7 +855,7 @@ import {
     agentStatus.textContent = viewOnly
       ? "历史运行，只读"
       : job
-        ? (startupFeedback?.status === "blocked" ? "启动受阻" : (job?.caseGate?.progressNarrative?.shortLabel || "等待处理"))
+        ? (startupFeedback?.status === "blocked" ? "启动受阻" : (job?.caseGate?.rootBlockerCodes?.length ? "流程受阻" : (job?.caseGate?.progressNarrative?.shortLabel || "等待处理")))
         : (startupFeedback?.status === "blocked" ? "启动受阻" : startupFeedback?.status === "starting" ? "启动中" : !draftIntake.operation ? "等待输入需求" : intakeCanStart ? "待启动" : "等待补齐");
 
     const intentCard = document.getElementById("intentCard");
@@ -1072,7 +1072,8 @@ import {
 
     const nodeCount = allNodes().length;
     const operation = job?.operation || job?.intake?.operation || draftIntake.operation;
-    document.getElementById("workflowHeading").textContent = `${operation === "append_project_videos" ? "追加视频" : "新建项目"} · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
+    const workflowTitle = job?.caseGate?.rootBlockerCodes?.length ? "流程受阻" : (operation === "append_project_videos" ? "追加视频" : "新建项目");
+    document.getElementById("workflowHeading").textContent = `${workflowTitle} · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
   }
 
   function renderCommand() {
