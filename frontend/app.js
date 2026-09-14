@@ -77,6 +77,23 @@ import {
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function formatVerifiedAt(value) {
+    const date = new Date(value || "");
+    if (Number.isNaN(date.getTime())) return "未知";
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+    }).formatToParts(date).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}（北京时间）`;
+  }
+
+  function resizeChatInput() {
+    const input = document.getElementById("chatInput");
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 116)}px`;
+  }
+
   async function api(path, options = {}) {
     const { diagnosticStage = "", ...requestOptions } = options;
     const response = await fetch(path, {
@@ -549,9 +566,11 @@ import {
       const list = el("div", "project-recommendation-list");
       for (const item of recommendation.items || []) {
         const row = el("div", "project-recommendation-row");
-        row.append(el("strong", "", item.projectName));
-        row.append(el("span", "", `ID：${item.projectId}`));
-        row.append(el("span", "", `最近验证：${item.verifiedAt || "未知"}`));
+        const details = el("div", "project-recommendation-details");
+        details.append(el("strong", "", item.projectName || item.projectId));
+        details.append(el("span", "", `ID：${item.projectId}`));
+        details.append(el("span", "", `最近验证：${formatVerifiedAt(item.verifiedAt)}`));
+        row.append(details);
         const select = el("button", "conversation-preset", "选择此项目");
         select.type = "button";
         select.disabled = busy || viewOnly;
@@ -1522,7 +1541,15 @@ import {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
       input.value = "";
+      resizeChatInput();
       await submitConversationInput(text);
+    });
+    const chatInput = document.getElementById("chatInput");
+    chatInput.addEventListener("input", resizeChatInput);
+    chatInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      document.getElementById("chatForm").requestSubmit();
     });
     document.getElementById("startWorkflowButton").addEventListener("click", () => {
       startWorkflow();

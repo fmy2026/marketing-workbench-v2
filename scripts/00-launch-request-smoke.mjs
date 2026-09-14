@@ -101,6 +101,22 @@ const accountChanged = await resolveLaunchRequestIntake({ userIntent: "账户 18
 assert(!accountChanged.draft.project_id && !accountChanged.draft.route_id && !accountChanged.draft.game_code, "account_change_retained_project_context");
 const noAppend = await resolveLaunchRequestIntake({ userIntent: "只改 ROI，不要追加素材", draft: appendDraft });
 assert(noAppend.issues?.[0]?.code === "operation_not_supported" && noAppend.request === null && noAppend.draft.operation === "", "unsupported_update_reused_append_draft");
+const appendContext = { ...appendDraft, origin_resource_ids: [] };
+for (const text of ["4iLE-2,4iG2-18", "4iLE-2 4iG2-18", "4iLE-2、4iG2-18；4iLE-3", "4iLE-2\n4iG2-18"]) {
+  const directVideoList = await resolveLaunchRequestIntake({ userIntent: text, draft: appendContext });
+  assert(directVideoList.draft.origin_resource_ids.length >= 2 && directVideoList.can_start, `direct_video_list_not_parsed:${JSON.stringify(text)}`);
+}
+const labelledVideoList = await resolveLaunchRequestIntake({ userIntent: "视频标识码：4iLE-2,4iG2-18，账户：1871922999999999", draft: appendContext });
+assert(labelledVideoList.draft.origin_resource_ids.length === 2 && labelledVideoList.draft.advertiser_id === request.advertiser_id, "labelled_video_list_consumed_next_field");
+const ambiguousBareNumeric = await resolveLaunchRequestIntake({ userIntent: "12345678,23456789", draft: appendContext });
+assert(ambiguousBareNumeric.request === null && ambiguousBareNumeric.issues?.[0]?.code === "ambiguous_bare_numeric_video_identifier", "bare_numeric_video_list_not_clarified");
+const duplicateVideoList = await resolveLaunchRequestIntake({ userIntent: "4iLE-2,4iLE-2", draft: appendContext });
+assert(duplicateVideoList.request === null && duplicateVideoList.draft.origin_resource_ids.length === 0 && duplicateVideoList.issues?.[0]?.code === "launch_request_duplicate_origin_resource_id", "duplicate_video_list_partially_accepted");
+const invalidVideoList = await resolveLaunchRequestIntake({ userIntent: "4iLE-2,not/valid", draft: appendContext });
+assert(invalidVideoList.request === null && invalidVideoList.draft.origin_resource_ids.length === 0 && invalidVideoList.issues?.[0]?.code === "launch_request_invalid_origin_resource_id", "invalid_video_list_partially_accepted");
+const tooManyVideoIds = Array.from({ length: 101 }, (_, index) => `video-${index}`).join(",");
+const overLimitVideoList = await resolveLaunchRequestIntake({ userIntent: tooManyVideoIds, draft: appendContext });
+assert(overLimitVideoList.request === null && overLimitVideoList.draft.origin_resource_ids.length === 0 && overLimitVideoList.issues?.some((issue) => issue.code === "launch_request_origin_resource_ids_exceed_limit"), "over_limit_video_list_accepted");
 const unknownLegacyOperation = () => normalizeLaunchRequestFromBody({ ...request, operation: "change_roi" });
 try { unknownLegacyOperation(); throw new Error("unknown_legacy_operation_accepted"); } catch (error) {
   assert(error.code === "launch_request_operation_not_supported", "unknown_legacy_operation_wrong_error");

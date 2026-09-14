@@ -1,0 +1,99 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-APPEND-VIDEO-INPUT-20260914",
+  "task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T09:00:00.000+08:00",
+  "updated_at": "2026-09-14T09:15:00.000000+00:00",
+  "base_revision": "b08e2d372975fac825e58fa1021fca62ea592b5b",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.json",
+    "project.state.json",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/server/workbenchServer.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "frontend/styles.css",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "tests/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914/**"
+  ],
+  "forbidden_actions": [
+    "数据库迁移或写入",
+    "真实平台写入",
+    "修改 Plan、确认或回查机制",
+    "保存原始自然语言、请求或响应"
+  ],
+  "stop_conditions": [
+    "需要数据库、平台写入、Plan／确认链或超出批准输入规则的变更"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-02", "command": "npm run test:launch-request && npm run test:workbench-conversation"},
+    {"acceptance_id": "AC-03", "command": "npm run test:launch-request && npm run test:workbench-conversation && npm run test:workbench-auth-http"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages && npm run test:workbench-conversation"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T07:35:06.000Z",
+      "summary": "推荐项目在浏览器回归中按分行 grid 卡片展示，选择行为保持可用。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:launch-request && npm run test:workbench-conversation",
+      "verified_at": "2026-09-14T07:35:06.000Z",
+      "summary": "逗号、空格、顿号、分号、换行、带标签和无标签追加列表均覆盖。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:launch-request && npm run test:workbench-auth-http",
+      "verified_at": "2026-09-14T07:35:06.000Z",
+      "summary": "重复、格式错误、超限和纯数字歧义均不可启动；项目匹配保留解析错误。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:workbench-client-pages && npm run test:project-video-append",
+      "verified_at": "2026-09-14T07:35:06.000Z",
+      "summary": "多行输入、Enter、Shift+Enter、输入法保护及追加视频回归通过。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录已确定追加上下文中的视频列表粘贴规则。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "记录追加视频自然语言列表分隔与纯数字歧义规则。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "追加视频推荐卡改为统一分行排版；自然语言支持已确定追加上下文中的无标签视频标识码列表与多行输入。",
+    "side_effects": "只修改页面内存草稿、Intake 解析/回复与隔离测试；未迁移数据库、未执行真实平台写入。",
+    "remaining_risks": ["格式识别成功不表示素材已存在；实际素材可用性仍由既有只读核验决定。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-14T09:15:00.000000+00:00"
+}

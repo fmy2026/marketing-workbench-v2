@@ -41,7 +41,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -484,6 +485,7 @@ p {
   font-size: 13px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .chat-message.is-agent .message-bubble {
@@ -654,17 +656,63 @@ p {
   cursor: not-allowed;
 }
 
-.chat-form input {
+.project-recommendation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.project-recommendation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px;
+  border: 1px solid #cddcfb;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.project-recommendation-details {
+  display: grid;
+  gap: 3px;
   min-width: 0;
-  height: 40px;
-  padding: 0 12px;
+}
+
+.project-recommendation-details strong,
+.project-recommendation-details span {
+  overflow-wrap: anywhere;
+}
+
+.project-recommendation-details strong,
+.project-recommendation-row .conversation-preset {
+  font-size: 13px;
+}
+
+.project-recommendation-details span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-recommendation-row .conversation-preset {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.chat-form textarea {
+  min-width: 0;
+  min-height: 40px;
+  max-height: 116px;
+  padding: 9px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   outline: none;
   color: var(--text);
+  line-height: 20px;
+  resize: none;
+  overflow-y: auto;
 }
 
-.chat-form input:focus {
+.chat-form textarea:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
@@ -672,6 +720,7 @@ p {
 .send-button {
   width: 42px;
   height: 40px;
+  align-self: end;
   background: var(--blue);
   border-color: var(--blue);
   color: #ffffff;
@@ -989,6 +1038,15 @@ p {
 
   .identity-strip {
     grid-template-columns: 1fr;
+  }
+
+  .project-recommendation-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .project-recommendation-row .conversation-preset {
+    justify-self: start;
   }
 
   .workflow-title {

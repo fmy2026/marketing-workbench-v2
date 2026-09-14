@@ -40,6 +40,9 @@ const INTENT_SET = new Set(CONVERSATION_INTENTS);
 const MIN_CONFIDENCE = 0.8;
 const MAX_MESSAGE_LENGTH = 1000;
 const INTAKE_HELP_REPLY = "当前支持 OE3 字节小游戏、JSZC 的新建项目，以及为已有项目追加视频。可直接说“新建项目，游戏 JSZC，账户 1234567890123456”，或“给项目 1234567890123456 追加视频，账户 1234567890123456，视频标识码：video-A”。";
+const VIDEO_IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]{2,128}$/;
+const VIDEO_IDENTIFIER_SEPARATOR = /[\s,，、;；]+/;
+const NEXT_INTAKE_FIELD_LABEL = /(?:账户|账号|广告账户|advertiser(?:_id)?|项目|project(?:_id)?|路线|游戏)\s*[:：]/i;
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -117,6 +120,19 @@ function buildIntakeResponse({ draft, reply, issues = [], parseSource = "rules",
 
 function isHelpQuestion(text = "") {
   return /(?:能做什么|可以做什么|怎么使用|如何使用|能.*(?:追加视频|新建项目)|支持什么)/i.test(text);
+}
+
+function splitVideoIdentifiers(value = "") {
+  return String(value || "").split(VIDEO_IDENTIFIER_SEPARATOR).map((item) => item.trim()).filter(Boolean);
+}
+
+function markedVideoIdentifierList(text = "") {
+  const marker = /(?:视频标识码|素材标识码|视频码)\s*[:：]?\s*/i.exec(text);
+  if (!marker) return { marked: false, ids: [] };
+  const tail = text.slice(marker.index + marker[0].length);
+  const nextField = NEXT_INTAKE_FIELD_LABEL.exec(tail);
+  const list = (nextField ? tail.slice(0, nextField.index) : tail).split(/[。！？]/, 1)[0];
+  return { marked: true, ids: splitVideoIdentifiers(list) };
 }
 
 function redactForProvider(value) {
@@ -484,10 +500,14 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
       (/巨量|穿山甲|字节|oe3|oceanengine|抖小/i.test(text) && /小游戏|mini\s*game|抖小/i.test(text))
       ? "oceanengine_3_byte_mini_game" : "";
     const game = /\bJSZC\b/i.test(text) || /巨兽战场/i.test(text) ? "JSZC" : "";
-    const marked = text.match(/(?:视频标识码|素材标识码|视频码)\s*[:：]?\s*([^。；;]{1,20000})/i)?.[1] || "";
-    const rawIds = marked ? marked.split(/[\s,，]+/).map((item) => item.trim()).filter(Boolean) : [];
-    const invalidIds = rawIds.filter((item) => !/^[A-Za-z0-9._:-]{2,128}$/.test(item));
-    const suppliedIds = rawIds.filter((item) => /^[A-Za-z0-9._:-]{2,128}$/.test(item));
+    const markedVideoList = markedVideoIdentifierList(text);
+    const bareVideoListAllowed = !markedVideoList.marked && !explicitOperation &&
+      Boolean(prior.advertiser_id && prior.project_id) && !prior.origin_resource_ids.length &&
+      !advertiserMatches.length && !projectMatches.length && !NEXT_INTAKE_FIELD_LABEL.test(text);
+    const rawIds = markedVideoList.marked ? markedVideoList.ids : bareVideoListAllowed ? splitVideoIdentifiers(text) : [];
+    const bareNumericIdsAmbiguous = bareVideoListAllowed && rawIds.length > 0 && rawIds.every((item) => /^\d+$/.test(item));
+    const invalidIds = rawIds.filter((item) => !VIDEO_IDENTIFIER_PATTERN.test(item));
+    const suppliedIds = rawIds.filter((item) => VIDEO_IDENTIFIER_PATTERN.test(item));
     const advertiserChanged = Boolean(advertiser && prior.advertiser_id && advertiser !== prior.advertiser_id);
     const next = createProjectVideoAppendRequestDraft({
       ...prior,
@@ -501,6 +521,7 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     const issues = [
       ...(advertiserMatches.length > 1 ? [launchRequestIssue("multiple_advertiser_ids")] : []),
       ...(projectMatches.length > 1 ? [{ code: "multiple_project_ids", message: "检测到多个项目 ID，请只保留一个项目后重试。" }] : []),
+      ...(bareNumericIdsAmbiguous ? [{ code: "ambiguous_bare_numeric_video_identifier", message: "纯数字输入无法区分账户、项目或视频标识码，请加“视频标识码：”标签。" }] : []),
       ...(invalidIds.length ? [{ code: "launch_request_invalid_origin_resource_id", message: "素材标识码格式无效，未采用本次列表。" }] : []),
       ...(duplicates ? [{ code: "launch_request_duplicate_origin_resource_id", message: "素材标识码包含重复项。" }] : []),
       ...(rawIds.length > 100 ? [{ code: "launch_request_origin_resource_ids_exceed_limit", message: "单次最多追加 100 个素材标识码，请拆分提交。" }] : [])
@@ -525,9 +546,11 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     });
     if (!normalized.reply) {
       normalized.reply = normalized.can_start
-        ? `已记录追加视频所需信息，可启动流程。`
+        ? rawIds.length ? `已识别 ${next.origin_resource_ids.length} 条视频标识码，可启动流程。` : "已记录追加视频所需信息，可启动流程。"
         : normalized.missing_fields.length
-          ? `已记录${explicitOperation ? "追加视频事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => ({ advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`
+          ? rawIds.length
+            ? `已识别 ${next.origin_resource_ids.length} 条视频标识码；请补充：${normalized.missing_fields.map((field) => ({ advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`
+            : `已记录${explicitOperation ? "追加视频事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => ({ advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`
           : "已记录账户、项目和视频标识码，正在核对项目所属游戏。";
     }
     return normalized;

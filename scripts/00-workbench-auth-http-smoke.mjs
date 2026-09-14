@@ -120,6 +120,16 @@ try {
   });
   const conciseAppendBody = await conciseAppend.json();
   assert(conciseAppend.status === 200 && conciseAppendBody.can_start === true && conciseAppendBody.request?.route_id === "oceanengine_3_byte_mini_game" && conciseAppendBody.project?.source === "verified_postgres", "concise_append_project_context_not_hydrated");
+  const invalidVideoList = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({
+      user_intent: "视频标识码：video-A,not/valid",
+      draft: { operation: "append_project_videos", advertiser_id: "1871922175825993", project_id: "9000000000000001", origin_resource_ids: [] }
+    })
+  });
+  const invalidVideoListBody = await invalidVideoList.json();
+  assert(invalidVideoList.status === 200 && invalidVideoListBody.can_start === false && invalidVideoListBody.request === null && invalidVideoListBody.reply?.includes("格式无效"), "append_parse_error_overwritten_by_project_match");
   const unknownAppend = await fetch(`${origin}/api/launch/intake`, {
     method: "POST",
     headers: { "content-type": "application/json", origin, cookie: changedCookie },

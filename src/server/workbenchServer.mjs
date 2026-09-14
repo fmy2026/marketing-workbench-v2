@@ -235,6 +235,16 @@ async function hydrateAppendIntake(user, intake) {
       reply: "项目的路线或游戏与输入不一致，请删除冲突字段后重试。" };
   }
   const hydratedDraft = { schema_version: "launch-request.v2", ...draft, route_id: project.routeId, game_code: project.gameCode };
+  if ((intake.issues || []).length) {
+    return {
+      ...intake,
+      draft: hydratedDraft,
+      request: null,
+      can_start: false,
+      project,
+      reply: intake.reply || "输入需要修正后再试。"
+    };
+  }
   const missing = intake.missing_fields || [];
   const request = missing.length ? null : validateLaunchRequest(hydratedDraft);
   return {

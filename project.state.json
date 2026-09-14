@@ -10,7 +10,7 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

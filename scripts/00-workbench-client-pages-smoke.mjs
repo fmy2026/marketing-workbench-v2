@@ -108,7 +108,12 @@ try {
   assert(await evaluate("document.querySelector('#workflowRail').hidden"), "initial_workflow_rail_visible");
   assert(await evaluate("document.querySelector('#commandBar').hidden"), "initial_progress_visible");
   assert(await evaluate("document.querySelector('#intakeAction').hidden"), "initial_start_visible");
+  assert(await evaluate("document.querySelector('#chatInput').tagName === 'TEXTAREA'"), "natural_input_not_multiline");
   assert((await evaluate("document.querySelector('#chatStream').textContent")).includes("请输入投放需求"), "initial_welcome_missing");
+  await fill("#chatInput", "保留换行");
+  assert(await evaluate("(() => { const input = document.querySelector('#chatInput'); return input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true })) && input.value === '保留换行'; })()"), "shift_enter_submitted_natural_input");
+  assert(await evaluate("(() => { const input = document.querySelector('#chatInput'); return input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })) && input.value === '保留换行'; })()"), "ime_enter_submitted_natural_input");
+  await fill("#chatInput", "");
 
   await fill("#chatInput", "你能做什么");
   await evaluate("document.querySelector('#chatForm').requestSubmit()");
@@ -154,13 +159,15 @@ try {
   await evaluate("document.querySelector('#chatForm').requestSubmit()");
   await until(() => present(".project-recommendation-row button"), "verified_project_recommendation");
   await until(() => evaluate("!document.querySelector('.project-recommendation-row button').disabled"), "verified_project_recommendation_ready");
+  assert(await evaluate("getComputedStyle(document.querySelector('.project-recommendation-row')).display === 'grid'"), "project_recommendation_row_layout_missing");
   await click(".project-recommendation-row button");
   await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('已匹配项目')"), "selected_project_needs_video");
   assert(!(await evaluate("document.querySelector('#intentCard').textContent")).includes("0 条"), "empty_video_card_visible");
-  await fill("#chatInput", "视频标识码：video-A");
-  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await fill("#chatInput", "video-A,\nvideo-B");
+  assert(await evaluate("document.querySelector('#chatInput').value.includes('\\n')"), "multiline_video_paste_not_preserved");
+  await evaluate("(() => { const input = document.querySelector('#chatInput'); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()");
   await until(() => evaluate("!document.querySelector('#startWorkflowButton').disabled"), "append_ready_after_project_selection");
-  assert((await evaluate("document.querySelector('#intakeHint').textContent")).includes("将给项目追加 1 条视频"), "append_summary_missing");
+  assert((await evaluate("document.querySelector('#intakeHint').textContent")).includes("将给项目追加 2 条视频"), "append_summary_missing");
   const inputBottom = await evaluate("(() => { const rect = document.querySelector('#chatInput').getBoundingClientRect(); return { bottom: rect.bottom, height: window.innerHeight }; })()");
   assert(inputBottom.bottom <= inputBottom.height - 24, `chat_input_bottom_spacing_missing:${JSON.stringify(inputBottom)}`);
   browser.socket.close();
