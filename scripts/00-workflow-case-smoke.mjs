@@ -1,5 +1,6 @@
 import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, createWorkflowCase, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { createSyntheticOe3ReadonlyTransport, writeSyntheticOceanEngineEnv } from "../tests/support/platform.mjs";
 
 const TARGET = Object.freeze({
   routeId: "oceanengine_3_byte_mini_game",
@@ -22,6 +23,11 @@ function assert(condition, message) {
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
+const syntheticReadonlyFetch = createSyntheticOe3ReadonlyTransport();
+const originalFetch = globalThis.fetch;
+
+await writeSyntheticOceanEngineEnv(process.env.OCEANENGINE_ENV_PATH);
+globalThis.fetch = syntheticReadonlyFetch;
 
 async function makeCase(suffix) {
   return createWorkflowCase(repo, {
@@ -501,7 +507,7 @@ try {
     metadata: { retry_allowed: false, raw_payload_stored: false, raw_response_stored: false }
   });
   await repo.updateJob(caseScopedAttempt1.jobId, { status: "failed_waiting_manual_review", currentNode: "6" });
-  const caseScopedAttempt2 = await createJob(repo, {
+  const caseScopedBlockedPreparation = await createJob(repo, {
     route_id: TARGET.routeId,
     game_code: TARGET.gameCode,
     advertiser_id: TARGET.advertiserId,
@@ -509,13 +515,22 @@ try {
     source_usage: "test_run",
     source_record_ref: `smoke:workflow-case:case-readiness:2:${Date.now()}`
   });
-  cleanupJobIds.push(caseScopedAttempt2.jobId);
-  await runJob(repo, caseScopedAttempt2.jobId, {
-    mode: "dry_run",
-    mockReady: true,
-    createAttemptNo: 2,
-    maximumCreateAttempts: 3
+  cleanupJobIds.push(caseScopedBlockedPreparation.jobId);
+  // A normal dry-run without readonly dependency must block through the real
+  // workflow, rather than inserting a synthetic blocked Plan.
+  await runJob(repo, caseScopedBlockedPreparation.jobId, { mode: "dry_run", allowReadonlyDependency: false });
+  const missingResourcePlan = await repo.getLatestLaunchExecutionPlan(caseScopedBlockedPreparation.jobId);
+  assert(missingResourcePlan.plan_status === "blocked" && missingResourcePlan.blocker_codes.includes("readonly_permission_required"), "case_scoped_missing_preparation_must_block");
+  const caseScopedAttempt2 = await createJob(repo, {
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    case_id: caseScopedReadinessCase.case_id,
+    source_usage: "test_run",
+    source_record_ref: `smoke:workflow-case:case-readiness:2-ready:${Date.now()}`
   });
+  cleanupJobIds.push(caseScopedAttempt2.jobId);
+  await runJob(repo, caseScopedAttempt2.jobId, { mode: "dry_run", allowReadonlyDependency: true });
   const caseScopedAttempt2Bundle = await repo.getLaunchJobBundle(caseScopedAttempt2.jobId);
   assert(caseScopedAttempt2Bundle.executionPlan?.plan_status === "ready", "case_scoped_attempt_2_plan_not_ready");
   assert(Number(caseScopedAttempt2Bundle.executionPlan?.metadata?.create_attempt_no) === 2, "case_scoped_attempt_2_binding_missing");
@@ -573,5 +588,6 @@ try {
     platformWrites: 0
   }, null, 2));
 } finally {
+  globalThis.fetch = originalFetch;
   for (const jobId of cleanupJobIds.reverse()) await repo.deleteTestJobCascade(jobId);
 }

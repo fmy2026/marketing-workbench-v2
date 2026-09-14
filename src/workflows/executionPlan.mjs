@@ -38,9 +38,13 @@ import {
 export const EXECUTION_PLAN_VERSION = 1;
 export const ACTION_ENSURE_MONITOR = "ensure_monitor";
 export const ACTION_STD_PROJECT_CREATE = "std_project_create";
+export const ACTION_PROJECT_VIDEO_APPEND = "oc_project_video_append";
+export const ACTION_PROJECT_VIDEO_MATERIAL_PUSH = "oc_project_video_material_push";
 export const PLAN_KIND_MONITOR_BOOTSTRAP = "monitor_bootstrap";
 export const PLAN_KIND_RESOURCE_PREPARE = "resource_prepare";
 export const PLAN_KIND_STD_PROJECT_CREATE = "std_project_create";
+export const PLAN_KIND_PROJECT_VIDEO_APPEND = "project_video_append";
+export const PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH = "project_video_material_push";
 export const PLAN_KIND_READINESS_BLOCKED = "readiness_blocked";
 export const STD_PROJECT_40100_REDELIVERY_CONTRACT = Object.freeze({
   endpoint: "/open_api/v3.0/std_project/create/",
@@ -117,6 +121,7 @@ function stablePlanInput({
 
 function planKindForActions(plannedActions = []) {
   const actionTypes = new Set(plannedActions.map((action) => action.action_type));
+  if (actionTypes.has(ACTION_PROJECT_VIDEO_APPEND)) return PLAN_KIND_PROJECT_VIDEO_APPEND;
   if (actionTypes.has(ACTION_STD_PROJECT_CREATE)) return PLAN_KIND_STD_PROJECT_CREATE;
   if (actionTypes.size > 0) return PLAN_KIND_RESOURCE_PREPARE;
   return PLAN_KIND_READINESS_BLOCKED;
@@ -206,7 +211,8 @@ function actionGrantDefaults(actionType, actionCallLimits = {}) {
     [EVENT_CONFIGS_PROVISION_ACTION]: 6,
     "ensure_resource:video_asset": 1,
     "ensure_resource:product_image": 1,
-    [ACTION_STD_PROJECT_CREATE]: STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
+    [ACTION_STD_PROJECT_CREATE]: STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls,
+    [ACTION_PROJECT_VIDEO_APPEND]: 1
   })[actionType] || 1;
   const maximumPlatformCalls = Number(configuredLimit);
   const officialContracts = {

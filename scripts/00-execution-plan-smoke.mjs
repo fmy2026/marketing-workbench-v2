@@ -1,5 +1,6 @@
 import { PostgresRepository } from "../tests/support/repository.mjs";
 import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
+import { createSyntheticOe3ReadonlyTransport, writeSyntheticOceanEngineEnv } from "../tests/support/platform.mjs";
 import {
   ACTION_STD_PROJECT_CREATE,
   STD_PROJECT_40100_REDELIVERY_CONTRACT,
@@ -83,6 +84,11 @@ function actionTypes(plan) {
 
 const repo = new PostgresRepository();
 const cleanupJobIds = [];
+const originalFetch = globalThis.fetch;
+const syntheticReadonlyFetch = createSyntheticOe3ReadonlyTransport();
+
+await writeSyntheticOceanEngineEnv(process.env.OCEANENGINE_ENV_PATH);
+globalThis.fetch = syntheticReadonlyFetch;
 
 try {
   const filterEventDiff = evaluateSingleVariableLedgerDiff({
@@ -166,7 +172,9 @@ try {
   assert(externalUrlDiff.status === "passed", "external_url_candidate_compatibility_broken");
 
   const jobId = await makeTestJob(repo, `smoke:execution-plan:${new Date().toISOString()}`, cleanupJobIds);
-  await runJob(repo, jobId, { mode: "dry_run", mockReady: true });
+  // This must traverse the actual runner, resource checks and Plan compiler.
+  // Only outbound readonly HTTP is replaced by an explicit fixture transport.
+  await runJob(repo, jobId, { mode: "dry_run", allowReadonlyDependency: true });
 
   const first = await compileAndSaveExecutionPlan({ repo, jobId });
   const second = await compileAndSaveExecutionPlan({ repo, jobId });
@@ -174,9 +182,10 @@ try {
   assert(second.stored?.plan_id === second.plan.planId, "execution_plan_not_persisted");
   assert(second.stored?.planned_actions?.length === second.plan.plannedActions.length, "stored_plan_action_count_mismatch");
   const boundBundleAfterPlan = await repo.getLaunchJobBundle(jobId);
-  assert(boundBundleAfterPlan.draft?.payload_summary?.derived_from_plan_id === second.plan.planId, "ready_plan_draft_id_binding_missing");
-  assert(boundBundleAfterPlan.draft?.payload_summary?.derived_from_plan_hash === second.plan.planHash, "ready_plan_draft_hash_binding_missing");
-  assert(boundBundleAfterPlan.draft?.payload_summary?.plan_derivation_status === "passed", "ready_plan_draft_derivation_not_passed");
+  const boundDraftSummary = boundBundleAfterPlan.draft?.payload_summary || boundBundleAfterPlan.draft?.payloadSummary || {};
+  assert(boundDraftSummary.derived_from_plan_id === second.plan.planId, `ready_plan_draft_id_binding_missing:kind=${second.plan.planKind}:status=${second.plan.planStatus}:blockers=${(second.plan.blockerCodes || []).join(",")}:actions=${actionTypes(second.plan).join(",")}:states=${JSON.stringify(second.plan.metadata?.resource_states || [])}`);
+  assert(boundDraftSummary.derived_from_plan_hash === second.plan.planHash, "ready_plan_draft_hash_binding_missing");
+  assert(boundDraftSummary.plan_derivation_status === "passed", "ready_plan_draft_derivation_not_passed");
   assert(actionTypes(second.plan).includes(ACTION_STD_PROJECT_CREATE), "std_project_create_not_planned");
   const standardCreateAction = second.plan.plannedActions.find((action) => action.action_type === ACTION_STD_PROJECT_CREATE);
   const standardCreateGrant = second.plan.metadata.execution_scope.action_grants?.[ACTION_STD_PROJECT_CREATE] || {};
@@ -363,7 +372,7 @@ try {
   assert((attemptState.confirmationCount || 0) === 0, "confirmation_recorded_by_plan_smoke");
   assert((attemptState.createdObjectCount || 0) === 0, "created_object_recorded_by_plan_smoke");
 
-  await repo.upsertLaunchConfirmation({
+  const mainPlanClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId: `CONFIRM-${jobId}-EXECUTION-PLAN`,
     jobId,
     draftId: "",
@@ -380,6 +389,7 @@ try {
       test_only: true
     }
   });
+  assert(mainPlanClaim.claimed === true, "execution_plan_confirmation_not_claimed");
   let confirmedPlanImmutable = false;
   try {
     await compileAndSaveExecutionPlan({ repo, jobId });
@@ -391,7 +401,7 @@ try {
   assert(storedAfterConfirmation?.plan_hash === boundPlan.planHash, "confirmed_execution_plan_hash_changed");
 
   const zeroActionJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-finalization:${new Date().toISOString()}`, cleanupJobIds);
-  await runJob(repo, zeroActionJobId, { mode: "dry_run", mockReady: true });
+  await runJob(repo, zeroActionJobId, { mode: "dry_run", allowReadonlyDependency: true });
   const zeroActionPlan = await compileAndSaveExecutionPlan({ repo, jobId: zeroActionJobId });
   const zeroActionBundle = await repo.getLaunchJobBundle(zeroActionJobId);
   const zeroActionClaim = await repo.claimLaunchExecutionPlanConfirmation({
@@ -459,7 +469,7 @@ try {
     successorCompilerResults.every((result) => result === "confirmed_create_job_requires_fresh_readonly_recovery"),
     "confirmed_create_job_did_not_block_all_plan_compilers"
   );
-  const postStopRun = await runJob(repo, zeroActionJobId, { mode: "dry_run", mockReady: true });
+  const postStopRun = await runJob(repo, zeroActionJobId, { mode: "dry_run", allowReadonlyDependency: false });
   assert(postStopRun.confirmationPreview === null, "stopped_job_republished_confirmation_preview");
   assert(
     await repo.getLaunchExecutionPlan(`PLAN-${zeroActionJobId}-V2`) === null,
@@ -471,9 +481,9 @@ try {
   // create action, a V2 publish is rejected; the service view retains V1's
   // recovery Gate and never exposes a new confirmation.
   const replayJobId = await makeTestJob(repo, `smoke:confirmed-plan-replay:${new Date().toISOString()}`, cleanupJobIds);
-  await runJob(repo, replayJobId, { mode: "dry_run", mockReady: true });
+  await runJob(repo, replayJobId, { mode: "dry_run", allowReadonlyDependency: true });
   const replayV1 = await compileAndSaveExecutionPlan({ repo, jobId: replayJobId, planVersion: 1 });
-  await repo.upsertLaunchConfirmation({
+  const replayClaim = await repo.claimLaunchExecutionPlanConfirmation({
     confirmationId: planConfirmationId(replayV1.plan.planId),
     jobId: replayJobId,
     draftId: "",
@@ -486,6 +496,7 @@ try {
     planId: replayV1.plan.planId,
     metadata: { plan_hash: replayV1.plan.planHash, test_only: true }
   });
+  assert(replayClaim.claimed === true, "historical_replay_confirmation_not_claimed");
   await repo.finalizeConfirmedCreatePlanBeforeAction({
     jobId: replayJobId,
     planId: replayV1.plan.planId,
@@ -557,6 +568,7 @@ try {
   assertNoSensitiveLeak(result);
   console.log(JSON.stringify(result, null, 2));
 } finally {
+  globalThis.fetch = originalFetch;
   for (const jobId of cleanupJobIds.reverse()) {
     await repo.deleteTestJobCascade(jobId);
   }

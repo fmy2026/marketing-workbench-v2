@@ -32,8 +32,8 @@ function emptyDocument() {
   return { schema_version: WORKBENCH_LLM_CREDENTIAL_SCHEMA, credentials: {} };
 }
 
-function resolvePath(credentialPath = DEFAULT_WORKBENCH_LLM_CREDENTIAL_PATH) {
-  return path.resolve(credentialPath);
+function resolvePath(credentialPath = "") {
+  return path.resolve(credentialPath || process.env.MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH || DEFAULT_WORKBENCH_LLM_CREDENTIAL_PATH);
 }
 
 function assertSecureFile(resolved) {

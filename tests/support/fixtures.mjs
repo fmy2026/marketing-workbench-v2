@@ -77,7 +77,7 @@ export async function seedTestDatabase(database) {
       if (type === "product_image") resource.metadata.product_image_target_upload_readback = { status: "passed", image_id_present: true, material_id_present: true };
       if (type === "video_asset") {
         resource.metadata.oceanengine_video_mapping = { status: "verified", oceanengine_video_id: resource.platform_resource_id };
-        Object.assign(resource.metadata.readonly_check, { source_video_visible: true, target_video_visible: true, cover_mode: "platform_default_cover_allowed", plan_status: "source_ready_target_ready" });
+        Object.assign(resource.metadata.readonly_check, { video_id_present: true, source_video_visible: true, target_video_visible: true, cover_mode: "platform_default_cover_allowed", plan_status: "source_ready_target_ready" });
       }
       if (type === "backup_landing_page" && landing) {
         resource.source_asset_id = landing.landing_page_asset_id;

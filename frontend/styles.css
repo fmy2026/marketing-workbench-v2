@@ -715,6 +715,30 @@ p {
   gap: 7px;
 }
 
+.phase-heading-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.phase-toggle {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.request-operation-switch {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .phase-title {
   margin: 0;
   color: var(--muted);
@@ -994,6 +1018,22 @@ p {
 
 }
 /* Auth and authenticated operator controls */
+.test-environment-banner {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 auto;
+  padding: 8px 16px;
+  background: #fff3cd;
+  color: #6b4d00;
+  border-bottom: 1px solid #e8c96a;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.test-workbench .app-topbar,
+.test-workbench .auth-shell { margin-top: 36px; }
+
 .auth-shell {
   min-height: 100vh;
   display: grid;

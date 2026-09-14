@@ -36,6 +36,7 @@ import {
 } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
+import { recommendProjectVideoAppendProjects } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 import {
   WORKBENCH_ORIGIN
@@ -239,7 +240,10 @@ async function serveStatic(req, res, pathname) {
   }
 
   try {
-    const data = await readFile(safePath);
+    let data = await readFile(safePath);
+    if (requested === "/index.html" && env.MWBV2_TEST_WORKBENCH === "true") {
+      data = Buffer.from(data.toString("utf8").replace("</head>", "<script>window.__MWBV2_TEST_WORKBENCH__=true;</script></head>"));
+    }
     res.writeHead(200, {
       "content-type": mimeTypes[extname(safePath)] || "application/octet-stream",
       "cache-control": "no-store",
@@ -484,6 +488,13 @@ async function handleApi(req, res, url) {
       ownerUserId: auth.user.user_id
     });
     return sendJson(res, 200, { ...buildWorkbenchView({ activeCases }), user: publicUser(auth.user) });
+  }
+
+  if (req.method === "GET" && pathname === "/api/launch/project-recommendations") {
+    const advertiserId = String(url.searchParams.get("advertiser_id") || "").trim();
+    await requireAdvertiserOwner(auth.user, advertiserId);
+    const result = await recommendProjectVideoAppendProjects({ advertiserId });
+    return sendJson(res, 200, result);
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {

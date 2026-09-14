@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <div class="test-environment-banner" id="testEnvironmentBanner" hidden>测试环境：合成数据与模拟平台，不能执行真实投放</div>
   <section class="auth-shell" id="authGate" aria-label="工作台登录">
     <form class="auth-card" id="loginForm">
       <div class="brand-mark" aria-hidden="true">投</div>
@@ -142,6 +143,10 @@
           <section class="structured-request-panel" id="structuredRequestPanel" hidden aria-label="标准 JSON 请求">
             <div class="structured-request-heading">
               <span>完整标准请求</span>
+              <span class="request-operation-switch" role="group" aria-label="事项">
+                <button type="button" class="copy-template-button is-active" data-request-operation="create_std_project">新建项目</button>
+                <button type="button" class="copy-template-button" data-request-operation="append_project_videos">追加视频</button>
+              </span>
               <button type="button" class="copy-template-button" id="copyLaunchRequestTemplate">复制模板</button>
             </div>
             <textarea id="structuredRequestInput" spellcheck="false" aria-label="LaunchRequest JSON"></textarea>

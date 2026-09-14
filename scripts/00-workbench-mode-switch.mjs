@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { homedir, networkInterfaces } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolveWorkbenchNetworkPolicy } from "../src/security/workbenchNetworkPolicy.mjs";
@@ -23,16 +24,37 @@ export function localIpv4Addresses(interfaces = networkInterfaces()) {
 export function parseModeArguments(argv) {
   let mode = "";
   let host = "";
+  let releaseRoot = "";
   let dryRun = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--mode") mode = clean(argv[++index]);
     else if (arg === "--host") host = clean(argv[++index]);
+    else if (arg === "--release-root") releaseRoot = clean(argv[++index]);
     else if (arg === "--dry-run") dryRun = true;
     else throw new Error(`workbench_mode_argument_invalid:${arg}`);
   }
   if (!new Set(["local", "company"]).has(mode)) throw new Error("workbench_mode_required:local_or_company");
-  return { mode, host, dryRun };
+  return { mode, host, releaseRoot, dryRun };
+}
+
+function stableRuntimeEnv() {
+  return {
+    MWBV2_PROJECT_STATE_PATH: join(projectRoot, "project.state.json"),
+    MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH: join(projectRoot, ".local", "workbench-llm-credentials.json"),
+    OCEANENGINE_ENV_PATH: join(projectRoot, ".local", "oceanengine.env"),
+    QIANKUN_MONITOR_ENV_PATH: join(projectRoot, ".local", "qiankun-monitor.env")
+  };
+}
+
+async function resolveReleaseRoot(releaseRoot = "") {
+  if (!releaseRoot) return projectRoot;
+  const resolved = resolve(releaseRoot);
+  const allowedRoot = join(projectRoot, ".local", "releases");
+  if (relative(allowedRoot, resolved).startsWith("..") || resolved === allowedRoot) throw new Error("workbench_release_root_invalid");
+  const info = await stat(resolved);
+  if (!info.isDirectory()) throw new Error("workbench_release_root_not_directory");
+  return resolved;
 }
 
 export function resolveModeConfiguration({ mode, host = "", localAddresses = localIpv4Addresses() }) {
@@ -138,11 +160,12 @@ function reload(plist) {
   launchctl(["kickstart", "-k", target]);
 }
 
-export async function applyModeConfiguration(configuration) {
+export async function applyModeConfiguration(configuration, { workingDirectory = projectRoot } = {}) {
   const filePaths = paths();
   const previous = await readFile(filePaths.plist);
   const plist = buildLaunchAgentPlist({
-    env: configuration.env,
+    env: { ...stableRuntimeEnv(), ...configuration.env },
+    workingDirectory,
     stdoutPath: filePaths.stdoutPath,
     stderrPath: filePaths.stderrPath
   });
@@ -166,12 +189,14 @@ export async function applyModeConfiguration(configuration) {
 async function main() {
   const request = parseModeArguments(process.argv.slice(2));
   const configuration = resolveModeConfiguration(request);
-  if (!request.dryRun) await applyModeConfiguration(configuration);
+  const workingDirectory = await resolveReleaseRoot(request.releaseRoot);
+  if (!request.dryRun) await applyModeConfiguration(configuration, { workingDirectory });
   console.log(JSON.stringify({
     status: request.dryRun ? "validated" : "applied",
     mode: configuration.mode,
     root_url: configuration.policy.publicOrigin,
-    private_lan_http: configuration.policy.privateLanHttp
+    private_lan_http: configuration.policy.privateLanHttp,
+    release_root: workingDirectory
   }, null, 2));
 }
 

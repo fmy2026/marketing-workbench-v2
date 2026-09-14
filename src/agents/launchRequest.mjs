@@ -1,11 +1,28 @@
 import { parseLaunchIntake } from "./launchAgent.mjs";
+import { createHash } from "node:crypto";
 
 export const LAUNCH_REQUEST_SCHEMA_VERSION = "launch-request.v1";
+export const LAUNCH_REQUEST_SCHEMA_VERSION_V2 = "launch-request.v2";
 export const LAUNCH_REQUEST_OPERATION = "create_std_project";
+export const PROJECT_VIDEO_APPEND_OPERATION = "append_project_videos";
 export const LAUNCH_REQUEST_ROUTE_ID = "oceanengine_3_byte_mini_game";
 export const LAUNCH_REQUEST_GAME_CODE = "JSZC";
 export const LAUNCH_REQUEST_FIELDS = ["schema_version", "operation", "route_id", "game_code", "advertiser_id"];
+export const PROJECT_VIDEO_APPEND_FIELDS = ["schema_version", "operation", "route_id", "game_code", "advertiser_id", "project_id", "origin_resource_ids"];
 const DRAFT_FIELDS = ["route_id", "game_code", "advertiser_id"];
+
+// This is the single request-contract boundary. Intent parsing may only choose
+// one of these operations; workflow code decides the corresponding actions.
+export const LAUNCH_OPERATION_CONTRACTS = Object.freeze({
+  [LAUNCH_REQUEST_OPERATION]: Object.freeze({
+    requiredFields: DRAFT_FIELDS,
+    acceptedSchemaVersions: [LAUNCH_REQUEST_SCHEMA_VERSION, LAUNCH_REQUEST_SCHEMA_VERSION_V2]
+  }),
+  [PROJECT_VIDEO_APPEND_OPERATION]: Object.freeze({
+    requiredFields: [...DRAFT_FIELDS, "project_id", "origin_resource_ids"],
+    acceptedSchemaVersions: [LAUNCH_REQUEST_SCHEMA_VERSION_V2]
+  })
+});
 
 export class LaunchRequestError extends Error {
   constructor(message, { code, status = 400, details = null } = {}) {
@@ -57,6 +74,29 @@ function advertiserId(value, allowEmpty = false) {
   return normalized;
 }
 
+function projectId(value, allowEmpty = false) {
+  if (typeof value !== "string") failure("project_id 必须是字符串。", "launch_request_invalid_field", { field: "project_id" });
+  const normalized = value.trim();
+  if (!normalized && allowEmpty) return "";
+  if (!/^\d{8,24}$/.test(normalized)) failure("project_id 必须是 8 到 24 位数字字符串。", "launch_request_invalid_field", { field: "project_id" });
+  return normalized;
+}
+
+function originResourceIds(value, allowEmpty = false) {
+  if (!Array.isArray(value)) failure("origin_resource_ids 必须是数组。", "launch_request_invalid_field", { field: "origin_resource_ids" });
+  const ids = value.map((item) => {
+    if (typeof item !== "string") failure("origin_resource_ids 必须只包含字符串。", "launch_request_invalid_field", { field: "origin_resource_ids" });
+    const id = item.trim();
+    if (!/^[A-Za-z0-9._:-]{2,128}$/.test(id)) failure("素材标识码格式无效。", "launch_request_invalid_field", { field: "origin_resource_ids" });
+    return id;
+  });
+  const unique = [...new Set(ids)];
+  if (ids.length !== unique.length) failure("素材标识码包含重复项。", "launch_request_duplicate_origin_resource_id");
+  if (!unique.length && !allowEmpty) failure("至少需要一个素材标识码。", "launch_request_missing_fields", { fields: ["origin_resource_ids"] });
+  if (unique.length > 100) failure("单次最多追加 100 个素材标识码，请拆分提交。", "launch_request_origin_resource_ids_exceed_limit");
+  return unique;
+}
+
 function partial(values, allowEmpty = false) {
   return {
     route_id: routeId(values.route_id, allowEmpty),
@@ -66,12 +106,16 @@ function partial(values, allowEmpty = false) {
 }
 
 export function createLaunchRequest(values) {
-  return { schema_version: LAUNCH_REQUEST_SCHEMA_VERSION, operation: LAUNCH_REQUEST_OPERATION, ...partial(values) };
+  const schemaVersion = values.schema_version || values.schemaVersion || LAUNCH_REQUEST_SCHEMA_VERSION;
+  if (!LAUNCH_OPERATION_CONTRACTS[LAUNCH_REQUEST_OPERATION].acceptedSchemaVersions.includes(schemaVersion)) {
+    failure("创建标准项目请求的 schema_version 不受支持。", "launch_request_schema_version_not_supported", { field: "schema_version" });
+  }
+  return { schema_version: schemaVersion, operation: LAUNCH_REQUEST_OPERATION, ...partial(values) };
 }
 
 export function createLaunchRequestDraft(values = {}) {
   return {
-    schema_version: LAUNCH_REQUEST_SCHEMA_VERSION,
+    schema_version: values.schema_version === LAUNCH_REQUEST_SCHEMA_VERSION_V2 ? LAUNCH_REQUEST_SCHEMA_VERSION_V2 : LAUNCH_REQUEST_SCHEMA_VERSION,
     operation: LAUNCH_REQUEST_OPERATION,
     route_id: String(values.route_id || ""),
     game_code: String(values.game_code || ""),
@@ -80,23 +124,29 @@ export function createLaunchRequestDraft(values = {}) {
 }
 
 export function normalizeLaunchRequestDraft(value = {}) {
-  knownOnly(value, LAUNCH_REQUEST_FIELDS, "draft");
-  if (Object.hasOwn(value, "schema_version") && value.schema_version !== LAUNCH_REQUEST_SCHEMA_VERSION) {
-    failure("draft 的 schema_version 必须为 launch-request.v1。", "launch_request_schema_version_not_supported", { field: "schema_version" });
+  const operation = value.operation || LAUNCH_REQUEST_OPERATION;
+  const contract = LAUNCH_OPERATION_CONTRACTS[operation];
+  if (!contract) failure("operation 当前不受支持。", "launch_request_operation_not_supported", { field: "operation" });
+  knownOnly(value, operation === PROJECT_VIDEO_APPEND_OPERATION ? PROJECT_VIDEO_APPEND_FIELDS : LAUNCH_REQUEST_FIELDS, "draft");
+  if (Object.hasOwn(value, "schema_version") && !contract.acceptedSchemaVersions.includes(value.schema_version)) {
+    failure("draft 的 schema_version 不受支持。", "launch_request_schema_version_not_supported", { field: "schema_version" });
   }
-  if (Object.hasOwn(value, "operation") && value.operation !== LAUNCH_REQUEST_OPERATION) {
-    failure("draft 的 operation 当前仅支持 create_std_project。", "launch_request_operation_not_supported", { field: "operation" });
-  }
+  if (operation === PROJECT_VIDEO_APPEND_OPERATION) return createProjectVideoAppendRequestDraft(value);
   const draft = Object.fromEntries(DRAFT_FIELDS.map((field) => [field, Object.hasOwn(value, field) ? value[field] : ""]));
-  return partial(draft, true);
+  return { schema_version: value.schema_version || LAUNCH_REQUEST_SCHEMA_VERSION, operation, ...partial(draft, true) };
 }
 
 export function validateLaunchRequest(request) {
+  const operation = request?.operation;
+  if (operation === PROJECT_VIDEO_APPEND_OPERATION) {
+    return validateProjectVideoAppendRequest(request);
+  }
+  if (operation !== LAUNCH_REQUEST_OPERATION) failure("operation 当前不受支持。", "launch_request_operation_not_supported", { field: "operation" });
   knownOnly(request, LAUNCH_REQUEST_FIELDS, "request");
   const missing = LAUNCH_REQUEST_FIELDS.filter((field) => !Object.hasOwn(request, field));
   if (missing.length) failure("request 缺少必填字段。", "launch_request_missing_fields", { fields: missing });
-  if (typeof request.schema_version !== "string" || request.schema_version !== LAUNCH_REQUEST_SCHEMA_VERSION) {
-    failure("schema_version 必须为 launch-request.v1。", "launch_request_schema_version_not_supported", { field: "schema_version" });
+  if (typeof request.schema_version !== "string" || !LAUNCH_OPERATION_CONTRACTS[LAUNCH_REQUEST_OPERATION].acceptedSchemaVersions.includes(request.schema_version)) {
+    failure("创建标准项目请求的 schema_version 不受支持。", "launch_request_schema_version_not_supported", { field: "schema_version" });
   }
   if (typeof request.operation !== "string" || request.operation !== LAUNCH_REQUEST_OPERATION) {
     failure("operation 当前仅支持 create_std_project。", "launch_request_operation_not_supported", { field: "operation" });
@@ -104,12 +154,52 @@ export function validateLaunchRequest(request) {
   return createLaunchRequest(request);
 }
 
+export function createProjectVideoAppendRequest(values = {}) {
+  return {
+    schema_version: LAUNCH_REQUEST_SCHEMA_VERSION_V2,
+    operation: PROJECT_VIDEO_APPEND_OPERATION,
+    route_id: routeId(values.route_id),
+    game_code: gameCode(values.game_code),
+    advertiser_id: advertiserId(values.advertiser_id),
+    project_id: projectId(values.project_id),
+    origin_resource_ids: originResourceIds(values.origin_resource_ids)
+  };
+}
+
+export function createProjectVideoAppendRequestDraft(values = {}) {
+  return {
+    schema_version: LAUNCH_REQUEST_SCHEMA_VERSION_V2,
+    operation: PROJECT_VIDEO_APPEND_OPERATION,
+    route_id: String(values.route_id || "").trim(),
+    game_code: String(values.game_code || "").trim(),
+    advertiser_id: String(values.advertiser_id || "").trim(),
+    project_id: String(values.project_id || "").trim(),
+    origin_resource_ids: Array.isArray(values.origin_resource_ids)
+      ? values.origin_resource_ids.map((item) => String(item || "").trim()).filter(Boolean)
+      : []
+  };
+}
+
+export function validateProjectVideoAppendRequest(request) {
+  knownOnly(request, PROJECT_VIDEO_APPEND_FIELDS, "request");
+  const missing = PROJECT_VIDEO_APPEND_FIELDS.filter((field) => !Object.hasOwn(request, field));
+  if (missing.length) failure("request 缺少必填字段。", "launch_request_missing_fields", { fields: missing });
+  if (request.schema_version !== LAUNCH_REQUEST_SCHEMA_VERSION_V2) {
+    failure("追加素材请求必须使用 launch-request.v2。", "launch_request_schema_version_not_supported", { field: "schema_version" });
+  }
+  if (request.operation !== PROJECT_VIDEO_APPEND_OPERATION) {
+    failure("当前追加事项仅支持 append_project_videos。", "launch_request_operation_not_supported", { field: "operation" });
+  }
+  return createProjectVideoAppendRequest(request);
+}
+
 function camel(field) {
   return field.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 function directFieldsPresent(body) {
-  return DRAFT_FIELDS.some((field) => Object.hasOwn(body, field) || Object.hasOwn(body, camel(field)));
+  return [...DRAFT_FIELDS, "project_id", "origin_resource_ids", "operation", "schema_version"]
+    .some((field) => Object.hasOwn(body, field) || Object.hasOwn(body, camel(field)));
 }
 
 function pick(body, field) {
@@ -121,11 +211,28 @@ export function normalizeLaunchRequestFromBody(body = {}, { allowNatural = true 
   const hasRequest = Object.hasOwn(body, "request");
   const hasDirect = directFieldsPresent(body);
   const userIntent = String(body.user_intent || body.userIntent || "").trim();
-  const sourceCount = Number(hasRequest) + Number(hasDirect) + Number(Boolean(userIntent));
-  if (!sourceCount) failure("请提供 request 或投放创建输入。", "launch_request_input_required");
-  if (sourceCount > 1) failure("一次提交只能使用一种投放创建输入。", "launch_request_input_conflict");
+  if (!hasRequest && !hasDirect && !userIntent) failure("请提供 request 或投放创建输入。", "launch_request_input_required");
+  // Legacy job callers carry a human-readable business_goal beside the three
+  // canonical fields. The fields remain the sole source of the request; only
+  // a structured request mixed with another request source is ambiguous.
+  if (hasRequest && (hasDirect || userIntent)) failure("一次提交只能使用一种投放创建输入。", "launch_request_input_conflict");
   if (hasRequest) return { request: validateLaunchRequest(body.request), source: "structured_json" };
-  if (hasDirect) return { request: createLaunchRequest(Object.fromEntries(DRAFT_FIELDS.map((field) => [field, pick(body, field)]))), source: "legacy_fields" };
+  if (hasDirect) {
+    const operation = pick(body, "operation") || LAUNCH_REQUEST_OPERATION;
+    if (!LAUNCH_OPERATION_CONTRACTS[operation]) failure("operation 当前不受支持。", "launch_request_operation_not_supported", { field: "operation" });
+    if (operation === PROJECT_VIDEO_APPEND_OPERATION) {
+      return {
+        request: validateProjectVideoAppendRequest(Object.fromEntries(PROJECT_VIDEO_APPEND_FIELDS
+          .map((field) => [field, field === "operation" ? operation : field === "schema_version" ? (pick(body, field) || LAUNCH_REQUEST_SCHEMA_VERSION_V2) : pick(body, field)]))),
+        source: "legacy_fields"
+      };
+    }
+    return { request: validateLaunchRequest({
+      schema_version: pick(body, "schema_version") || LAUNCH_REQUEST_SCHEMA_VERSION,
+      operation,
+      ...Object.fromEntries(DRAFT_FIELDS.map((field) => [field, pick(body, field)]))
+    }), source: "legacy_fields" };
+  }
   if (!allowNatural) failure("此入口只接受标准 request。", "launch_request_input_required");
   const parsed = parseLaunchIntake(userIntent);
   if (parsed.issues?.length) failure("当前输入需要澄清，不能创建投放任务。", "launch_request_needs_clarification", { codes: parsed.issues });
@@ -133,16 +240,23 @@ export function normalizeLaunchRequestFromBody(body = {}, { allowNatural = true 
 }
 
 export function missingLaunchRequestFields(request) {
-  return DRAFT_FIELDS.filter((field) => !request[field]);
+  const fields = LAUNCH_OPERATION_CONTRACTS[request?.operation || LAUNCH_REQUEST_OPERATION]?.requiredFields || DRAFT_FIELDS;
+  return fields.filter((field) => !request[field] || (Array.isArray(request[field]) && request[field].length === 0));
 }
 
 export function toLaunchRequestResponse({ draft, parseSource, source, slotSources = {}, modelAssist, issues = [] }) {
-  const request = createLaunchRequestDraft(draft);
+  const request = draft?.operation === PROJECT_VIDEO_APPEND_OPERATION
+    ? createProjectVideoAppendRequestDraft(draft)
+    : createLaunchRequestDraft(draft);
   return {
     request,
     route_id: request.route_id,
     game_code: request.game_code,
     advertiser_id: request.advertiser_id,
+    ...(request.operation === PROJECT_VIDEO_APPEND_OPERATION ? {
+      project_id: request.project_id,
+      origin_resource_ids: request.origin_resource_ids
+    } : {}),
     missing_fields: missingLaunchRequestFields(request),
     parse_source: parseSource,
     slot_sources: slotSources,
@@ -152,10 +266,20 @@ export function toLaunchRequestResponse({ draft, parseSource, source, slotSource
   };
 }
 
+export function launchRequestFingerprint(request = {}) {
+  const normalized = validateLaunchRequest(request);
+  const canonical = normalized.operation === PROJECT_VIDEO_APPEND_OPERATION
+    ? { ...normalized, origin_resource_ids: [...normalized.origin_resource_ids].sort() }
+    : normalized;
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonical)).digest("hex")}`;
+}
+
 export function launchRequestIssue(code) {
   const messages = {
-    operation_not_supported: "当前仅支持新建标准项目；修改 ROI、追加素材和修改既有配置暂未开放。",
-    multiple_advertiser_ids: "检测到多个账户 ID，请只保留一个账户后重试。"
+    operation_not_supported: "当前仅支持新建标准项目或给已有项目追加视频；修改 ROI、出价、时段和其他既有配置暂未开放。",
+    multiple_advertiser_ids: "检测到多个账户 ID，请只保留一个账户后重试。",
+    operation_ambiguous: "未能确定是新建项目还是追加视频，请明确说明事项。",
+    operation_conflict: "同一句包含多个执行事项，请拆分后分别提交。"
   };
   return { code, message: messages[code] || "当前输入需要澄清。" };
 }

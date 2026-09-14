@@ -18,6 +18,10 @@ import {
 } from "./workbench-command-submission.mjs";
 
 (function () {
+  if (window.__MWBV2_TEST_WORKBENCH__ === true) {
+    document.getElementById("testEnvironmentBanner")?.removeAttribute("hidden");
+    document.documentElement.classList.add("test-workbench");
+  }
   let job = null;
   let workbench = null;
   let busy = false;
@@ -38,16 +42,25 @@ import {
   let passwordChangeForced = false;
   const chatMessages = [];
   const focusedNodes = new Map();
+  const expandedPhases = new Set();
+  const collapsedPhases = new Set();
+  const expandedNodeDetails = new Set();
   const agentModules = new Set(["overview", "conversation", "memory", "knowledge", "skills", "statistics"]);
   const draftIntake = {
+    schema_version: "launch-request.v1",
+    operation: "create_std_project",
     route_id: "",
     game_code: "",
-    advertiser_id: ""
+    advertiser_id: "",
+    project_id: "",
+    origin_resource_ids: []
   };
   let intakeMode = "natural";
   let intakeIssues = [];
   let intakeParseSource = "rules";
   let intakeModelAssist = null;
+  let projectRecommendations = null;
+  let projectRecommendationAccountId = "";
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -462,6 +475,15 @@ import {
   }
 
   function requiredFields() {
+    if ((job?.operation || job?.intake?.operation || draftIntake.operation) === "append_project_videos") {
+      return [
+        { key: "route_id", label: "推广路线" },
+        { key: "game_code", label: "游戏标识" },
+        { key: "advertiser_id", label: "账户 ID" },
+        { key: "project_id", label: "项目 ID" },
+        { key: "origin_resource_ids", label: "视频标识码" }
+      ];
+    }
     return job?.intake?.requiredFields || workbench?.intake?.requiredFields || [];
   }
 
@@ -475,7 +497,10 @@ import {
   }
 
   function missingFields() {
-    return requiredFields().filter((field) => !fieldValue(draftIntake, field.key));
+    return requiredFields().filter((field) => {
+      const value = fieldValue(draftIntake, field.key);
+      return !value || (Array.isArray(value) && value.length === 0);
+    });
   }
 
   function message(role, text) {
@@ -497,6 +522,62 @@ import {
   function setJobView(nextJob) {
     job = nextJob || null;
     jobRevision += 1;
+  }
+
+  function renderProjectRecommendations(stream) {
+    const recommendation = projectRecommendations;
+    if (!recommendation || job || draftIntake.operation !== "append_project_videos" || draftIntake.project_id) return;
+    const card = el("section", "confirmation-card project-recommendation-card");
+    card.append(el("strong", "", "项目推荐（只读）"));
+    if (recommendation.status === "loading") {
+      card.append(el("p", "", "正在读取该账户的可选项目…"));
+    } else if (recommendation.status === "failed") {
+      card.append(el("p", "", "项目推荐暂不可用；请手动发送带“项目”标签的项目 ID。"));
+    } else if (recommendation.status === "empty") {
+      card.append(el("p", "", "该账户没有可选项目；请手动发送项目 ID。"));
+    } else {
+      card.append(el("p", "", recommendation.latest ? "按创建时间推荐最近 5 个项目；请选择一个。" : "平台未返回完整创建时间，以下为可选项目；请选择一个。"));
+      const list = el("div", "project-recommendation-list");
+      for (const item of recommendation.items || []) {
+        const row = el("div", "project-recommendation-row");
+        row.append(el("strong", "", item.projectName));
+        row.append(el("span", "", `ID：${item.projectId}`));
+        row.append(el("span", "", `${item.createdAt || "创建时间未知"} · ${item.status || "状态未知"}`));
+        const select = el("button", "conversation-preset", "选择此项目");
+        select.type = "button";
+        select.disabled = busy || viewOnly;
+        select.addEventListener("click", () => selectRecommendedProject(item.projectId));
+        row.append(select); list.append(row);
+      }
+      card.append(list);
+    }
+    stream.append(card);
+  }
+
+  async function selectRecommendedProject(projectId) {
+    if (!/^\d{8,24}$/.test(String(projectId || "")) || busy || viewOnly) return;
+    draftIntake.project_id = String(projectId);
+    intakeIssues = intakeIssues.filter((item) => item.code !== "multiple_project_ids");
+    projectRecommendations = null;
+    projectRecommendationAccountId = "";
+    draftCaseId = ""; draftCaseKey = "";
+    message("agent", `已选定项目 ${projectId}。请继续补充视频标识码。`);
+    renderAll();
+  }
+
+  async function refreshProjectRecommendations() {
+    const eligible = !job && intakeMode === "natural" && draftIntake.operation === "append_project_videos" &&
+      /^\d{8,24}$/.test(draftIntake.advertiser_id) && !draftIntake.project_id && intakeIssues.length === 0;
+    if (!eligible) { projectRecommendations = null; projectRecommendationAccountId = ""; return; }
+    if (projectRecommendationAccountId === draftIntake.advertiser_id && projectRecommendations?.status !== "failed") return;
+    projectRecommendationAccountId = draftIntake.advertiser_id;
+    projectRecommendations = { status: "loading", items: [] }; renderAll();
+    try {
+      const result = await api(`/api/launch/project-recommendations?advertiser_id=${encodeURIComponent(draftIntake.advertiser_id)}`, { method: "GET" });
+      if (projectRecommendationAccountId !== draftIntake.advertiser_id || draftIntake.project_id) return;
+      projectRecommendations = result;
+    } catch { projectRecommendations = { status: "failed", items: [] }; }
+    renderAll();
   }
 
   function renderConfirmationCard(stream) {
@@ -660,6 +741,7 @@ import {
     }
     const current = operationalMessage();
     if (current) appendRenderedMessage(stream, "agent", current);
+    renderProjectRecommendations(stream);
     renderConfirmationCard(stream);
     stream.scrollTop = stream.scrollHeight;
   }
@@ -682,7 +764,7 @@ import {
       if (!value) continue;
       const item = el("div", "identity-item");
       item.append(el("span", "", field.label));
-      item.append(el("strong", "", value));
+      item.append(el("strong", "", Array.isArray(value) ? `${value.length} 条` : value));
       intentCard.append(item);
     }
 
@@ -699,7 +781,9 @@ import {
       : (modelAssistFailed
         ? `${parserLabel(intakeParseSource)}；请修正后重新提交。`
         : (isDraftReady
-        ? `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`
+        ? (draftIntake.operation === "append_project_videos"
+          ? `将给项目追加 ${draftIntake.origin_resource_ids.length} 条视频：${draftIntake.route_id} · ${draftIntake.game_code} · 账户 ${draftIntake.advertiser_id} · 项目 ${draftIntake.project_id}。`
+          : `将新建标准项目：${draftIntake.route_id} · ${draftIntake.game_code} · ${draftIntake.advertiser_id}。`)
         : (missing.length ? `请补充：${missing.map((field) => field.label).join("、")}` : "等待规范化输入。")));
     const tip = document.getElementById("configTip");
     if (tip) tip.textContent = parserLabel(intakeParseSource);
@@ -708,11 +792,16 @@ import {
 
   function clearDraftIntake() {
     for (const key of Object.keys(draftIntake)) draftIntake[key] = "";
+    draftIntake.schema_version = "launch-request.v1";
+    draftIntake.operation = "create_std_project";
+    draftIntake.origin_resource_ids = [];
     intakeIssues = [];
     intakeParseSource = "rules";
     intakeModelAssist = null;
     draftCaseId = "";
     draftCaseKey = "";
+    projectRecommendations = null;
+    projectRecommendationAccountId = "";
   }
 
   function renderIntakeMode() {
@@ -778,6 +867,8 @@ import {
 
   function renderWorkflow() {
     const workflowPhases = phases();
+    const currentNodeNumber = Number(job?.progress?.currentNodeNumber || job?.progress?.current_node || 0);
+    const currentPhaseKey = workflowPhases.find((phase) => (phase.nodes || []).some((node) => Number(node.number) === currentNodeNumber))?.id || "";
     const grid = document.getElementById("workflowGrid");
     grid.innerHTML = "";
 
@@ -786,9 +877,31 @@ import {
       const section = el("section", "phase-section");
       const title = el("div", "phase-heading");
       const complete = nodes.length > 0 && nodes.every((node) => node.status === "passed");
-      title.append(statusDot(complete ? "passed" : "waiting", complete ? "阶段通过" : "阶段未全部通过"));
-      title.append(el("h3", "phase-title", phase.title || phase.phase || ""));
+      const phaseKey = phase.id || phase.title || phase.phase || "";
+      const activePhase = phaseKey === currentPhaseKey || (!currentPhaseKey && phase === workflowPhases.find((candidate) => (candidate.nodes || []).some((node) => node.status !== "passed")));
+      const expanded = collapsedPhases.has(phaseKey) ? false : (expandedPhases.has(phaseKey) || activePhase);
+      const headingButton = el("button", "phase-heading-button");
+      headingButton.type = "button";
+      headingButton.setAttribute("aria-expanded", String(expanded));
+      headingButton.append(statusDot(complete ? "passed" : "waiting", complete ? "阶段通过" : "阶段未全部通过"));
+      headingButton.append(el("h3", "phase-title", phase.title || phase.phase || ""));
+      headingButton.append(el("span", "phase-toggle", expanded ? "收起" : "展开"));
+      headingButton.addEventListener("click", () => {
+        if (expanded) {
+          expandedPhases.delete(phaseKey);
+          collapsedPhases.add(phaseKey);
+        } else {
+          collapsedPhases.delete(phaseKey);
+          expandedPhases.add(phaseKey);
+        }
+        renderWorkflow();
+      });
+      title.append(headingButton);
       section.append(title);
+      if (!expanded) {
+        grid.append(section);
+        continue;
+      }
 
       const flow = el("div", "node-flow");
       nodes.forEach((node, index) => {
@@ -812,7 +925,8 @@ import {
       section.append(flow);
 
       const focused = focusNode(phase);
-      if (focused?.children?.length) {
+      const detailsKey = `${phaseKey}:${focused?.id || ""}`;
+      if (focused?.children?.length && expandedNodeDetails.has(detailsKey)) {
         const visibleChildren = focused.children;
         const children = el("div", "subnode-panel");
         const subnodeTitle = el("div", "subnode-heading");
@@ -830,11 +944,21 @@ import {
         children.append(childList);
         section.append(children);
       }
+      if (focused?.children?.length && !expandedNodeDetails.has(detailsKey)) {
+        const details = el("button", "subnode-details-toggle", "查看检查项");
+        details.type = "button";
+        details.addEventListener("click", () => {
+          expandedNodeDetails.add(detailsKey);
+          renderWorkflow();
+        });
+        section.append(details);
+      }
       grid.append(section);
     }
 
     const nodeCount = allNodes().length;
-    document.getElementById("workflowHeading").textContent = `Workflow · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
+    const operation = job?.operation || job?.intake?.operation || draftIntake.operation;
+    document.getElementById("workflowHeading").textContent = `${operation === "append_project_videos" ? "追加视频" : "新建项目"} · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
   }
 
   function renderCommand() {
@@ -990,7 +1114,9 @@ import {
         body: JSON.stringify({
           case_key: createCaseKey(),
           request: frozenLaunchRequest(),
-          business_goal: "从工作台启动一次受控标准项目创建流程。",
+          business_goal: draftIntake.operation === "append_project_videos"
+            ? "从工作台启动一次受控项目视频追加流程。"
+            : "从工作台启动一次受控标准项目创建流程。",
           source_usage: "runtime_truth"
         })
       });
@@ -1045,7 +1171,7 @@ import {
           request: frozenLaunchRequest(),
           case_id: selectedCase.caseId,
           source_usage: "runtime_truth",
-          source_record_ref: "workbench:launch-request-v1"
+          source_record_ref: `workbench:${draftIntake.schema_version}`
         })
       });
       setJobView(created);
@@ -1063,7 +1189,11 @@ import {
 
   function mergeIntake(intake) {
     const request = intake?.request || intake || {};
-    for (const field of requiredFields()) draftIntake[field.key] = fieldValue(request, field.key);
+    draftIntake.schema_version = request.schema_version || "launch-request.v1";
+    draftIntake.operation = request.operation || "create_std_project";
+    for (const field of ["route_id", "game_code", "advertiser_id", "project_id", "origin_resource_ids"]) {
+      if (Object.hasOwn(request, field)) draftIntake[field] = fieldValue(request, field);
+    }
     intakeIssues = Array.isArray(intake?.issues) ? intake.issues : [];
     intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
     intakeModelAssist = intake?.model_assist || intake?.modelAssist || null;
@@ -1072,6 +1202,17 @@ import {
   }
 
   function frozenLaunchRequest() {
+    if (draftIntake.operation === "append_project_videos") {
+      return Object.freeze({
+        schema_version: "launch-request.v2",
+        operation: "append_project_videos",
+        route_id: draftIntake.route_id,
+        game_code: draftIntake.game_code,
+        advertiser_id: draftIntake.advertiser_id,
+        project_id: draftIntake.project_id,
+        origin_resource_ids: [...draftIntake.origin_resource_ids]
+      });
+    }
     return Object.freeze({
       schema_version: "launch-request.v1",
       operation: "create_std_project",
@@ -1367,6 +1508,18 @@ import {
         renderAll();
       });
     }
+    for (const button of document.querySelectorAll("[data-request-operation]")) {
+      button.addEventListener("click", () => {
+        if (busy || viewOnly || job) return;
+        draftIntake.operation = button.dataset.requestOperation || "create_std_project";
+        draftIntake.schema_version = draftIntake.operation === "append_project_videos" ? "launch-request.v2" : "launch-request.v1";
+        draftIntake.project_id = "";
+        draftIntake.origin_resource_ids = [];
+        for (const item of document.querySelectorAll("[data-request-operation]")) item.classList.toggle("is-active", item === button);
+        document.getElementById("structuredRequestInput").value = JSON.stringify(launchRequestTemplate(), null, 2);
+        renderAll();
+      });
+    }
     document.getElementById("copyLaunchRequestTemplate").addEventListener("click", async () => {
       const text = JSON.stringify(launchRequestTemplate(), null, 2);
       const input = document.getElementById("structuredRequestInput");
@@ -1394,6 +1547,17 @@ import {
   }
 
   function launchRequestTemplate() {
+    if (draftIntake.operation === "append_project_videos") {
+      return {
+        schema_version: "launch-request.v2",
+        operation: "append_project_videos",
+        route_id: "oceanengine_3_byte_mini_game",
+        game_code: "JSZC",
+        advertiser_id: "填写本人账户ID",
+        project_id: "填写目标项目ID",
+        origin_resource_ids: ["视频标识码A"]
+      };
+    }
     return {
       schema_version: "launch-request.v1",
       operation: "create_std_project",
@@ -1418,6 +1582,7 @@ import {
           body: JSON.stringify({ user_intent: normalized, draft: { ...draftIntake } })
         });
         mergeIntake(intake);
+        await refreshProjectRecommendations();
         const missing = missingFields();
         const label = parserLabel(intake.parse_source || intake.parseSource, intake.model_assist || intake.modelAssist);
         const identified = requiredFields().length - missing.length;

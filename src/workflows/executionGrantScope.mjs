@@ -3,8 +3,12 @@ import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ACTION_ENSURE_MONITOR,
+  ACTION_PROJECT_VIDEO_APPEND,
+  ACTION_PROJECT_VIDEO_MATERIAL_PUSH,
   ACTION_STD_PROJECT_CREATE,
   PLAN_KIND_MONITOR_BOOTSTRAP,
+  PLAN_KIND_PROJECT_VIDEO_APPEND,
+  PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH,
   PLAN_KIND_RESOURCE_PREPARE,
   STD_PROJECT_40100_REDELIVERY_CONTRACT,
   resolveFreshResourceActionContracts,
@@ -270,6 +274,95 @@ export async function validatePlanConfirmationScope({
   };
 }
 
+export async function validateProjectVideoAppendPlanConfirmationScope({
+  repo,
+  bundle,
+  projectStatePath = defaultProjectStatePath,
+  authorizationSource = "workbench_view",
+  authenticatedUserId = ""
+}) {
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const authorization = await evaluatePlanBoundWriteAuthorization({
+    repo, bundle, plan, projectStatePath, authorizationSource, authenticatedUserId
+  });
+  const scope = plan?.metadata?.execution_scope || {};
+  const actions = plan?.planned_actions || plan?.plannedActions || [];
+  const action = actions[0] || {};
+  const blockers = plan?.blocker_codes || plan?.blockerCodes || [];
+  const existingConfirmation = await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "");
+  const actionScope = validateExecutionPlanActionScope({ plan, allowedActions: scope.allowed_actions || [] });
+  const append = plan?.metadata?.append_summary || {};
+  const checks = [
+    ...authorization.blockers,
+    ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
+    ...((plan?.plan_kind || plan?.metadata?.plan_kind) === PLAN_KIND_PROJECT_VIDEO_APPEND ? [] : ["execution_plan_kind_not_project_video_append"]),
+    ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(blockers.length === 0 ? [] : ["execution_plan_has_blockers"]),
+    ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
+    ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
+    ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
+    ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
+    ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
+    ...(actionScope.status === "passed" ? [] : actionScope.blockers),
+    ...(actions.length === 1 && action.action_type === ACTION_PROJECT_VIDEO_APPEND ? [] : ["project_video_append_action_set_invalid"]),
+    ...(Number(actionMaximumPlatformCalls(action)) === 1 ? [] : ["project_video_append_call_limit_invalid"]),
+    ...(Number(scope.maximum_actions) === 1 && Number(scope.maximum_platform_calls) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(String(scope.target_project_id || plan?.metadata?.project_id || "") === String(bundle.case?.target_project_id || "") ? [] : ["project_video_append_target_project_mismatch"]),
+    ...(Number(append.append_ready_count || 0) > 0 ? [] : ["project_video_append_items_missing"]),
+    ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : [])
+  ];
+  return {
+    status: checks.length ? "blocked" : "passed",
+    blockers: [...new Set(checks)],
+    plan,
+    scope,
+    scopeSummary: {
+      authorizationMode: authorization.authorizationMode,
+      bindingMode: scope.binding_mode || "",
+      planReady: plan?.plan_status === "ready",
+      actionCount: actions.length,
+      existingConfirmation: Boolean(existingConfirmation),
+      retryAllowed: scope.retry_allowed === true
+    }
+  };
+}
+
+export async function validateProjectVideoMaterialPushPlanConfirmationScope({
+  repo, bundle, projectStatePath = defaultProjectStatePath, authorizationSource = "workbench_view", authenticatedUserId = ""
+}) {
+  const plan = bundle.executionPlan || await repo.getLatestLaunchExecutionPlan(bundle.job.job_id);
+  const authorization = await evaluatePlanBoundWriteAuthorization({ repo, bundle, plan, projectStatePath, authorizationSource, authenticatedUserId });
+  const scope = plan?.metadata?.execution_scope || {};
+  const actions = plan?.planned_actions || plan?.plannedActions || [];
+  const action = actions[0] || {};
+  const blockers = plan?.blocker_codes || plan?.blockerCodes || [];
+  const existingConfirmation = await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "");
+  const actionScope = validateExecutionPlanActionScope({ plan, allowedActions: scope.allowed_actions || [] });
+  const expectedCalls = Number(actionMaximumPlatformCalls(action));
+  const checks = [
+    ...authorization.blockers,
+    ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
+    ...((plan?.plan_kind || plan?.metadata?.plan_kind) === PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH ? [] : ["execution_plan_kind_not_project_video_material_push"]),
+    ...(plan?.plan_status === "ready" ? [] : ["execution_plan_not_ready_for_confirmation"]),
+    ...(blockers.length === 0 ? [] : ["execution_plan_has_blockers"]),
+    ...(scope.binding_mode === "single_confirmation_plan" ? [] : ["execution_plan_confirmation_model_invalid"]),
+    ...(scope.target_job_id === bundle.job.job_id ? [] : ["platform_write_scope_job_mismatch"]),
+    ...(scope.target_advertiser_id === bundle.job.advertiser_id ? [] : ["platform_write_scope_advertiser_mismatch"]),
+    ...(scope.target_plan_id === plan?.plan_id ? [] : ["platform_write_scope_plan_id_mismatch"]),
+    ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
+    ...(actionScope.status === "passed" ? [] : actionScope.blockers),
+    ...(actions.length === 1 && action.action_type === ACTION_PROJECT_VIDEO_MATERIAL_PUSH ? [] : ["project_video_material_push_action_set_invalid"]),
+    ...(expectedCalls >= 1 && expectedCalls <= 2 ? [] : ["project_video_material_push_call_limit_invalid"]),
+    ...(Number(scope.maximum_actions) === 1 && Number(scope.maximum_platform_calls) === expectedCalls ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
+    ...(String(scope.target_project_id || plan?.metadata?.project_id || "") === String(bundle.case?.target_project_id || "") ? [] : ["project_video_material_push_target_project_mismatch"]),
+    ...(Array.isArray(plan?.metadata?.push_batches) && plan.metadata.push_batches.length === expectedCalls ? [] : ["project_video_material_push_batches_invalid"]),
+    ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : [])
+  ];
+  return { status: checks.length ? "blocked" : "passed", blockers: [...new Set(checks)], plan, scope, scopeSummary: { authorizationMode: authorization.authorizationMode, bindingMode: scope.binding_mode || "", planReady: plan?.plan_status === "ready", actionCount: actions.length, existingConfirmation: Boolean(existingConfirmation), retryAllowed: scope.retry_allowed === true } };
+}
+
 export async function validateResourcePlanConfirmationScope({
   repo,
   bundle,
@@ -437,11 +530,14 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
   }
   const resourcePlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE;
   const monitorPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_MONITOR_BOOTSTRAP;
+  const appendPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_PROJECT_VIDEO_APPEND;
   const scope = planBound
     ? monitorPlan
       ? await validateMonitorPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
       : resourcePlan
       ? await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
+      : appendPlan
+      ? await validateProjectVideoAppendPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
       : await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   const alreadyAttempted = planBound

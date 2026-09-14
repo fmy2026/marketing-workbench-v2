@@ -1,7 +1,11 @@
 import {
   ACTION_ENSURE_MONITOR,
+  ACTION_PROJECT_VIDEO_APPEND,
+  ACTION_PROJECT_VIDEO_MATERIAL_PUSH,
   ACTION_STD_PROJECT_CREATE,
   PLAN_KIND_MONITOR_BOOTSTRAP,
+  PLAN_KIND_PROJECT_VIDEO_APPEND,
+  PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH,
   PLAN_KIND_RESOURCE_PREPARE
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
@@ -88,18 +92,34 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     actionTypes.every((action) => FORMAL_CONFIRMED_ACTION_ORDER.includes(action)) &&
     !actionTypes.includes(ACTION_STD_PROJECT_CREATE) &&
     Number(scope.maximum_create_calls || 0) === 0;
-  if (gate !== "await_job_write_authorization" || (!isSingleCreatePlan && !isMonitorBootstrapPlan && !isResourcePreparePlan)) return null;
+  const isProjectVideoAppendPlan = plan.plan_status === "ready" &&
+    clean(plan.plan_kind || metadata.plan_kind) === PLAN_KIND_PROJECT_VIDEO_APPEND &&
+    actionTypes.length === 1 && actionTypes[0] === ACTION_PROJECT_VIDEO_APPEND &&
+    Number(scope.maximum_create_calls || 0) === 0;
+  const isProjectVideoMaterialPushPlan = plan.plan_status === "ready" &&
+    clean(plan.plan_kind || metadata.plan_kind) === PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH &&
+    actionTypes.length === 1 && actionTypes[0] === ACTION_PROJECT_VIDEO_MATERIAL_PUSH &&
+    Number(scope.maximum_create_calls || 0) === 0;
+  if (gate !== "await_job_write_authorization" || (!isSingleCreatePlan && !isMonitorBootstrapPlan && !isResourcePreparePlan && !isProjectVideoAppendPlan && !isProjectVideoMaterialPushPlan)) return null;
   const monitor = metadata.monitor_bootstrap || {};
   const planKind = isMonitorBootstrapPlan
     ? PLAN_KIND_MONITOR_BOOTSTRAP
     : isResourcePreparePlan
       ? PLAN_KIND_RESOURCE_PREPARE
-      : "std_project_create";
+      : isProjectVideoAppendPlan
+        ? PLAN_KIND_PROJECT_VIDEO_APPEND
+        : isProjectVideoMaterialPushPlan
+          ? PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH
+          : "std_project_create";
   const confirmationPhrase = isMonitorBootstrapPlan
     ? "确认创建 monitor"
     : isResourcePreparePlan
       ? "确认准备资源"
-      : "确认创建";
+      : isProjectVideoAppendPlan
+        ? "确认追加视频"
+        : isProjectVideoMaterialPushPlan
+          ? "确认推送素材"
+          : "确认创建";
   const actionGrants = scope.action_grants || scope.actionGrants || {};
   const brandOfficial = (bundle.resources || []).find((item) => item.resource_type === "brand_info")?.metadata?.brand_info_official || {};
   const targetEmptyBrandOmit = isSingleCreatePlan &&
@@ -137,8 +157,12 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       ? "确认创建 monitor"
       : isResourcePreparePlan
         ? `准备 ${actionTypes.length} 类资源动作，平台写入累计上限 ${maximumPlatformCalls} 次（不含只读核验）`
-        : "创建 1 个广告项目",
-    projectName: isMonitorBootstrapPlan || isResourcePreparePlan ? "" : clean(metadata.planning_intent?.project_name || bundle.draft?.project_name),
+        : isProjectVideoAppendPlan
+          ? `向指定项目追加 ${Number(metadata.append_summary?.append_ready_count || 0)} 个视频`
+          : isProjectVideoMaterialPushPlan
+            ? `向目标账户推送 ${Number(metadata.append_summary?.target_push_required_count || 0)} 个视频；随后重新核验`
+            : "创建 1 个广告项目",
+    projectName: isMonitorBootstrapPlan || isResourcePreparePlan ? "" : clean(metadata.planning_intent?.project_name || metadata.project_id || bundle.draft?.project_name),
     advertiser: maskIdentifier(bundle.job?.advertiser_id),
     actions: actionTypes,
     actionLimits,
@@ -206,6 +230,8 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
         ? "已收到 monitor 的精确单次确认，正在执行既有 Plan-bound 链路。"
         : confirmationPreview.planKind === PLAN_KIND_RESOURCE_PREPARE
           ? "已收到资源准备的精确单次确认，正在执行既有受控资源链路。"
+          : confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND
+            ? "已收到追加视频的精确单次确认，正在执行既有 Plan-bound 链路。"
           : "已收到精确创建确认，正在执行既有单次确认链路。"
     };
   }
@@ -263,6 +289,8 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
           ? "monitor"
           : confirmationPreview.planKind === PLAN_KIND_RESOURCE_PREPARE
             ? "资源准备"
+            : confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND
+              ? "视频追加"
             : "广告项目";
         return { ...base, effect: "confirmation_required", confirmationPreview, message: `只读检查已完成。请核对以下单次 ${label} 确认卡；“继续执行”不会直接写入平台。` };
       }

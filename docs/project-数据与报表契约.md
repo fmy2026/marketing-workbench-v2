@@ -189,6 +189,12 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 
 ## 8. 数据库运维
 
+### 项目视频追加请求承载
+
+migration `092_project_video_append.sql` 为 `mwb.workflow_cases` 增加 `operation`、`target_project_id` 与 `origin_resource_ids`。它们保存已规范化事项、目标项目文本 ID 和 JSON 字符串数组；不保存自然语言、原始 JSON、模型输出、token 或平台原始响应。`operation` 仅允许 `create_std_project` 或 `append_project_videos`。
+
+`mwb.launch_execution_plans.plan_kind` 增加 `project_video_append`，用于冻结目标项目、待新增视频摘要、只读快照 hash、单一追加 action 及一次确认范围。
+
 ### 连接与迁移
 
 目标数据库为 `marketing_workbench_v2`，业务 schema 为 `mwb`。[仓储](../src/repositories/postgresRepository.mjs) 通过系统 `psql` 执行 SQL，默认库名来自构造参数 `database`；调用使用 `-X -d <database> -v ON_ERROR_STOP=1`，不会读取 psql 启动脚本。实现未设置 host、port 或 user，连接沿用进程环境与本机 PostgreSQL 客户端配置；不在文档记录真实密码或含凭据的连接串。
@@ -220,3 +226,5 @@ npm run db:backup
 自动回归通过 `tests/run.mjs` 为每个数据库/HTTP 测试创建 `marketing_workbench_v2_test_<run_id>`，只从业务库读取 `mwb` Schema，记录规范化结构 SHA-256；不导出真实账户、用户、Case、Job、Plan、确认或回查数据，不重放历史 migration。静态合同夹具与合成身份、资源、运行记录由 `tests/fixtures` 和 `tests/support` 装载。测试构造器要求显式测试库，库名不可改写；测试进程的 psql 只能访问本轮数据库。结束时关闭测试服务、删除本轮数据库和临时目录。
 
 `npm run test:unit` 运行无业务库依赖的合同测试；`npm run test:integration` 运行独立数据库及 HTTP 测试；`npm run test:workflow-regression` 聚合两者。既有专项测试命令委托同一入口。`tests/isolation.test.mjs` 单独验证禁止业务库连接、仅导入结构和清理结果。缺少夹具或未配置的外部请求使测试失败，不能作为跳过项。测试库所需 PostgreSQL 建库权限仅用于本地回归；应用默认数据库仍由仓储构造器定义。
+
+追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。

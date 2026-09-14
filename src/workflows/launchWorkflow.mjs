@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { hashText } from "../agents/launchAgent.mjs";
 import { normalizeLaunchRequestFromBody } from "../agents/launchRequest.mjs";
+import { prepareProjectVideoAppendReadonly, PROJECT_VIDEO_APPEND_ACTION, PROJECT_VIDEO_MATERIAL_PUSH_ACTION } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
 import { evaluateOceanEnginePrewriteReadiness } from "../platforms/oceanengineReadonlyAdapter.mjs";
 import {
   evaluateOe3PayloadContract,
@@ -30,6 +31,7 @@ export {
   getWorkflowNodeByNumber
 } from "./skills/oe3/00-workflow-node-registry.mjs";
 import { WORKFLOW_NODES, getWorkflowNode } from "./skills/oe3/00-workflow-node-registry.mjs";
+import { operationContract } from "./launchOperationContracts.mjs";
 
 const PHASES = [
   { id: "prepare", title: "准备阶段", summary: "需求、上下文、保底包。" },
@@ -81,12 +83,20 @@ function nodeStatus({ nodeKey, status, summary, diagnosticLevel = "info", output
   };
 }
 
-function initialNodeRuns() {
+function operationPresentation(operation = "create_std_project") {
+  const contract = operationContract(operation);
+  return { heading: contract.heading, nodeNames: contract.nodeNames };
+}
+
+function initialNodeRuns(operation = "create_std_project") {
+  const append = operation === "append_project_videos";
   return [
     nodeStatus({
       nodeKey: "launch_intake",
       status: "passed",
-      summary: "route_id、game_code、advertiser_id 已归一。"
+      summary: append
+        ? "追加事项、route_id、game_code、advertiser_id、project_id 与视频标识码已归一。"
+        : "route_id、game_code、advertiser_id 已归一。"
     }),
     ...WORKFLOW_NODES.slice(1).map((node) => ({
       ...node,
@@ -670,12 +680,13 @@ function childView(node, bundle, executionAvailability, presentation = {}) {
 }
 
 function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {}, presentation = {}) {
+  const names = presentation.nodeNames || {};
   return PHASES.map((phase) => ({
     ...phase,
     nodes: nodes.filter((node) => node.phase === phase.title).map((node) => ({
       id: node.nodeKey,
       number: node.number,
-      name: node.nodeName,
+      name: names[node.nodeKey] || node.nodeName,
       status: node.status || "waiting",
       statusLabel: statusLabel(node.status || "waiting"),
       subflows: node.subflows,
@@ -695,7 +706,7 @@ function workflowPhasesView(nodes = [], bundle = null, executionAvailability = {
   }));
 }
 
-function workflowProgressView(nodes = [], bundle = {}) {
+function workflowProgressView(nodes = [], bundle = {}, presentation = {}) {
   const totalCount = WORKFLOW_NODES.length;
   const completedCount = nodes.filter((node) => node.status === "passed").length;
   const plan = bundle.executionPlan || {};
@@ -723,7 +734,7 @@ function workflowProgressView(nodes = [], bundle = {}) {
     completedCount,
     totalCount,
     currentNodeNumber: currentNode?.number || totalCount,
-    currentNodeLabel: currentNode?.nodeName || "流程已完成",
+    currentNodeLabel: presentation.nodeNames?.[currentNode?.nodeKey] || currentNode?.nodeName || "流程已完成",
     currentNodeStatus: currentNode?.status || "passed",
     executionPhase,
     completed: completedCount === totalCount
@@ -1012,6 +1023,8 @@ function projectCreatedNodeStatus(nodeKey, row = {}, bundle = {}) {
 }
 
 export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null, presentation = {}) {
+  const operation = bundle.case?.operation || "create_std_project";
+  const operationView = operationPresentation(operation);
   const dbNodes = nodeMap(bundle.nodes || []);
   const nodes = WORKFLOW_NODES.map((node) => {
     const row = projectCreatedNodeStatus(node.nodeKey, dbNodes.get(node.nodeKey) || {}, bundle);
@@ -1026,9 +1039,10 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     };
   });
   const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {});
-  const progress = workflowProgressView(nodes, bundle);
+  const progress = workflowProgressView(nodes, bundle, operationView);
   const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
-    currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false
+    currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false,
+    ...operationView
   });
   const diagnostics = diagnosticsFromNodes(nodes);
   const execution = executionView(bundle);
@@ -1075,6 +1089,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   ];
 
   return publicView({
+    operation,
     jobId: bundle.job.job_id,
     caseId: bundle.job.case_id,
     isLatestCaseJob: caseGate.isLatestCaseJob,
@@ -1089,9 +1104,12 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       writePolicy: bundle.route.write_policy === "confirm_required" ? "确认占位" : bundle.route.write_policy
     },
     intake: {
+      operation,
       routeId: bundle.job.route_id,
       gameCode: bundle.job.game_code,
       advertiserId: bundle.job.advertiser_id,
+      projectId: bundle.case?.target_project_id || "",
+      originResourceIds: bundle.case?.origin_resource_ids || [],
       sourceRecordRef: bundle.job.source_record_ref || "",
       missingFields: [],
       requiredFields: WORKBENCH_INTAKE_FIELDS
@@ -1310,6 +1328,9 @@ async function resolveApprovedReplacementForIntake(repo, workflowCase = null, cu
 
 export async function createWorkflowCase(repo, body = {}, options = {}) {
   const normalizedRequest = normalizeLaunchRequestFromBody(body);
+  const operation = normalizedRequest.request.operation || "create_std_project";
+  const targetProjectId = normalizedRequest.request.project_id || "";
+  const originResourceIds = normalizedRequest.request.origin_resource_ids || [];
   const { routeId, gameCode, advertiserId, sourceUsage } = requiredCaseScope(body, normalizedRequest.request);
   const caseKey = String(body.case_key || body.caseKey || "").trim();
   const businessGoal = String(body.business_goal || body.businessGoal || "").trim();
@@ -1459,9 +1480,15 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
     error.statusCode = 404;
     throw error;
   }
+  const matchesRequest = (workflowCase = {}) => workflowCase.route_id === routeId &&
+    workflowCase.game_code === gameCode &&
+    workflowCase.advertiser_id === advertiserId &&
+    (workflowCase.operation || "create_std_project") === operation &&
+    String(workflowCase.target_project_id || "") === targetProjectId &&
+    JSON.stringify(workflowCase.origin_resource_ids || []) === JSON.stringify(originResourceIds);
   const existing = await repo.getWorkflowCaseByKey(caseKey);
   if (existing) {
-    if (existing.route_id === routeId && existing.game_code === gameCode && existing.advertiser_id === advertiserId &&
+    if (matchesRequest(existing) &&
       existing.source_usage === "runtime_truth" && existing.lifecycle_status === "active") {
       if (currentUser && existing.owner_user_id !== currentUserId) {
         const error = new Error("workflow_case_owner_mismatch");
@@ -1484,6 +1511,12 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
         error.statusCode = 403;
         throw error;
       }
+      if (!matchesRequest(active)) {
+        const error = new Error("active_runtime_workflow_case_scope_conflict");
+        error.statusCode = 409;
+        error.details = { activeCaseId: active.case_id };
+        throw error;
+      }
       return await resolveApprovedReplacementForIntake(repo, active, currentUser, options) ||
         { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
     }
@@ -1495,6 +1528,9 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
       routeId,
       gameCode,
       advertiserId,
+      operation,
+      targetProjectId,
+      originResourceIds,
       businessGoal,
       sourceUsage,
       ownerUserId: currentUserId,
@@ -1506,6 +1542,7 @@ export async function createWorkflowCase(repo, body = {}, options = {}) {
     const active = await repo.getActiveRuntimeWorkflowCase({ routeId, gameCode, advertiserId });
     if (active) {
       if (currentUser && active.owner_user_id !== currentUserId) throw error;
+      if (!matchesRequest(active)) throw error;
       return await resolveApprovedReplacementForIntake(repo, active, currentUser, options) ||
         { ...active, reusedActiveCase: true, workbenchUrl: workbenchCaseUrl(active.case_id) };
     }
@@ -1598,7 +1635,7 @@ export async function createJob(repo, body = {}) {
     sourceRecordRef,
     sourceUsage
   });
-  await repo.upsertNodeRuns(jobId, initialNodeRuns());
+  await repo.upsertNodeRuns(jobId, initialNodeRuns(workflowCase.operation || "create_std_project"));
   const bundle = await repo.getLaunchJobBundle(jobId);
   return buildPublicJobView(repo, bundle);
 }
@@ -1744,12 +1781,117 @@ async function resolveCreateAttemptNoForRun(repo, bundle, options = {}) {
   return derivedAttemptNo;
 }
 
+async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
+  const sourceAccount = bundle.defaults?.raw_defaults?.material_source_account?.advertiser_id || "";
+  const prepared = sourceAccount
+    ? await prepareProjectVideoAppendReadonly({
+      advertiserId: bundle.job.advertiser_id,
+      projectId: bundle.case?.target_project_id || "",
+      originResourceIds: bundle.case?.origin_resource_ids || [],
+      materialAccountId: sourceAccount,
+      ownerKey: options.qiankunOwnerKey || "",
+      oceanEngineClient: options.oceanEngineClient,
+      qiankunClient: options.qiankunClient
+    })
+    : { status: "blocked", blockerCodes: ["material_source_account_missing"], items: [] };
+  const previousPlan = typeof repo.getLatestLaunchExecutionPlan === "function" ? await repo.getLatestLaunchExecutionPlan(bundle.job.job_id) : null;
+  const planVersion = Math.max(1, Number(previousPlan?.plan_version || previousPlan?.planVersion || 0) + 1);
+  const planId = `PLAN-${bundle.job.job_id}-APPEND-V${planVersion}`;
+  const effectivePlan = prepared.effectivePlan || prepared.plan || {};
+  const isMaterialPush = effectivePlan.actionType === PROJECT_VIDEO_MATERIAL_PUSH_ACTION;
+  const action = effectivePlan.status === "ready" ? {
+    action_type: isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION,
+    target_ref: isMaterialPush ? `advertiser:${bundle.job.advertiser_id}` : `project:${bundle.case?.target_project_id || ""}`,
+    idempotency_key: `${isMaterialPush ? "append-push" : "append"}:${hashText(JSON.stringify(isMaterialPush ? effectivePlan.batches || [] : effectivePlan.originResourceIds || [])).slice(0, 32)}`,
+    status: "ready",
+    module_ref: "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    depends_on: ["project_material_readonly", "video_origin_mapping_readonly"],
+    writes_to: ["platform_actions", "readback_records"],
+    reason: isMaterialPush ? "push_verified_source_videos_to_target_account" : "append_verified_target_videos_only",
+    maximum_platform_calls: isMaterialPush ? Number((effectivePlan.batches || []).length) : 1,
+    endpoint: effectivePlan.endpoint,
+    method: effectivePlan.method
+  } : null;
+  const blockers = effectivePlan.blockerCodes || prepared.blockerCodes || [];
+  const plan = {
+    planId,
+    jobId: bundle.job.job_id,
+    planVersion,
+    planKind: isMaterialPush ? "project_video_material_push" : "project_video_append",
+    planStatus: effectivePlan.status === "ready" ? "ready" : "blocked",
+    planHash: `sha256:${hashText(JSON.stringify({
+      jobId: bundle.job.job_id,
+      projectId: bundle.case?.target_project_id || "",
+      items: [...(prepared.items || [])].sort((left, right) => String(left.originResourceId).localeCompare(String(right.originResourceId))),
+      originalProjectVideoIds: [...(prepared.projectVideoIds || [])].sort(),
+      snapshot: effectivePlan.projectSnapshotHash || "",
+      pushBatches: isMaterialPush ? effectivePlan.batches || [] : []
+    }))}`,
+    plannedActions: action ? [action] : [],
+    blockerCodes: blockers,
+    draftId: "",
+    payloadHash: "",
+    sourceUsage: bundle.job.source_usage,
+    metadata: {
+      plan_kind: isMaterialPush ? "project_video_material_push" : "project_video_append",
+      compiler: "src/workflows/launchWorkflow.mjs#runProjectVideoAppendReadonly",
+      project_id: bundle.case?.target_project_id || "",
+      append_items: (prepared.items || [])
+        .filter((item) => item.status === "append_ready")
+        .map((item) => ({ origin_resource_id: item.originResourceId, video_id: item.videoId })),
+      project_snapshot_hash: effectivePlan.projectSnapshotHash || "",
+      material_account_id: isMaterialPush ? effectivePlan.materialAccountId : "",
+      push_batches: isMaterialPush ? (effectivePlan.batches || []).map((batch) => ({ batch_index: batch.batchIndex, origin_resource_ids: batch.originResourceIds, source_video_ids: batch.sourceVideoIds })) : [],
+      original_project_video_ids: [...(prepared.projectVideoIds || [])].sort(),
+      append_summary: {
+        requested_count: (bundle.case?.origin_resource_ids || []).length,
+        already_in_project_count: (prepared.items || []).filter((item) => item.status === "already_in_project").length,
+        append_ready_count: (prepared.items || []).filter((item) => item.status === "append_ready").length,
+        target_push_required_count: (prepared.items || []).filter((item) => item.status === "target_push_required").length,
+        source_prepare_required_count: (prepared.items || []).filter((item) => item.status === "source_prepare_required").length
+      },
+      execution_scope: {
+        binding_mode: "single_confirmation_plan",
+        target_job_id: bundle.job.job_id,
+        target_advertiser_id: bundle.job.advertiser_id,
+        target_project_id: bundle.case?.target_project_id || "",
+        target_plan_id: planId,
+        target_plan_hash: "",
+        allowed_actions: action ? [isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION] : [],
+        allowed_plan_actions: action ? [isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION] : [],
+        maximum_actions: action ? 1 : 0,
+        maximum_platform_calls: action ? Number(action.maximum_platform_calls || 0) : 0,
+        maximum_create_calls: 0,
+        retry_allowed: false
+      },
+      payload_persisted: false,
+      response_persisted: false
+    }
+  };
+  plan.metadata.execution_scope.target_plan_hash = plan.planHash;
+  await repo.upsertLaunchExecutionPlan(plan);
+  const nodeStatuses = [
+    nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
+    nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已进入只读核验。" }),
+    nodeStatus({ nodeKey: "game_launch_pack", status: prepared.status === "blocked" ? "blocked" : "passed", summary: prepared.status === "blocked" ? "指定视频未形成可追加映射。" : "指定视频已唯一识别。", outputSummary: { checks: [] } }),
+    nodeStatus({ nodeKey: "account_resource_prepare", status: prepared.status === "blocked" ? "blocked" : "passed", summary: prepared.status === "blocked" ? `只读准备受阻：${blockers[0] || "unknown"}` : "视频可用性已核验。", outputSummary: { appendItems: prepared.items || [] } }),
+    nodeStatus({ nodeKey: "std_project_draft_builder", status: plan.planStatus === "ready" ? "needs_confirmation" : "blocked", summary: plan.planStatus === "ready" ? (isMaterialPush ? "素材推送 Plan 已冻结，等待本人确认。" : "追加 Plan 已冻结，等待本人确认。") : "未生成受控 Plan。" }),
+    nodeStatus({ nodeKey: "std_project_create_executor", status: "waiting", summary: isMaterialPush ? "等待分批素材推送。" : "等待单次追加。" }),
+    nodeStatus({ nodeKey: "readback_closer", status: "waiting", summary: isMaterialPush ? "推送后将重新只读核验并生成追加 Plan。" : "等待追加结果回查。" })
+  ];
+  await repo.upsertNodeRuns(bundle.job.job_id, nodeStatuses);
+  return getJobView(repo, bundle.job.job_id, options);
+}
+
 export async function runJob(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
     const error = new Error("job_not_found");
     error.statusCode = 404;
     throw error;
+  }
+  if ((bundle.case?.operation || "create_std_project") === "append_project_videos") {
+    return runProjectVideoAppendReadonly(repo, bundle, options);
   }
   const allowReadonlyDependency = resolveReadonlyDependencyForRun(options);
   const caseMaximumCreateAttempts = Number(bundle.case?.maximum_create_attempts || 3);

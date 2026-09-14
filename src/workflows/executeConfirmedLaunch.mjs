@@ -1,13 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { getJobView, runJob } from "./launchWorkflow.mjs";
-import { revokeWriteScope, validatePlanConfirmationScope, validateWriteScope } from "./executionGrantScope.mjs";
+import { revokeWriteScope, validatePlanConfirmationScope, validateProjectVideoAppendPlanConfirmationScope, validateProjectVideoMaterialPushPlanConfirmationScope, validateWriteScope } from "./executionGrantScope.mjs";
 import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
   STD_PROJECT_CREATE_CONFIRM_VALUE
 } from "../platforms/oceanengineStdProjectCreateExecutor.mjs";
 import { planConfirmationId } from "./executionPlan.mjs";
 import { finalizeVerifiedStdProjectRuntimeCase } from "./finalizeVerifiedStdProjectRuntimeCase.mjs";
+import { executeProjectVideoAppendOnce, executeProjectVideoMaterialPushOnce, PROJECT_VIDEO_APPEND_ACTION, PROJECT_VIDEO_MATERIAL_PUSH_ACTION } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
 
 export const EXECUTION_GRANT_CONFIRM_ENV = "MWBV2_OE_EXECUTION_CONFIRM";
 export const EXECUTION_GRANT_INTENT = "EXECUTE_ONE_LAUNCH";
@@ -152,7 +153,11 @@ export async function executeConfirmedLaunch({
     return result;
   }
   const scopeCheck = planBound
-    ? await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
+    ? (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === "project_video_append"
+      ? await validateProjectVideoAppendPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
+      : (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === "project_video_material_push"
+        ? await validateProjectVideoMaterialPushPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
+        : await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   if (scopeCheck.blockers.length) {
     const view = await getJobViewFn(repo, jobId, { projectStatePath });
@@ -191,14 +196,13 @@ export async function executeConfirmedLaunch({
     assertNoSensitiveLeak(result.executionGrant);
     return result;
   }
+  const currentPlanKind = latestBundleBeforeCreate.executionPlan?.plan_kind || latestBundleBeforeCreate.executionPlan?.metadata?.plan_kind;
   const secondScopeCheck = planBound
-    ? await validatePlanConfirmationScope({
-      repo,
-      bundle: latestBundleBeforeCreate,
-      projectStatePath,
-      authorizationSource: grantSource,
-      authenticatedUserId: confirmedByUserId
-    })
+    ? currentPlanKind === "project_video_append"
+      ? await validateProjectVideoAppendPlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
+      : currentPlanKind === "project_video_material_push"
+        ? await validateProjectVideoMaterialPushPlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
+        : await validatePlanConfirmationScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath, authorizationSource: grantSource, authenticatedUserId: confirmedByUserId })
     : await validateWriteScope({ repo, bundle: latestBundleBeforeCreate, projectStatePath });
   if (secondScopeCheck.blockers.length) {
     const view = await getJobViewFn(repo, jobId, { projectStatePath });
@@ -225,6 +229,77 @@ export async function executeConfirmedLaunch({
   const rateLimitRedelivery = planMetadata.execution_scope?.rate_limit_redelivery || {};
   const maximumDeliveryCalls = Number(rateLimitRedelivery.maximum_delivery_calls || 1);
   try {
+    if ((latestBundleBeforeCreate.executionPlan?.plan_kind || latestBundleBeforeCreate.executionPlan?.metadata?.plan_kind) === "project_video_material_push") {
+      const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
+        confirmationId: planConfirmationId(currentPlanId), jobId, draftId: "", objectType: "oc_project_video_material_push", objectName: "project_video_material_push", payloadHash: "", confirmationStatus: "confirmed_for_execution_plan",
+        confirmVariable: `${EXECUTION_GRANT_CONFIRM_ENV}=${EXECUTION_GRANT_INTENT}`, confirmedBy: grantSource || "local_operator", confirmedByUserId, planId: currentPlanId,
+        metadata: { plan_kind: "project_video_material_push", binding_mode: "single_confirmation_plan", plan_hash: currentPlanHash, advertiser_id: latestBundleBeforeCreate.job.advertiser_id, target_project_id: latestBundleBeforeCreate.case?.target_project_id || "", allowed_actions: [PROJECT_VIDEO_MATERIAL_PUSH_ACTION], maximum_platform_calls: Number(latestBundleBeforeCreate.executionPlan?.metadata?.push_batches?.length || 0), retry_allowed: false, raw_payload_stored: false, raw_response_stored: false }
+      });
+      if (confirmationClaim?.claimed !== true) {
+        const view = await getJobViewFn(repo, jobId, { projectStatePath });
+        return { ...view, executionGrant: { status: "blocked", grantSource, blockers: [confirmationClaim?.alreadyConfirmed ? "execution_plan_confirmation_already_recorded" : "execution_plan_confirmation_context_invalid"], createCalled: false } };
+      }
+      const pushResult = await executeProjectVideoMaterialPushOnce({ repo, bundle: await repo.getLaunchJobBundle(jobId), confirmationId: confirmationClaim.confirmationId, fetchImpl, credentialSummary, credentialEnv, allowNetworkWrite: true });
+      await repo.finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId: currentPlanId });
+      if (pushResult.status === "readback_verified") await runJobFn(repo, jobId, { mode: "readback_only", allowReadonlyDependency: true, projectStatePath, fetchImpl, credentialSummary, credentialEnv });
+      const view = await getJobViewFn(repo, jobId, { projectStatePath });
+      return { ...view, executionGrant: { status: pushResult.status === "readback_verified" ? "consumed" : "blocked", grantSource, executionGrantId, createCalled: false, materialPushCalled: pushResult.writeCalled === true, maximumActions: 1, retryAllowed: false, ...(pushResult.blockers?.length ? { blockers: pushResult.blockers } : {}) } };
+    }
+    if ((latestBundleBeforeCreate.executionPlan?.plan_kind || latestBundleBeforeCreate.executionPlan?.metadata?.plan_kind) === "project_video_append") {
+      const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
+        confirmationId: planConfirmationId(currentPlanId),
+        jobId,
+        draftId: "",
+        objectType: "oc_project_video_append",
+        objectName: "project_video_append",
+        payloadHash: "",
+        confirmationStatus: "confirmed_for_execution_plan",
+        confirmVariable: `${EXECUTION_GRANT_CONFIRM_ENV}=${EXECUTION_GRANT_INTENT}`,
+        confirmedBy: grantSource || "local_operator",
+        confirmedByUserId,
+        planId: currentPlanId,
+        metadata: {
+          plan_kind: "project_video_append",
+          binding_mode: "single_confirmation_plan",
+          plan_hash: currentPlanHash,
+          advertiser_id: latestBundleBeforeCreate.job.advertiser_id,
+          target_project_id: latestBundleBeforeCreate.case?.target_project_id || "",
+          allowed_actions: [PROJECT_VIDEO_APPEND_ACTION],
+          maximum_platform_calls: 1,
+          retry_allowed: false,
+          raw_payload_stored: false,
+          raw_response_stored: false
+        }
+      });
+      if (confirmationClaim?.claimed !== true) {
+        const view = await getJobViewFn(repo, jobId, { projectStatePath });
+        return { ...view, executionGrant: { status: "blocked", grantSource, blockers: [confirmationClaim?.alreadyConfirmed ? "execution_plan_confirmation_already_recorded" : "execution_plan_confirmation_context_invalid"], createCalled: false } };
+      }
+      const appendResult = await executeProjectVideoAppendOnce({
+        repo,
+        bundle: await repo.getLaunchJobBundle(jobId),
+        confirmationId: confirmationClaim.confirmationId,
+        fetchImpl,
+        credentialSummary,
+        credentialEnv,
+        allowNetworkWrite: true
+      });
+      await repo.finalizeConfirmedProjectVideoAppendPlan({ jobId, planId: currentPlanId });
+      const view = await getJobViewFn(repo, jobId, { projectStatePath });
+      return {
+        ...view,
+        executionGrant: {
+          status: appendResult.status === "readback_verified" ? "consumed" : "blocked",
+          grantSource,
+          executionGrantId,
+          createCalled: false,
+          appendCalled: appendResult.appendCalled === true,
+          maximumActions: 1,
+          retryAllowed: false,
+          ...(appendResult.blockers?.length ? { blockers: appendResult.blockers } : {})
+        }
+      };
+    }
     if (planBound) {
       const planningIntent = planMetadata.planning_intent || {};
       const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({

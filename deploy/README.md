@@ -28,6 +28,8 @@ curl -I http://127.0.0.1:3000/
 
 再刷新浏览器工作台；确认卡、Gate 和按钮只以重载后的服务端投影为准。
 
+开发验证使用独立测试工作台：`npm run workbench:test` 启动在 `http://127.0.0.1:3100`，页面会标明“测试环境”，并且只连接临时数据库、临时凭据路径和阻断外网的模拟边界。业务工作台从固定提交快照启动：交付时先执行 `npm run workbench:release`，再把输出的 `release_root` 传给 `workbench:mode`；开发目录里的未发布修改不会直接改变业务页面或运行链。
+
 ## 公司共享模式
 
 回公司连接 Wi-Fi 后，先确认 Mac 当前获得的私网 IPv4，再显式切换。公司模式只接受当前 Mac 已分配的 `10.*`、`172.16.*–172.31.*` 或 `192.168.*` 地址；命令会生成对应的监听与公开地址、重载同一 LaunchAgent，并检查根地址。重载或检查失败时自动恢复原配置。
@@ -59,7 +61,7 @@ npm run setup:qiankun-user -- --user zhangchaobo --gui
 
 投放创建 Agent 的用户自配模型 Key 独立保存在 `.local/workbench-llm-credentials.json`：程序强制文件为 `0600` 并采用临时文件替换；数据库、audit、日志和浏览器不会读取或回显 Key。该文件由工作区“大模型配置”写入，配置、测试和启用均只能由该用户本人完成；不要手工复制 Key 到环境变量、任务文件或部署日志。
 
-投放创建页面支持自然语言和完整 `launch-request.v1` JSON。自然语言可分次补齐路线、游戏和账户；JSON 必须包含 `schema_version`、`operation`、`route_id`、`game_code` 和字符串形式的 `advertiser_id`，并且只支持 `create_std_project`、`oceanengine_3_byte_mini_game`、`JSZC`。模型只辅助自然语言缺项，JSON 不调用模型；两者在启动前都只会创建 Case、fresh Job 和 readonly 准备，后续每张 Plan 仍须由本人确认。
+投放创建页面支持自然语言和完整 JSON。新建项目使用 `launch-request.v1`；追加视频使用 `launch-request.v2`，并要求 `project_id` 与 1–100 个 `origin_resource_ids`。自然语言可分次补齐路线、游戏、账户、项目和视频标识码；JSON 不调用模型。追加事项先只读核验视频、目标项目与账户范围，再冻结单次 Plan；平台写入仍须由账户本人确认，回查未通过时不会自动重发。
 
 配置 DeepSeek 时使用 `https://api.deepseek.com/v1`。工作台对该主机的固定 Schema 连接测试与运行时槽位解析都会关闭 thinking；连接测试通过后，输入“巨兽战场走抖小”应显示“已使用模型辅助解析：推广路线”。若显示受控回退原因，修正配置或输入后重新提交；页面不会显示模型原始响应，且不能由该次失败结果启动流程。
 

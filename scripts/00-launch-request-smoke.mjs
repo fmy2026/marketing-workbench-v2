@@ -58,7 +58,7 @@ assert(unsupported.missing_fields.length === 3, "unsupported_operation_retained_
 
 for (const [value, code] of [
   [{ ...request, extra: true }, "launch_request_unknown_field"],
-  [{ ...request, schema_version: "launch-request.v2" }, "launch_request_schema_version_not_supported"],
+  [{ ...request, schema_version: "launch-request.v3" }, "launch_request_schema_version_not_supported"],
   [{ ...request, operation: "change_roi" }, "launch_request_operation_not_supported"],
   [{ ...request, advertiser_id: 1871922999999999 }, "launch_request_invalid_field"]
 ]) {
@@ -68,6 +68,23 @@ for (const [value, code] of [
   } catch (error) {
     assert(error.code === code, `wrong_error:${code}:${error.code}`);
   }
+}
+
+const v2Create = validateLaunchRequest({ ...request, schema_version: "launch-request.v2" });
+assert(v2Create.schema_version === "launch-request.v2", "v2_create_not_accepted");
+const appendDraft = {
+  schema_version: "launch-request.v2", operation: "append_project_videos",
+  route_id: request.route_id, game_code: request.game_code, advertiser_id: request.advertiser_id,
+  project_id: "7684895789612826666", origin_resource_ids: ["fixture-video-1"]
+};
+const projectOnly = await resolveLaunchRequestIntake({ userIntent: "项目 7684895789612826667", draft: appendDraft });
+assert(projectOnly.request.advertiser_id === request.advertiser_id, "project_id_overwrote_advertiser_id");
+assert(projectOnly.request.project_id === "7684895789612826667", "project_id_not_updated");
+const noAppend = await resolveLaunchRequestIntake({ userIntent: "只改 ROI，不要追加素材", draft: appendDraft });
+assert(noAppend.issues?.[0]?.code === "operation_not_supported" && noAppend.missing_fields.length === 3, "unsupported_update_reused_append_draft");
+const unknownLegacyOperation = () => normalizeLaunchRequestFromBody({ ...request, operation: "change_roi" });
+try { unknownLegacyOperation(); throw new Error("unknown_legacy_operation_accepted"); } catch (error) {
+  assert(error.code === "launch_request_operation_not_supported", "unknown_legacy_operation_wrong_error");
 }
 
 const legacy = normalizeLaunchRequestFromBody({

@@ -1,0 +1,212 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914",
+  "task_ref": "tasks/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T01:00:00Z",
+  "updated_at": "2026-09-14T05:30:00Z",
+  "base_revision": "71f21c261755469fee658cb20f2136aae8ff676d",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "security",
+    "deploy"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "deploy/README.md",
+    "src/agents/launchRequest.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchAgent.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/workbenchRuntimeWritePolicy.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js"
+  ],
+  "reference_only": [
+    {
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/01-官方文档/open.oceanengine.com-3.0/09-01-巨量营销智擎版-项目管理与优化目标.md",
+      "reason": "已验证的追加项目素材官方接口摘要。"
+    }
+  ],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914.json",
+    "evidence/TASK-MWBV2-PROJECT-VIDEO-APPEND-20260914/*",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "db/092_project_video_append.sql",
+    "db/093_project_video_append_case_summary.sql",
+    "db/094_project_video_append_summary_fix.sql",
+    "db/095_jszc_success_profile_ledger_contract.sql",
+    "src/agents/launchRequest.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchAgent.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/security/workbenchAgentModelCredentialStore.mjs",
+    "src/workflows/launchOperationContracts.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executionPlan.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchRuntimeWritePolicy.mjs",
+    "src/workflows/skills/oe3/00-workflow-node-registry.mjs",
+    "src/workflows/skills/oe3/05-jszc-success-profile.mjs",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/platforms/oceanengineReadonlyClient.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-test-server.mjs",
+    "scripts/00-workbench-release.mjs",
+    "scripts/00-workbench-mode-switch.mjs",
+    "scripts/00-workflow-case-smoke.mjs",
+    "scripts/00-execution-plan-smoke.mjs",
+    "tests/fixtures/config.json",
+    "tests/support/platform.mjs",
+    "tests/support/fixtures.mjs",
+    "tests/support/database.mjs",
+    "package.json",
+    "tests/run.mjs",
+    "db/096_project_video_material_push_plan.sql"
+  ],
+  "forbidden_actions": [
+    "真实平台写入",
+    "读取或输出凭据",
+    "首次上传、删除素材或修改项目其他配置",
+    "扩大确认与重试边界"
+  ],
+  "stop_conditions": [
+    "官方追加接口不能核准为标准项目适用",
+    "需要绕过 Plan-bound 确认",
+    "验证需要真实账户或项目写入"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:project-video-append"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:project-video-append"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:project-video-append && npm run test:execution-plan"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:workbench-client-pages"
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run test:launch-request && npm run db:contract-check && npm run check:project -- --phase before-close"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:launch-request",
+      "summary": "v1/v2 intake, clarification and unsupported-operation boundaries passed.",
+      "status": "passed",
+      "verified_at": "2026-09-14T04:33:00Z",
+      "evidence_refs": [
+        "scripts/00-launch-request-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "npm run test:project-video-append && npm run test:workbench-client-pages",
+      "summary": "追加分类、1–100 限制、账户后只读项目推荐排序与选择卡页面回归通过。",
+      "status": "passed",
+      "verified_at": "2026-09-14T05:24:00Z",
+      "evidence_refs": [
+        "scripts/00-project-video-append-smoke.mjs",
+        "scripts/00-workbench-client-pages-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run test:execution-plan && npm run test:workflow-case && npm run test:single-confirmation-orchestrator",
+      "summary": "real isolated runner generated ready create Plans; confirmation and Case attempt protections passed.",
+      "status": "passed",
+      "verified_at": "2026-09-14T04:35:00Z",
+      "evidence_refs": [
+        "scripts/00-execution-plan-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "npm run test:workbench-client-pages && npm run test:workbench-mode-switch",
+      "summary": "browser layout and isolated test/business mode checks passed.",
+      "status": "passed",
+      "verified_at": "2026-09-14T04:36:00Z",
+      "evidence_refs": [
+        "scripts/00-workbench-client-pages-smoke.mjs"
+      ]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "command": "npm run db:contract-check && npm run check:project -- --phase start",
+      "summary": "094 append projection and 095 success-profile contract applied after backups; project check passed.",
+      "status": "passed",
+      "verified_at": "2026-09-14T04:38:00Z",
+      "evidence_refs": [
+        "db/095_jszc_success_profile_ledger_contract.sql"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记追加事项的安全边界。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "登记按事项的七节点投影。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "登记追加请求与 Plan 承载字段。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "updated",
+      "reason": "登记测试工作台与固定提交发布方式。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "追加视频统一请求、项目推荐、素材推送与项目追加的受控 Plan 链已完成隔离验证。",
+    "side_effects": "已应用 094、095、096 数据库迁移；未发生真实平台写入。",
+    "remaining_risks": [
+      "真实账户验证仍需账户本人选择项目、确认 Plan，并以权威回查为准。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-14T05:30:00Z"
+}

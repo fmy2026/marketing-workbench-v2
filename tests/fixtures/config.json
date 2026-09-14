@@ -477,8 +477,8 @@
             },
             "raw_payload_stored": false,
             "schedule_time_digest": "9e35339db1e951fd0c5b2de1908de02d1ff0d67243145c05ec195b15236c9594",
-            "golden_field_shape_hash": "sha256:3ca0165414980e6fc9a7f353e4d766024a560e6d6bc855821bda8b3a1060fe11",
-            "expected_ledger_path_count": 90
+            "golden_field_shape_hash": "sha256:de0c8f4e681f7faa9981bfb38112b02971617f51bbdabe722f38280a079eee44",
+            "expected_ledger_path_count": 91
           },
           "instance_id_create_evidence": {
             "reason": "official_docs_verify_instance_id_field_name_type_and_route_applicability;local_encoder_verifies_19_digit_json_number_token_without_js_number_precision_loss",

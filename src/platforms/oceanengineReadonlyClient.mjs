@@ -16,6 +16,7 @@ const API_BASE = "https://api.oceanengine.com";
 const ALLOWED_ENDPOINTS = new Set([
   "std_project/list",
   "/open_api/v3.0/std_project/list/",
+  "/open_api/v3.0/oc_project/material/get/",
   "tools/event/all_assets/list",
   "tools/event/all_assets/detail",
   "https://ad.oceanengine.com/open_api/2/event_manager/available_events/get/",

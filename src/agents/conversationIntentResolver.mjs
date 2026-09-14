@@ -8,8 +8,10 @@ import {
 } from "./launchAgent.mjs";
 import {
   createLaunchRequestDraft,
+  createProjectVideoAppendRequestDraft,
   launchRequestIssue,
   normalizeLaunchRequestDraft,
+  PROJECT_VIDEO_APPEND_OPERATION,
   toLaunchRequestResponse,
   validateLaunchRequest
 } from "./launchRequest.mjs";
@@ -146,7 +148,7 @@ export function deterministicIntent({ message = "" } = {}) {
   if (command === "重新只读回查monitor") {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_monitor_readonly_reconcile", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
-  if (["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源"].includes(command)) {
+  if (["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源", "确认追加视频", "确认推送素材"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_confirmation", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (/^(状态|当前状态|查看状态|进度|卡点|查看卡点|现在到哪一步了|为什么卡住|下一步是什么|还缺什么)$/.test(command)) {
@@ -371,7 +373,88 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     });
   }
   if (!hasNatural) throw intakeRequestError("请输入投放创建需求。");
-  const prior = normalizeLaunchRequestDraft(draft || {});
+  const text = String(userIntent);
+  if (text.length > 20_000) throw intakeRequestError("输入过长，请将视频标识码分批粘贴（每次最多 100 条）。");
+  const hasAppendWords = /(?:追加|添加|新增|增加)(?:[^。；，,\n]{0,20})(?:视频|素材)|(?:项目|project)[^。；，,\n]{0,20}(?:视频|素材)/i.test(text);
+  const negatesAppend = /(?:不|不要|无需|别)(?:[^。；，,\n]{0,8})(?:追加|添加|新增|增加)(?:[^。；，,\n]{0,20})(?:视频|素材)?/i.test(text);
+  const hasCreateWords = /(?:新建|创建|从零建|建立)(?:[^。；，,\n]{0,20})(?:项目|投放|广告)/i.test(text);
+  const hasUnsupportedWords = /(?:只改|修改|调整|变更)(?:[^。；，,\n]{0,20})(?:roi|出价|预算|时段|定向|配置)/i.test(text);
+  if (hasUnsupportedWords) {
+    return toLaunchRequestResponse({
+      draft: createLaunchRequestDraft(),
+      parseSource: "rules",
+      source: "natural_language",
+      slotSources: {},
+      modelAssist: modelAssist(),
+      issues: [launchRequestIssue("operation_not_supported")]
+    });
+  }
+  if ((hasAppendWords && hasCreateWords) || (hasAppendWords && negatesAppend && hasCreateWords)) {
+    return toLaunchRequestResponse({
+      draft: createLaunchRequestDraft(), parseSource: "rules", source: "natural_language",
+      slotSources: {}, modelAssist: modelAssist(), issues: [launchRequestIssue("operation_conflict")]
+    });
+  }
+  if (negatesAppend && !hasCreateWords) {
+    return toLaunchRequestResponse({
+      draft: createLaunchRequestDraft(), parseSource: "rules", source: "natural_language",
+      slotSources: {}, modelAssist: modelAssist(), issues: [launchRequestIssue("operation_ambiguous")]
+    });
+  }
+  const explicitOperation = hasAppendWords ? PROJECT_VIDEO_APPEND_OPERATION : hasCreateWords ? "create_std_project" : "";
+  const appendIntent = explicitOperation === PROJECT_VIDEO_APPEND_OPERATION || (!explicitOperation && draft?.operation === PROJECT_VIDEO_APPEND_OPERATION);
+  if (appendIntent) {
+    // An explicit switch starts a fresh operation draft. A follow-up only
+    // merges labelled fields, so a project ID can never become an account ID.
+    const prior = explicitOperation ? createProjectVideoAppendRequestDraft() : createProjectVideoAppendRequestDraft(draft || {});
+    const advertiserMatches = [...text.matchAll(/(?:advertiser_id|广告账户|账户|账号|advertiser)\s*[:：]?\s*(\d{8,24})/gi)].map((match) => match[1]);
+    const projectMatches = [...text.matchAll(/(?:project_id|项目)\s*[:：]?\s*(\d{8,24})/gi)].map((match) => match[1]);
+    const advertiser = advertiserMatches.length === 1 ? advertiserMatches[0] : "";
+    const project = projectMatches.length === 1 ? projectMatches[0] : "";
+    const route = /巨量|穿山甲|字节|oe3|oceanengine|抖小/i.test(text) && /小游戏|mini\s*game|抖小/i.test(text)
+      ? "oceanengine_3_byte_mini_game" : "";
+    const game = /\bJSZC\b/i.test(text) || /巨兽战场/i.test(text) ? "JSZC" : "";
+    const marked = text.match(/(?:视频标识码|素材标识码|视频码)\s*[:：]?\s*([^。；;]{1,20000})/i)?.[1] || "";
+    const rawIds = marked ? marked.split(/[\s,，]+/).map((item) => item.trim()).filter(Boolean) : [];
+    const invalidIds = rawIds.filter((item) => !/^[A-Za-z0-9._:-]{2,128}$/.test(item));
+    const suppliedIds = rawIds.filter((item) => /^[A-Za-z0-9._:-]{2,128}$/.test(item));
+    const next = createProjectVideoAppendRequestDraft({
+      ...prior,
+      route_id: route || prior.route_id,
+      game_code: game || prior.game_code,
+      advertiser_id: advertiser || prior.advertiser_id,
+      project_id: project || prior.project_id,
+      origin_resource_ids: suppliedIds.length ? suppliedIds : prior.origin_resource_ids
+    });
+    const duplicates = rawIds.length !== new Set(rawIds).size;
+    const issues = [
+      ...(advertiserMatches.length > 1 ? [launchRequestIssue("multiple_advertiser_ids")] : []),
+      ...(projectMatches.length > 1 ? [{ code: "multiple_project_ids", message: "检测到多个项目 ID，请只保留一个项目后重试。" }] : []),
+      ...(invalidIds.length ? [{ code: "launch_request_invalid_origin_resource_id", message: "素材标识码格式无效，未采用本次列表。" }] : []),
+      ...(duplicates ? [{ code: "launch_request_duplicate_origin_resource_id", message: "素材标识码包含重复项。" }] : []),
+      ...(rawIds.length > 100 ? [{ code: "launch_request_origin_resource_ids_exceed_limit", message: "单次最多追加 100 个素材标识码，请拆分提交。" }] : [])
+    ];
+    if (issues.length) {
+      next.origin_resource_ids = prior.origin_resource_ids;
+      if (advertiserMatches.length > 1) next.advertiser_id = "";
+      if (projectMatches.length > 1) next.project_id = "";
+    }
+    return toLaunchRequestResponse({
+      draft: next,
+      parseSource: "rules",
+      source: "natural_language",
+      slotSources: {
+        route_id: next.route_id ? "rules" : "missing",
+        game_code: next.game_code ? "rules" : "missing",
+        advertiser_id: next.advertiser_id ? "rules" : "missing",
+        project_id: next.project_id ? "rules" : "missing",
+        origin_resource_ids: next.origin_resource_ids.length ? "rules" : "missing"
+      },
+      modelAssist: modelAssist(),
+      issues
+    });
+  }
+  const prior = explicitOperation ? createLaunchRequestDraft() : normalizeLaunchRequestDraft(draft || {});
   const resolved = await resolveExplicitLaunchIntake({ message: userIntent, resolver });
   const issueCodes = resolved.issues || [];
   let next = { ...prior };
@@ -392,5 +475,5 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
 }
 
 export function isExplicitCreateConfirmation(message = "") {
-  return ["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源"].includes(normalizedCommand(message));
+  return ["确认创建", "确认创建项目", "确认创建monitor", "确认准备资源", "确认追加视频", "确认推送素材"].includes(normalizedCommand(message));
 }

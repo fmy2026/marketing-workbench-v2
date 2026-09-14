@@ -1356,6 +1356,9 @@ export class PostgresRepository {
     maximumCreateAttempts = 3,
     ownerUserId = "",
     createdByUserId = "",
+    operation = "create_std_project",
+    targetProjectId = "",
+    originResourceIds = [],
     metadata = {}
   }) {
     assertId("case_id", caseId);
@@ -1368,17 +1371,21 @@ export class PostgresRepository {
     const maximumAttempts = assertMaximumCreateAttempts(maximumCreateAttempts);
     if (ownerUserId) assertId("owner_user_id", ownerUserId);
     if (createdByUserId) assertId("created_by_user_id", createdByUserId);
+    assertId("operation", operation, /^(create_std_project|append_project_videos)$/);
+    if (targetProjectId) assertId("target_project_id", targetProjectId, /^\d{8,24}$/);
+    if (!Array.isArray(originResourceIds)) throw new Error("invalid_origin_resource_ids");
     if (typeof metadata !== "object" || Array.isArray(metadata) || metadata === null) throw new Error("invalid_workflow_case_metadata");
     await runPsql(`
       INSERT INTO mwb.workflow_cases (
         case_id, case_key, route_id, game_code, advertiser_id,
         business_goal, lifecycle_status, source_usage, maximum_create_attempts, owner_user_id,
-        created_by_user_id, metadata, created_at, updated_at
+        created_by_user_id, operation, target_project_id, origin_resource_ids, metadata, created_at, updated_at
       ) VALUES (
         ${sqlLiteral(caseId)}, ${sqlLiteral(caseKey)}, ${sqlLiteral(routeId)}, ${sqlLiteral(gameCode)}, ${sqlLiteral(advertiserId)},
         ${sqlLiteral(businessGoal)}, ${sqlLiteral(lifecycleStatus)}, ${sqlLiteral(sourceUsage)}, ${maximumAttempts},
         ${ownerUserId ? sqlLiteral(ownerUserId) : "NULL"},
         ${createdByUserId ? sqlLiteral(createdByUserId) : "NULL"},
+        ${sqlLiteral(operation)}, ${sqlLiteral(targetProjectId)}, ${sqlJson(originResourceIds)},
         ${sqlJson(metadata)}, now(), now()
       );
     `, this.database);
@@ -4330,6 +4337,99 @@ export class PostgresRepository {
     return result || { consumed: false, jobFinalized: false };
   }
 
+  async finalizeConfirmedProjectVideoAppendPlan({ jobId, planId } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    const result = await queryJson(`
+      WITH terminal_action AS (
+        SELECT action.action_status
+        FROM mwb.platform_actions action
+        WHERE action.job_id = ${sqlLiteral(jobId)}
+          AND action.plan_id = ${sqlLiteral(planId)}
+          AND action.action_type = 'oc_project_video_append'
+          AND action.action_status IN ('succeeded', 'failed', 'failed_or_unconfirmed')
+        ORDER BY action.finished_at DESC NULLS LAST, action.started_at DESC
+        LIMIT 1
+      ), consumed AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', coalesce((SELECT action_status FROM terminal_action), 'failed_or_unconfirmed'),
+              'retry_allowed', false,
+              'platform_action_count', 1
+            ),
+            updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'executing'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_append'
+          AND EXISTS (SELECT 1 FROM terminal_action)
+        RETURNING plan.plan_id
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = CASE WHEN (SELECT action_status FROM terminal_action) = 'succeeded' THEN 'readback_verified' ELSE 'failed_waiting_manual_review' END,
+            current_node = '7',
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM consumed)
+        RETURNING job.job_id
+      ), case_finalized AS (
+        UPDATE mwb.workflow_cases workflow_case
+        SET lifecycle_status = 'completed',
+            metadata = workflow_case.metadata || jsonb_build_object(
+              'completion_reason', 'project_video_append_readback_verified'
+            ),
+            updated_at = now()
+        FROM mwb.launch_jobs job
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND workflow_case.case_id = job.case_id
+          AND workflow_case.lifecycle_status = 'active'
+          AND (SELECT action_status FROM terminal_action) = 'succeeded'
+        RETURNING workflow_case.case_id
+      )
+      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobFinalized', EXISTS (SELECT 1 FROM job_finalized), 'caseFinalized', EXISTS (SELECT 1 FROM case_finalized))::text;
+    `, this.database);
+    return result || { consumed: false, jobFinalized: false, caseFinalized: false };
+  }
+
+  async finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    const result = await queryJson(`
+      WITH terminal_actions AS (
+        SELECT count(*) AS total, count(*) FILTER (WHERE action_status = 'succeeded') AS succeeded
+        FROM mwb.platform_actions action
+        WHERE action.job_id = ${sqlLiteral(jobId)}
+          AND action.plan_id = ${sqlLiteral(planId)}
+          AND action.action_type = 'oc_project_video_material_push'
+          AND action.action_status IN ('succeeded', 'failed', 'failed_or_unconfirmed')
+      ), consumed AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', CASE WHEN (SELECT total = succeeded AND total > 0 FROM terminal_actions) THEN 'readback_verified' ELSE 'failed_or_unconfirmed' END,
+              'retry_allowed', false,
+              'platform_action_count', coalesce((SELECT total FROM terminal_actions), 0)
+            ), updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)} AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'executing'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_material_push'
+          AND EXISTS (SELECT 1 FROM mwb.launch_confirmations confirmation WHERE confirmation.job_id = plan.job_id AND confirmation.plan_id = plan.plan_id AND confirmation.confirmation_status = 'confirmed_for_execution_plan')
+          AND (SELECT total FROM terminal_actions) > 0
+        RETURNING plan.plan_id
+      ), job_updated AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = CASE WHEN (SELECT total = succeeded FROM terminal_actions) THEN 'running' ELSE 'failed_waiting_manual_review' END,
+            current_node = CASE WHEN (SELECT total = succeeded FROM terminal_actions) THEN '4' ELSE '4' END,
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)} AND EXISTS (SELECT 1 FROM consumed)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobUpdated', EXISTS (SELECT 1 FROM job_updated), 'allSucceeded', coalesce((SELECT total = succeeded AND total > 0 FROM terminal_actions), false))::text;
+    `, this.database);
+    return result || { consumed: false, jobUpdated: false, allSucceeded: false };
+  }
+
   async getLaunchExecutionPlan(planId) {
     assertId("plan_id", planId);
     return queryJson(`
@@ -5089,6 +5189,10 @@ export class PostgresRepository {
     if (confirmation.confirmationStatus !== "confirmed_for_execution_plan") {
       throw new Error("plan_confirmation_status_invalid");
     }
+    const confirmationPlanKind = String(confirmation.metadata?.plan_kind || "").trim();
+    if (confirmationPlanKind && !["std_project_create", "project_video_append", "project_video_material_push", "monitor_bootstrap", "resource_prepare"].includes(confirmationPlanKind)) {
+      throw new Error("plan_confirmation_kind_invalid");
+    }
     const ownerEligibility = confirmation.confirmedByUserId
       ? `workflow_case.owner_user_id = ${sqlLiteral(assertId("confirmed_by_user_id", confirmation.confirmedByUserId))}`
       : "job.source_usage = 'test_run'";
@@ -5104,6 +5208,7 @@ export class PostgresRepository {
         WHERE plan.plan_id = ${sqlLiteral(confirmation.planId)}
           AND plan.job_id = ${sqlLiteral(confirmation.jobId)}
           AND plan.plan_status = 'ready'
+          AND (${confirmationPlanKind ? `coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = ${sqlLiteral(confirmationPlanKind)}` : "coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') IN ('std_project_create', 'project_video_append', 'project_video_material_push', 'monitor_bootstrap', 'resource_prepare')"})
           AND workflow_case.lifecycle_status = 'active'
           AND job.job_id = (
             SELECT latest.job_id
@@ -5120,7 +5225,7 @@ export class PostgresRepository {
             JOIN mwb.launch_execution_plans prior_plan ON prior_plan.plan_id = prior_confirmation.plan_id
             WHERE prior_plan.job_id = plan.job_id
               AND prior_plan.plan_id <> plan.plan_id
-              AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = 'std_project_create'
+              AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '')
               AND prior_confirmation.confirmation_status = 'confirmed_for_execution_plan'
           )
         FOR UPDATE OF plan, job, workflow_case
@@ -5135,7 +5240,11 @@ export class PostgresRepository {
         JOIN mwb.launch_confirmations prior_confirmation ON prior_confirmation.plan_id = prior_plan.plan_id
         WHERE prior_plan.job_id = ${sqlLiteral(confirmation.jobId)}
           AND prior_plan.plan_id <> ${sqlLiteral(confirmation.planId)}
-          AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND coalesce(prior_plan.plan_kind, prior_plan.metadata->>'plan_kind', '') = (
+            SELECT coalesce(target.plan_kind, target.metadata->>'plan_kind', '')
+            FROM mwb.launch_execution_plans target
+            WHERE target.plan_id = ${sqlLiteral(confirmation.planId)}
+          )
           AND prior_confirmation.confirmation_status = 'confirmed_for_execution_plan'
       ), claimed AS (
         INSERT INTO mwb.launch_confirmations (

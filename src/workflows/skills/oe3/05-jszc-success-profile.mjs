@@ -82,8 +82,11 @@ export const JSZC_SUCCESS_PROFILE_FIXTURE = Object.freeze({
 });
 
 export const JSZC_SUCCESS_PROFILE_FIXTURE_HASH = hashValue(JSZC_SUCCESS_PROFILE_FIXTURE);
-export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:3ca0165414980e6fc9a7f353e4d766024a560e6d6bc855821bda8b3a1060fe11";
-export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 90;
+// The canonical ledger includes the route's controlled landing-page material
+// path.  Keep this paired with the checked fixture contract below so a real
+// readonly run cannot be rejected by a stale success-profile snapshot.
+export const JSZC_SUCCESS_PROFILE_GOLDEN_FIELD_SHAPE_HASH = "sha256:de0c8f4e681f7faa9981bfb38112b02971617f51bbdabe722f38280a079eee44";
+export const JSZC_SUCCESS_PROFILE_GOLDEN_LEDGER_PATH_COUNT = 91;
 export const JSZC_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:255b9d660aa5992063c474b455bfca5da96130b094aa240b74f04541c2859fb6";
 export const JSZC_GUIDE_VIDEO_GOLDEN_LEDGER_PATH_COUNT = 91;
 export const JSZC_VIDEO_COVER_GUIDE_VIDEO_GOLDEN_FIELD_SHAPE_HASH = "sha256:866ab396dc253076bd5e31c13ad2b2ad22f4b74c3b4d7c1df432c4dcae8869f3";

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { STD_PROJECT_40100_REDELIVERY_CONTRACT } from "./executionPlan.mjs";
 
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
-export const DEFAULT_PROJECT_STATE_PATH = join(rootDir, "project.state.json");
+export const DEFAULT_PROJECT_STATE_PATH = process.env.MWBV2_PROJECT_STATE_PATH || join(rootDir, "project.state.json");
 const LOOPBACK_WORKBENCH_ORIGIN = "http://127.0.0.1:3000";
 const CONFIGURED_LAN_ORIGIN = "configured:WORKBENCH_PUBLIC_ORIGIN";
 
