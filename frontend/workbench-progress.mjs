@@ -36,6 +36,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "source_video_id_invalid_for_material_push") {
+    return {
+      message: "当前阻断：素材推送计划生成失败，视频 ID 校验异常。服务修复后请输入“重新只读准备”重新核验；无需修改视频标识码。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker.startsWith("video_material_source_mapping_not_verified:") || blocker.startsWith("video_material_source_mapping_ambiguous:")) {
     return {
       message: "当前阻断：视频素材来源未能唯一核验。补齐物料户映射后请输入“重新只读准备”；系统不会猜测绑定对象。",

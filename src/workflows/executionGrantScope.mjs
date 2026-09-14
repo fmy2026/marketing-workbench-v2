@@ -531,6 +531,7 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
   const resourcePlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_RESOURCE_PREPARE;
   const monitorPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_MONITOR_BOOTSTRAP;
   const appendPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_PROJECT_VIDEO_APPEND;
+  const materialPushPlan = (bundle.executionPlan?.plan_kind || bundle.executionPlan?.metadata?.plan_kind) === PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH;
   const scope = planBound
     ? monitorPlan
       ? await validateMonitorPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
@@ -538,6 +539,8 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
       ? await validateResourcePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
       : appendPlan
       ? await validateProjectVideoAppendPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
+      : materialPushPlan
+      ? await validateProjectVideoMaterialPushPlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
       : await validatePlanConfirmationScope({ repo, bundle, projectStatePath, authorizationSource: "workbench_view" })
     : await validateWriteScope({ repo, bundle, projectStatePath });
   const alreadyAttempted = planBound

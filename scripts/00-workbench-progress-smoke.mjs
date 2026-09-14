@@ -155,6 +155,9 @@ assert(ambiguousAppendGuidance?.message.includes("多个来源"), "append_ambigu
 assert(ambiguousAppendGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "append_ambiguous_source_recovery_missing");
 const projectMaterialGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["project_material_readonly_failed"] });
 assert(projectMaterialGuidance?.message.includes("项目素材"), "append_project_material_guidance_missing");
+const invalidPushVideoIdGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["source_video_id_invalid_for_material_push"] });
+assert(invalidPushVideoIdGuidance?.message.includes("素材推送计划生成失败") && invalidPushVideoIdGuidance.message.includes("无需修改视频标识码"), "material_push_video_id_guidance_missing");
+assert(invalidPushVideoIdGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "material_push_video_id_recovery_missing");
 const missingVideoMappingGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_material_source_mapping_not_verified:VIDEO-1"] });
 assert(missingVideoMappingGuidance?.message.includes("视频素材来源未能唯一核验"), "video_mapping_guidance_missing");
 const brandFallbackGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["brand_info_not_ready"] });

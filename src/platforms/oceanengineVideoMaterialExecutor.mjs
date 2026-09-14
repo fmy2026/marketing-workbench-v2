@@ -175,7 +175,7 @@ function nextAction(planStatus) {
 export function videoMaterialBindTransportPayload({ sourceAdvertiserId, targetAdvertiserId, videoId } = {}) {
   const source = assertSafeIntegerId("source_advertiser_id", sourceAdvertiserId);
   const target = assertSafeIntegerId("target_advertiser_id", targetAdvertiserId);
-  const safeVideoId = clean(videoId);
+  const safeVideoId = typeof videoId === "string" ? videoId.trim() : "";
   if (!safeVideoId) throw new Error("video_id_required");
   return {
     advertiser_id: source.number,
@@ -187,7 +187,7 @@ export function videoMaterialBindTransportPayload({ sourceAdvertiserId, targetAd
 export function videoMaterialBatchBindTransportPayload({ sourceAdvertiserId, targetAdvertiserId, videoIds = [] } = {}) {
   const source = assertSafeIntegerId("source_advertiser_id", sourceAdvertiserId);
   const target = assertSafeIntegerId("target_advertiser_id", targetAdvertiserId);
-  const safeVideoIds = [...new Set((videoIds || []).map(clean).filter(Boolean))];
+  const safeVideoIds = [...new Set((videoIds || []).map((videoId) => typeof videoId === "string" ? videoId.trim() : "").filter(Boolean))];
   if (safeVideoIds.length === 0) throw new Error("video_ids_required");
   if (safeVideoIds.length > 50) throw new Error("video_ids_exceed_official_batch_limit");
   return {

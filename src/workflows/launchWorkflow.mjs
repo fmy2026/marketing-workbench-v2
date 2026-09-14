@@ -790,6 +790,14 @@ export function buildWorkbenchView({ activeCases = [] } = {}) {
 }
 
 export function presentRootBlocker(code = "", { originResourceId = "", candidateCount = 0 } = {}) {
+  if (code === "source_video_id_invalid_for_material_push") {
+    return {
+      code,
+      title: "素材推送计划生成失败",
+      reason: "视频 ID 校验异常，系统未生成可执行的素材推送动作。",
+      nextActionLabel: "服务修复后输入“重新只读准备”重新核验；无需修改视频标识码。"
+    };
+  }
   if (code === "video_origin_mapping_ambiguous") {
     const identifier = String(originResourceId || "").trim();
     const count = Number(candidateCount || 0);

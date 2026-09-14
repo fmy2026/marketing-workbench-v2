@@ -1,7 +1,7 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { validatePlanConfirmationScope, validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
+import { getExecutionGrantAvailability, validatePlanConfirmationScope, validateProjectVideoMaterialPushPlanConfirmationScope, validateResourcePlanConfirmationScope } from "../src/workflows/executionGrantScope.mjs";
 import { executeConfirmedLaunch, EXECUTION_GRANT_INTENT } from "../src/workflows/executeConfirmedLaunch.mjs";
 import { evaluatePlanBoundWriteAuthorization } from "../src/workflows/workbenchRuntimeWritePolicy.mjs";
 import { STD_PROJECT_40100_REDELIVERY_CONTRACT } from "../src/workflows/executionPlan.mjs";
@@ -73,7 +73,7 @@ await writeFile(statePath, `${JSON.stringify({
       mode: "loopback_plan_bound_confirmation_only",
       origin: "http://127.0.0.1:3000",
       allowed_source_usage: ["runtime_truth"],
-      allowed_plan_kinds: ["monitor_bootstrap", "resource_prepare", "std_project_create"],
+      allowed_plan_kinds: ["monitor_bootstrap", "resource_prepare", "std_project_create", "project_video_material_push"],
       require_active_case: true,
       require_latest_case_job: true,
       require_exact_plan_binding: true,
@@ -102,6 +102,81 @@ try {
     authorizationSource: "workbench_conversation"
   });
   assert(confirmationScope.status === "passed", `resource_confirmation_scope_not_passed:${confirmationScope.blockers.join(",")}`);
+
+  const pushPlan = {
+    ...plan,
+    plan_id: `PLAN-${jobId}-PUSH-V1`,
+    plan_hash: `sha256:${"p".repeat(64)}`,
+    plan_kind: "project_video_material_push",
+    planned_actions: [{ action_type: "oc_project_video_material_push", status: "ready", maximum_platform_calls: 1 }],
+    metadata: {
+      execution_scope: {
+        binding_mode: "single_confirmation_plan",
+        target_job_id: jobId,
+        target_advertiser_id: advertiserId,
+        target_project_id: "1234567890123456789",
+        target_plan_id: `PLAN-${jobId}-PUSH-V1`,
+        target_plan_hash: `sha256:${"p".repeat(64)}`,
+        allowed_actions: ["oc_project_video_material_push"],
+        allowed_plan_actions: ["oc_project_video_material_push"],
+        maximum_actions: 1,
+        maximum_platform_calls: 1,
+        maximum_create_calls: 0,
+        retry_allowed: false
+      },
+      project_id: "1234567890123456789",
+      push_batches: [{ batch_index: 1, origin_resource_ids: ["opaque-code"], source_video_ids: ["v02033g11111d03jhjnog65p1u6b6mr0"] }]
+    }
+  };
+  const pushBundle = { ...bundle, case: { lifecycle_status: "active", target_project_id: "1234567890123456789" }, executionPlan: pushPlan };
+  const pushScope = await validateProjectVideoMaterialPushPlanConfirmationScope({ repo, bundle: pushBundle, projectStatePath: statePath, authorizationSource: "workbench_view" });
+  assert(pushScope.status === "passed", `material_push_confirmation_scope_not_passed:${pushScope.blockers.join(",")}`);
+  const pushAvailability = await getExecutionGrantAvailability({ repo, bundle: pushBundle, projectStatePath: statePath });
+  assert(pushAvailability.canExecuteOnce === true, `material_push_availability_not_passed:${pushAvailability.reasonCode}`);
+  const originalState = JSON.parse(await readFile(statePath, "utf8"));
+  const authenticatedState = {
+    guardrails: {
+      ...originalState.guardrails,
+      workbench_runtime_write_policy: {
+        ...originalState.guardrails.workbench_runtime_write_policy,
+        mode: "authenticated_lan_plan_bound_confirmation_only",
+        origin: "configured:WORKBENCH_PUBLIC_ORIGIN",
+        require_authenticated_owner: true
+      }
+    }
+  };
+  const ownedPushBundle = {
+    ...pushBundle,
+    case: { ...pushBundle.case, owner_user_id: "owner-user" },
+    account: { owner_user_id: "owner-user" }
+  };
+  await writeFile(statePath, `${JSON.stringify(authenticatedState, null, 2)}\n`);
+  const ownerAuthorization = await evaluatePlanBoundWriteAuthorization({ repo, bundle: ownedPushBundle, plan: pushPlan, projectStatePath: statePath, authorizationSource: "workbench_conversation", authenticatedUserId: "owner-user" });
+  assert(ownerAuthorization.status === "passed", `material_push_owner_not_authorized:${ownerAuthorization.blockers.join(",")}`);
+  const nonOwnerAuthorization = await evaluatePlanBoundWriteAuthorization({ repo, bundle: ownedPushBundle, plan: pushPlan, projectStatePath: statePath, authorizationSource: "workbench_conversation", authenticatedUserId: "other-user" });
+  assert(nonOwnerAuthorization.blockers.includes("workbench_runtime_case_owner_mismatch"), "material_push_non_owner_not_blocked");
+  const stalePushAuthorization = await evaluatePlanBoundWriteAuthorization({ repo, bundle: ownedPushBundle, plan: { ...pushPlan, plan_hash: `sha256:${"s".repeat(64)}` }, projectStatePath: statePath, authorizationSource: "workbench_conversation", authenticatedUserId: "owner-user" });
+  assert(stalePushAuthorization.blockers.includes("platform_write_scope_plan_hash_mismatch"), "material_push_stale_plan_not_blocked");
+  const disabledPushState = {
+    guardrails: {
+      ...authenticatedState.guardrails,
+      workbench_runtime_write_policy: {
+        ...authenticatedState.guardrails.workbench_runtime_write_policy,
+        allowed_plan_kinds: authenticatedState.guardrails.workbench_runtime_write_policy.allowed_plan_kinds.filter((kind) => kind !== "project_video_material_push")
+      }
+    }
+  };
+  await writeFile(statePath, `${JSON.stringify(disabledPushState, null, 2)}\n`);
+  const disabledPushAuthorization = await evaluatePlanBoundWriteAuthorization({ repo, bundle: ownedPushBundle, plan: pushPlan, projectStatePath: statePath, authorizationSource: "workbench_conversation", authenticatedUserId: "owner-user" });
+  assert(disabledPushAuthorization.blockers.includes("workbench_runtime_plan_kind_not_allowed"), "material_push_disabled_policy_not_blocked");
+  const consumedPushScope = await validateProjectVideoMaterialPushPlanConfirmationScope({
+    repo: { ...repo, async getLaunchConfirmationForPlan() { return { confirmation_id: "CONFIRM-PUSH" }; } },
+    bundle: pushBundle,
+    projectStatePath: statePath,
+    authorizationSource: "workbench_view"
+  });
+  assert(consumedPushScope.blockers.includes("execution_plan_confirmation_already_recorded"), "material_push_duplicate_confirmation_not_blocked");
+  await writeFile(statePath, `${JSON.stringify(originalState, null, 2)}\n`);
 
   summary = { ...summary, latest_job_id: "JOB-STALE" };
   const stale = await evaluatePlanBoundWriteAuthorization({

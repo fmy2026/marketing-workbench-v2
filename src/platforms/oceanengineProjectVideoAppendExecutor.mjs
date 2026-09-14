@@ -26,6 +26,15 @@ function longId(name, value) {
   return id;
 }
 
+// OceanEngine video_id is an opaque string (commonly letters and numbers),
+// unlike advertiser_id and project_id. Preserve its source value end to end.
+function requiredVideoId(name, value) {
+  if (typeof value !== "string") throw new Error(`invalid_${name}`);
+  const id = value.trim();
+  if (!id) throw new Error(`invalid_${name}`);
+  return id;
+}
+
 function videoItems(payload = {}) {
   return Array.isArray(payload?.data?.list) ? payload.data.list : [];
 }
@@ -41,7 +50,7 @@ function appendPayload({ advertiserId, projectId, appendItems = [] } = {}) {
   const project_id = longId("project_id", projectId);
   const video_material_list = appendItems.map((item) => ({
     image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
-    video_id: longId("video_id", item.video_id || item.videoId)
+    video_id: requiredVideoId("video_id", item.video_id || item.videoId)
   }));
   if (!video_material_list.length || video_material_list.length > PROJECT_VIDEO_APPEND_MAX_ITEMS) throw new Error("invalid_project_video_append_items");
   return { advertiser_id, project_id, video_material_list };
@@ -352,8 +361,20 @@ export function buildProjectVideoMaterialPushPlan({ advertiserId, materialAccoun
   const selected = (items || []).filter((item) => item?.status === "target_push_required");
   if (!selected.length) return { status: "not_required", items: [] };
   if (selected.length > PROJECT_VIDEO_APPEND_MAX_ITEMS) throw new Error("project_video_material_push_items_exceed_limit");
-  const invalid = selected.filter((item) => !/^\d{1,24}$/.test(clean(item.sourceVideoId)));
-  if (invalid.length) return { status: "blocked", blockerCodes: ["source_video_id_invalid_for_material_push"], items: selected };
+  const invalid = selected.filter((item) => {
+    try {
+      requiredVideoId("source_video_id", item.sourceVideoId);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (invalid.length) return {
+    status: "blocked",
+    actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION,
+    blockerCodes: ["source_video_id_invalid_for_material_push"],
+    items: selected
+  };
   const batches = [];
   for (let index = 0; index < selected.length; index += PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE) {
     const batchItems = selected.slice(index, index + PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE);
@@ -362,7 +383,7 @@ export function buildProjectVideoMaterialPushPlan({ advertiserId, materialAccoun
       payload = videoMaterialBatchBindTransportPayload({
         sourceAdvertiserId: material_account_id,
         targetAdvertiserId: advertiser_id,
-        videoIds: batchItems.map((item) => item.sourceVideoId)
+        videoIds: batchItems.map((item) => requiredVideoId("source_video_id", item.sourceVideoId))
       });
     } catch (error) {
       const reason = String(error?.message || "");

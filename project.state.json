@@ -29,7 +29,8 @@
         "monitor_bootstrap",
         "resource_prepare",
         "std_project_create",
-        "project_video_append"
+        "project_video_append",
+        "project_video_material_push"
       ],
       "require_active_case": true,
       "require_latest_case_job": true,

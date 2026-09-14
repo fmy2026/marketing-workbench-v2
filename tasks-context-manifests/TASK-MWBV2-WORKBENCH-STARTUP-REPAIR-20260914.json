@@ -33,6 +33,8 @@
     "src/platforms/qiankunCredentialStore.mjs",
     "src/platforms/materialCodeMatcher.mjs",
     "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/platforms/oceanengineVideoMaterialExecutor.mjs",
+    "src/workflows/executionGrantScope.mjs",
     "src/workflows/launchWorkflow.mjs",
     "src/workflows/launchOperationContracts.mjs",
     "src/workflows/gateActionPolicy.mjs",
@@ -41,6 +43,7 @@
     "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-runtime-write-policy-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
@@ -96,7 +99,7 @@
       "acceptance_id": "AC-04",
       "status": "passed",
       "command": "npm run test:launch-request; npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; npm run test:workbench-auth-http",
-      "verified_at": "2026-09-14T08:33:39.056Z",
+      "verified_at": "2026-09-14T18:29:49+08:00",
       "summary": "请求合同、追加视频、进度、隔离浏览器和认证 HTTP 回归均通过；浏览器回归覆盖窄屏、输入失效、慢请求和重复点击。",
       "evidence_refs": ["scripts/00-workbench-client-pages-smoke.mjs", "tests/run.mjs"]
     },
@@ -120,9 +123,9 @@
       "acceptance_id": "AC-07",
       "status": "passed",
       "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages",
-      "verified_at": "2026-09-14T18:09:16.000+08:00",
-      "summary": "18 位视频 ID 在推送 Plan、请求 hash 和传输体中保持十进制字符串；单批、双批和非法 ID 均受控。推送 Plan 构建失败不再退回追加 Plan，确认提示区分推送素材与追加视频；右侧标题固定为事项、3 阶段和 7 节点。",
-      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/workbenchProgressNarrative.mjs", "frontend/app.js", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+      "verified_at": "2026-09-14T18:29:49+08:00",
+      "summary": "32 位字母数字视频 ID 在推送 Plan、请求 hash 与追加请求体中保持原始字符串及大小写；空值受控阻断。单批、双批、本人/非本人、旧 Plan、关闭策略和重复确认均按冻结 Plan 的一次确认规则验证；右侧标题继续按事项固定显示 3 阶段 7 节点。",
+      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/platforms/oceanengineVideoMaterialExecutor.mjs", "src/workflows/executionGrantScope.mjs", "src/workflows/workbenchProgressNarrative.mjs", "frontend/app.js", "frontend/workbench-progress.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-runtime-write-policy-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
@@ -144,7 +147,7 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配，素材推送 Plan 的视频 ID 保持十进制字符串，待发布并由账户本人在既有 Case 上执行新版只读核验。",
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。当前补充修复素材推送与追加链错误限定数字视频 ID 的问题，并打通推送 Plan 的本人确认资格。",
     "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
     "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认大小写修复后的唯一物料户命中生成独立素材推送确认卡；不得在验证中确认推送或追加视频。"],
     "business_evidence_refs": ["release:171be4fb123a288a23d9b1cc5971a2d4dd77c3da", "runtime:http://192.168.42.7:3000/app.js:sha256:01855f23f8db54a6004d1f2184bd6d161d7c8e0aebd45e31a70bfa25ea8bdcb5"]
