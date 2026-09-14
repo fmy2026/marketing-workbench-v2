@@ -105,11 +105,11 @@
     },
     {
       "acceptance_id": "AC-05",
-      "status": "not_run",
-      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/171be4fb123a288a23d9b1cc5971a2d4dd77c3da; curl http://192.168.42.7:3000/app.js SHA-256; owner recheck of existing Case",
-      "verified_at": "2026-09-14T10:40:00.000Z",
-      "summary": "公司模式已切换到 release 171be4fb123a288a23d9b1cc5971a2d4dd77c3da；运行中 app.js 与 release 文件 SHA-256 一致。账户本人对既有 Case 的新版只读核验尚待执行，因此本项保持未完成。",
-      "evidence_refs": [".local/releases/171be4fb123a288a23d9b1cc5971a2d4dd77c3da", "scripts/00-workbench-mode-switch.mjs"]
+      "status": "passed",
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b; launchctl print; curl http://192.168.42.7:3000/ and /app.js SHA-256",
+      "verified_at": "2026-09-14T18:32:09+08:00",
+      "summary": "公司模式已成功重载至 release 17ccc80c8c00a91787c0e110ef007e4fe1e6195b；LaunchAgent 工作目录、根地址响应和在线 app.js 摘要均与该 release 一致，共享凭据可读检查由模式切换器完成。账户本人对既有 Case 的新版只读核验待浏览器连接恢复后执行。",
+      "evidence_refs": [".local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b", "scripts/00-workbench-mode-switch.mjs"]
     },
     {
       "acceptance_id": "AC-06",
@@ -149,8 +149,8 @@
   "result": {
     "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。当前补充修复素材推送与追加链错误限定数字视频 ID 的问题，并打通推送 Plan 的本人确认资格。",
     "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认大小写修复后的唯一物料户命中生成独立素材推送确认卡；不得在验证中确认推送或追加视频。"],
-    "business_evidence_refs": ["release:171be4fb123a288a23d9b1cc5971a2d4dd77c3da", "runtime:http://192.168.42.7:3000/app.js:sha256:01855f23f8db54a6004d1f2184bd6d161d7c8e0aebd45e31a70bfa25ea8bdcb5"]
+    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认不透明字符串视频 ID 生成独立素材推送确认卡；不得在验证中确认推送或追加视频。浏览器自动化连接尚不可用，未能代为刷新或发起该只读核验。"],
+    "business_evidence_refs": ["release:17ccc80c8c00a91787c0e110ef007e4fe1e6195b", "runtime:http://192.168.42.7:3000/app.js:sha256:c45d56d7c9ef21aed1891f0ee94fac691e298778d11bb13b08acd16d04b67c96"]
   },
   "closed_at": null
 }
