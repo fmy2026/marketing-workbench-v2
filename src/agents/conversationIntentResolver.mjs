@@ -13,7 +13,8 @@ import {
   normalizeLaunchRequestDraft,
   PROJECT_VIDEO_APPEND_OPERATION,
   toLaunchRequestResponse,
-  validateLaunchRequest
+  validateLaunchRequest,
+  validateProjectVideoAppendIntakeRequest
 } from "./launchRequest.mjs";
 import { openAiCompatibleJsonRequestBody } from "./openaiCompatibleModelRequestProfile.mjs";
 
@@ -74,7 +75,7 @@ function intakeDraft(value = {}) {
 
 function intakeFields(operation = "") {
   return operation === PROJECT_VIDEO_APPEND_OPERATION
-    ? ["route_id", "game_code", "advertiser_id", "project_id", "origin_resource_ids"]
+    ? ["advertiser_id", "project_id", "origin_resource_ids"]
     : operation === "create_std_project" ? ["route_id", "game_code", "advertiser_id"] : [];
 }
 
@@ -85,7 +86,9 @@ function intakeMissing(draft) {
 function buildIntakeResponse({ draft, reply, issues = [], parseSource = "rules", slotSources = {}, modelAssist = null, source = "natural_language" }) {
   const normalizedDraft = emptyIntakeDraft(draft);
   const missing = intakeMissing(normalizedDraft);
-  const canStart = Boolean(normalizedDraft.operation) && missing.length === 0 && issues.length === 0;
+  const appendContextReady = normalizedDraft.operation !== PROJECT_VIDEO_APPEND_OPERATION ||
+    Boolean(normalizedDraft.route_id && normalizedDraft.game_code);
+  const canStart = Boolean(normalizedDraft.operation) && missing.length === 0 && appendContextReady && issues.length === 0;
   let request = null;
   if (canStart) {
     request = normalizedDraft.operation === PROJECT_VIDEO_APPEND_OPERATION
@@ -427,12 +430,20 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
   const hasNatural = typeof userIntent === "string" && userIntent.trim().length > 0;
   if (hasRequest && hasNatural) throw intakeRequestError("一次提交只能使用一种投放创建输入。");
   if (hasRequest) {
-    const normalized = validateLaunchRequest(request);
-    return buildIntakeResponse({
-      draft: normalized, reply: normalized.operation === PROJECT_VIDEO_APPEND_OPERATION ? "已完成追加视频 JSON 校验；请核对项目、账户和视频标识码后启动流程。" : "已完成新建项目 JSON 校验；请核对路线、游戏和账户后启动流程。",
+    const normalized = request?.operation === PROJECT_VIDEO_APPEND_OPERATION
+      ? validateProjectVideoAppendIntakeRequest(request)
+      : validateLaunchRequest(request);
+    const response = buildIntakeResponse({
+      draft: normalized, reply: normalized.operation === PROJECT_VIDEO_APPEND_OPERATION ? "" : "已完成新建项目 JSON 校验；请核对路线、游戏和账户后启动流程。",
       parseSource: "structured_json", source: "structured_json",
       slotSources: Object.fromEntries(intakeFields(normalized.operation).map((field) => [field, "structured_json"]))
     });
+    if (normalized.operation === PROJECT_VIDEO_APPEND_OPERATION) {
+      response.reply = response.missing_fields.length
+        ? `已读取追加视频 JSON；请补充：${response.missing_fields.map((field) => ({ advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`
+        : "已读取账户、项目和视频标识码，正在核对项目所属游戏。";
+    }
+    return response;
   }
   if (!hasNatural) throw intakeRequestError("请输入投放创建需求。");
   const text = String(userIntent);
@@ -469,19 +480,21 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     const projectMatches = [...text.matchAll(/(?:project_id|项目)\s*[:：]?\s*(\d{8,24})/gi)].map((match) => match[1]);
     const advertiser = advertiserMatches.length === 1 ? advertiserMatches[0] : "";
     const project = projectMatches.length === 1 ? projectMatches[0] : "";
-    const route = /巨量|穿山甲|字节|oe3|oceanengine|抖小/i.test(text) && /小游戏|mini\s*game|抖小/i.test(text)
+    const route = /oceanengine_3_byte_mini_game/i.test(text) ||
+      (/巨量|穿山甲|字节|oe3|oceanengine|抖小/i.test(text) && /小游戏|mini\s*game|抖小/i.test(text))
       ? "oceanengine_3_byte_mini_game" : "";
     const game = /\bJSZC\b/i.test(text) || /巨兽战场/i.test(text) ? "JSZC" : "";
     const marked = text.match(/(?:视频标识码|素材标识码|视频码)\s*[:：]?\s*([^。；;]{1,20000})/i)?.[1] || "";
     const rawIds = marked ? marked.split(/[\s,，]+/).map((item) => item.trim()).filter(Boolean) : [];
     const invalidIds = rawIds.filter((item) => !/^[A-Za-z0-9._:-]{2,128}$/.test(item));
     const suppliedIds = rawIds.filter((item) => /^[A-Za-z0-9._:-]{2,128}$/.test(item));
+    const advertiserChanged = Boolean(advertiser && prior.advertiser_id && advertiser !== prior.advertiser_id);
     const next = createProjectVideoAppendRequestDraft({
       ...prior,
-      route_id: route || prior.route_id,
-      game_code: game || prior.game_code,
+      route_id: route || (advertiserChanged ? "" : prior.route_id),
+      game_code: game || (advertiserChanged ? "" : prior.game_code),
       advertiser_id: advertiser || prior.advertiser_id,
-      project_id: project || prior.project_id,
+      project_id: project || (advertiserChanged ? "" : prior.project_id),
       origin_resource_ids: suppliedIds.length ? suppliedIds : prior.origin_resource_ids
     });
     const duplicates = rawIds.length !== new Set(rawIds).size;
@@ -513,7 +526,9 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     if (!normalized.reply) {
       normalized.reply = normalized.can_start
         ? `已记录追加视频所需信息，可启动流程。`
-        : `已记录${explicitOperation ? "追加视频事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => ({ route_id: "推广路线", game_code: "游戏标识", advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`;
+        : normalized.missing_fields.length
+          ? `已记录${explicitOperation ? "追加视频事项" : "输入"}；请补充：${normalized.missing_fields.map((field) => ({ advertiser_id: "账户 ID", project_id: "项目 ID", origin_resource_ids: "视频标识码" })[field]).join("、")}。`
+          : "已记录账户、项目和视频标识码，正在核对项目所属游戏。";
     }
     return normalized;
   }

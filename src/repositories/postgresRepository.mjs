@@ -542,6 +542,74 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  async listVerifiedProjectVideoAppendCandidates({ advertiserId, userId, projectId = "" }) {
+    assertId("advertiser_id", advertiserId, /^\d{8,24}$/);
+    assertId("user_id", userId);
+    const targetProjectId = String(projectId || "").trim();
+    if (targetProjectId) assertId("project_id", targetProjectId, /^\d{8,24}$/);
+    const result = await queryJson(`
+      WITH candidates AS (
+        SELECT DISTINCT ON (object_row.object_id)
+          object_row.object_id AS project_id,
+          object_row.object_name AS project_name,
+          job.route_id,
+          job.game_code,
+          readback.created_at AS verified_at
+        FROM mwb.created_objects object_row
+        JOIN mwb.launch_jobs job
+          ON job.job_id = object_row.job_id
+         AND job.source_usage = 'runtime_truth'
+        JOIN mwb.workflow_cases workflow_case
+         ON workflow_case.case_id = job.case_id
+         AND workflow_case.source_usage = 'runtime_truth'
+         AND workflow_case.owner_user_id = ${sqlLiteral(userId)}
+         AND workflow_case.lifecycle_status = 'completed'
+         AND coalesce(workflow_case.operation, 'create_std_project') = 'create_std_project'
+        JOIN mwb.advertiser_accounts account
+          ON account.advertiser_id = job.advertiser_id
+        JOIN mwb.workbench_users app_user
+          ON app_user.user_id = ${sqlLiteral(userId)}
+         AND app_user.user_status = 'active'
+         AND account.owner_user_id = app_user.user_id
+         AND lower(account.qiankun_owner_key) = lower(app_user.qiankun_owner_key)
+        JOIN LATERAL (
+          SELECT latest.readback_status, latest.created_at
+          FROM mwb.readback_records latest
+          WHERE latest.job_id = job.job_id
+            AND latest.object_type = 'std_project'
+            AND latest.object_id = object_row.object_id
+          ORDER BY latest.created_at DESC, latest.readback_id DESC
+          LIMIT 1
+        ) readback ON readback.readback_status = 'readback_verified'
+        WHERE job.advertiser_id = ${sqlLiteral(advertiserId)}
+          AND object_row.object_type = 'std_project'
+          AND object_row.object_id ~ '^[0-9]{8,24}$'
+          AND object_row.readback_status = 'readback_verified'
+          ${targetProjectId ? `AND object_row.object_id = ${sqlLiteral(targetProjectId)}` : ""}
+        ORDER BY object_row.object_id, readback.created_at DESC, job.updated_at DESC
+      )
+      SELECT jsonb_build_object(
+        'status', 'passed',
+        'items', coalesce(jsonb_agg(jsonb_build_object(
+          'projectId', project_id,
+          'projectName', project_name,
+          'routeId', route_id,
+          'gameCode', game_code,
+          'verifiedAt', verified_at,
+          'source', 'verified_postgres'
+        ) ORDER BY verified_at DESC, project_id), '[]'::jsonb)
+      )::text
+      FROM (SELECT * FROM candidates ORDER BY verified_at DESC, project_id LIMIT ${targetProjectId ? 1 : 5}) ranked;
+    `, this.database);
+    return result || { status: "passed", items: [] };
+  }
+
+  async getVerifiedProjectVideoAppendCandidate({ advertiserId, projectId, userId }) {
+    assertId("project_id", projectId, /^\d{8,24}$/);
+    const candidates = await this.listVerifiedProjectVideoAppendCandidates({ advertiserId, userId, projectId });
+    return (candidates.items || []).find((item) => item.projectId === projectId) || null;
+  }
+
   async getWorkflowCaseAccess({ caseId, userId }) {
     assertId("case_id", caseId);
     assertId("user_id", userId);

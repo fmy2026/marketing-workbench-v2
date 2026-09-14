@@ -1,0 +1,74 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914",
+  "task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.md",
+  "status": "completed",
+  "created_at": "2026-09-14T08:15:00.000000+00:00",
+  "updated_at": "2026-09-14T09:10:00.000000+00:00",
+  "base_revision": "d3f8456955927256b732f8993e580b987d98a8fa",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914.json",
+    "project.state.json",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchRequest.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/server/workbenchServer.mjs",
+    "frontend/app.js",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-auth-http-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "scripts/00-workbench-cross-user-http-smoke.mjs",
+    "tests/support/fixtures.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/**"
+  ],
+  "forbidden_actions": ["真实平台写入", "数据库 migration", "扩大账户作用域", "修改 Plan、确认或回查规则"],
+  "stop_conditions": ["需要新增数据库结构、业务状态或平台写入能力", "无法证明推荐项目属于当前用户"],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"npm run test:project-video-append && npm run test:workbench-auth-http"},
+    {"acceptance_id":"AC-02","command":"npm run test:launch-request && npm run test:project-video-append"},
+    {"acceptance_id":"AC-03","command":"npm run test:workbench-conversation"},
+    {"acceptance_id":"AC-04","command":"npm run test:launch-request && npm run test:workbench-client-pages"},
+    {"acceptance_id":"AC-05","command":"npm run test:workbench-client-pages && npm run test:workbench-progress && npm run test:workbench-user-isolation"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"npm run test:project-video-append && npm run test:workbench-auth-http","verified_at":"2026-09-14T08:40:00.000000+00:00","summary":"已完成、已回查项目从隔离 Postgres 推荐；无验证项目保持不可启动。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/validation.md"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"npm run test:launch-request && npm run test:project-video-append && npm run test:workbench-auth-http","verified_at":"2026-09-14T08:40:00.000000+00:00","summary":"账户、项目和视频标识码可经服务端补齐完整 v2；冲突与缺失记录被拒绝。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/validation.md"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"npm run test:workbench-conversation && npm run test:workbench-client-pages","verified_at":"2026-09-14T08:40:00.000000+00:00","summary":"连续输入、项目选择、账户切换和受控咨询回归通过。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/validation.md"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"npm run test:launch-request && npm run test:workbench-client-pages","verified_at":"2026-09-14T08:40:00.000000+00:00","summary":"简化/完整 JSON 和旧资格失效行为均由隔离测试覆盖。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/validation.md"]},
+    {"acceptance_id":"AC-05","status":"passed","command":"npm run test:workbench-client-pages && npm run test:workbench-progress && npm run test:workbench-user-isolation && npm run test:workbench-cross-user-http","verified_at":"2026-09-14T08:40:00.000000+00:00","summary":"输入布局、空摘要、进度投影和跨用户隔离回归通过。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-INTAKE-20260914/validation.md"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"记录追加项目上下文由已验证项目记录派生。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"说明追加入口、候选来源和完整请求边界。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"定义项目候选的表、过滤、排序和输出边界。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary":"追加视频入口改为账户、项目和视频标识码三项输入；已验证项目记录派生路线和游戏。",
+    "side_effects":"只修改页面内存草稿、Intake 响应和隔离测试夹具；未迁移数据库、未执行真实平台写入。",
+    "remaining_risks":["项目历史验证只用于 Intake 匹配，启动后的既有只读核验仍可能阻断。"],
+    "business_evidence_refs":[]
+  },
+  "closed_at": "2026-09-14T09:10:00.000000+00:00"
+}

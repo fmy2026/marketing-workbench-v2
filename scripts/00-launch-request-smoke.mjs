@@ -1,6 +1,7 @@
 import {
   LAUNCH_REQUEST_SCHEMA_VERSION,
   normalizeLaunchRequestFromBody,
+  validateProjectVideoAppendIntakeRequest,
   validateLaunchRequest
 } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
@@ -86,9 +87,18 @@ const appendDraft = {
   route_id: request.route_id, game_code: request.game_code, advertiser_id: request.advertiser_id,
   project_id: "7684895789612826666", origin_resource_ids: ["fixture-video-1"]
 };
+const conciseAppend = validateProjectVideoAppendIntakeRequest({
+  schema_version: "launch-request.v2", operation: "append_project_videos",
+  advertiser_id: request.advertiser_id, project_id: "7684895789612826666", origin_resource_ids: ["fixture-video-1"]
+});
+assert(!conciseAppend.route_id && !conciseAppend.game_code, "concise_append_intake_added_context");
+const conciseIntake = await resolveLaunchRequestIntake({ request: conciseAppend });
+assert(conciseIntake.request === null && conciseIntake.missing_fields.length === 0 && conciseIntake.can_start === false, "concise_append_intake_started_without_project_context");
 const projectOnly = await resolveLaunchRequestIntake({ userIntent: "项目 7684895789612826667", draft: appendDraft });
 assert(projectOnly.request.advertiser_id === request.advertiser_id, "project_id_overwrote_advertiser_id");
 assert(projectOnly.request.project_id === "7684895789612826667", "project_id_not_updated");
+const accountChanged = await resolveLaunchRequestIntake({ userIntent: "账户 1871922888888888", draft: appendDraft });
+assert(!accountChanged.draft.project_id && !accountChanged.draft.route_id && !accountChanged.draft.game_code, "account_change_retained_project_context");
 const noAppend = await resolveLaunchRequestIntake({ userIntent: "只改 ROI，不要追加素材", draft: appendDraft });
 assert(noAppend.issues?.[0]?.code === "operation_not_supported" && noAppend.request === null && noAppend.draft.operation === "", "unsupported_update_reused_append_draft");
 const unknownLegacyOperation = () => normalizeLaunchRequestFromBody({ ...request, operation: "change_roi" });

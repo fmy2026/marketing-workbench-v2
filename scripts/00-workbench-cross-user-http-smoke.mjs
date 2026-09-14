@@ -69,7 +69,7 @@ try {
   const adminCase = (adminDetail.cases || []).find((item) => item.owner_user_id === adminUserId && item.latest_job_id);
   assert(adminCase?.case_id && adminCase?.latest_job_id, "admin_owned_case_fixture_missing");
 
-  const [operatorSummaryResponse, operatorAdminResponse, crossCaseResponse, crossJobResponse, crossCommandResponse] = await Promise.all([
+  const [operatorSummaryResponse, operatorAdminResponse, crossCaseResponse, crossJobResponse, crossCommandResponse, crossRecommendationResponse] = await Promise.all([
     fetch(`${origin}/api/reports/workflow-summary`, { headers: { cookie: operatorCookie } }),
     fetch(`${origin}/api/admin/users`, { headers: { cookie: operatorCookie } }),
     fetch(`${origin}/api/workflow-cases/${encodeURIComponent(adminCase.case_id)}`, { headers: { cookie: operatorCookie } }),
@@ -78,7 +78,8 @@ try {
       method: "POST",
       headers: jsonHeaders(operatorCookie),
       body: JSON.stringify({ message: "继续执行" })
-    })
+    }),
+    fetch(`${origin}/api/launch/project-recommendations?advertiser_id=1871922175825993`, { headers: { cookie: operatorCookie } })
   ]);
 
   const operatorSummary = await operatorSummaryResponse.json();
@@ -89,6 +90,7 @@ try {
   assert(crossCaseResponse.status === 404, "cross_user_case_read_allowed");
   assert(crossJobResponse.status === 404, "cross_user_job_read_allowed");
   assert(crossCommandResponse.status === 404, "cross_user_job_command_allowed");
+  assert(crossRecommendationResponse.status === 404, "cross_user_project_recommendation_allowed");
 
   console.log(JSON.stringify({
     status: "passed",
@@ -97,6 +99,7 @@ try {
     crossUserCaseBlocked: true,
     crossUserJobBlocked: true,
     crossUserCommandBlockedBeforeExecution: true,
+    crossUserProjectRecommendationBlocked: true,
     adminBypassNotGranted: true,
     realPlatformWriteCalled: false
   }, null, 2));

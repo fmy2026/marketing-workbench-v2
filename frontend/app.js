@@ -60,8 +60,11 @@ import {
   let intakeParseSource = "rules";
   let intakeModelAssist = null;
   let intakeCanStart = false;
+  let validatedIntakeRequest = null;
+  let matchedAppendProject = null;
   let projectRecommendations = null;
   let projectRecommendationAccountId = "";
+  let projectRecommendationSequence = 0;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -478,8 +481,6 @@ import {
   function requiredFields() {
     if ((job?.operation || job?.intake?.operation || draftIntake.operation) === "append_project_videos") {
       return [
-        { key: "route_id", label: "推广路线" },
-        { key: "game_code", label: "游戏标识" },
         { key: "advertiser_id", label: "账户 ID" },
         { key: "project_id", label: "项目 ID" },
         { key: "origin_resource_ids", label: "视频标识码" }
@@ -540,17 +541,17 @@ import {
     if (recommendation.status === "loading") {
       card.append(el("p", "", "正在读取该账户的可选项目…"));
     } else if (recommendation.status === "failed") {
-      card.append(el("p", "", "项目推荐暂不可用；请手动发送带“项目”标签的项目 ID。"));
+      card.append(el("p", "", "项目推荐暂不可用；请稍后重试或手动发送带“项目”标签的项目 ID。"));
     } else if (recommendation.status === "empty") {
-      card.append(el("p", "", "该账户没有可选项目；请手动发送项目 ID。"));
+      card.append(el("p", "", "该账户暂无已验证项目记录。"));
     } else {
-      card.append(el("p", "", recommendation.latest ? "按创建时间推荐最近 5 个项目；请选择一个。" : "平台未返回完整创建时间，以下为可选项目；请选择一个。"));
+      card.append(el("p", "", "以下为已验证项目，按最近验证时间排序；请选择一个。"));
       const list = el("div", "project-recommendation-list");
       for (const item of recommendation.items || []) {
         const row = el("div", "project-recommendation-row");
         row.append(el("strong", "", item.projectName));
         row.append(el("span", "", `ID：${item.projectId}`));
-        row.append(el("span", "", `${item.createdAt || "创建时间未知"} · ${item.status || "状态未知"}`));
+        row.append(el("span", "", `最近验证：${item.verifiedAt || "未知"}`));
         const select = el("button", "conversation-preset", "选择此项目");
         select.type = "button";
         select.disabled = busy || viewOnly;
@@ -564,13 +565,21 @@ import {
 
   async function selectRecommendedProject(projectId) {
     if (!/^\d{8,24}$/.test(String(projectId || "")) || busy || viewOnly) return;
-    draftIntake.project_id = String(projectId);
-    intakeIssues = intakeIssues.filter((item) => item.code !== "multiple_project_ids");
-    projectRecommendations = null;
-    projectRecommendationAccountId = "";
-    draftCaseId = ""; draftCaseKey = "";
-    message("agent", `已选定项目 ${projectId}。请继续补充视频标识码。`);
-    renderAll();
+    message("user", `项目：${projectId}`);
+    setBusy(true);
+    try {
+      const intake = await api("/api/launch/intake", {
+        method: "POST",
+        body: JSON.stringify({ user_intent: `项目：${projectId}`, draft: { ...draftIntake } })
+      });
+      mergeIntake(intake);
+      await refreshProjectRecommendations();
+      message("agent", intake.reply || "项目需要核对后再试。");
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function refreshProjectRecommendations() {
@@ -578,11 +587,13 @@ import {
       /^\d{8,24}$/.test(draftIntake.advertiser_id) && !draftIntake.project_id && intakeIssues.length === 0;
     if (!eligible) { projectRecommendations = null; projectRecommendationAccountId = ""; return; }
     if (projectRecommendationAccountId === draftIntake.advertiser_id && projectRecommendations?.status !== "failed") return;
-    projectRecommendationAccountId = draftIntake.advertiser_id;
+    const accountId = draftIntake.advertiser_id;
+    const sequence = ++projectRecommendationSequence;
+    projectRecommendationAccountId = accountId;
     projectRecommendations = { status: "loading", items: [] }; renderAll();
     try {
       const result = await api(`/api/launch/project-recommendations?advertiser_id=${encodeURIComponent(draftIntake.advertiser_id)}`, { method: "GET" });
-      if (projectRecommendationAccountId !== draftIntake.advertiser_id || draftIntake.project_id) return;
+      if (sequence !== projectRecommendationSequence || projectRecommendationAccountId !== draftIntake.advertiser_id || draftIntake.project_id) return;
       projectRecommendations = result;
     } catch { projectRecommendations = { status: "failed", items: [] }; }
     renderAll();
@@ -722,10 +733,13 @@ import {
           { label: "能做什么", message: "你能做什么" }
         ]
       : (agentProfile?.conversationPresets?.[job ? "active" : "intake"] || []);
+    const visiblePresets = draftIntake.operation === "append_project_videos"
+      ? presets.filter((preset) => !/(路线|游戏|route|game)/i.test(`${preset.label || ""} ${preset.message || ""}`))
+      : presets;
     container.innerHTML = "";
-    container.hidden = presets.length === 0;
+    container.hidden = visiblePresets.length === 0;
     const disabled = busy || viewOnly || Boolean(job && !job.isLatestCaseJob);
-    for (const preset of presets) {
+    for (const preset of visiblePresets) {
       const button = el("button", "conversation-preset", preset.label);
       button.type = "button";
       button.disabled = disabled;
@@ -775,10 +789,16 @@ import {
     intentCard.innerHTML = "";
     for (const field of fields) {
       const value = fieldValue(intake, field.key);
-      if (!value) continue;
+      if (!value || (Array.isArray(value) && value.length === 0)) continue;
       const item = el("div", "identity-item");
       item.append(el("span", "", field.label));
       item.append(el("strong", "", Array.isArray(value) ? `${value.length} 条` : value));
+      intentCard.append(item);
+    }
+    if (!job && matchedAppendProject) {
+      const item = el("div", "identity-item");
+      item.append(el("span", "", "已匹配项目"));
+      item.append(el("strong", "", `${matchedAppendProject.projectName || matchedAppendProject.projectId} · ${matchedAppendProject.gameCode || ""}`));
       intentCard.append(item);
     }
 
@@ -787,7 +807,7 @@ import {
     const action = document.getElementById("intakeAction");
     const hasIssues = !job && intakeIssues.length > 0;
     const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
-    const isDraftReady = !job && intakeCanStart && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
+    const isDraftReady = !job && intakeCanStart && Boolean(validatedIntakeRequest) && fields.length > 0 && missing.length === 0 && !hasIssues && !modelAssistFailed;
     action.hidden = Boolean(job) || !isDraftReady;
     startButton.disabled = !isDraftReady || busy || viewOnly;
     hint.textContent = isDraftReady
@@ -809,6 +829,8 @@ import {
     intakeParseSource = "rules";
     intakeModelAssist = null;
     intakeCanStart = false;
+    validatedIntakeRequest = null;
+    matchedAppendProject = null;
     draftCaseId = "";
     draftCaseKey = "";
     projectRecommendations = null;
@@ -1045,7 +1067,7 @@ import {
       return;
     }
     const owner = error.details?.ownerDisplayName ? `；账户归属人：${error.details.ownerDisplayName}` : "";
-    message("agent", `唯一阻断：${error.message}${owner}`);
+    message("agent", `${error.message}${owner}。请输入需要修正的内容后重试。`);
   }
 
   async function refreshProgress() {
@@ -1156,7 +1178,7 @@ import {
   }
 
   async function startWorkflow() {
-    if (busy || viewOnly || job || !intakeCanStart || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
+    if (busy || viewOnly || job || !intakeCanStart || !validatedIntakeRequest || missingFields().length || intakeIssues.length || (intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted")) return;
     setBusy(true);
     let startupStage = "创建 Case";
     try {
@@ -1215,29 +1237,17 @@ import {
     intakeParseSource = intake?.parse_source || intake?.parseSource || "rules";
     intakeModelAssist = intake?.model_assist || intake?.modelAssist || null;
     intakeCanStart = intake?.can_start === true;
+    validatedIntakeRequest = intakeCanStart && intake?.request
+      ? Object.freeze({ ...intake.request, origin_resource_ids: [...(intake.request.origin_resource_ids || [])] })
+      : null;
+    matchedAppendProject = intake?.project || null;
     draftCaseId = "";
     draftCaseKey = "";
   }
 
   function frozenLaunchRequest() {
-    if (draftIntake.operation === "append_project_videos") {
-      return Object.freeze({
-        schema_version: "launch-request.v2",
-        operation: "append_project_videos",
-        route_id: draftIntake.route_id,
-        game_code: draftIntake.game_code,
-        advertiser_id: draftIntake.advertiser_id,
-        project_id: draftIntake.project_id,
-        origin_resource_ids: [...draftIntake.origin_resource_ids]
-      });
-    }
-    return Object.freeze({
-      schema_version: "launch-request.v1",
-      operation: "create_std_project",
-      route_id: draftIntake.route_id,
-      game_code: draftIntake.game_code,
-      advertiser_id: draftIntake.advertiser_id
-    });
+    if (!validatedIntakeRequest) throw new Error("intake_request_not_validated");
+    return validatedIntakeRequest;
   }
 
   function setActiveCaseUrl(caseId) {
@@ -1555,6 +1565,8 @@ import {
     document.getElementById("structuredRequestInput").addEventListener("input", () => {
       if (intakeMode !== "json" || job) return;
       intakeCanStart = false;
+      validatedIntakeRequest = null;
+      matchedAppendProject = null;
       renderIntake();
     });
   }
@@ -1564,8 +1576,6 @@ import {
       return {
         schema_version: "launch-request.v2",
         operation: "append_project_videos",
-        route_id: "oceanengine_3_byte_mini_game",
-        game_code: "JSZC",
         advertiser_id: "填写本人账户ID",
         project_id: "填写目标项目ID",
         origin_resource_ids: ["视频标识码A"]

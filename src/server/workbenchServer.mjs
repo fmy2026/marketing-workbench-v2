@@ -24,7 +24,7 @@ import {
   createOpenAiCompatibleIntentAdapter,
   resolveLaunchRequestIntake
 } from "../agents/conversationIntentResolver.mjs";
-import { normalizeLaunchRequestFromBody } from "../agents/launchRequest.mjs";
+import { normalizeLaunchRequestFromBody, PROJECT_VIDEO_APPEND_OPERATION, validateLaunchRequest } from "../agents/launchRequest.mjs";
 import { resolveWorkflowStatisticsScope } from "../agents/agentWorkspaceScopes.mjs";
 import {
   buildWorkbenchView,
@@ -36,7 +36,6 @@ import {
 } from "../workflows/launchWorkflow.mjs";
 import { executeConfirmedLaunch } from "../workflows/executeConfirmedLaunch.mjs";
 import { createOceanEngineReadonlyClient } from "../platforms/oceanengineReadonlyClient.mjs";
-import { recommendProjectVideoAppendProjects } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
 import { handleWorkbenchCommand } from "../workflows/workbenchConversation.mjs";
 import {
   WORKBENCH_ORIGIN
@@ -197,6 +196,57 @@ async function requireAdvertiserOwner(user, advertiserId) {
   const access = await repo.getAdvertiserAccess({ advertiserId, userId: user.user_id });
   if (!access?.allowed) throw requestError("advertiser_access_denied", 404);
   return access;
+}
+
+async function requireVerifiedAppendProject(user, request) {
+  if (request?.operation !== PROJECT_VIDEO_APPEND_OPERATION) return null;
+  const access = await repo.getAdvertiserAccess({ advertiserId: request.advertiser_id, userId: user.user_id });
+  if (!access?.allowed) throw requestError("advertiser_access_denied", 404);
+  const candidate = await repo.getVerifiedProjectVideoAppendCandidate({
+    advertiserId: request.advertiser_id,
+    projectId: request.project_id,
+    userId: user.user_id
+  });
+  if (!candidate || candidate.routeId !== request.route_id || candidate.gameCode !== request.game_code) {
+    throw requestError("project_not_verified_for_advertiser", 400);
+  }
+  return candidate;
+}
+
+async function hydrateAppendIntake(user, intake) {
+  if (intake?.draft?.operation !== PROJECT_VIDEO_APPEND_OPERATION) return intake;
+  const draft = intake.draft;
+  if (!draft.advertiser_id || !draft.project_id) return intake;
+  const access = await repo.getAdvertiserAccess({ advertiserId: draft.advertiser_id, userId: user.user_id });
+  if (!access?.allowed) {
+    return { ...intake, request: null, can_start: false, project: null,
+      issues: [{ code: "advertiser_access_denied", message: "账户不可用，请核对本人账户 ID。" }],
+      reply: "账户不可用，请核对本人账户 ID。" };
+  }
+  const project = await repo.getVerifiedProjectVideoAppendCandidate({ advertiserId: draft.advertiser_id, projectId: draft.project_id, userId: user.user_id });
+  if (!project) {
+    return { ...intake, request: null, can_start: false, project: null,
+      issues: [{ code: "project_not_verified_for_advertiser", message: "该账户下未找到已验证项目，请从推荐列表选择或核对项目 ID。" }],
+      reply: "该账户下未找到已验证项目，请从推荐列表选择或核对项目 ID。" };
+  }
+  if ((draft.route_id && draft.route_id !== project.routeId) || (draft.game_code && draft.game_code !== project.gameCode)) {
+    return { ...intake, request: null, can_start: false, project: null,
+      issues: [{ code: "project_context_conflict", message: "项目的路线或游戏与输入不一致，请删除冲突字段后重试。" }],
+      reply: "项目的路线或游戏与输入不一致，请删除冲突字段后重试。" };
+  }
+  const hydratedDraft = { schema_version: "launch-request.v2", ...draft, route_id: project.routeId, game_code: project.gameCode };
+  const missing = intake.missing_fields || [];
+  const request = missing.length ? null : validateLaunchRequest(hydratedDraft);
+  return {
+    ...intake,
+    draft: hydratedDraft,
+    request,
+    can_start: missing.length === 0 && !(intake.issues || []).length,
+    project,
+    reply: missing.length
+      ? `已匹配项目“${project.projectName || project.projectId}”及所属游戏；请补充：视频标识码。`
+      : `已匹配项目“${project.projectName || project.projectId}”及所属游戏；已记录 ${draft.origin_resource_ids.length} 条视频标识码，可启动流程。`
+  };
 }
 
 async function requireCaseOwner(user, caseId) {
@@ -493,19 +543,20 @@ async function handleApi(req, res, url) {
   if (req.method === "GET" && pathname === "/api/launch/project-recommendations") {
     const advertiserId = String(url.searchParams.get("advertiser_id") || "").trim();
     await requireAdvertiserOwner(auth.user, advertiserId);
-    const result = await recommendProjectVideoAppendProjects({ advertiserId });
+    const result = await repo.listVerifiedProjectVideoAppendCandidates({ advertiserId, userId: auth.user.user_id });
     return sendJson(res, 200, result);
   }
 
   if (req.method === "POST" && pathname === "/api/launch/intake") {
     const body = await readBody(req);
     const resolver = await resolverForCurrentUser(auth.user.user_id);
-    return sendJson(res, 200, await resolveLaunchRequestIntake({
+    const intake = await resolveLaunchRequestIntake({
       userIntent: body.user_intent || body.userIntent || "",
       request: body.request,
       draft: body.draft,
       resolver
-    }));
+    });
+    return sendJson(res, 200, await hydrateAppendIntake(auth.user, intake));
   }
 
   if (req.method === "POST" && pathname === "/api/launch/jobs") {
@@ -513,6 +564,7 @@ async function handleApi(req, res, url) {
     const normalizedRequest = normalizeLaunchRequestFromBody(body);
     await requireCaseOwner(auth.user, body.case_id || body.caseId || "");
     await requireAdvertiserOwner(auth.user, normalizedRequest.request.advertiser_id);
+    await requireVerifiedAppendProject(auth.user, normalizedRequest.request);
     return sendJson(res, 201, await createJob(repo, body));
   }
 
@@ -527,6 +579,8 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/workflow-cases") {
     const body = await readBody(req);
+    const normalizedRequest = normalizeLaunchRequestFromBody(body, { allowNatural: false });
+    await requireVerifiedAppendProject(auth.user, normalizedRequest.request);
     let workflowCase;
     try {
       workflowCase = await createWorkflowCase(repo, body, {

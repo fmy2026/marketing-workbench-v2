@@ -107,6 +107,29 @@ try {
   assert(structuredIntakeBody.parse_source === "structured_json", "structured_intake_used_non_json_parser");
   assert(JSON.stringify(structuredIntakeBody.request) === JSON.stringify(launchRequest), "structured_intake_request_changed");
   assert(structuredIntakeBody.can_start === true && structuredIntakeBody.draft?.operation === "create_std_project", "structured_intake_start_contract_missing");
+  const recommendation = await fetch(`${origin}/api/launch/project-recommendations?advertiser_id=1871922175825993`, { headers: { cookie: changedCookie } });
+  const recommendationBody = await recommendation.json();
+  assert(recommendation.status === 200 && recommendationBody.items?.length === 5 && !(recommendationBody.items || []).some((item) => item.projectId === "9000000000000001"), "verified_project_recommendation_limit_invalid");
+  const conciseAppend = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ request: {
+      schema_version: "launch-request.v2", operation: "append_project_videos", advertiser_id: "1871922175825993",
+      project_id: "9000000000000001", origin_resource_ids: ["video-A"]
+    } })
+  });
+  const conciseAppendBody = await conciseAppend.json();
+  assert(conciseAppend.status === 200 && conciseAppendBody.can_start === true && conciseAppendBody.request?.route_id === "oceanengine_3_byte_mini_game" && conciseAppendBody.project?.source === "verified_postgres", "concise_append_project_context_not_hydrated");
+  const unknownAppend = await fetch(`${origin}/api/launch/intake`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin, cookie: changedCookie },
+    body: JSON.stringify({ request: {
+      schema_version: "launch-request.v2", operation: "append_project_videos", advertiser_id: "1871922175825993",
+      project_id: "9000000000000999", origin_resource_ids: ["video-A"]
+    } })
+  });
+  const unknownAppendBody = await unknownAppend.json();
+  assert(unknownAppend.status === 200 && unknownAppendBody.can_start === false && unknownAppendBody.request === null && unknownAppendBody.reply?.includes("未找到已验证项目"), "unverified_append_project_not_blocked");
   const helpIntake = await fetch(`${origin}/api/launch/intake`, {
     method: "POST",
     headers: { "content-type": "application/json", origin, cookie: changedCookie },

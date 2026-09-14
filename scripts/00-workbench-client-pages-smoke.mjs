@@ -147,8 +147,24 @@ try {
   await click('[data-intake-mode="natural"]');
   await until(() => visible("#chatForm"), "natural_panel_restored");
   assert(await evaluate("document.querySelector('#startWorkflowButton').disabled"), "switch_back_retained_structured_draft");
+  await fill("#chatInput", "追加视频");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('账户 ID、项目 ID、视频标识码')"), "append_three_input_prompt");
+  await fill("#chatInput", "账户 1871922175825993");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => present(".project-recommendation-row button"), "verified_project_recommendation");
+  await until(() => evaluate("!document.querySelector('.project-recommendation-row button').disabled"), "verified_project_recommendation_ready");
+  await click(".project-recommendation-row button");
+  await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('已匹配项目')"), "selected_project_needs_video");
+  assert(!(await evaluate("document.querySelector('#intentCard').textContent")).includes("0 条"), "empty_video_card_visible");
+  await fill("#chatInput", "视频标识码：video-A");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("!document.querySelector('#startWorkflowButton').disabled"), "append_ready_after_project_selection");
+  assert((await evaluate("document.querySelector('#intakeHint').textContent")).includes("将给项目追加 1 条视频"), "append_summary_missing");
+  const inputBottom = await evaluate("(() => { const rect = document.querySelector('#chatInput').getBoundingClientRect(); return { bottom: rect.bottom, height: window.innerHeight }; })()");
+  assert(inputBottom.bottom <= inputBottom.height - 24, `chat_input_bottom_spacing_missing:${JSON.stringify(inputBottom)}`);
   browser.socket.close();
-  console.log(JSON.stringify({ status: "passed", browser: "chrome-headless", interactions: ["login", "natural-partial", "input-switch", "json-template", "structured-validate"], realPlatformWrites: 0 }, null, 2));
+  console.log(JSON.stringify({ status: "passed", browser: "chrome-headless", interactions: ["login", "natural-partial", "input-switch", "json-template", "structured-validate", "verified-project-append"], realPlatformWrites: 0 }, null, 2));
 } finally {
   chrome.kill("SIGTERM");
   await rm(directory, { recursive: true, force: true });

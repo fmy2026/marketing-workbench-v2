@@ -7,6 +7,7 @@ const route = "oceanengine_3_byte_mini_game";
 const game = "JSZC";
 export const TEST_CASE_ID = "CASE-TEST-BASELINE";
 export const TEST_JOB_ID = "JOB-TEST-BASELINE";
+export const TEST_VERIFIED_PROJECT_ID = "9000000000000001";
 export const TEST_PASSWORD = "12345678";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -100,4 +101,45 @@ export async function seedTestDatabase(database) {
     advertiser_id: "1871922175825993", lifecycle_status: "cancelled", source_usage: "runtime_truth", owner_user_id: "USR-TEST-ADMIN", created_by_user_id: "USR-TEST-ADMIN" }]);
   insertRows(database, "launch_jobs", [{ job_id: TEST_JOB_ID, case_id: TEST_CASE_ID, route_id: route, game_code: game,
     advertiser_id: "1871922175825993", object_type: "std_project", job_status: "blocked", current_node: "1", source_usage: "runtime_truth", source_record_ref: "test_fixture:baseline" }]);
+  insertRows(database, "workflow_cases", [{
+    case_id: "CASE-TEST-VERIFIED-PROJECT", case_key: "test-verified-project", route_id: route, game_code: game,
+    advertiser_id: "1871922175825993", lifecycle_status: "completed", source_usage: "runtime_truth",
+    owner_user_id: "USR-TEST-ADMIN", created_by_user_id: "USR-TEST-ADMIN"
+  }]);
+  insertRows(database, "launch_jobs", [{
+    job_id: "JOB-TEST-VERIFIED-PROJECT", case_id: "CASE-TEST-VERIFIED-PROJECT", route_id: route, game_code: game,
+    advertiser_id: "1871922175825993", object_type: "std_project", job_status: "completed", current_node: "7",
+    source_usage: "runtime_truth", source_record_ref: "test_fixture:verified_project"
+  }]);
+  insertRows(database, "created_objects", [{
+    created_object_id: "OBJ-TEST-VERIFIED-PROJECT", job_id: "JOB-TEST-VERIFIED-PROJECT", object_type: "std_project",
+    object_id: TEST_VERIFIED_PROJECT_ID, object_name: "Synthetic verified project", object_status: "ENABLE",
+    readback_status: "readback_verified", evidence_ref: "test_fixture:verified_project"
+  }]);
+  insertRows(database, "readback_records", [{
+    readback_id: "RB-TEST-VERIFIED-PROJECT", job_id: "JOB-TEST-VERIFIED-PROJECT", object_type: "std_project",
+    object_id: TEST_VERIFIED_PROJECT_ID, object_name: "Synthetic verified project", readback_status: "readback_verified",
+    evidence_ref: "test_fixture:verified_project"
+  }]);
+  const additionalVerified = Array.from({ length: 5 }, (_, index) => {
+    const suffix = String(index + 2).padStart(16, "0");
+    return { projectId: `9${suffix.slice(1)}`, caseId: `CASE-TEST-VERIFIED-PROJECT-${index + 2}`, jobId: `JOB-TEST-VERIFIED-PROJECT-${index + 2}` };
+  });
+  insertRows(database, "workflow_cases", additionalVerified.map((item) => ({
+    case_id: item.caseId, case_key: item.caseId.toLowerCase(), route_id: route, game_code: game,
+    advertiser_id: "1871922175825993", lifecycle_status: "completed", source_usage: "runtime_truth",
+    owner_user_id: "USR-TEST-ADMIN", created_by_user_id: "USR-TEST-ADMIN"
+  })));
+  insertRows(database, "launch_jobs", additionalVerified.map((item) => ({
+    job_id: item.jobId, case_id: item.caseId, route_id: route, game_code: game, advertiser_id: "1871922175825993",
+    object_type: "std_project", job_status: "completed", current_node: "7", source_usage: "runtime_truth", source_record_ref: "test_fixture:verified_project"
+  })));
+  insertRows(database, "created_objects", additionalVerified.map((item) => ({
+    created_object_id: `OBJ-${item.jobId}`, job_id: item.jobId, object_type: "std_project", object_id: item.projectId,
+    object_name: `Synthetic verified project ${item.projectId}`, object_status: "ENABLE", readback_status: "readback_verified", evidence_ref: "test_fixture:verified_project"
+  })));
+  insertRows(database, "readback_records", additionalVerified.map((item) => ({
+    readback_id: `RB-${item.jobId}`, job_id: item.jobId, object_type: "std_project", object_id: item.projectId,
+    object_name: `Synthetic verified project ${item.projectId}`, readback_status: "readback_verified", evidence_ref: "test_fixture:verified_project"
+  })));
 }

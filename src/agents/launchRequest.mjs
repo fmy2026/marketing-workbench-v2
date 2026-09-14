@@ -193,6 +193,31 @@ export function validateProjectVideoAppendRequest(request) {
   return createProjectVideoAppendRequest(request);
 }
 
+// Intake may receive a concise append request. It is never a runnable
+// LaunchRequest until the authenticated server resolves the target project
+// and supplies its verified route/game context.
+export function validateProjectVideoAppendIntakeRequest(request) {
+  knownOnly(request, PROJECT_VIDEO_APPEND_FIELDS, "request");
+  const required = ["schema_version", "operation", "advertiser_id", "project_id", "origin_resource_ids"];
+  const missing = required.filter((field) => !Object.hasOwn(request, field));
+  if (missing.length) failure("request 缺少必填字段。", "launch_request_missing_fields", { fields: missing });
+  if (request.schema_version !== LAUNCH_REQUEST_SCHEMA_VERSION_V2) {
+    failure("追加素材请求必须使用 launch-request.v2。", "launch_request_schema_version_not_supported", { field: "schema_version" });
+  }
+  if (request.operation !== PROJECT_VIDEO_APPEND_OPERATION) {
+    failure("当前追加事项仅支持 append_project_videos。", "launch_request_operation_not_supported", { field: "operation" });
+  }
+  return {
+    schema_version: LAUNCH_REQUEST_SCHEMA_VERSION_V2,
+    operation: PROJECT_VIDEO_APPEND_OPERATION,
+    route_id: Object.hasOwn(request, "route_id") ? routeId(request.route_id, true) : "",
+    game_code: Object.hasOwn(request, "game_code") ? gameCode(request.game_code, true) : "",
+    advertiser_id: advertiserId(request.advertiser_id),
+    project_id: projectId(request.project_id),
+    origin_resource_ids: originResourceIds(request.origin_resource_ids)
+  };
+}
+
 function camel(field) {
   return field.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
