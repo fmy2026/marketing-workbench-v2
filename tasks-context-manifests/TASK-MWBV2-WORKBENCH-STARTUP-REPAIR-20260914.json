@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T08:15:49.782Z",
+  "updated_at": "2026-09-14T08:17:45.981Z",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -51,7 +51,7 @@
     {"acceptance_id": "AC-02", "command": "npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-03", "command": "npm run test:workbench-progress; npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages; npm run check:project -- --phase before-close"},
-    {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>"}
+    {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"}
   ],
   "validation_results": [
     {
@@ -89,10 +89,10 @@
     {
       "acceptance_id": "AC-05",
       "status": "passed",
-      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root /Users/hys/Projects/marketing-workbench-v2/.local/releases/eb7a64bd3add4f674757e9ba01ed3aee46a9a180; curl static checksum",
-      "verified_at": "2026-09-14T08:15:09.001Z",
-      "summary": "revision eb7a64b 已在公司模式运行；LAN 返回的 app.js 与 release 文件一致，运行版凭据路径可读。",
-      "evidence_refs": [".local/releases/eb7a64bd3add4f674757e9ba01ed3aee46a9a180/.workbench-release.json", "scripts/00-workbench-mode-switch.mjs"]
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root /Users/hys/Projects/marketing-workbench-v2/.local/releases/24f92005f636fe763af34b5edebe8f1e3b56eb0e; curl static checksum; sanitized account preflight",
+      "verified_at": "2026-09-14T08:17:45.981Z",
+      "summary": "revision 24f9200 已在公司模式运行；LAN 返回的 app.js 与 release 文件一致，运行版凭据路径可读；受影响账户的乾坤只读预检通过并实际调用 accountIndex。",
+      "evidence_refs": [".local/releases/24f92005f636fe763af34b5edebe8f1e3b56eb0e/.workbench-release.json", "scripts/00-workbench-mode-switch.mjs"]
     }
   ],
   "documentation_updates": [
@@ -114,7 +114,7 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "修复发布版共享乾坤凭据读取，收拢启动入口并补齐启动反馈和浏览器回归。",
+    "summary": "修复发布版共享乾坤凭据读取，收拢启动入口并补齐启动反馈和浏览器回归；受影响账户的只读预检已通过。",
     "side_effects": "发布新的固定 release 并重载本机公司模式 LaunchAgent；未执行平台写入或 Plan 确认。",
     "remaining_risks": ["已打开的浏览器标签需要刷新后加载新的静态页面。"],
     "business_evidence_refs": []
