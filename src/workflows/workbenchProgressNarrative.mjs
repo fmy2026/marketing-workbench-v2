@@ -6,6 +6,8 @@ function confirmationLabel(preview = null) {
   if (!preview) return "受控操作";
   if (preview.planKind === "monitor_bootstrap") return "创建 monitor";
   if (preview.planKind === "resource_prepare") return "准备资源";
+  if (preview.planKind === "project_video_material_push") return "推送素材";
+  if (preview.planKind === "project_video_append") return "追加视频";
   return "创建项目";
 }
 

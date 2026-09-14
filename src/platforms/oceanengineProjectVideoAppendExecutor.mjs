@@ -4,6 +4,7 @@ import { createQiankunMonitorClient } from "./qiankunMonitorClient.mjs";
 import { credentialReady, getOceanEngineCredentialSummary, readOceanEngineEnv } from "./oceanengineCredentialStore.mjs";
 import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import { filenameMatchesMaterialCode } from "./materialCodeMatcher.mjs";
+import { videoMaterialBatchBindTransportPayload } from "./oceanengineVideoMaterialExecutor.mjs";
 
 export const PROJECT_VIDEO_APPEND_ENDPOINT = "/open_api/v3.0/oc_project/material/create/";
 export const PROJECT_VIDEO_APPEND_ACTION = "oc_project_video_append";
@@ -200,7 +201,9 @@ export async function prepareProjectVideoAppendReadonly({
     projectId,
     items
   });
-  const effectivePlan = pushPlan.status === "ready" ? pushPlan : plan;
+  // A required target push owns the next Plan even if its construction is
+  // blocked.  Falling back to the append Plan hides the actual push reason.
+  const effectivePlan = items.some((item) => item.status === "target_push_required") ? pushPlan : plan;
   return {
     status: effectivePlan.status,
     items,
@@ -354,13 +357,22 @@ export function buildProjectVideoMaterialPushPlan({ advertiserId, materialAccoun
   const batches = [];
   for (let index = 0; index < selected.length; index += PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE) {
     const batchItems = selected.slice(index, index + PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE);
-    const payload = {
-      advertiser_id: Number(material_account_id),
-      target_advertiser_ids: [Number(advertiser_id)],
-      video_ids: batchItems.map((item) => Number(item.sourceVideoId))
-    };
-    if (!Number.isSafeInteger(payload.advertiser_id) || !Number.isSafeInteger(payload.target_advertiser_ids[0]) || payload.video_ids.some((id) => !Number.isSafeInteger(id))) {
-      return { status: "blocked", blockerCodes: ["material_push_id_outside_safe_integer_range"], items: selected };
+    let payload;
+    try {
+      payload = videoMaterialBatchBindTransportPayload({
+        sourceAdvertiserId: material_account_id,
+        targetAdvertiserId: advertiser_id,
+        videoIds: batchItems.map((item) => item.sourceVideoId)
+      });
+    } catch (error) {
+      const reason = String(error?.message || "");
+      const blocker = [
+        "source_advertiser_id_outside_safe_integer_range",
+        "target_advertiser_id_outside_safe_integer_range",
+        "video_ids_required",
+        "video_ids_exceed_official_batch_limit"
+      ].includes(reason) ? reason : "material_push_transport_shape_invalid";
+      return { status: "blocked", blockerCodes: [blocker], items: selected };
     }
     batches.push({
       batchIndex: batches.length + 1,
@@ -382,13 +394,11 @@ export function buildProjectVideoMaterialPushPlan({ advertiserId, materialAccoun
 }
 
 function materialPushPayload({ materialAccountId, advertiserId, sourceVideoIds = [] } = {}) {
-  const source = Number(longId("material_account_id", materialAccountId));
-  const target = Number(longId("advertiser_id", advertiserId));
-  const videoIds = sourceVideoIds.map((value) => Number(clean(value)));
-  if (!Number.isSafeInteger(source) || !Number.isSafeInteger(target) || !videoIds.length || videoIds.length > PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE || videoIds.some((value) => !Number.isSafeInteger(value))) {
-    throw new Error("material_push_id_outside_safe_integer_range");
-  }
-  return { advertiser_id: source, target_advertiser_ids: [target], video_ids: videoIds };
+  return videoMaterialBatchBindTransportPayload({
+    sourceAdvertiserId: longId("material_account_id", materialAccountId),
+    targetAdvertiserId: longId("advertiser_id", advertiserId),
+    videoIds: sourceVideoIds.map(clean)
+  });
 }
 
 export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confirmationId, fetchImpl = globalThis.fetch, credentialSummary = getOceanEngineCredentialSummary(), credentialEnv = readOceanEngineEnv().env, readonlyClient = createOceanEngineReadonlyClient({ fetchImpl }), allowNetworkWrite = false } = {}) {

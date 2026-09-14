@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-14T10:50:00.000Z",
+  "updated_at": "2026-09-14T18:09:16.000+08:00",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "deploy"],
@@ -64,7 +64,8 @@
     {"acceptance_id": "AC-03", "command": "npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages"},
     {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages; npm run check:project -- --phase before-close"},
     {"acceptance_id": "AC-05", "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; sanitized account preflight"},
-    {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; case-sensitive readonly recheck"}
+    {"acceptance_id": "AC-06", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; case-sensitive readonly recheck"},
+    {"acceptance_id": "AC-07", "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages; owner readonly recheck of existing Case"}
   ],
   "validation_results": [
     {
@@ -114,18 +115,26 @@
       "verified_at": "2026-09-14T10:50:00.000Z",
       "summary": "项目素材分页查询使用 filtering.material_type；素材标识码以原始大小写精确匹配，大小写变体和前缀均不命中，两个完全同大小写候选仍安全阻断。追加与通用素材核验共用匹配方法，歧义 blocker 保留原始标识码和候选数量。",
       "evidence_refs": ["src/platforms/materialCodeMatcher.mjs", "src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/skills/oe3/04-video-material-readiness.mjs", "src/workflows/launchWorkflow.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-07",
+      "status": "passed",
+      "command": "npm run test:project-video-append; npm run test:workbench-progress; npm run test:workbench-client-pages",
+      "verified_at": "2026-09-14T18:09:16.000+08:00",
+      "summary": "18 位视频 ID 在推送 Plan、请求 hash 和传输体中保持十进制字符串；单批、双批和非法 ID 均受控。推送 Plan 构建失败不再退回追加 Plan，确认提示区分推送素材与追加视频；右侧标题固定为事项、3 阶段和 7 节点。",
+      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/workbenchProgressNarrative.mjs", "frontend/app.js", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
     {
       "ref": "docs/Solution Design.md",
       "status": "updated",
-      "reason": "记录启动入口与固定 release 共享凭据路径的批准选择。"
+      "reason": "记录启动入口、追加视频的独立素材推送 Plan 与固定 release 共享凭据路径的批准选择。"
     },
     {
       "ref": "docs/project-现在的逻辑图.md",
       "status": "updated",
-      "reason": "明确启动卡片、真实启动阶段、追加项目素材过滤合同、唯一 blocker 与 Job 后节点投影。"
+      "reason": "明确启动卡片、真实启动阶段、追加项目素材过滤与字符串视频 ID 合同、唯一 blocker、右侧固定标题和 Job 后节点投影。"
     },
     {
       "ref": "deploy/README.md",
@@ -135,9 +144,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配，待发布并由账户本人在既有 Case 上执行新版只读核验。",
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配，素材推送 Plan 的视频 ID 保持十进制字符串，待发布并由账户本人在既有 Case 上执行新版只读核验。",
     "side_effects": "本轮只执行 readonly 核验、测试和发布；未执行平台写入或 Plan 确认。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认 4iLE-2 的两个候选是否仅为大小写变体；若两个候选的大小写也相同，仍须明确唯一来源后才能继续。"],
+    "remaining_risks": ["账户本人仍需在既有 Case 上重新只读准备，以确认大小写修复后的唯一物料户命中生成独立素材推送确认卡；不得在验证中确认推送或追加视频。"],
     "business_evidence_refs": ["release:171be4fb123a288a23d9b1cc5971a2d4dd77c3da", "runtime:http://192.168.42.7:3000/app.js:sha256:01855f23f8db54a6004d1f2184bd6d161d7c8e0aebd45e31a70bfa25ea8bdcb5"]
   },
   "closed_at": null

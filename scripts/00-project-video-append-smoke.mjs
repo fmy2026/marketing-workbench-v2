@@ -2,11 +2,13 @@ import {
   classifyProjectVideoAppendItems,
   buildProjectVideoAppendPlan,
   buildProjectVideoMaterialPushPlan,
+  prepareProjectVideoAppendReadonly,
   readProjectVideoIds,
   recommendProjectVideoAppendProjects,
   scanOceanEngineVideoInventory,
   validateProjectVideoAppendReadback
 } from "../src/platforms/oceanengineProjectVideoAppendExecutor.mjs";
+import { videoMaterialBatchBindTransportPayload } from "../src/platforms/oceanengineVideoMaterialExecutor.mjs";
 import { reconcileQiankunMaterialSourceVideoInventory } from "../src/workflows/skills/oe3/04-video-material-readiness.mjs";
 import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/platforms/materialCodeMatcher.mjs";
 import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
@@ -38,8 +40,45 @@ const items = classifyProjectVideoAppendItems({
 assert(items.map((item) => item.status).join(",") === "already_in_project,append_ready,target_push_required", "item_classification_invalid");
 const blocked = buildProjectVideoAppendPlan({ advertiserId: request.advertiser_id, projectId: request.project_id, items });
 assert(blocked.status === "blocked", "target_push_must_block_append");
-const push = buildProjectVideoMaterialPushPlan({ advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id, items: items.map((item) => item.status === "target_push_required" ? { ...item, sourceVideoId: "3000000000000001" } : item) });
+const longVideoId = "123456789012345678";
+const push = buildProjectVideoMaterialPushPlan({ advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id, items: items.map((item) => item.status === "target_push_required" ? { ...item, sourceVideoId: longVideoId } : item) });
 assert(push.status === "ready" && push.batches.length === 1 && push.batches[0].itemCount === 1, "target_push_plan_not_ready");
+assert(push.batches[0].sourceVideoIds[0] === longVideoId, "target_push_plan_lost_long_video_id_precision");
+const longVideoTransport = videoMaterialBatchBindTransportPayload({ sourceAdvertiserId: "2234567890123456", targetAdvertiserId: request.advertiser_id, videoIds: [longVideoId] });
+assert(typeof longVideoTransport.video_ids[0] === "string" && longVideoTransport.video_ids[0] === longVideoId, "target_push_transport_must_keep_long_video_id_string");
+const invalidPush = buildProjectVideoMaterialPushPlan({ advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id, items: [{ originResourceId: "invalid-video", sourceVideoId: "not-a-decimal-video-id", status: "target_push_required" }] });
+assert(invalidPush.status === "blocked" && invalidPush.blockerCodes[0] === "source_video_id_invalid_for_material_push", "invalid_push_must_keep_actual_blocker");
+const invalidPushSelection = await prepareProjectVideoAppendReadonly({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  originResourceIds: ["push-code"],
+  materialAccountId: "2234567890123456",
+  ownerKey: "owner",
+  qiankunClient: {
+    async queryResourceIndex() {
+      return { status: "passed", summary: { list: [{ originResourceId: "push-code" }] } };
+    }
+  },
+  oceanEngineClient: {
+    async get(input) {
+      if (input.endpoint === "file/video/get") {
+        const source = input.query.advertiser_id === "2234567890123456";
+        return {
+          status: "passed",
+          responseHash: source ? "sha256:source" : "sha256:target",
+          summary: { totalPage: 1, items: source ? [{ filename: "push-code.mp4", video_id: "not-a-decimal-video-id" }] : [] }
+        };
+      }
+      return {
+        status: "passed",
+        responseHash: "sha256:project",
+        summary: { totalPage: 1, projectIdPresent: true, videoIds: [] }
+      };
+    }
+  }
+});
+assert(invalidPushSelection.plan.blockerCodes[0] === "target_push_required", "append_plan_must_still_describe_push_requirement");
+assert(invalidPushSelection.effectivePlan.blockerCodes[0] === "source_video_id_invalid_for_material_push", "push_plan_failure_must_not_fall_back_to_append_blocker");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))

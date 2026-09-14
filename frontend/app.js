@@ -1082,7 +1082,7 @@ import {
 
     const nodeCount = allNodes().length;
     const operation = job?.operation || job?.intake?.operation || draftIntake.operation;
-    const workflowTitle = job?.caseGate?.rootBlockerCodes?.length ? "流程受阻" : (operation === "append_project_videos" ? "追加视频" : "新建项目");
+    const workflowTitle = operation === "append_project_videos" ? "追加视频" : "新建项目";
     document.getElementById("workflowHeading").textContent = `${workflowTitle} · ${workflowPhases.length} 阶段 · ${nodeCount} 节点`;
   }
 

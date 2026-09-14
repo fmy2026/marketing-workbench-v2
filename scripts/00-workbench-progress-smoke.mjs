@@ -6,6 +6,7 @@ import {
   readonlyRecoveryGuidance,
   PROGRESS_REFRESH_INTERVAL_MS
 } from "../frontend/workbench-progress.mjs";
+import { presentWorkflowProgress } from "../src/workflows/workbenchProgressNarrative.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -89,6 +90,22 @@ assert(
     executionAvailability: { canExecuteOnce: true }
   }) === "已完成 1 / 7 · 待确认",
   "confirmation_progress_copy_mismatch"
+);
+assert(
+  presentWorkflowProgress({
+    isLatestCaseJob: true,
+    caseGate: { currentGate: "await_job_write_authorization" },
+    confirmationPreview: { planKind: "project_video_material_push", confirmationPhrase: "确认推送素材" }
+  }).message.includes("确认推送素材"),
+  "material_push_confirmation_label_mismatch"
+);
+assert(
+  presentWorkflowProgress({
+    isLatestCaseJob: true,
+    caseGate: { currentGate: "await_job_write_authorization" },
+    confirmationPreview: { planKind: "project_video_append", confirmationPhrase: "确认追加视频" }
+  }).message.includes("确认追加视频"),
+  "project_append_confirmation_label_mismatch"
 );
 assert(
   progressPresentation({
@@ -187,6 +204,8 @@ assert(!htmlSource.includes('id="runState"'), "workflow_dynamic_run_state_must_b
 assert(!clientSource.includes('getElementById("runState")'), "workflow_dynamic_run_state_renderer_must_be_removed");
 assert(clientSource.includes("function operationalMessage()"), "left_conversation_gate_projection_missing");
 assert(clientSource.includes("job?.caseGate?.rootBlockerCodes?.length ? \"流程受阻\""), "headline_must_surface_actual_root_blocker");
+assert(clientSource.includes('const workflowTitle = operation === "append_project_videos" ? "追加视频" : "新建项目";'), "workflow_title_must_follow_operation");
+assert(!clientSource.includes('const workflowTitle = job?.caseGate?.rootBlockerCodes?.length ? "流程受阻"'), "workflow_title_must_not_follow_dynamic_blocker");
 assert(htmlSource.includes('id="progressText"'), "bottom_progress_text_removed");
 assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refresh_removed");
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");

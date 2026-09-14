@@ -111,7 +111,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 七个固定 Node ID 不变；服务端按 `workflow_cases.operation` 提供展示名称：追加需求核对、账户与目标项目核验、指定视频识别、视频可用性与推送准备、追加计划核对、单次追加、追加结果回查。工作台只展示该服务端投影，默认展开当前阶段，其余阶段和子检查项按需展开。
 
-追加的只读准备依次核验乾坤视频标识码、物料户和目标账户的巨量视频库存，以及目标项目的现有视频。项目素材查询固定使用官方 `filtering.material_type=VIDEO`；素材标识码只清理首尾空格，原始大小写贯穿 Intake、Case、乾坤查询、库存匹配、Plan 与幂等键。文件名匹配使用大小写敏感的完整边界，`4iLE-2` 不匹配 `4ile-2` 或 `4iLE-20`。分页、查询失败和零/多个同大小写来源均停止。全部待新增项在目标账户可用时才形成 `project_video_append` Plan；已存在项仅计入摘要。每轮只读结果写入既有 Plan 元数据：首个有序 blocker 进入 `root_blocker_codes`，Job 当前节点同步到实际失败点；其他受控查询结果仅供诊断，不能冒充第二个 Gate。
+追加的只读准备依次核验乾坤视频标识码、物料户和目标账户的巨量视频库存，以及目标项目的现有视频。项目素材查询固定使用官方 `filtering.material_type=VIDEO`；素材标识码只清理首尾空格，原始大小写贯穿 Intake、Case、乾坤查询、库存匹配、Plan 与幂等键。文件名匹配使用大小写敏感的完整边界，`4iLE-2` 不匹配 `4ile-2` 或 `4iLE-20`。分页、查询失败和零/多个同大小写来源均停止。待新增视频已在物料户唯一命中但目标账户缺失时，先形成独立 `project_video_material_push` Plan；其 `video_ids` 从查询、Plan/hash、幂等键到平台请求始终为十进制字符串，账户 ID 才按已验证的数字传输合同编码。推送成功后重新只读核验，再形成 `project_video_append` Plan；已存在项仅计入摘要。每轮只读结果写入既有 Plan 元数据：首个有序 blocker 进入 `root_blocker_codes`，Job 当前节点同步到实际失败点；其他受控查询结果仅供诊断，不能冒充第二个 Gate。
 
 `mwb.workflow_case_summary` 决定 Gate 优先级；下表只定义消费者行为，不构成第二套 Gate 计算规则。
 
@@ -128,7 +128,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 创建对象和回查证据完整 | `first_std_project_create_completed` | 只读完成投影并收口 Case |
 | 其他终态 | `review_latest_job` | 只读查看，不提供确认、恢复或重试 |
 
-- 工作台固定为 `受控咨询与临时 Intake → allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；首屏不预选事项、不显示七节点或进度。完整 Intake 仅在最新对话下提供一张启动卡片，输入变化即失效；点击时冻结完整的服务端校验请求，并将同一快照依次提交给 Case 与 fresh Job，页面不得增删字段。右侧先显示创建 Case、创建 Job 等真实请求阶段，取得实际 Job 后才展示服务端七节点投影。`run_fresh_readiness` 只显示“开始只读核验”并提交“继续执行”；仅 `resolve_case_blocker` 显示“重新只读准备”。为兼容旧提示，前一 Gate 收到“重新只读准备”时也只重跑当前 Job 的 readonly。追加视频隐藏新建项目专用子检查，只显示追加专用节点；受阻时顶部、侧栏和对话共同消费 summary 的唯一 blocker，不自动重试。历史 Job 只读，越权或冲突 scope fail-closed。
+- 工作台固定为 `受控咨询与临时 Intake → allowlist Intent Resolver → Gate Action Policy → 状态/readonly/确认卡 → 已确认 Plan 执行层`；首屏不预选事项、不显示七节点或进度。完整 Intake 仅在最新对话下提供一张启动卡片，输入变化即失效；点击时冻结完整的服务端校验请求，并将同一快照依次提交给 Case 与 fresh Job，页面不得增删字段。右侧先显示创建 Case、创建 Job 等真实请求阶段，取得实际 Job 后才展示服务端七节点投影。右侧标题仅固定显示事项、`3 阶段`与`7 节点`，不使用 Gate 或 blocker 文案；节点颜色、当前节点和展开状态仍使用服务端投影。`run_fresh_readiness` 只显示“开始只读核验”并提交“继续执行”；仅 `resolve_case_blocker` 显示“重新只读准备”。为兼容旧提示，前一 Gate 收到“重新只读准备”时也只重跑当前 Job 的 readonly。追加视频隐藏新建项目专用子检查，只显示追加专用节点；受阻时顶部和对话共同消费 summary 的唯一 blocker，不自动重试。历史 Job 只读，越权或冲突 scope fail-closed。
 - `resolve_case_blocker` 只展示 summary 投影的唯一具体原因与 Gate Policy 允许的下一步。旧视频绑定 Plan 为空、视频来源未唯一核验或绑定条件不完整时，提供既有“重新只读准备”文字命令；它只创建或复用同一 Case 的 fresh Job，不重放旧 Plan、不确认也不创建平台对象。
 - consumed Create Plan 的确认前停止只在确有 `blocked_before_create`、零 create action 与零创建对象时进入该同一 readonly 恢复入口；通用 `readiness_not_ready:*`、授权探测包装原因不会覆盖 Skill 的具体传输或合同 blocker。确认卡、提示和按钮都读取同一服务端 Gate/Plan/confirmation 可用性；确认被登记或 Plan 被消费后不再显示陈旧的可确认卡。
 - 确认卡点击时先冻结当前 `jobId`、`planId`、`planHash` 与精确确认短语；提交中只锁定该按钮并显示“提交中”，轮询或界面重绘不得改写本次请求目标。请求结束后只消费同一服务端投影的 `confirmationPreview`；显式 `null` 必须清卡，页面不得以旧 Plan 状态回填。未分类服务错误仅显示受控诊断与最新状态，不推断 confirmation 或平台动作是否已发生。
