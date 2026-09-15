@@ -123,6 +123,12 @@ const readonlyRecoveryIntent = await resolveConversationIntent({
   resolver: createConversationIntentResolver()
 });
 assert(readonlyRecoveryIntent.intent === "request_readonly_recovery", "readonly recovery intent not normalized");
+const appendReprepareIntent = await resolveConversationIntent({
+  message: "重新准备追加",
+  jobView,
+  resolver: createConversationIntentResolver()
+});
+assert(appendReprepareIntent.intent === "request_append_reprepare", "append reprepare intent not normalized");
 
 const fakeResolver = createConversationIntentResolver({
   provider: "fake",
@@ -239,6 +245,25 @@ const continueDecision = evaluateGateAction({
   confirmationPreview: preview
 });
 assert(continueDecision.effect === "confirmation_required", "continue must only present confirmation");
+const appendReadbackSummary = {
+  lifecycle_status: "active",
+  current_gate: "run_project_video_append_readback",
+  suggested_next_action: "run_project_video_append_readback",
+  root_blocker_codes: ["project_video_append_readback_pending"],
+  latest_job_status: "failed_waiting_manual_review"
+};
+const appendReadbackDecision = evaluateGateAction({
+  intent: { intent: "continue_workflow" },
+  caseSummary: appendReadbackSummary,
+  isLatestCaseJob: true
+});
+assert(appendReadbackDecision.effect === "run_project_video_append_readback" && appendReadbackDecision.message.includes("不会再次追加"), "append_readback_must_be_readonly_only");
+const appendRecoveryDecision = evaluateGateAction({
+  intent: appendReprepareIntent,
+  caseSummary: appendReadbackSummary,
+  isLatestCaseJob: true
+});
+assert(appendRecoveryDecision.effect === "create_fresh_append_recovery_job" && appendRecoveryDecision.message.includes("不会复用旧 Plan"), "append_recovery_must_create_fresh_job_only");
 
 const correctiveCaseSummary = {
   lifecycle_status: "active",

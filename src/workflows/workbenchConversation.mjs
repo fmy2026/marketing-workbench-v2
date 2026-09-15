@@ -11,6 +11,7 @@ import {
   presentRootBlocker,
   reconcileMonitorAndPersistPlan,
   runJob,
+  runProjectVideoAppendReadback,
   runWorkbenchInitialReadonly
 } from "./launchWorkflow.mjs";
 import { runMonitorProvisionReadonlyReconcile } from "./skills/oe3/02-monitor/index.mjs";
@@ -99,6 +100,7 @@ export async function handleWorkbenchCommand({
   createCorrectiveAttemptJobFn = createCorrectiveAttemptJob,
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
+  runProjectVideoAppendReadbackFn = runProjectVideoAppendReadback,
   runWorkbenchInitialReadonlyFn = runWorkbenchInitialReadonly,
   executeConfirmedMonitorBootstrapFn = executeConfirmedMonitorBootstrap,
   executeConfirmedResourcePlanFn = executeConfirmedResourcePlan,
@@ -203,6 +205,64 @@ export async function handleWorkbenchCommand({
         ...interaction,
         effect: "readonly_recovery_started",
         message: "已创建同一 Case 的 fresh Job 并完成只读准备；旧 Plan、确认和平台动作未被复用。"
+      }
+    });
+  }
+  if (interaction.effect === "create_fresh_append_recovery_job") {
+    const credential = credentialStateFn() || {};
+    if (clean(credential.status) !== "ready") {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "append_reprepare_credential_unavailable",
+          blocker: "credential_required",
+          message: "当前平台只读凭据不可用，未创建 fresh Job、未执行平台操作。"
+        }
+      });
+    }
+    const recovery = await createReadonlyRecoveryJobFn(repo, bundle.job);
+    if (!clean(recovery?.jobId)) {
+      return response({
+        view,
+        interaction: {
+          ...interaction,
+          effect: "append_reprepare_unavailable",
+          blocker: "project_video_append_reprepare_not_available",
+          message: "旧追加动作尚未记录为可恢复的平台拒绝，或当前 Case 已变化；未创建 fresh Job。"
+        }
+      });
+    }
+    if (recovery.created !== true) {
+      const nextView = await getJobViewFn(repo, recovery.jobId, { projectStatePath });
+      return response({
+        view: nextView,
+        interaction: {
+          ...interaction,
+          effect: "append_reprepare_already_started",
+          confirmationPreview: nextView?.confirmationPreview || null,
+          message: "追加恢复 Job 已存在，已切换到同一 Case 的当前只读进度。"
+        }
+      });
+    }
+    const nextView = await runWorkbenchInitialReadonlyFn(repo, recovery.jobId, {
+      mode: "dry_run",
+      projectStatePath,
+      getJobViewFn,
+      runJobFn,
+      qiankunOwnerKey
+    });
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        effect: nextView?.confirmationPreview?.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND
+          ? "append_reprepare_ready_for_confirmation"
+          : "append_reprepare_readonly_completed",
+        confirmationPreview: nextView?.confirmationPreview || null,
+        message: nextView?.confirmationPreview?.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND
+          ? "已重新核验全部视频，并生成新的追加视频确认卡；请核对后再确认。"
+          : "已创建同一 Case 的 fresh Job 并完成只读核验；请按当前 Gate 处理。"
       }
     });
   }
@@ -341,6 +401,19 @@ export async function handleWorkbenchCommand({
       nextView = finalization.view || nextView;
     }
     return response({ view: nextView, interaction: { ...interaction, message: readbackMessage(nextView) } });
+  }
+  if (interaction.effect === "run_project_video_append_readback") {
+    const nextView = await runProjectVideoAppendReadbackFn(repo, jobId, { projectStatePath });
+    const verified = nextView?.caseGate?.currentGate === "project_video_append_completed";
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        message: verified
+          ? "追加结果已通过项目素材回查，Case 已完成。"
+          : "追加结果尚未通过项目素材回查；旧 Plan 已消费且不会重发。若平台已明确拒绝，可输入“重新准备追加”建立 fresh Job。"
+      }
+    });
   }
   if (interaction.effect === "run_monitor_readonly") {
     const bridged = await monitorReadonlyPlanBridge(repo, jobId, {

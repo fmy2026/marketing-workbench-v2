@@ -563,7 +563,15 @@ import {
   }
 
   function message(role, text) {
-    chatMessages.push({ role, text });
+    const entry = { role, text };
+    chatMessages.push(entry);
+    renderChat();
+    return entry;
+  }
+
+  function replaceMessage(entry, text) {
+    if (!entry) return;
+    entry.text = text;
     renderChat();
   }
 
@@ -619,6 +627,7 @@ import {
   async function selectRecommendedProject(projectId) {
     if (!/^\d{8,24}$/.test(String(projectId || "")) || busy || viewOnly) return;
     message("user", `项目：${projectId}`);
+    const reply = message("agent", "正在处理…");
     setBusy(true);
     try {
       const intake = await api("/api/launch/intake", {
@@ -627,7 +636,7 @@ import {
       });
       mergeIntake(intake);
       await refreshProjectRecommendations();
-      message("agent", intake.reply || "项目需要核对后再试。");
+      replaceMessage(reply, `${parserLabel(intake.parse_source || intake.parseSource, intake.model_assist || intake.modelAssist)}：${intake.reply || "项目需要核对后再试。"}`);
     } catch (error) {
       showError(error);
     } finally {
@@ -726,7 +735,7 @@ import {
       button.textContent = "提交中…";
       button.setAttribute("aria-busy", "true");
       try {
-        await submitJobCommand(submission.message, submission);
+        await submitJobCommand(submission.message, submission, { recordUser: true });
       } catch (error) {
         showError(error, { stage: "提交确认" });
       } finally {
@@ -812,6 +821,18 @@ import {
       readinessButton.addEventListener("click", () => submitJobCommand("继续执行"));
       container.append(readinessButton);
       container.hidden = false;
+    } else if (job?.isLatestCaseJob && !viewOnly && currentGate === "run_project_video_append_readback") {
+      const readbackButton = el("button", "conversation-preset", "检查追加结果");
+      readbackButton.type = "button";
+      readbackButton.disabled = disabled;
+      readbackButton.addEventListener("click", () => submitJobCommand("继续执行"));
+      container.append(readbackButton);
+      const recoveryButton = el("button", "conversation-preset", "重新准备追加");
+      recoveryButton.type = "button";
+      recoveryButton.disabled = disabled;
+      recoveryButton.addEventListener("click", () => submitJobCommand("重新准备追加"));
+      container.append(recoveryButton);
+      container.hidden = false;
     } else {
       const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
       if (job?.isLatestCaseJob && !viewOnly && readonlyRecovery?.placeholder?.includes("重新只读准备")) {
@@ -829,14 +850,15 @@ import {
     const stream = document.getElementById("chatStream");
     stream.innerHTML = "";
     const messages = [...chatMessages];
-    if (!messages.length && !job) {
-      messages.push({ role: "agent", text: "请输入投放需求，比如新建项目、追加视频；也可以问我能做什么。" });
+    if (!messages.length) {
+      messages.push({
+        role: "agent",
+        text: job ? (operationalMessage() || "可查看当前状态或继续下一步。") : "请输入投放需求，比如新建项目、追加视频；也可以问我能做什么。"
+      });
     }
     for (const item of messages) {
       if (item?.text) appendRenderedMessage(stream, item.role === "user" ? "user" : "agent", item.text);
     }
-    const current = operationalMessage();
-    if (current) appendRenderedMessage(stream, "agent", current);
     renderStartCard(stream);
     renderProjectRecommendations(stream);
     renderConfirmationCard(stream);
@@ -1132,6 +1154,8 @@ import {
           ? "输入“重新只读准备”准备下一 Attempt，或输入“查看状态”..."
           : job?.caseGate?.currentGate === "run_fresh_readiness"
             ? "点击“开始只读核验”，或输入“继续执行”..."
+          : job?.caseGate?.currentGate === "run_project_video_append_readback"
+            ? "点击“检查追加结果”，或输入“继续执行”..."
           : readonlyRecovery
             ? readonlyRecovery.placeholder
           : "输入“继续执行”或“查看状态”..."
@@ -1391,7 +1415,9 @@ import {
     window.history.replaceState({}, "", workbenchCaseUrl(caseId));
   }
 
-  async function submitJobCommand(text, submission = null) {
+  async function submitJobCommand(text, submission = null, { recordUser = true } = {}) {
+    const ownsBusy = !busy;
+    if (ownsBusy) setBusy(true);
     const command = resolveJobCommandSubmission({
       job,
       preview: confirmationPreview(),
@@ -1399,23 +1425,33 @@ import {
       submission
     });
     if (!command.jobId) throw new Error("job_command_context_missing");
-    const result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(command.jobId)}/command`, {
-      method: "POST",
-      body: JSON.stringify({
-        message: command.message,
-        expected_plan_id: command.planId,
-        expected_plan_hash: command.planHash
-      })
-    }));
+    if (recordUser) message("user", command.message);
+    const reply = message("agent", "正在处理…");
+    let result;
+    try {
+      result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(command.jobId)}/command`, {
+        method: "POST",
+        body: JSON.stringify({
+          message: command.message,
+          expected_plan_id: command.planId,
+          expected_plan_hash: command.planHash
+        })
+      }));
+    } catch (error) {
+      replaceMessage(reply, `处理未完成：${error?.message || "请求失败"}。`);
+      throw error;
+    } finally {
+      if (ownsBusy) setBusy(false);
+    }
     setJobView(result.view || job);
     if (result.view?.caseId && result.view.caseId !== draftCaseId) {
       draftCaseId = result.view.caseId;
       setActiveCaseUrl(result.view.caseId);
     }
-    if (result.interaction?.parserSource) {
-      message("agent", `${parserLabel(result.interaction.parserSource)}。`);
-    }
-    if (result.interaction?.message) message("agent", result.interaction.message);
+    const parsed = result.interaction?.parserSource
+      ? `${parserLabel(result.interaction.parserSource, result.interaction?.modelAssist)}：${command.message}。`
+      : "已使用规则解析。";
+    replaceMessage(reply, `${parsed}${result.interaction?.message || "已处理当前请求。"}`);
     renderAll();
   }
 
@@ -1747,16 +1783,17 @@ import {
       setBusy(true);
       try {
         if (job) {
-          await submitJobCommand(normalized);
+          await submitJobCommand(normalized, null, { recordUser: false });
           return;
         }
+        const reply = message("agent", "正在处理…");
         const intake = await api("/api/launch/intake", {
           method: "POST",
           body: JSON.stringify({ user_intent: normalized, draft: { ...draftIntake } })
         });
         mergeIntake(intake);
         await refreshProjectRecommendations();
-        message("agent", intake.reply || "输入需要修正后再试。");
+        replaceMessage(reply, `${parserLabel(intake.parse_source || intake.parseSource, intake.model_assist || intake.modelAssist)}：${intake.reply || "输入需要修正后再试。"}`);
       } catch (error) {
         clearDraftIntake();
         showError(error);
@@ -1768,6 +1805,8 @@ import {
   async function submitStructuredRequest(request) {
     if (busy || viewOnly || job) return;
     clearDraftIntake();
+    message("user", "提交标准 JSON 请求");
+    const reply = message("agent", "正在处理…");
     setBusy(true);
     try {
       const intake = await api("/api/launch/intake", {
@@ -1775,7 +1814,7 @@ import {
         body: JSON.stringify({ request })
       });
       mergeIntake(intake);
-      message("agent", intake.reply || "已完成标准 JSON 校验；请核对后启动流程。");
+      replaceMessage(reply, `${parserLabel("structured_json")}：${intake.reply || "请核对后启动流程。"}`);
     } catch (error) {
       clearDraftIntake();
       showError(error);

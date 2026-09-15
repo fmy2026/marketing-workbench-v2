@@ -285,6 +285,16 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     return { ...base, effect: "run_dry_run", message: "将重新执行当前 Job 的只读准备；不会确认或创建平台对象。" };
   }
+  if (intent.intent === "request_append_reprepare") {
+    if (currentGate !== "run_project_video_append_readback") {
+      return { ...base, effect: "append_reprepare_unavailable", message: "当前没有可重新准备的追加动作；请先查看最新进度。" };
+    }
+    return {
+      ...base,
+      effect: "create_fresh_append_recovery_job",
+      message: "将建立同一 Case 的 fresh Job，重新核验全部视频并准备新的追加确认；不会复用旧 Plan 或自动追加。"
+    };
+  }
   if (intent.intent === "continue_workflow") {
     if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
       return { ...base, effect: "manual_review_required", message: attemptLimitReviewMessage(manualReviewApproved) };
@@ -297,6 +307,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     }
     if (currentGate === "run_readback_only") {
       return { ...base, effect: "run_readback_only", message: "将继续执行只读回查。" };
+    }
+    if (currentGate === "run_project_video_append_readback") {
+      return { ...base, effect: "run_project_video_append_readback", message: "将检查已确认追加的视频是否已出现在目标项目；不会再次追加。" };
     }
     if (currentGate === "await_job_write_authorization") {
       if (confirmationPreview) {

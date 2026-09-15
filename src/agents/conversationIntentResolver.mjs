@@ -29,6 +29,7 @@ export const CONVERSATION_INTENTS = Object.freeze([
   "intake_update",
   "continue_workflow",
   "request_readonly_recovery",
+  "request_append_reprepare",
   "request_monitor_readonly_reconcile",
   "request_status",
   "request_confirmation",
@@ -226,6 +227,9 @@ export function deterministicIntent({ message = "" } = {}) {
   }
   if (command === "重新只读准备") {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_readonly_recovery", confidence: 1, slots: {}, source: "deterministic", issues: [] };
+  }
+  if (command === "重新准备追加") {
+    return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_append_reprepare", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (command === "重新只读回查monitor") {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_monitor_readonly_reconcile", confidence: 1, slots: {}, source: "deterministic", issues: [] };

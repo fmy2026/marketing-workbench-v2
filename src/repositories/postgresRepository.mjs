@@ -3078,6 +3078,23 @@ export class PostgresRepository {
           AND (
             j.job_status IN ('blocked_confirmed_resource_plan', 'blocked_confirmed_monitor_plan')
             OR (
+              wc.operation = 'append_project_videos'
+              AND j.job_status = 'failed_waiting_manual_review'
+              AND EXISTS (
+                SELECT 1
+                FROM mwb.launch_execution_plans plan
+                JOIN mwb.platform_actions action
+                  ON action.job_id = plan.job_id
+                 AND action.plan_id = plan.plan_id
+                WHERE plan.job_id = j.job_id
+                  AND plan.plan_kind = 'project_video_append'
+                  AND plan.plan_status = 'consumed'
+                  AND action.action_type = 'oc_project_video_append'
+                  AND action.action_status = 'failed_or_unconfirmed'
+                  AND coalesce(action.metadata->>'error_category', '') = 'platform_rejected'
+              )
+            )
+            OR (
               j.job_status = 'failed_waiting_manual_review'
               AND EXISTS (
                 SELECT 1
@@ -4460,6 +4477,50 @@ export class PostgresRepository {
     return result || { consumed: false, jobFinalized: false, caseFinalized: false };
   }
 
+  async finalizeProjectVideoAppendReadback({ jobId, planId, verified = false, blocker = "" } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    const safeBlocker = String(blocker || "").trim();
+    const result = await queryJson(`
+      WITH target AS (
+        SELECT job.job_id, job.case_id
+        FROM mwb.launch_jobs job
+        JOIN mwb.launch_execution_plans plan ON plan.job_id = job.job_id
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'consumed'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_append'
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = ${verified ? "'readback_verified'" : "'failed_waiting_manual_review'"},
+            current_node = '7',
+            updated_at = now()
+        FROM target
+        WHERE job.job_id = target.job_id
+        RETURNING job.job_id
+      ), case_finalized AS (
+        UPDATE mwb.workflow_cases workflow_case
+        SET lifecycle_status = 'completed',
+            metadata = workflow_case.metadata || jsonb_build_object(
+              'completion_reason', 'project_video_append_readback_verified'
+            ),
+            updated_at = now()
+        FROM target
+        WHERE workflow_case.case_id = target.case_id
+          AND workflow_case.lifecycle_status = 'active'
+          AND ${verified ? "true" : "false"}
+        RETURNING workflow_case.case_id
+      )
+      SELECT jsonb_build_object(
+        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized),
+        'caseFinalized', EXISTS (SELECT 1 FROM case_finalized),
+        'verified', ${verified ? "true" : "false"},
+        'blocker', ${sqlLiteral(safeBlocker)}
+      )::text;
+    `, this.database);
+    return result || { jobFinalized: false, caseFinalized: false, verified: false, blocker: safeBlocker };
+  }
+
   async finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId } = {}) {
     assertId("job_id", jobId);
     assertId("plan_id", planId);
@@ -5520,6 +5581,12 @@ export class PostgresRepository {
     actionType,
     idempotencyKey,
     actionStatus,
+    requestHash = "",
+    responseHash = "",
+    httpStatus = null,
+    apiCode = "",
+    errorCategory = "",
+    requestFieldManifest = {},
     metadata = {}
   }) {
     return this.upsertPlatformAction({
@@ -5533,6 +5600,12 @@ export class PostgresRepository {
       actionStatus,
       attemptNo: 1,
       idempotencyKey,
+      requestHash,
+      responseHash,
+      httpStatus,
+      apiCode,
+      errorCategory,
+      requestFieldManifest,
       metadata: {
         high_level_plan_action: true,
         retry_allowed: false,

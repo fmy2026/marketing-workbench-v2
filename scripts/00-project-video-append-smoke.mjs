@@ -1,6 +1,7 @@
 import {
   classifyProjectVideoAppendItems,
   buildProjectVideoAppendPlan,
+  buildProjectVideoAppendWireBody,
   buildProjectVideoMaterialPushPlan,
   executeProjectVideoAppendOnce,
   executeProjectVideoMaterialPushOnce,
@@ -124,12 +125,22 @@ const appendSnapshot = await readProjectVideoIds({
   projectId: request.project_id,
   client: { async get() { return { status: "passed", responseHash: "sha256:before", summary: { projectIdPresent: true, totalPage: 1, videoIds: [] } }; } }
 });
+const appendWireContract = buildProjectVideoAppendWireBody({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  appendItems: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }]
+});
+assert(appendWireContract.status === "passed", "append_wire_body_not_built");
+assert(appendWireContract.body.includes(`\"advertiser_id\":${request.advertiser_id}`), "append_advertiser_id_must_be_lossless_json_integer");
+assert(appendWireContract.body.includes(`\"project_id\":${request.project_id}`), "append_project_id_must_be_lossless_json_integer");
+assert(appendWireContract.body.includes(`\"video_id\":\"${opaqueVideoId}\"`), "append_video_id_must_remain_json_string");
 let appendInventoryReads = 0;
 let appendWire = "";
+const appendActionFinishes = [];
 const appendResult = await executeProjectVideoAppendOnce({
   repo: {
     async claimPlannedExecutionAction() { return { claimed: true }; },
-    async finishPlannedExecutionAction() {},
+    async finishPlannedExecutionAction(input) { appendActionFinishes.push(input); },
     async upsertReadbackRecord() {}
   },
   bundle: {
@@ -156,6 +167,8 @@ const appendResult = await executeProjectVideoAppendOnce({
 });
 assert(appendResult.status === "readback_verified" && appendResult.appendCalled === true, "opaque_video_append_not_verified");
 assert(JSON.parse(appendWire).video_material_list[0].video_id === opaqueVideoId, "append_request_lost_opaque_video_id");
+assert(appendWire.includes(`\"advertiser_id\":${request.advertiser_id}`) && appendWire.includes(`\"project_id\":${request.project_id}`), "append_execution_must_send_lossless_integer_ids");
+assert(appendActionFinishes[0]?.httpStatus === 200 && appendActionFinishes[0]?.apiCode === "0" && appendActionFinishes[0]?.requestHash === appendWireContract.requestHash, "append_action_audit_must_record_wire_result");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))
@@ -407,4 +420,50 @@ assert(unresolvedBundle?.job?.job_status === "blocked", "unconfirmed_push_must_s
 assert(unresolvedBundle?.executionPlan?.metadata?.root_blocker_codes?.[0] === "project_video_material_push_readback_unresolved", "unconfirmed_push_must_keep_real_blocker");
 const unresolvedSummary = await repository.getWorkflowCaseSummary("CASE-TEST-PUSH-CLOSURE-UNCONFIRMED");
 assert(unresolvedSummary?.current_gate === "resolve_case_blocker" && unresolvedSummary.root_blocker_codes?.[0] === "project_video_material_push_readback_unresolved", "unconfirmed_push_summary_must_project_real_blocker");
+const appendReadbackCaseId = "CASE-TEST-APPEND-READBACK";
+const appendReadbackJobId = "JOB-TEST-APPEND-READBACK";
+const appendReadbackPlanId = "PLAN-TEST-APPEND-READBACK";
+await repository.createWorkflowCase({
+  caseId: appendReadbackCaseId,
+  caseKey: "test-append-readback",
+  ...testScope,
+  sourceUsage: "test_run",
+  operation: "append_project_videos",
+  targetProjectId: "9000000000000002",
+  originResourceIds: ["video-C"]
+});
+await repository.createLaunchJob({
+  jobId: appendReadbackJobId,
+  caseId: appendReadbackCaseId,
+  ...testScope,
+  objectType: "std_project",
+  sourceUsage: "test_run",
+  sourceRecordRef: "test:append-readback"
+});
+await repository.upsertLaunchExecutionPlan({
+  planId: appendReadbackPlanId,
+  jobId: appendReadbackJobId,
+  planVersion: 1,
+  planKind: "project_video_append",
+  planStatus: "consumed",
+  planHash: `sha256:${"c".repeat(64)}`,
+  plannedActions: [{ action_type: "oc_project_video_append", status: "consumed", maximum_platform_calls: 1 }],
+  blockerCodes: ["project_video_append_readback_pending"],
+  sourceUsage: "test_run",
+  metadata: {
+    plan_kind: "project_video_append",
+    append_items: [{ origin_resource_id: "video-C", video_id: opaqueVideoId }],
+    root_blocker_codes: ["project_video_append_readback_pending"],
+    execution_scope: { binding_mode: "single_confirmation_plan" }
+  }
+});
+const appendReadbackFinalization = await repository.finalizeProjectVideoAppendReadback({
+  jobId: appendReadbackJobId,
+  planId: appendReadbackPlanId,
+  verified: false,
+  blocker: "project_video_append_readback_pending"
+});
+assert(appendReadbackFinalization.jobFinalized === true && appendReadbackFinalization.verified === false, "append_readback_must_finalize_unverified_job_without_replay");
+const appendReadbackSummary = await repository.getWorkflowCaseSummary(appendReadbackCaseId);
+assert(appendReadbackSummary?.current_gate === "run_project_video_append_readback" && appendReadbackSummary.root_blocker_codes?.[0] === "project_video_append_readback_pending", "append_readback_gate_must_remain_readonly");
 console.log(JSON.stringify({ status: "passed", appendItems: 100, realPlatformWrites: 0 }));

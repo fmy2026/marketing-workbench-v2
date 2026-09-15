@@ -231,4 +231,4 @@ npm run db:backup
 
 `npm run test:unit` 运行无业务库依赖的合同测试；`npm run test:integration` 运行独立数据库及 HTTP 测试；`npm run test:workflow-regression` 聚合两者。既有专项测试命令委托同一入口。`tests/isolation.test.mjs` 单独验证禁止业务库连接、仅导入结构和清理结果。缺少夹具或未配置的外部请求使测试失败，不能作为跳过项。测试库所需 PostgreSQL 建库权限仅用于本地回归；应用默认数据库仍由仓储构造器定义。
 
-追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。推送动作和目标库存回查分别记录；回查未通过也消费推送 Plan 并保留受控 blocker，回查通过才可在同一 Job 生成下一份追加 Plan。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。
+追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。推送动作和目标库存回查分别记录；回查未通过也消费推送 Plan 并保留受控 blocker，回查通过才可在同一 Job 生成下一份追加 Plan。追加 action 审计记录请求/响应 hash、HTTP 状态、业务码、受控错误分类和字段合同摘要；不记录原始请求或响应。追加发送时账户/项目 ID 是无损 JSON 整数，视频 ID 为原始字符串。已消费追加 Plan 的每次项目素材回查都创建独立 `readback_records` 观察；查询失败与“未发现视频”由摘要中的查询状态和 blocker 区分。只有明确 `platform_rejected` 且最新回查仍缺失时，Case 锁允许生成一个 fresh 追加恢复 Job；旧 Plan/action 仍不可重发。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。

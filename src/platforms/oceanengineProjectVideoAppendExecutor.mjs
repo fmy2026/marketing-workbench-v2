@@ -5,6 +5,7 @@ import { credentialReady, getOceanEngineCredentialSummary, readOceanEngineEnv } 
 import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import { filenameMatchesMaterialCode } from "./materialCodeMatcher.mjs";
 import { videoMaterialBatchBindTransportPayload } from "./oceanengineVideoMaterialExecutor.mjs";
+import { buildLosslessJsonWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 
 export const PROJECT_VIDEO_APPEND_ENDPOINT = "/open_api/v3.0/oc_project/material/create/";
 export const PROJECT_VIDEO_APPEND_ACTION = "oc_project_video_append";
@@ -54,6 +55,26 @@ function appendPayload({ advertiserId, projectId, appendItems = [] } = {}) {
   }));
   if (!video_material_list.length || video_material_list.length > PROJECT_VIDEO_APPEND_MAX_ITEMS) throw new Error("invalid_project_video_append_items");
   return { advertiser_id, project_id, video_material_list };
+}
+
+// advertiser_id and project_id are int64 fields in the OpenAPI contract.
+// Keep their source tokens as strings until this single lossless encoder emits
+// JSON number tokens; video_id remains an opaque JSON string.
+export function buildProjectVideoAppendWireBody({ advertiserId, projectId, appendItems = [] } = {}) {
+  const payload = appendPayload({ advertiserId, projectId, appendItems });
+  const wire = buildLosslessJsonWireBody(payload, {
+    losslessIntegerPaths: ["advertiser_id", "project_id"]
+  });
+  return {
+    ...wire,
+    payload,
+    requestFieldManifest: {
+      field_names: ["advertiser_id", "project_id", "video_material_list"],
+      lossless_integer_paths: ["advertiser_id", "project_id"],
+      video_id_transport: "opaque_json_string",
+      raw_payload_stored: false
+    }
+  };
 }
 
 export async function scanOceanEngineVideoInventory({ client = createOceanEngineReadonlyClient(), advertiserId, originResourceIds = [] } = {}) {
@@ -264,9 +285,18 @@ export async function executeProjectVideoAppendOnce({
     actionType: PROJECT_VIDEO_APPEND_ACTION, idempotencyKey
   });
   if (!claim.claimed) return { status: "already_consumed", appendCalled: false, blockers: ["project_video_append_action_already_recorded"], actionId, idempotencyKey };
-  const payload = appendPayload({ advertiserId, projectId, appendItems });
-  const wire = JSON.stringify(payload);
-  const requestHash = hash(canonical(payload));
+  const wire = buildProjectVideoAppendWireBody({ advertiserId, projectId, appendItems });
+  const expectedRequestHash = clean(metadata.append_request_hash);
+  if (wire.status !== "passed" || (expectedRequestHash && expectedRequestHash !== wire.requestHash)) {
+    return {
+      status: "blocked_before_append",
+      appendCalled: false,
+      blockers: wire.status !== "passed" ? (wire.blockers || ["project_video_append_wire_body_invalid"]) : ["project_video_append_request_hash_drifted"],
+      actionId,
+      idempotencyKey
+    };
+  }
+  const requestHash = wire.requestHash;
   let responseHash = "";
   let httpStatus = null;
   let apiCode = "";
@@ -276,7 +306,7 @@ export async function executeProjectVideoAppendOnce({
     const response = await fetchWithDeadline(fetchImpl, `https://api.oceanengine.com${PROJECT_VIDEO_APPEND_ENDPOINT}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "Access-Token": credentialEnv.OCEANENGINE_ACCESS_TOKEN },
-      body: wire
+      body: wire.body
     }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
     const text = await response.text();
     responseHash = hash(text);
@@ -295,7 +325,22 @@ export async function executeProjectVideoAppendOnce({
   const plannedVideoIds = appendItems.map((item) => clean(item.video_id || item.videoId));
   const readback = validateProjectVideoAppendReadback({ plannedOriginResourceIds: appendItems.map((item) => clean(item.origin_resource_id || item.originResourceId)), foundVideoIds: after.videoIds || [], itemMap: appendItems.map((item) => ({ originResourceId: item.origin_resource_id || item.originResourceId, videoId: item.video_id || item.videoId })) });
   const actionStatus = after.status === "passed" && readback.status === "passed" ? "succeeded" : "failed_or_unconfirmed";
-  await repo.finishPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_APPEND_ACTION, idempotencyKey, actionStatus, metadata: { platform_write_called: true, platform_response_confirmed: success, error_category: success ? "" : (errorCategory || "platform_rejected"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, raw_payload_stored: false, raw_response_stored: false } });
+  await repo.finishPlannedExecutionAction({
+    actionId,
+    jobId: bundle.job.job_id,
+    confirmationId,
+    planId: plan.plan_id,
+    actionType: PROJECT_VIDEO_APPEND_ACTION,
+    idempotencyKey,
+    actionStatus,
+    requestHash,
+    responseHash,
+    httpStatus,
+    apiCode,
+    errorCategory: success ? "" : (errorCategory || "platform_rejected"),
+    requestFieldManifest: wire.requestFieldManifest,
+    metadata: { platform_write_called: true, platform_response_confirmed: success, error_category: success ? "" : (errorCategory || "platform_rejected"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, raw_payload_stored: false, raw_response_stored: false }
+  });
   if (typeof repo.upsertReadbackRecord === "function") {
     await repo.upsertReadbackRecord({
       readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-APPEND`, jobId: bundle.job.job_id,
@@ -334,7 +379,14 @@ export function buildProjectVideoAppendPlan({ advertiserId, projectId, items = [
   if (blockers.length) return { status: "blocked", blockerCodes: [...new Set(blockers.map((item) => item.status))], items: selected, blockedItems: blockers };
   if (!selected.length) return { status: "not_required", blockerCodes: [], items: [], alreadyPresentCount: (items || []).filter((item) => item?.status === "already_in_project").length };
   const video_material_list = selected.map((item) => ({ image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL", video_id: clean(item.videoId), video_hp_visibility: "HIDE_VIDEO_ON_HP" }));
-  const payload = { advertiser_id, project_id, video_material_list };
+  const wire = buildProjectVideoAppendWireBody({
+    advertiserId: advertiser_id,
+    projectId: project_id,
+    appendItems: selected.map((item) => ({ videoId: item.videoId }))
+  });
+  if (wire.status !== "passed") {
+    return { status: "blocked", blockerCodes: wire.blockers || ["project_video_append_wire_body_invalid"], items: selected, blockedItems: [] };
+  }
   return {
     status: "ready",
     actionType: PROJECT_VIDEO_APPEND_ACTION,
@@ -343,7 +395,8 @@ export function buildProjectVideoAppendPlan({ advertiserId, projectId, items = [
     itemCount: selected.length,
     alreadyPresentCount: (items || []).filter((item) => item?.status === "already_in_project").length,
     originResourceIds: selected.map((item) => item.originResourceId),
-    requestHash: hash(canonical(payload)),
+    requestHash: wire.requestHash,
+    requestFieldManifest: wire.requestFieldManifest,
     projectSnapshotHash: clean(projectSnapshotHash),
     requestFieldManifest: { fieldNames: ["advertiser_id", "project_id", "video_material_list"], maximumItems: PROJECT_VIDEO_APPEND_MAX_ITEMS, rawPayloadStored: false },
     rawPayloadStored: false,

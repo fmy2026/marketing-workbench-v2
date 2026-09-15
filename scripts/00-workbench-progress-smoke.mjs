@@ -273,7 +273,9 @@ assert(clientSource.includes("activeConfirmationSubmission = submission"), "conf
 assert(!clientSource.includes("pendingConfirmation"), "confirmation_card_must_not_have_a_second_client_state");
 assert(clientSource.includes("return job.confirmationPreview || null;"), "confirmation_card_must_use_server_view_as_single_source");
 assert(clientSource.includes('button.textContent = "提交中…"'), "confirmation_button_local_busy_copy_missing");
-assert(clientSource.includes("await submitJobCommand(submission.message, submission)"), "confirmation_submission_must_use_frozen_context");
+assert(clientSource.includes("await submitJobCommand(submission.message, submission, { recordUser: true })"), "confirmation_submission_must_use_frozen_context_and_record_user_decision");
+assert(clientSource.includes('function replaceMessage(entry, text)'), "conversation_turn_reply_must_update_in_place");
+assert(clientSource.includes('currentGate === "run_project_video_append_readback"'), "append_readback_gate_must_have_a_dedicated_ui_entry");
 assert(!clientSource.includes("setBusy(true);\n      try {\n        await submitJobCommand(preview.confirmationPhrase || \"确认创建\");"), "confirmation_button_must_not_redraw_before_submit");
 assert(workflowSource.includes("root_blocker_codes: blockers.slice(0, 1)"), "append_blocker_must_project_to_case_summary");
 assert(workflowSource.includes("status: blockers.length ? \"blocked\" : \"ready_for_user_confirmation\""), "append_job_status_must_follow_readonly_result");
