@@ -966,6 +966,21 @@ export function presentRootBlocker(code = "", { originResourceId = "", candidate
       reason: "当前品牌资源未能同时满足统一资格合同与 Draft 一致性校验。",
       nextActionLabel: "请输入“重新只读准备”生成 fresh Job；不会复用旧 Plan 或自动创建项目。"
     },
+    project_video_append_historical_prewrite_reason_unavailable: {
+      title: "历史确认未进入平台调用",
+      reason: "该确认已登记，但历史运行未保存动作前的具体停止原因，也没有平台追加 action。旧 Plan 已封存。",
+      nextActionLabel: "请输入“重新只读准备”生成 fresh Job 和新的确认卡。"
+    },
+    project_video_append_execution_unexpected_failure: {
+      title: "追加动作前执行未完成",
+      reason: "执行器在调用平台前异常停止，旧 Plan 已消费，系统没有追加视频。",
+      nextActionLabel: "请输入“重新只读准备”重新核验并生成新的确认卡。"
+    },
+    project_video_material_push_execution_unexpected_failure: {
+      title: "素材推送动作前执行未完成",
+      reason: "执行器在调用平台前异常停止，旧 Plan 已消费，系统没有推送素材。",
+      nextActionLabel: "请输入“重新只读准备”重新核验并生成新的确认卡。"
+    },
     jszc_success_profile: {
       title: "创建字段形态合同未通过",
       reason: "草稿已生成，但其字段形态与当前 JSZC 成功合同尚未一致。",

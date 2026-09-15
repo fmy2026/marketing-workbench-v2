@@ -239,8 +239,18 @@ export async function executeConfirmedLaunch({
         const view = await getJobViewFn(repo, jobId, { projectStatePath });
         return { ...view, executionGrant: { status: "blocked", grantSource, blockers: [confirmationClaim?.alreadyConfirmed ? "execution_plan_confirmation_already_recorded" : "execution_plan_confirmation_context_invalid"], createCalled: false } };
       }
-      const pushResult = await executeProjectVideoMaterialPushOnce({ repo, bundle: await repo.getLaunchJobBundle(jobId), confirmationId: confirmationClaim.confirmationId, fetchImpl, credentialSummary, credentialEnv, allowNetworkWrite: true });
-      await repo.finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId: currentPlanId });
+      let pushResult;
+      try {
+        pushResult = await executeProjectVideoMaterialPushOnce({ repo, bundle: await repo.getLaunchJobBundle(jobId), confirmationId: confirmationClaim.confirmationId, fetchImpl, credentialSummary, credentialEnv, allowNetworkWrite: true });
+      } catch {
+        pushResult = { status: "blocked_before_material_push", writeCalled: false, blockers: ["project_video_material_push_execution_unexpected_failure"] };
+      }
+      const pushPrewriteBlocker = pushResult.status === "blocked_before_material_push" ? pushResult.blockers?.[0] || "project_video_material_push_preflight_failed" : "";
+      if (pushPrewriteBlocker && typeof repo.finalizeConfirmedProjectVideoPlanBeforeAction === "function") {
+        await repo.finalizeConfirmedProjectVideoPlanBeforeAction({ jobId, planId: currentPlanId, blockerCode: pushPrewriteBlocker, evidenceRefs: ["execution:preflight"] });
+      } else {
+        await repo.finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId: currentPlanId });
+      }
       if (pushResult.status === "readback_verified") await runJobFn(repo, jobId, { mode: "readback_only", allowReadonlyDependency: true, projectStatePath, fetchImpl, credentialSummary, credentialEnv });
       const view = await getJobViewFn(repo, jobId, { projectStatePath });
       return { ...view, executionGrant: { status: pushResult.status === "readback_verified" ? "consumed" : "blocked", grantSource, executionGrantId, createCalled: false, materialPushCalled: pushResult.writeCalled === true, maximumActions: 1, retryAllowed: false, ...(pushResult.blockers?.length ? { blockers: pushResult.blockers } : {}) } };
@@ -275,16 +285,26 @@ export async function executeConfirmedLaunch({
         const view = await getJobViewFn(repo, jobId, { projectStatePath });
         return { ...view, executionGrant: { status: "blocked", grantSource, blockers: [confirmationClaim?.alreadyConfirmed ? "execution_plan_confirmation_already_recorded" : "execution_plan_confirmation_context_invalid"], createCalled: false } };
       }
-      const appendResult = await executeProjectVideoAppendOnce({
-        repo,
-        bundle: await repo.getLaunchJobBundle(jobId),
-        confirmationId: confirmationClaim.confirmationId,
-        fetchImpl,
-        credentialSummary,
-        credentialEnv,
-        allowNetworkWrite: true
-      });
-      await repo.finalizeConfirmedProjectVideoAppendPlan({ jobId, planId: currentPlanId });
+      let appendResult;
+      try {
+        appendResult = await executeProjectVideoAppendOnce({
+          repo,
+          bundle: await repo.getLaunchJobBundle(jobId),
+          confirmationId: confirmationClaim.confirmationId,
+          fetchImpl,
+          credentialSummary,
+          credentialEnv,
+          allowNetworkWrite: true
+        });
+      } catch {
+        appendResult = { status: "blocked_before_append", appendCalled: false, blockers: ["project_video_append_execution_unexpected_failure"] };
+      }
+      const appendPrewriteBlocker = appendResult.status === "blocked_before_append" ? appendResult.blockers?.[0] || "project_video_append_preflight_failed" : "";
+      if (appendPrewriteBlocker && typeof repo.finalizeConfirmedProjectVideoPlanBeforeAction === "function") {
+        await repo.finalizeConfirmedProjectVideoPlanBeforeAction({ jobId, planId: currentPlanId, blockerCode: appendPrewriteBlocker, evidenceRefs: ["execution:preflight"] });
+      } else {
+        await repo.finalizeConfirmedProjectVideoAppendPlan({ jobId, planId: currentPlanId });
+      }
       const view = await getJobViewFn(repo, jobId, { projectStatePath });
       return {
         ...view,

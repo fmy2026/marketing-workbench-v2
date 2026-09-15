@@ -508,4 +508,35 @@ const appendReadbackFinalization = await repository.finalizeProjectVideoAppendRe
 assert(appendReadbackFinalization.jobFinalized === true && appendReadbackFinalization.verified === false, "append_readback_must_finalize_unverified_job_without_replay");
 const appendReadbackSummary = await repository.getWorkflowCaseSummary(appendReadbackCaseId);
 assert(appendReadbackSummary?.current_gate === "run_project_video_append_readback" && appendReadbackSummary.root_blocker_codes?.[0] === "project_video_append_readback_pending", "append_readback_gate_must_remain_readonly");
+const appendPrewriteCaseId = "CASE-TEST-APPEND-PREWRITE";
+const appendPrewriteJobId = "JOB-TEST-APPEND-PREWRITE";
+const appendPrewritePlanId = "PLAN-TEST-APPEND-PREWRITE";
+await repository.createWorkflowCase({
+  caseId: appendPrewriteCaseId,
+  caseKey: "test-append-prewrite",
+  ...testScope,
+  sourceUsage: "test_run",
+  operation: "append_project_videos",
+  targetProjectId: "9000000000000002",
+  originResourceIds: ["video-C"]
+});
+await repository.createLaunchJob({ jobId: appendPrewriteJobId, caseId: appendPrewriteCaseId, ...testScope, objectType: "std_project", sourceUsage: "test_run", sourceRecordRef: "test:append-prewrite" });
+await repository.upsertLaunchExecutionPlan({
+  planId: appendPrewritePlanId, jobId: appendPrewriteJobId, planVersion: 1,
+  planKind: "project_video_append", planStatus: "ready", planHash: `sha256:${"d".repeat(64)}`,
+  plannedActions: [{ action_type: "oc_project_video_append", status: "ready", maximum_platform_calls: 1 }], blockerCodes: [], sourceUsage: "test_run",
+  metadata: { plan_kind: "project_video_append", execution_scope: { binding_mode: "single_confirmation_plan" } }
+});
+const appendPrewriteConfirmation = await repository.claimLaunchExecutionPlanConfirmation({
+  confirmationId: "CONFIRM-TEST-APPEND-PREWRITE", jobId: appendPrewriteJobId, draftId: "", objectType: "oc_project_video_append", objectName: "project_video_append", payloadHash: "",
+  confirmationStatus: "confirmed_for_execution_plan", confirmVariable: "TEST=CONFIRM", confirmedBy: "test", planId: appendPrewritePlanId,
+  metadata: { plan_kind: "project_video_append", plan_hash: `sha256:${"d".repeat(64)}` }
+});
+assert(appendPrewriteConfirmation.claimed === true, "append_prewrite_confirmation_not_claimed");
+const appendPrewriteFinalization = await repository.finalizeConfirmedProjectVideoPlanBeforeAction({ jobId: appendPrewriteJobId, planId: appendPrewritePlanId, blockerCode: "project_video_append_preflight_failed", evidenceRefs: ["execution:preflight"] });
+assert(appendPrewriteFinalization.finalized === true && appendPrewriteFinalization.jobFinalized === true, "append_prewrite_finalization_not_applied");
+const appendPrewriteBundle = await repository.getLaunchJobBundle(appendPrewriteJobId);
+assert(appendPrewriteBundle?.executionPlan?.plan_status === "consumed" && appendPrewriteBundle?.executionPlan?.metadata?.confirmed_execution_blocker === "project_video_append_preflight_failed", "append_prewrite_reason_not_persisted");
+const appendPrewriteSummary = await repository.getWorkflowCaseSummary(appendPrewriteCaseId);
+assert(appendPrewriteSummary?.current_gate === "resolve_case_blocker" && appendPrewriteSummary.root_blocker_codes?.[0] === "project_video_append_preflight_failed", "append_prewrite_summary_must_offer_readonly_recovery");
 console.log(JSON.stringify({ status: "passed", appendItems: 100, realPlatformWrites: 0 }));

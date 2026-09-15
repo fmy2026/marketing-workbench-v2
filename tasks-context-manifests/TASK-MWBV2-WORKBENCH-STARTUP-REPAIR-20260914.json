@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-15T11:02:00.000+08:00",
+  "updated_at": "2026-09-15T11:20:23.000+08:00",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data", "deploy"],
@@ -44,6 +44,7 @@
     "src/workflows/workbenchProgressNarrative.mjs",
     "src/workflows/executeConfirmedLaunch.mjs",
     "src/repositories/postgresRepository.mjs",
+    "db/097_confirmed_append_prewrite_recovery.sql",
     "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
@@ -145,11 +146,11 @@
     },
     {
       "acceptance_id": "AC-09",
-      "status": "not_run",
-      "command": "npm run test:case-attempt-limit; npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages; readonly recheck of existing Case",
-      "verified_at": "2026-09-15T11:05:00.000+08:00",
-      "summary": "追加 wire 与 Plan metadata 不再写入受限 raw 字段；账户/项目 ID 保持无损整数，视频与引导视频 ID 保持原始字符串。隔离 PostgreSQL 证明追加 action 跨 Job 累计 3 次、第四次被限制且最新 action 开始 20 秒冷却；平台明确拒绝、结果不明和只读回查的恢复边界由服务端执行。页面、对话和进度回归通过。待发布后在既有 Case 发起只读准备，止于新的确认卡。",
-      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/launchWorkflow.mjs", "src/repositories/postgresRepository.mjs", "scripts/00-case-attempt-limit-smoke.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
+      "status": "passed",
+      "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages; npm run test:workbench-runtime-policy; readonly recheck of existing Case",
+      "verified_at": "2026-09-15T11:20:23.000+08:00",
+      "summary": "追加 wire、Case 跨 Job 上限和 cooldown 继续由服务端执行。隔离 PostgreSQL 覆盖确认 claim 后的零 action 收口：Plan 消费、唯一 blocker 持久化、summary 进入 resolve_case_blocker，且不产生平台 action。既有 Case 的历史悬挂 Plan 已在零 action 核实后封存，保留确认审计并投影“历史确认未进入平台调用”；页面可由账户本人进入 fresh readonly recovery，不会自动追加。",
+      "evidence_refs": ["db/097_confirmed_append_prewrite_recovery.sql", "src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/executeConfirmedLaunch.mjs", "src/workflows/launchWorkflow.mjs", "src/repositories/postgresRepository.mjs", "scripts/00-case-attempt-limit-smoke.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [
@@ -176,9 +177,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。追加 Plan 现复用创建链的当前 Job 引导视频只读核验，冻结完整视频条目、请求 hash 和证据摘要；回查与 fresh 恢复继续禁止旧 Plan 重发。追加 action 现在按同一 Case 跨 Job 最多三次、20 秒冷却，并由数据库在完整请求校验后原子领取额度。",
-    "side_effects": "本轮执行隔离测试、发布和 Chrome 导航；未执行平台写入、Plan 确认或既有 Case 的 workflow readonly。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上点击“开始只读核验”修复当前 recovery Job，生成只含待追加视频并携带引导视频的“确认追加视频”卡；不得在验证中确认追加视频。"],
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。追加 Plan 现复用创建链的当前 Job 引导视频只读核验，冻结完整视频条目、请求 hash 和证据摘要；回查与 fresh 恢复继续禁止旧 Plan 重发。确认后的追加或素材推送在平台动作前失败时，现会以零调用量消费 Plan、持久化唯一 blocker 并进入 fresh readonly recovery；已确认且零 action 的历史悬挂 Plan 也可受控封存。追加 action 继续按同一 Case 跨 Job 最多三次、20 秒冷却，并由数据库在完整请求校验后原子领取额度。",
+    "side_effects": "本轮执行隔离测试、更新本地 summary View，并封存一份已确认但零平台 action 的历史追加 Plan；未执行平台追加、素材推送或新的 Plan 确认。",
+    "remaining_risks": ["账户本人仍需在既有 Case 上点击“重新只读准备”生成新的确认卡；验收中不得输入“确认追加视频”。"],
     "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-718FF962130E387B3A", "postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260914083827-59ABB4-APPEND-V6"]
   },
   "closed_at": null

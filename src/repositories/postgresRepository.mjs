@@ -3080,7 +3080,21 @@ export class PostgresRepository {
             OR (
               wc.operation = 'append_project_videos'
               AND j.job_status = 'failed_waiting_manual_review'
-              AND EXISTS (
+              AND (
+                EXISTS (
+                  SELECT 1
+                  FROM mwb.launch_execution_plans plan
+                  WHERE plan.job_id = j.job_id
+                    AND plan.plan_kind IN ('project_video_append', 'project_video_material_push')
+                    AND plan.plan_status = 'consumed'
+                    AND coalesce(plan.metadata->>'confirmed_execution_outcome', '') = 'blocked_before_platform_write'
+                    AND coalesce(plan.metadata->>'confirmed_execution_blocker', '') <> ''
+                    AND NOT EXISTS (
+                      SELECT 1 FROM mwb.platform_actions action
+                      WHERE action.job_id = plan.job_id AND action.plan_id = plan.plan_id
+                    )
+                )
+                OR EXISTS (
                 SELECT 1
                 FROM mwb.launch_execution_plans plan
                 JOIN mwb.platform_actions action
@@ -3105,6 +3119,7 @@ export class PostgresRepository {
                     ORDER BY readback.created_at DESC, readback.readback_id DESC
                     LIMIT 1
                   ), false)
+                )
               )
               AND (
                 SELECT count(*)
@@ -4498,6 +4513,54 @@ export class PostgresRepository {
       SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobFinalized', EXISTS (SELECT 1 FROM job_finalized), 'caseFinalized', EXISTS (SELECT 1 FROM case_finalized))::text;
     `, this.database);
     return result || { consumed: false, jobFinalized: false, caseFinalized: false };
+  }
+
+  async finalizeConfirmedProjectVideoPlanBeforeAction({ jobId, planId, blockerCode, evidenceRefs = [] } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    assertId("blocker_code", blockerCode);
+    if (!Array.isArray(evidenceRefs) || evidenceRefs.some((ref) => !/^[A-Za-z0-9_:\-.]{1,160}$/.test(String(ref)))) {
+      throw new Error("confirmed_project_video_prewrite_evidence_refs_invalid");
+    }
+    const result = await queryJson(`
+      WITH finalized AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', 'blocked_before_platform_write',
+              'confirmed_execution_blocker', ${sqlLiteral(blockerCode)},
+              'confirmed_execution_evidence_refs', ${sqlJson([...new Set(evidenceRefs)])},
+              'platform_action_count', 0,
+              'retry_allowed', false
+            ),
+            updated_at = now()
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'executing'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') IN ('project_video_append', 'project_video_material_push')
+          AND EXISTS (
+            SELECT 1 FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = plan.job_id
+              AND confirmation.plan_id = plan.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM mwb.platform_actions action
+            WHERE action.job_id = plan.job_id AND action.plan_id = plan.plan_id
+          )
+        RETURNING plan.plan_kind
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = 'failed_waiting_manual_review',
+            current_node = CASE WHEN (SELECT plan_kind FROM finalized LIMIT 1) = 'project_video_material_push' THEN '4' ELSE '6' END,
+            updated_at = now()
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND EXISTS (SELECT 1 FROM finalized)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object('finalized', EXISTS (SELECT 1 FROM finalized), 'jobFinalized', EXISTS (SELECT 1 FROM job_finalized))::text;
+    `, this.database);
+    return result || { finalized: false, jobFinalized: false };
   }
 
   async finalizeProjectVideoAppendReadback({ jobId, planId, verified = false, blocker = "" } = {}) {
