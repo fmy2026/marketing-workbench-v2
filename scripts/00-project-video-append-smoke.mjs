@@ -18,6 +18,7 @@ import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/pl
 import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
 import { operationContract } from "../src/workflows/launchOperationContracts.mjs";
+import { finalizeProjectVideoAppendReadbackObservation, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
 import { PostgresRepository } from "../tests/support/repository.mjs";
 
 function assert(value, message) { if (!value) throw new Error(message); }
@@ -207,6 +208,7 @@ const appendResult = await executeProjectVideoAppendOnce({
   }
 });
 assert(appendResult.status === "readback_verified" && appendResult.appendCalled === true, "opaque_video_append_not_verified");
+assert(appendResult.readbackObservation?.queryStatus === "passed" && appendResult.readbackObservation?.verifiedCount === 1, "append_execution_must_return_a_single_readback_observation_for_closure");
 assert(JSON.parse(appendWire).video_material_list[0].video_id === opaqueVideoId, "append_request_lost_opaque_video_id");
 assert(JSON.parse(appendWire).video_material_list[0].guide_video_id === "guide-video-opaque", "append_request_lost_guide_video_id");
 assert(appendWire.includes(`\"advertiser_id\":${request.advertiser_id}`) && appendWire.includes(`\"project_id\":${request.project_id}`), "append_execution_must_send_lossless_integer_ids");
@@ -276,6 +278,23 @@ const exhaustedAppend = await executeProjectVideoAppendOnce({
 });
 assert(exhaustedAppend.deliveryCount === 3 && exhaustedAppend.rateLimitedDeliveryCount === 3 && exhaustedCalls.length === 3, "append_40100_must_stop_after_three_deliveries");
 assert(new Set(exhaustedCalls).size === 1, "append_40100_exhausted_payload_drifted");
+const contradictoryRateLimitCalls = [];
+const contradictoryRateLimit = await executeProjectVideoAppendOnce({
+  repo: { async claimProjectVideoAppendAction() { return { claimed: true, attemptNo: 1 }; }, async finishPlannedExecutionAction() {}, async upsertPlatformActionDelivery() {} },
+  bundle: {
+    job: { job_id: "JOB-APPEND-40100-CONTRADICTION", advertiser_id: request.advertiser_id }, case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-APPEND-40100-CONTRADICTION", plan_hash: "sha256:append-40100-contradiction", plan_status: "executing",
+      planned_actions: [{ action_type: "oc_project_video_append", maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY }],
+      metadata: { project_id: request.project_id, project_snapshot_hash: appendSnapshot.snapshotHash, append_rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY, execution_scope: { maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY }, append_material_contract: { guide_video_required: false, guide_video_ready: true }, append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }] }
+    }
+  },
+  confirmationId: "CONFIRM-APPEND-40100-CONTRADICTION", allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] }, credentialEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+  readonlyClient: { async get() { return { status: "passed", responseHash: "sha256:append-40100-contradiction", summary: { projectIdPresent: true, totalPage: 1, videoIds: [] } }; } },
+  fetchImpl: async (_url, options) => { contradictoryRateLimitCalls.push(options.body); return new Response(JSON.stringify({ code: 40100, data: { project_id: request.project_id } }), { status: 200 }); }
+});
+assert(contradictoryRateLimit.deliveryCount === 1 && contradictoryRateLimitCalls.length === 1, "append_40100_with_object_evidence_must_not_redeliver");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))
@@ -547,6 +566,9 @@ await repository.createLaunchJob({
   sourceUsage: "test_run",
   sourceRecordRef: "test:append-readback"
 });
+await repository.upsertNodeRuns(appendReadbackJobId, WORKFLOW_NODES.slice(0, 4).map((node) => ({
+  ...node, status: "passed", summary: "test readonly passed", diagnosticLevel: "info", outputSummary: {}, evidenceRefs: []
+})));
 await repository.upsertLaunchExecutionPlan({
   planId: appendReadbackPlanId,
   jobId: appendReadbackJobId,
@@ -568,11 +590,33 @@ const appendReadbackFinalization = await repository.finalizeProjectVideoAppendRe
   jobId: appendReadbackJobId,
   planId: appendReadbackPlanId,
   verified: false,
-  blocker: "project_video_append_readback_pending"
+  blocker: "project_video_append_readback_pending",
+  readback: {
+    readbackId: `READBACK-${appendReadbackJobId}-ONE`,
+    objectId: "9000000000000002",
+    readbackStatus: "not_found_or_mismatch",
+    fieldDiffSummary: { requested_count: 1, verified_count: 0, unresolved_count: 1, query_status: "passed", blocker: "project_video_append_readback_pending", response_persisted: false },
+    evidenceRef: `EV-${appendReadbackJobId}-ONE`
+  },
+  evidence: {
+    artifactId: `EV-${appendReadbackJobId}-ONE`,
+    artifactType: "project_video_append_readback",
+    title: "append readback",
+    summary: "query_status=passed requested_count=1 verified_count=0 unresolved_count=1 raw_response_stored=false",
+    contentHash: `sha256:${"e".repeat(64)}`,
+    storageRef: "test_fixture:redacted_summary_only",
+    sourceRef: "test:append-readback",
+    sourceUsage: "test_run"
+  }
 });
 assert(appendReadbackFinalization.jobFinalized === true && appendReadbackFinalization.verified === false, "append_readback_must_finalize_unverified_job_without_replay");
-const appendReadbackSummary = await repository.getWorkflowCaseSummary(appendReadbackCaseId);
-assert(appendReadbackSummary?.current_gate === "run_project_video_append_readback" && appendReadbackSummary.root_blocker_codes?.[0] === "project_video_append_readback_pending", "append_readback_gate_must_remain_readonly");
+assert(appendReadbackFinalization.observationRecorded === true && appendReadbackFinalization.evidenceRecorded === true, "append_readback_must_record_observation_and_evidence_together");
+const pendingAppendReadbackSummary = await repository.getWorkflowCaseSummary(appendReadbackCaseId);
+assert(pendingAppendReadbackSummary?.current_gate === "run_project_video_append_readback" && pendingAppendReadbackSummary.root_blocker_codes?.[0] === "project_video_append_readback_pending", "append_readback_gate_must_remain_readonly");
+const appendReadbackView = await finalizeProjectVideoAppendReadbackObservation(repository, appendReadbackJobId, {
+  observation: { queryStatus: "passed", requestedCount: 1, verifiedCount: 1, unresolvedCount: 0 }
+});
+assert(appendReadbackView.progress.completedCount === 7 && appendReadbackView.caseGate.currentGate === "project_video_append_completed", "append_readback_unified_closure_must_show_all_seven_nodes");
 const appendPrewriteCaseId = "CASE-TEST-APPEND-PREWRITE";
 const appendPrewriteJobId = "JOB-TEST-APPEND-PREWRITE";
 const appendPrewritePlanId = "PLAN-TEST-APPEND-PREWRITE";

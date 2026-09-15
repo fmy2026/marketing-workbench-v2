@@ -1156,7 +1156,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     progress
   });
   const fallbackNextAction = createReadiness.nextAction || nextActionForBundle(bundle);
-  const completedCase = caseGate.isLatestCaseJob && caseGate.currentGate === "first_std_project_create_completed";
+  const completedCase = caseGate.isLatestCaseJob && ["first_std_project_create_completed", "project_video_append_completed"].includes(caseGate.currentGate);
   const headline = {
     title: bundle.draft?.project_name || bundle.job.job_id,
     status: bundle.job.job_status,
@@ -2098,9 +2098,103 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   return getJobView(repo, bundle.job.job_id, options);
 }
 
+function appendExecutionNode({ appendAction = null, plan = {}, verified = false, evidenceRef = "" } = {}) {
+  const platformResponseConfirmed = appendAction?.metadata?.platform_response_confirmed === true ||
+    plan.metadata?.confirmed_execution_platform_response_confirmed === true;
+  const errorCategory = String(appendAction?.error_category || appendAction?.metadata?.error_category || appendAction?.metadata?.platform_outcome_code || plan.metadata?.confirmed_execution_error_category || "").trim();
+  const rateLimitExhausted = errorCategory === "system_rate_limited" &&
+    Number(appendAction?.metadata?.delivery_count || 0) >= Number(appendAction?.metadata?.maximum_delivery_calls || 1);
+  if (platformResponseConfirmed) return nodeStatus({ nodeKey: "std_project_create_executor", status: "passed", summary: "追加请求已获平台受理。", evidenceRefs: [evidenceRef].filter(Boolean) });
+  if (verified) return nodeStatus({ nodeKey: "std_project_create_executor", status: "passed", summary: "平台响应未确认；项目素材权威回查已确认追加完成。", evidenceRefs: [evidenceRef].filter(Boolean) });
+  if (rateLimitExhausted) return nodeStatus({ nodeKey: "std_project_create_executor", status: "blocked", summary: "平台系统繁忙，本次有限尝试已结束；旧 Plan 不会重发。", diagnosticLevel: "warning", evidenceRefs: [evidenceRef].filter(Boolean) });
+  if (errorCategory === "platform_rejected") return nodeStatus({ nodeKey: "std_project_create_executor", status: "blocked", summary: "追加请求被平台拒绝，旧 Plan 已消费且不会重发。", diagnosticLevel: "warning", evidenceRefs: [evidenceRef].filter(Boolean) });
+  return nodeStatus({ nodeKey: "std_project_create_executor", status: "repairable", summary: "追加请求尚未获得平台确认，旧 Plan 不会重发。", diagnosticLevel: "warning", evidenceRefs: [evidenceRef].filter(Boolean) });
+}
+
+function appendReadbackNodeRuns({ appendAction = null, plan = {}, verified = false, queryStatus = "blocked", requestedCount = 0, verifiedCount = 0, blocker = "", evidenceRef = "" } = {}) {
+  const refs = [evidenceRef].filter(Boolean);
+  const readbackSummary = verified
+    ? "追加视频已通过项目素材回查。"
+    : queryStatus !== "passed"
+      ? "项目素材回查未完成，无法判断追加结果。"
+      : "项目素材回查未发现待追加视频。";
+  return [
+    nodeStatus({ nodeKey: "std_project_draft_builder", status: "passed", summary: "追加计划已确认并已消费。", evidenceRefs: refs }),
+    appendExecutionNode({ appendAction, plan, verified, evidenceRef }),
+    nodeStatus({
+      nodeKey: "readback_closer",
+      status: verified ? "passed" : "blocked",
+      summary: readbackSummary,
+      diagnosticLevel: verified ? "info" : "warning",
+      evidenceRefs: refs,
+      outputSummary: {
+        readbackStatus: verified ? "readback_verified" : "not_found_or_mismatch",
+        queryStatus,
+        requestedCount,
+        verifiedCount,
+        blocker
+      }
+    })
+  ];
+}
+
+export async function finalizeProjectVideoAppendReadbackObservation(repo, jobId, { observation = null, projectStatePath } = {}) {
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  if (!bundle) {
+    const error = new Error("job_not_found");
+    error.statusCode = 404;
+    throw error;
+  }
+  const plan = bundle.executionPlan || {};
+  const appendItems = Array.isArray(plan.metadata?.append_items) ? plan.metadata.append_items : [];
+  if (String(plan.plan_kind || plan.metadata?.plan_kind || "") !== "project_video_append" || plan.plan_status !== "consumed" || !appendItems.length) {
+    const error = new Error("project_video_append_readback_context_invalid");
+    error.statusCode = 409;
+    throw error;
+  }
+  const persisted = bundle.readback || {};
+  const fieldDiff = persisted.field_diff_summary || {};
+  const queryStatus = String(observation?.queryStatus || fieldDiff.query_status || "blocked");
+  const requestedCount = Number(observation?.requestedCount ?? fieldDiff.requested_count ?? appendItems.length);
+  const verifiedCount = Number(observation?.verifiedCount ?? fieldDiff.verified_count ?? 0);
+  const unresolvedCount = Number(observation?.unresolvedCount ?? fieldDiff.unresolved_count ?? Math.max(0, requestedCount - verifiedCount));
+  const verified = observation
+    ? queryStatus === "passed" && requestedCount > 0 && verifiedCount === requestedCount && unresolvedCount === 0
+    : persisted.readback_status === "readback_verified";
+  const blocker = verified ? "" : String(observation?.blocker || fieldDiff.blocker || (queryStatus !== "passed" ? "project_material_readonly_failed" : "project_video_append_readback_pending"));
+  const evidenceRef = String(observation?.evidenceRef || persisted.evidence_ref || `EV-${jobId}-PROJECT-VIDEO-APPEND-READBACK`);
+  const appendAction = typeof repo.getPlatformAction === "function" ? await repo.getPlatformAction(`ACTION-${jobId}-PROJECT-VIDEO-APPEND`) : bundle.platformAction || null;
+  const evidence = {
+    artifactId: evidenceRef,
+    artifactType: "project_video_append_readback",
+    title: "project video append readback",
+    summary: `query_status=${queryStatus} requested_count=${requestedCount} verified_count=${verifiedCount} unresolved_count=${unresolvedCount} verified=${verified} original_observed_at=${String(persisted.created_at || "")} raw_response_stored=false`,
+    contentHash: hashText(JSON.stringify({ jobId, planId: plan.plan_id, queryStatus, requestedCount, verifiedCount, unresolvedCount, verified, source: observation ? "live_readback" : "existing_observation" })),
+    storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+    sourceRef: observation ? "oceanengine:oc_project/material/readback" : "postgres:existing_readback_observation",
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  };
+  const readback = observation ? {
+    readbackId: observation.readbackId || `READBACK-${jobId}-PROJECT-VIDEO-APPEND-${Date.now()}-${randomBytes(3).toString("hex").toUpperCase()}`,
+    objectId: String(bundle.case?.target_project_id || ""),
+    readbackStatus: verified ? "readback_verified" : "not_found_or_mismatch",
+    fieldDiffSummary: { requested_count: requestedCount, verified_count: verifiedCount, unresolved_count: unresolvedCount, query_status: queryStatus, blocker, response_persisted: false },
+    evidenceRef
+  } : null;
+  const nodeRuns = appendReadbackNodeRuns({ appendAction, plan, verified, queryStatus, requestedCount, verifiedCount, blocker, evidenceRef });
+  if (typeof repo.finalizeProjectVideoAppendReadback === "function") {
+    await repo.finalizeProjectVideoAppendReadback({ jobId, planId: plan.plan_id, verified, blocker, readback, evidence, nodeRuns });
+  } else {
+    if (readback) await repo.upsertReadbackRecord({ ...readback, jobId, objectType: "oc_project_video_append", objectName: "project_video_append" });
+    await repo.upsertEvidence({ ...evidence, jobId });
+    await repo.upsertNodeRuns(jobId, nodeRuns);
+    await repo.updateJob(jobId, { status: verified ? "readback_verified" : "failed_waiting_manual_review", currentNode: "7" });
+  }
+  return getJobView(repo, jobId, { projectStatePath });
+}
+
 // This path only observes the exact consumed append Plan. It never recompiles
-// a Plan or invokes the append endpoint, so an operator can safely distinguish
-// delayed visibility from a rejected append.
+// a Plan or invokes the append endpoint.
 export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
   const bundle = await repo.getLaunchJobBundle(jobId);
   if (!bundle) {
@@ -2109,119 +2203,32 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
     throw error;
   }
   const plan = bundle.executionPlan || {};
-  const planKind = String(plan.plan_kind || plan.metadata?.plan_kind || "").trim();
   const appendItems = Array.isArray(plan.metadata?.append_items) ? plan.metadata.append_items : [];
-  if (planKind !== "project_video_append" || plan.plan_status !== "consumed" || !appendItems.length) {
+  if (String(plan.plan_kind || plan.metadata?.plan_kind || "") !== "project_video_append" || plan.plan_status !== "consumed" || !appendItems.length) {
     const error = new Error("project_video_append_readback_context_invalid");
     error.statusCode = 409;
     throw error;
   }
-  const project = await readProjectVideoIds({
-    advertiserId: bundle.job.advertiser_id,
-    projectId: bundle.case?.target_project_id || "",
-    client: options.oceanEngineClient
-  });
+  const project = await readProjectVideoIds({ advertiserId: bundle.job.advertiser_id, projectId: bundle.case?.target_project_id || "", client: options.oceanEngineClient });
   const comparison = project.status === "passed"
     ? validateProjectVideoAppendReadback({
       plannedOriginResourceIds: appendItems.map((item) => item.origin_resource_id || item.originResourceId),
       foundVideoIds: project.videoIds || [],
-      itemMap: appendItems.map((item) => ({
-        originResourceId: item.origin_resource_id || item.originResourceId,
-        videoId: item.video_id || item.videoId
-      }))
+      itemMap: appendItems.map((item) => ({ originResourceId: item.origin_resource_id || item.originResourceId, videoId: item.video_id || item.videoId }))
     })
-    : { status: "blocked", unresolvedOriginResourceIds: [], verifiedCount: 0 };
+    : { status: "blocked", unresolvedOriginResourceIds: appendItems.map((item) => item.origin_resource_id || item.originResourceId), verifiedCount: 0 };
   const verified = project.status === "passed" && comparison.status === "passed";
-  const blocker = verified
-    ? ""
-    : project.status !== "passed"
-      ? (project.blocker || "project_material_readonly_failed")
-      : "project_video_append_readback_pending";
-  const appendAction = typeof repo.getPlatformAction === "function"
-    ? await repo.getPlatformAction(`ACTION-${jobId}-PROJECT-VIDEO-APPEND`)
-    : null;
-  const platformResponseConfirmed = appendAction?.metadata?.platform_response_confirmed === true ||
-    plan.metadata?.confirmed_execution_platform_response_confirmed === true;
-  const executionErrorCategory = String(
-    appendAction?.error_category ||
-    appendAction?.metadata?.error_category ||
-    appendAction?.metadata?.platform_outcome_code ||
-    plan.metadata?.confirmed_execution_error_category ||
-    ""
-  ).trim();
-  const executionOutcome = String(plan.metadata?.confirmed_execution_outcome || "").trim();
-  const rateLimitExhausted = executionErrorCategory === "system_rate_limited" &&
-    Number(appendAction?.metadata?.delivery_count || 0) >= Number(appendAction?.metadata?.maximum_delivery_calls || 1);
-  const executionNode = platformResponseConfirmed
-    ? nodeStatus({
-      nodeKey: "std_project_create_executor",
-      status: "passed",
-      summary: "追加请求已获平台受理，正在等待项目素材回查。"
-    })
-    : rateLimitExhausted
-      ? nodeStatus({
-        nodeKey: "std_project_create_executor",
-        status: "blocked",
-        summary: "平台系统繁忙，本次有限尝试已结束；旧 Plan 不会重发。",
-        diagnosticLevel: "warning"
-      })
-      : executionErrorCategory === "platform_rejected"
-      ? nodeStatus({
-        nodeKey: "std_project_create_executor",
-        status: "blocked",
-        summary: "追加请求被平台拒绝，旧 Plan 已消费且不会重发。",
-        diagnosticLevel: "warning"
-      })
-      : nodeStatus({
-        nodeKey: "std_project_create_executor",
-        status: executionOutcome === "failed_or_unconfirmed" ? "repairable" : "waiting",
-        summary: "追加请求尚未获得平台确认，旧 Plan 不会重发。",
-        diagnosticLevel: "warning"
-      });
-  const readbackId = `READBACK-${jobId}-PROJECT-VIDEO-APPEND-${Date.now()}-${randomBytes(3).toString("hex").toUpperCase()}`;
-  await repo.upsertReadbackRecord({
-    readbackId,
-    jobId,
-    objectType: "oc_project_video_append",
-    objectId: String(bundle.case?.target_project_id || ""),
-    objectName: "project_video_append",
-    readbackStatus: verified ? "readback_verified" : "not_found_or_mismatch",
-    fieldDiffSummary: {
-      requested_count: appendItems.length,
-      verified_count: Number(comparison.verifiedCount || 0),
-      unresolved_count: Array.isArray(comparison.unresolvedOriginResourceIds) ? comparison.unresolvedOriginResourceIds.length : appendItems.length,
-      query_status: project.status || "blocked",
-      blocker,
-      response_persisted: false
-    },
-    evidenceRef: `EV-${jobId}-PROJECT-VIDEO-APPEND-READBACK-${Date.now()}`
+  const blocker = verified ? "" : project.status !== "passed" ? (project.blocker || "project_material_readonly_failed") : "project_video_append_readback_pending";
+  return finalizeProjectVideoAppendReadbackObservation(repo, jobId, {
+    projectStatePath: options.projectStatePath,
+    observation: {
+      queryStatus: project.status || "blocked",
+      requestedCount: appendItems.length,
+      verifiedCount: Number(comparison.verifiedCount || 0),
+      unresolvedCount: Array.isArray(comparison.unresolvedOriginResourceIds) ? comparison.unresolvedOriginResourceIds.length : appendItems.length,
+      blocker
+    }
   });
-  await repo.upsertNodeRuns(jobId, [
-    nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
-    nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已完成核验。" }),
-    nodeStatus({ nodeKey: "game_launch_pack", status: "passed", summary: "指定视频已完成唯一核验。" }),
-    nodeStatus({ nodeKey: "account_resource_prepare", status: "passed", summary: "追加前资源与素材合同已完成核验。" }),
-    nodeStatus({ nodeKey: "std_project_draft_builder", status: "passed", summary: "追加计划已确认，旧 Plan 已消费。" }),
-    executionNode,
-    nodeStatus({
-      nodeKey: "readback_closer",
-      status: verified ? "passed" : "blocked",
-      summary: verified ? "追加视频已通过项目素材回查。" : project.status !== "passed" ? "项目素材回查未完成，无法判断追加结果。" : rateLimitExhausted ? "平台系统繁忙，本次有限尝试已结束；项目素材回查未发现待追加视频。" : "项目素材回查未发现待追加视频。",
-      diagnosticLevel: verified ? "info" : "warning",
-      outputSummary: {
-        readbackStatus: verified ? "readback_verified" : "not_found_or_mismatch",
-        requestedCount: appendItems.length,
-        verifiedCount: Number(comparison.verifiedCount || 0),
-        blocker
-      }
-    })
-  ]);
-  if (typeof repo.finalizeProjectVideoAppendReadback === "function") {
-    await repo.finalizeProjectVideoAppendReadback({ jobId, planId: plan.plan_id, verified, blocker });
-  } else {
-    await repo.updateJob(jobId, { status: verified ? "readback_verified" : "failed_waiting_manual_review", currentNode: "7" });
-  }
-  return getJobView(repo, jobId, options);
 }
 
 export async function runJob(repo, jobId, options = {}) {

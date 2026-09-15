@@ -589,6 +589,9 @@ export async function handleWorkbenchCommand({
                   return "素材推送已完成；当前 Job 尚未完成只读回查，请按当前状态继续核验。";
                 }
                 if (confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND) {
+                  if (nextView?.caseGate?.currentGate === "project_video_append_completed") {
+                    return "追加视频已通过项目素材回查，本次流程已完成。";
+                  }
                   return "追加视频已执行；正在按当前 Plan 的结果回查。";
                 }
                 const readback = nextView?.execution?.readbackStatus || nextView?.readback?.readback_status || "";

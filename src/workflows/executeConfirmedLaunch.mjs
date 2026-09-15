@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { getJobView, runJob } from "./launchWorkflow.mjs";
+import { finalizeProjectVideoAppendReadbackObservation, getJobView, runJob } from "./launchWorkflow.mjs";
 import { revokeWriteScope, validatePlanConfirmationScope, validateProjectVideoAppendPlanConfirmationScope, validateProjectVideoMaterialPushPlanConfirmationScope, validateWriteScope } from "./executionGrantScope.mjs";
 import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
@@ -307,6 +307,12 @@ export async function executeConfirmedLaunch({
         await repo.finalizeConfirmedProjectVideoPlanBeforeAction({ jobId, planId: currentPlanId, blockerCode: appendPrewriteBlocker, evidenceRefs: ["execution:preflight"] });
       } else {
         await repo.finalizeConfirmedProjectVideoAppendPlan({ jobId, planId: currentPlanId });
+        if (appendResult.appendCalled === true && appendResult.readbackObservation) {
+          await finalizeProjectVideoAppendReadbackObservation(repo, jobId, {
+            projectStatePath,
+            observation: appendResult.readbackObservation
+          });
+        }
       }
       const view = await getJobViewFn(repo, jobId, { projectStatePath });
       return {

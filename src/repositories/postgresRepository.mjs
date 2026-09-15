@@ -4490,27 +4490,14 @@ export class PostgresRepository {
         RETURNING plan.plan_id
       ), job_finalized AS (
         UPDATE mwb.launch_jobs job
-        SET job_status = CASE WHEN (SELECT action_status FROM terminal_action) = 'succeeded' THEN 'readback_verified' ELSE 'failed_waiting_manual_review' END,
+        SET job_status = 'running',
             current_node = '7',
             updated_at = now()
         WHERE job.job_id = ${sqlLiteral(jobId)}
           AND EXISTS (SELECT 1 FROM consumed)
         RETURNING job.job_id
-      ), case_finalized AS (
-        UPDATE mwb.workflow_cases workflow_case
-        SET lifecycle_status = 'completed',
-            metadata = workflow_case.metadata || jsonb_build_object(
-              'completion_reason', 'project_video_append_readback_verified'
-            ),
-            updated_at = now()
-        FROM mwb.launch_jobs job
-        WHERE job.job_id = ${sqlLiteral(jobId)}
-          AND workflow_case.case_id = job.case_id
-          AND workflow_case.lifecycle_status = 'active'
-          AND (SELECT action_status FROM terminal_action) = 'succeeded'
-        RETURNING workflow_case.case_id
       )
-      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobFinalized', EXISTS (SELECT 1 FROM job_finalized), 'caseFinalized', EXISTS (SELECT 1 FROM case_finalized))::text;
+      SELECT jsonb_build_object('consumed', EXISTS (SELECT 1 FROM consumed), 'jobFinalized', EXISTS (SELECT 1 FROM job_finalized), 'caseFinalized', false)::text;
     `, this.database);
     return result || { consumed: false, jobFinalized: false, caseFinalized: false };
   }
@@ -4563,10 +4550,99 @@ export class PostgresRepository {
     return result || { finalized: false, jobFinalized: false };
   }
 
-  async finalizeProjectVideoAppendReadback({ jobId, planId, verified = false, blocker = "" } = {}) {
+  async finalizeProjectVideoAppendReadback({ jobId, planId, verified = false, blocker = "", readback = null, evidence = null, nodeRuns = [] } = {}) {
     assertId("job_id", jobId);
     assertId("plan_id", planId);
     const safeBlocker = String(blocker || "").trim();
+    if (readback !== null && (!readback || typeof readback !== "object" || !readback.readbackId || !readback.evidenceRef)) {
+      throw new Error("project_video_append_readback_observation_invalid");
+    }
+    if (evidence !== null && (!evidence || typeof evidence !== "object" || !evidence.artifactId || !evidence.contentHash)) {
+      throw new Error("project_video_append_readback_evidence_invalid");
+    }
+    if (!Array.isArray(nodeRuns) || nodeRuns.some((node) => !node?.nodeKey || !node?.nodeName || !node?.phase || !node?.status)) {
+      throw new Error("project_video_append_readback_nodes_invalid");
+    }
+    const readbackStatement = readback
+      ? `, observation AS (
+          INSERT INTO mwb.readback_records (
+            readback_id, job_id, object_type, object_id, object_name,
+            readback_status, field_diff_summary, evidence_ref, created_at
+          )
+          SELECT
+            ${sqlLiteral(readback.readbackId)}, target.job_id, 'oc_project_video_append',
+            ${sqlLiteral(readback.objectId)}, 'project_video_append',
+            ${sqlLiteral(readback.readbackStatus)}, ${sqlJson(readback.fieldDiffSummary || {})},
+            ${sqlLiteral(readback.evidenceRef)}, now()
+          FROM target
+          ON CONFLICT (readback_id) DO UPDATE SET
+            readback_status = EXCLUDED.readback_status,
+            field_diff_summary = EXCLUDED.field_diff_summary,
+            evidence_ref = EXCLUDED.evidence_ref
+          RETURNING readback_id
+        )`
+      : `, observation AS (
+          SELECT readback.readback_id
+          FROM mwb.readback_records readback
+          JOIN target ON target.job_id = readback.job_id
+          WHERE readback.object_type = 'oc_project_video_append'
+            AND readback.object_id = (SELECT target_project_id FROM mwb.workflow_cases WHERE case_id = target.case_id)
+          ORDER BY readback.created_at DESC, readback.readback_id DESC
+          LIMIT 1
+        )`;
+    const evidenceStatement = evidence
+      ? `, evidence AS (
+          INSERT INTO mwb.evidence_artifacts (
+            artifact_id, job_id, artifact_type, title, summary, content_hash,
+            storage_ref, source_ref, source_usage, created_at
+          )
+          SELECT
+            ${sqlLiteral(evidence.artifactId)}, target.job_id,
+            ${sqlLiteral(evidence.artifactType)}, ${sqlLiteral(evidence.title)},
+            ${sqlLiteral(evidence.summary)}, ${sqlLiteral(evidence.contentHash)},
+            ${sqlLiteral(evidence.storageRef)}, ${sqlLiteral(evidence.sourceRef)},
+            ${sqlLiteral(evidence.sourceUsage || "runtime_truth")}, now()
+          FROM target
+          ON CONFLICT (artifact_id) DO UPDATE SET
+            job_id = EXCLUDED.job_id,
+            artifact_type = EXCLUDED.artifact_type,
+            title = EXCLUDED.title,
+            summary = EXCLUDED.summary,
+            content_hash = EXCLUDED.content_hash,
+            storage_ref = EXCLUDED.storage_ref,
+            source_ref = EXCLUDED.source_ref,
+            source_usage = EXCLUDED.source_usage
+          RETURNING artifact_id
+        )`
+      : `, evidence AS (SELECT artifact_id FROM mwb.evidence_artifacts WHERE false)`;
+    const nodeStatement = nodeRuns.length
+      ? `, nodes AS (
+          INSERT INTO mwb.launch_node_runs (
+            node_run_id, job_id, node_key, node_name, phase, status, summary,
+            diagnostic_level, output_summary, evidence_refs, started_at, finished_at
+          )
+          SELECT values_row.node_run_id, target.job_id, values_row.node_key,
+            values_row.node_name, values_row.phase, values_row.status, values_row.summary,
+            values_row.diagnostic_level, values_row.output_summary, values_row.evidence_refs,
+            now(), CASE WHEN values_row.status IN ('passed', 'repairable', 'needs_confirmation', 'blocked', 'locked', 'failed') THEN now() ELSE NULL END
+          FROM target
+          CROSS JOIN (VALUES ${nodeRuns.map((node) => `(
+            ${sqlLiteral(`${jobId}-${node.order}`)}, ${sqlLiteral(node.nodeKey)}, ${sqlLiteral(node.nodeName)},
+            ${sqlLiteral(node.phase)}, ${sqlLiteral(node.status)}, ${sqlLiteral(node.summary)},
+            ${sqlLiteral(node.diagnosticLevel || "info")}, ${sqlJson(node.outputSummary || {})}, ${sqlJson(node.evidenceRefs || [])}
+          )`).join(",")}) AS values_row(node_run_id, node_key, node_name, phase, status, summary, diagnostic_level, output_summary, evidence_refs)
+          ON CONFLICT (job_id, node_key) DO UPDATE SET
+            node_name = EXCLUDED.node_name,
+            phase = EXCLUDED.phase,
+            status = EXCLUDED.status,
+            summary = EXCLUDED.summary,
+            diagnostic_level = EXCLUDED.diagnostic_level,
+            output_summary = EXCLUDED.output_summary,
+            evidence_refs = EXCLUDED.evidence_refs,
+            finished_at = EXCLUDED.finished_at
+          RETURNING node_key
+        )`
+      : `, nodes AS (SELECT node_key FROM mwb.launch_node_runs WHERE false)`;
     const result = await queryJson(`
       WITH target AS (
         SELECT job.job_id, job.case_id
@@ -4576,13 +4652,18 @@ export class PostgresRepository {
           AND plan.plan_id = ${sqlLiteral(planId)}
           AND plan.plan_status = 'consumed'
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_append'
-      ), job_finalized AS (
+      )
+      ${readbackStatement}
+      ${evidenceStatement}
+      ${nodeStatement}, job_finalized AS (
         UPDATE mwb.launch_jobs job
         SET job_status = ${verified ? "'readback_verified'" : "'failed_waiting_manual_review'"},
             current_node = '7',
             updated_at = now()
         FROM target
         WHERE job.job_id = target.job_id
+          AND EXISTS (SELECT 1 FROM observation)
+          AND (${evidence ? "EXISTS (SELECT 1 FROM evidence)" : "true"})
         RETURNING job.job_id
       ), case_finalized AS (
         UPDATE mwb.workflow_cases workflow_case
@@ -4600,6 +4681,9 @@ export class PostgresRepository {
       SELECT jsonb_build_object(
         'jobFinalized', EXISTS (SELECT 1 FROM job_finalized),
         'caseFinalized', EXISTS (SELECT 1 FROM case_finalized),
+        'observationRecorded', EXISTS (SELECT 1 FROM observation),
+        'evidenceRecorded', ${evidence ? "EXISTS (SELECT 1 FROM evidence)" : "false"},
+        'nodesUpdated', ${nodeRuns.length ? "(SELECT count(*) FROM nodes)" : "0"},
         'verified', ${verified ? "true" : "false"},
         'blocker', ${sqlLiteral(safeBlocker)}
       )::text;
