@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914",
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-15T11:20:23.000+08:00",
+  "updated_at": "2026-09-15T11:24:00.000+08:00",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data", "deploy"],
@@ -115,9 +115,9 @@
     {
       "acceptance_id": "AC-05",
       "status": "passed",
-      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b; launchctl print; curl http://192.168.42.7:3000/ and /app.js SHA-256",
-      "verified_at": "2026-09-15T11:08:00+08:00",
-      "summary": "公司模式已成功重载至 release aab1a396b5682cd7e07643f9d6400c693da01cab；在线 app.js 与 workbench-progress.mjs 的 SHA-256 均与 release 源文件一致。已用当前 Case 的 release 参数地址导航 Chrome；浏览器自动化连接仍不可用，未能截图确认。账户本人对既有 Case 的新版只读核验仍待执行。",
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/71028eaf670caa51cacda5baaf08bf3090610f77; launchctl print; curl http://192.168.42.7:3000/ and static asset SHA-256",
+      "verified_at": "2026-09-15T11:24:00+08:00",
+      "summary": "公司模式已成功重载至 release 71028eaf670caa51cacda5baaf08bf3090610f77；LaunchAgent 状态为 running，工作目录与 release 一致，根地址返回 200，在线 app.js 与 workbench-progress.mjs 的 SHA-256 均与 release 源文件一致。当前 Case 已投影为只读恢复入口；账户本人可继续浏览器验收，但不应确认新的追加 Plan。",
       "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
     },
     {
@@ -182,5 +182,5 @@
     "remaining_risks": ["账户本人仍需在既有 Case 上点击“重新只读准备”生成新的确认卡；验收中不得输入“确认追加视频”。"],
     "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-718FF962130E387B3A", "postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260914083827-59ABB4-APPEND-V6"]
   },
-  "closed_at": null
+  "closed_at": "2026-09-15T11:24:00.000+08:00"
 }
