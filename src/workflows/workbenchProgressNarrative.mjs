@@ -35,7 +35,9 @@ export function presentWorkflowProgress({ caseGate = {}, confirmationPreview = n
     run_fresh_readiness: append
       ? "正在核验指定视频并准备追加计划，目前不会追加视频。"
       : "正在核对账户资源并准备创建草稿，目前不会创建项目。",
-    run_project_video_append_readback: "正在检查已确认追加的视频是否已出现在目标项目；不会再次追加。",
+    run_project_video_append_readback: progress?.currentNodeStatus === "running"
+      ? "正在检查已确认追加的视频是否已出现在目标项目；不会再次追加。"
+      : "等待检查追加结果；不会再次追加。",
     run_readback_only: "项目已创建，正在确认项目 ID 和名称；不会重复创建。",
     first_std_project_create_completed: "项目已通过平台回查，本次创建流程已完成。"
   };

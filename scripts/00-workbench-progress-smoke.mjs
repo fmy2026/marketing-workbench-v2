@@ -117,6 +117,22 @@ assert(
   "confirmation_gate_must_not_render_as_confirmed_execution"
 );
 assert(
+  presentWorkflowProgress({
+    isLatestCaseJob: true,
+    caseGate: { currentGate: "run_project_video_append_readback", operation: "append_project_videos" },
+    progress: { currentNodeStatus: "waiting" }
+  }).message === "等待检查追加结果；不会再次追加。",
+  "append_readback_waiting_copy_mismatch"
+);
+assert(
+  presentWorkflowProgress({
+    isLatestCaseJob: true,
+    caseGate: { currentGate: "run_project_video_append_readback", operation: "append_project_videos" },
+    progress: { currentNodeStatus: "running" }
+  }).message.includes("正在检查"),
+  "append_readback_running_copy_mismatch"
+);
+assert(
   progressPresentation({
     nodes,
     caseGate: { currentGate: "await_job_write_authorization", rootBlockerCodes: [], rootBlocker: { title: "无阻断" } },
