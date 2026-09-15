@@ -134,6 +134,40 @@ assert(appendWireContract.status === "passed", "append_wire_body_not_built");
 assert(appendWireContract.body.includes(`\"advertiser_id\":${request.advertiser_id}`), "append_advertiser_id_must_be_lossless_json_integer");
 assert(appendWireContract.body.includes(`\"project_id\":${request.project_id}`), "append_project_id_must_be_lossless_json_integer");
 assert(appendWireContract.body.includes(`\"video_id\":\"${opaqueVideoId}\"`), "append_video_id_must_remain_json_string");
+const guidedAppendWire = buildProjectVideoAppendWireBody({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  appendItems: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId, guide_video_id: "guide-video-opaque" }]
+});
+assert(guidedAppendWire.status === "passed", "guided_append_wire_body_not_built");
+const guidedAppendPayload = JSON.parse(guidedAppendWire.body);
+assert(guidedAppendPayload.video_material_list[0].guide_video_id === "guide-video-opaque", "append_guide_video_id_must_remain_string");
+assert(guidedAppendWire.requestHash !== appendWireContract.requestHash, "append_guide_contract_must_change_request_hash");
+const coveredAppendWire = buildProjectVideoAppendWireBody({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  appendItems: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId, video_cover_id: "cover-video-opaque" }]
+});
+assert(JSON.parse(coveredAppendWire.body).video_material_list[0].video_cover_id === "cover-video-opaque", "append_cover_id_must_remain_string");
+const missingGuideResult = await executeProjectVideoAppendOnce({
+  repo: { async claimPlannedExecutionAction() { throw new Error("missing_guide_must_not_claim_action"); } },
+  bundle: {
+    job: { job_id: "JOB-MISSING-GUIDE", advertiser_id: request.advertiser_id },
+    case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-MISSING-GUIDE", plan_status: "executing",
+      planned_actions: [{ action_type: "oc_project_video_append" }],
+      metadata: {
+        append_material_contract: { guide_video_required: true, guide_video_ready: true },
+        append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }]
+      }
+    }
+  },
+  confirmationId: "CONFIRM-MISSING-GUIDE",
+  allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] }
+});
+assert(missingGuideResult.status === "blocked_before_append" && missingGuideResult.blockers.includes("guide_video_id_missing"), "required_guide_must_block_before_append");
 let appendInventoryReads = 0;
 let appendWire = "";
 const appendActionFinishes = [];
@@ -149,7 +183,12 @@ const appendResult = await executeProjectVideoAppendOnce({
     executionPlan: {
       plan_id: "PLAN-OPAQUE-VIDEO", plan_hash: "sha256:opaque", plan_status: "executing",
       planned_actions: [{ action_type: "oc_project_video_append", idempotency_key: "append:opaque" }],
-      metadata: { project_id: request.project_id, project_snapshot_hash: appendSnapshot.snapshotHash, append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }] }
+      metadata: {
+        project_id: request.project_id,
+        project_snapshot_hash: appendSnapshot.snapshotHash,
+        append_material_contract: { guide_video_required: true, guide_video_ready: true },
+        append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId, guide_video_id: "guide-video-opaque" }]
+      }
     }
   },
   confirmationId: "CONFIRM-OPAQUE-VIDEO",
@@ -167,8 +206,9 @@ const appendResult = await executeProjectVideoAppendOnce({
 });
 assert(appendResult.status === "readback_verified" && appendResult.appendCalled === true, "opaque_video_append_not_verified");
 assert(JSON.parse(appendWire).video_material_list[0].video_id === opaqueVideoId, "append_request_lost_opaque_video_id");
+assert(JSON.parse(appendWire).video_material_list[0].guide_video_id === "guide-video-opaque", "append_request_lost_guide_video_id");
 assert(appendWire.includes(`\"advertiser_id\":${request.advertiser_id}`) && appendWire.includes(`\"project_id\":${request.project_id}`), "append_execution_must_send_lossless_integer_ids");
-assert(appendActionFinishes[0]?.httpStatus === 200 && appendActionFinishes[0]?.apiCode === "0" && appendActionFinishes[0]?.requestHash === appendWireContract.requestHash, "append_action_audit_must_record_wire_result");
+assert(appendActionFinishes[0]?.httpStatus === 200 && appendActionFinishes[0]?.apiCode === "0" && appendActionFinishes[0]?.requestHash === guidedAppendWire.requestHash, "append_action_audit_must_record_wire_result");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))

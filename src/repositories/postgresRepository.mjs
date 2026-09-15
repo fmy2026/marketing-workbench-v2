@@ -3091,7 +3091,17 @@ export class PostgresRepository {
                   AND plan.plan_status = 'consumed'
                   AND action.action_type = 'oc_project_video_append'
                   AND action.action_status = 'failed_or_unconfirmed'
-                  AND coalesce(action.metadata->>'error_category', '') = 'platform_rejected'
+                  AND coalesce(nullif(action.error_category, ''), action.metadata->>'error_category', '') = 'platform_rejected'
+                  AND coalesce((
+                    SELECT readback.readback_status = 'not_found_or_mismatch'
+                      AND coalesce(readback.field_diff_summary->>'query_status', '') = 'passed'
+                      AND coalesce(readback.field_diff_summary->>'blocker', '') = 'project_video_append_readback_pending'
+                    FROM mwb.readback_records readback
+                    WHERE readback.job_id = j.job_id
+                      AND readback.object_type = 'oc_project_video_append'
+                    ORDER BY readback.created_at DESC, readback.readback_id DESC
+                    LIMIT 1
+                  ), false)
               )
             )
             OR (
@@ -4427,7 +4437,7 @@ export class PostgresRepository {
     assertId("plan_id", planId);
     const result = await queryJson(`
       WITH terminal_action AS (
-        SELECT action.action_status
+        SELECT action.action_status, action.error_category, action.metadata
         FROM mwb.platform_actions action
         WHERE action.job_id = ${sqlLiteral(jobId)}
           AND action.plan_id = ${sqlLiteral(planId)}
@@ -4440,6 +4450,8 @@ export class PostgresRepository {
         SET plan_status = 'consumed',
             metadata = plan.metadata || jsonb_build_object(
               'confirmed_execution_outcome', coalesce((SELECT action_status FROM terminal_action), 'failed_or_unconfirmed'),
+              'confirmed_execution_platform_response_confirmed', coalesce((SELECT (metadata->>'platform_response_confirmed')::boolean FROM terminal_action), false),
+              'confirmed_execution_error_category', coalesce(nullif((SELECT error_category FROM terminal_action), ''), nullif((SELECT metadata->>'error_category' FROM terminal_action), ''), ''),
               'retry_allowed', false,
               'platform_action_count', 1
             ),

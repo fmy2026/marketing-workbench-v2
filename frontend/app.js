@@ -687,7 +687,8 @@ import {
       ...(preview.appendSummary ? [
         ["本次核验", `${preview.appendSummary.requestedCount} 条`],
         ["项目已有", `${preview.appendSummary.alreadyInProjectCount} 条`],
-        ["待追加", `${preview.appendSummary.pendingAppendCount} 条`]
+        ["待追加", `${preview.appendSummary.pendingAppendCount} 条`],
+        ...(preview.appendSummary.guideVideoBoundCount > 0 ? [["引导视频绑定", `${preview.appendSummary.guideVideoBoundCount} 条`]] : [])
       ] : []),
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
       ["Plan", preview.planId || "未生成"],

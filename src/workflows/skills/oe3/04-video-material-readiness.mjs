@@ -393,7 +393,7 @@ function publicGuideVideoReadiness(result = {}) {
   };
 }
 
-async function persistGuideVideoReadiness({ repo, bundle, result }) {
+export async function persistGuideVideoReadiness({ repo, bundle, result }) {
   if ((bundle.job.source_usage === "test_run" && result.source !== "mock_ready") || !result.instanceResource || result.source === "current_job_cached_readonly") return;
   const resource = result.instanceResource || {};
   await repo.mergeAccountResourceMetadataByPlatformResource({

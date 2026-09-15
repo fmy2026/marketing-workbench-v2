@@ -36,6 +36,11 @@ function requiredVideoId(name, value) {
   return id;
 }
 
+function optionalVideoId(name, value) {
+  if (value === undefined || value === null || String(value).trim() === "") return "";
+  return requiredVideoId(name, value);
+}
+
 function videoItems(payload = {}) {
   return Array.isArray(payload?.data?.list) ? payload.data.list : [];
 }
@@ -49,10 +54,17 @@ function projectSnapshotHash(videoIds = []) {
 function appendPayload({ advertiserId, projectId, appendItems = [] } = {}) {
   const advertiser_id = longId("advertiser_id", advertiserId);
   const project_id = longId("project_id", projectId);
-  const video_material_list = appendItems.map((item) => ({
-    image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
-    video_id: requiredVideoId("video_id", item.video_id || item.videoId)
-  }));
+  const video_material_list = appendItems.map((item) => {
+    const video = {
+      image_mode: "CREATIVE_IMAGE_MODE_VIDEO_VERTICAL",
+      video_id: requiredVideoId("video_id", item.video_id || item.videoId)
+    };
+    const coverId = optionalVideoId("video_cover_id", item.video_cover_id || item.videoCoverId);
+    const guideVideoId = optionalVideoId("guide_video_id", item.guide_video_id || item.guideVideoId);
+    if (coverId) video.video_cover_id = coverId;
+    if (guideVideoId) video.guide_video_id = guideVideoId;
+    return video;
+  });
   if (!video_material_list.length || video_material_list.length > PROJECT_VIDEO_APPEND_MAX_ITEMS) throw new Error("invalid_project_video_append_items");
   return { advertiser_id, project_id, video_material_list };
 }
@@ -72,6 +84,8 @@ export function buildProjectVideoAppendWireBody({ advertiserId, projectId, appen
       field_names: ["advertiser_id", "project_id", "video_material_list"],
       lossless_integer_paths: ["advertiser_id", "project_id"],
       video_id_transport: "opaque_json_string",
+      guide_video_id_transport: "opaque_json_string_when_required",
+      video_cover_id_transport: "opaque_json_string_when_required",
       raw_payload_stored: false
     }
   };
@@ -259,6 +273,7 @@ export async function executeProjectVideoAppendOnce({
   const plan = bundle?.executionPlan || {};
   const metadata = plan.metadata || {};
   const appendItems = Array.isArray(metadata.append_items) ? metadata.append_items : [];
+  const materialContract = metadata.append_material_contract || {};
   const action = (plan.planned_actions || []).find((item) => item.action_type === PROJECT_VIDEO_APPEND_ACTION) || {};
   const projectId = clean(metadata.project_id || bundle?.case?.target_project_id);
   const advertiserId = clean(bundle?.job?.advertiser_id);
@@ -267,7 +282,9 @@ export async function executeProjectVideoAppendOnce({
     ...(!credentialReady(credentialSummary) ? credentialSummary.blockers.map((item) => `credential:${item}`) : []),
     ...(plan.plan_status === "executing" ? [] : ["project_video_append_plan_not_executing"]),
     ...(action.action_type === PROJECT_VIDEO_APPEND_ACTION ? [] : ["project_video_append_action_missing"]),
-    ...(appendItems.length >= 1 && appendItems.length <= PROJECT_VIDEO_APPEND_MAX_ITEMS ? [] : ["project_video_append_items_missing"])
+    ...(appendItems.length >= 1 && appendItems.length <= PROJECT_VIDEO_APPEND_MAX_ITEMS ? [] : ["project_video_append_items_missing"]),
+    ...(materialContract.guide_video_required === true && materialContract.guide_video_ready !== true ? ["guide_video_current_job_readonly_missing"] : []),
+    ...(materialContract.guide_video_required === true && appendItems.some((item) => typeof (item.guide_video_id || item.guideVideoId) !== "string" || !String(item.guide_video_id || item.guideVideoId).trim()) ? ["guide_video_id_missing"] : [])
   ];
   let before = null;
   if (!blockers.length) {

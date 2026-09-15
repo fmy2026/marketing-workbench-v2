@@ -16,6 +16,10 @@ import {
 } from "./skills/oe3/00-index.mjs";
 import { readonlyPermissionState } from "./skills/oe3/00-readonly-permission.mjs";
 import {
+  persistGuideVideoReadiness,
+  resolveGuideVideoReadonly
+} from "./skills/oe3/04-video-material-readiness.mjs";
+import {
   runMonitorProvisionReadonlyReconcile,
   runQiankunAccountIndexReadonlyPreflight
 } from "./skills/oe3/02-monitor/index.mjs";
@@ -821,6 +825,14 @@ export function presentRootBlocker(code = "", { originResourceId = "", candidate
       title: "项目素材暂无法核验",
       reason: "目标项目的素材列表未获得可用只读结果，系统未生成追加计划。",
       nextActionLabel: "输入“重新只读准备”重新核验；不会推送或追加视频。"
+    };
+  }
+  if (code === "append_video_cover_current_job_contract_missing") {
+    return {
+      code,
+      title: "追加视频缺少已核验封面",
+      reason: "当前账户要求显式视频封面，但追加准备未取得当前 Job 绑定的封面证据。",
+      nextActionLabel: "补齐封面只读核验后重新准备；系统不会省略必填封面提交追加。"
     };
   }
   if (code === "project_video_append_readback_pending") {
@@ -1863,9 +1875,36 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   const planId = `PLAN-${bundle.job.job_id}-APPEND-V${planVersion}`;
   const effectivePlan = prepared.effectivePlan || prepared.plan || {};
   const isMaterialPush = effectivePlan.actionType === PROJECT_VIDEO_MATERIAL_PUSH_ACTION;
-  const appendItems = (prepared.items || [])
+  const appendCandidates = (prepared.items || [])
     .filter((item) => item.status === "append_ready")
     .map((item) => ({ origin_resource_id: item.originResourceId, video_id: item.videoId }));
+  let guideVideoReadiness = {
+    required: false,
+    status: "not_required",
+    blockers: [],
+    guideVideoId: "",
+    evidenceRef: "",
+    responseHash: "",
+    verifiedInstanceId: ""
+  };
+  if (!isMaterialPush && appendCandidates.length && effectivePlan.status === "ready") {
+    guideVideoReadiness = await resolveGuideVideoReadonly({
+      repo,
+      bundle,
+      client: options.oceanEngineClient,
+      mockReady: options.mockReady === true,
+      allowReadonlyDependency: resolveReadonlyDependencyForRun(options)
+    });
+    if (guideVideoReadiness.source !== "current_job_cached_readonly") {
+      await persistGuideVideoReadiness({ repo, bundle, result: guideVideoReadiness });
+    }
+  }
+  const appendItems = appendCandidates.map((item) => ({
+    ...item,
+    ...(guideVideoReadiness.required === true && guideVideoReadiness.status === "passed"
+      ? { guide_video_id: guideVideoReadiness.guideVideoId }
+      : {})
+  }));
   const appendWire = !isMaterialPush && effectivePlan.status === "ready"
     ? buildProjectVideoAppendWireBody({
       advertiserId: bundle.job.advertiser_id,
@@ -1874,7 +1913,9 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     })
     : null;
   const appendWireValid = !appendWire || appendWire.status === "passed";
-  const action = effectivePlan.status === "ready" && appendWireValid ? {
+  const guideVideoBlocked = guideVideoReadiness.status === "blocked";
+  const explicitCoverBlocked = bundle.account?.video_cover_required === true && appendCandidates.length > 0;
+  const action = effectivePlan.status === "ready" && appendWireValid && !guideVideoBlocked && !explicitCoverBlocked ? {
     action_type: isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION,
     target_ref: isMaterialPush ? `advertiser:${bundle.job.advertiser_id}` : `project:${bundle.case?.target_project_id || ""}`,
     idempotency_key: `${isMaterialPush ? "append-push" : "append"}:${hashText(JSON.stringify(isMaterialPush ? effectivePlan.batches || [] : effectivePlan.originResourceIds || [])).slice(0, 32)}`,
@@ -1889,6 +1930,8 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   } : null;
   const blockers = [...new Set([
     ...(effectivePlan.blockerCodes || prepared.blockerCodes || []),
+    ...(guideVideoBlocked ? (guideVideoReadiness.blockers || ["guide_video_capability_probe_failed"]) : []),
+    ...(explicitCoverBlocked ? ["append_video_cover_current_job_contract_missing"] : []),
     ...(appendWire && appendWire.status !== "passed" ? (appendWire.blockers || ["project_video_append_wire_body_invalid"]) : [])
   ].map((value) => String(value || "").trim()).filter(Boolean))];
   const primaryBlocker = blockers[0] || "";
@@ -1905,6 +1948,13 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       items: [...(prepared.items || [])].sort((left, right) => String(left.originResourceId).localeCompare(String(right.originResourceId))),
       originalProjectVideoIds: [...(prepared.projectVideoIds || [])].sort(),
       snapshot: effectivePlan.projectSnapshotHash || "",
+      guideVideo: {
+        required: guideVideoReadiness.required === true,
+        status: guideVideoReadiness.status || "not_required",
+        guideVideoId: guideVideoReadiness.guideVideoId || "",
+        responseHash: guideVideoReadiness.responseHash || "",
+        verifiedInstanceId: guideVideoReadiness.verifiedInstanceId || ""
+      },
       pushBatches: isMaterialPush ? effectivePlan.batches || [] : []
     }))}`,
     plannedActions: action ? [action] : [],
@@ -1918,9 +1968,25 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       project_id: bundle.case?.target_project_id || "",
       append_items: (prepared.items || [])
         .filter((item) => item.status === "append_ready")
-        .map((item) => ({ origin_resource_id: item.originResourceId, video_id: item.videoId })),
+        .map((item) => {
+          const appendItem = { origin_resource_id: item.originResourceId, video_id: item.videoId };
+          if (guideVideoReadiness.required === true && guideVideoReadiness.status === "passed") {
+            appendItem.guide_video_id = guideVideoReadiness.guideVideoId;
+          }
+          return appendItem;
+        }),
       append_request_hash: appendWire?.requestHash || "",
       append_request_field_manifest: appendWire?.requestFieldManifest || {},
+      append_material_contract: {
+        guide_video_required: guideVideoReadiness.required === true,
+        guide_video_ready: guideVideoReadiness.status === "passed",
+        guide_video_id_present: Boolean(guideVideoReadiness.guideVideoId),
+        guide_video_response_hash: guideVideoReadiness.responseHash || "",
+        guide_video_evidence_ref: guideVideoReadiness.evidenceRef || "",
+        guide_video_verified_instance_id: guideVideoReadiness.verifiedInstanceId || "",
+        cover_policy: bundle.account?.video_cover_required === true ? "explicit_cover_required" : "platform_default_allowed",
+        raw_payload_stored: false
+      },
       project_snapshot_hash: effectivePlan.projectSnapshotHash || "",
       material_account_id: isMaterialPush ? effectivePlan.materialAccountId : "",
       push_batches: isMaterialPush ? (effectivePlan.batches || []).map((batch) => ({ batch_index: batch.batchIndex, origin_resource_ids: batch.originResourceIds, source_video_ids: batch.sourceVideoIds })) : [],
@@ -1931,6 +1997,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
         requested_count: (bundle.case?.origin_resource_ids || []).length,
         already_in_project_count: (prepared.items || []).filter((item) => item.status === "already_in_project").length,
         append_ready_count: (prepared.items || []).filter((item) => item.status === "append_ready").length,
+        guide_video_bound_count: guideVideoReadiness.required === true && guideVideoReadiness.status === "passed" ? appendItems.length : 0,
         target_push_required_count: (prepared.items || []).filter((item) => item.status === "target_push_required").length,
         source_prepare_required_count: (prepared.items || []).filter((item) => item.status === "source_prepare_required").length
       },
@@ -2024,6 +2091,37 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
     : project.status !== "passed"
       ? (project.blocker || "project_material_readonly_failed")
       : "project_video_append_readback_pending";
+  const appendAction = typeof repo.getPlatformAction === "function"
+    ? await repo.getPlatformAction(`ACTION-${jobId}-PROJECT-VIDEO-APPEND`)
+    : null;
+  const platformResponseConfirmed = appendAction?.metadata?.platform_response_confirmed === true ||
+    plan.metadata?.confirmed_execution_platform_response_confirmed === true;
+  const executionErrorCategory = String(
+    appendAction?.error_category ||
+    appendAction?.metadata?.error_category ||
+    plan.metadata?.confirmed_execution_error_category ||
+    ""
+  ).trim();
+  const executionOutcome = String(plan.metadata?.confirmed_execution_outcome || "").trim();
+  const executionNode = platformResponseConfirmed
+    ? nodeStatus({
+      nodeKey: "std_project_create_executor",
+      status: "passed",
+      summary: "追加请求已获平台受理，正在等待项目素材回查。"
+    })
+    : executionErrorCategory === "platform_rejected"
+      ? nodeStatus({
+        nodeKey: "std_project_create_executor",
+        status: "blocked",
+        summary: "追加请求被平台拒绝，旧 Plan 已消费且不会重发。",
+        diagnosticLevel: "warning"
+      })
+      : nodeStatus({
+        nodeKey: "std_project_create_executor",
+        status: executionOutcome === "failed_or_unconfirmed" ? "repairable" : "waiting",
+        summary: "追加请求尚未获得平台确认，旧 Plan 不会重发。",
+        diagnosticLevel: "warning"
+      });
   const readbackId = `READBACK-${jobId}-PROJECT-VIDEO-APPEND-${Date.now()}-${randomBytes(3).toString("hex").toUpperCase()}`;
   await repo.upsertReadbackRecord({
     readbackId,
@@ -2044,7 +2142,7 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
   });
   await repo.upsertNodeRuns(jobId, [
     nodeStatus({ nodeKey: "std_project_draft_builder", status: "passed", summary: "追加计划已确认，旧 Plan 已消费。" }),
-    nodeStatus({ nodeKey: "std_project_create_executor", status: "passed", summary: "追加请求已调用平台；不会重发。" }),
+    executionNode,
     nodeStatus({
       nodeKey: "readback_closer",
       status: verified ? "passed" : "blocked",

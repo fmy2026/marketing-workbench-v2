@@ -154,7 +154,8 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     ? {
       requestedCount: Number(metadata.append_summary?.requested_count || 0),
       alreadyInProjectCount: Number(metadata.append_summary?.already_in_project_count || 0),
-      pendingAppendCount: Number(metadata.append_summary?.append_ready_count || 0) + Number(metadata.append_summary?.target_push_required_count || 0)
+      pendingAppendCount: Number(metadata.append_summary?.append_ready_count || 0) + Number(metadata.append_summary?.target_push_required_count || 0),
+      guideVideoBoundCount: Number(metadata.append_summary?.guide_video_bound_count || 0)
     }
     : null;
   return {
