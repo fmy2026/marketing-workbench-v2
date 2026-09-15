@@ -86,7 +86,7 @@ export function buildProjectVideoAppendWireBody({ advertiserId, projectId, appen
       video_id_transport: "opaque_json_string",
       guide_video_id_transport: "opaque_json_string_when_required",
       video_cover_id_transport: "opaque_json_string_when_required",
-      raw_payload_stored: false
+      payload_persisted: false
     }
   };
 }
@@ -297,11 +297,6 @@ export async function executeProjectVideoAppendOnce({
   if (blockers.length) {
     return { status: "blocked_before_append", appendCalled: false, blockers, actionId, idempotencyKey };
   }
-  const claim = await repo.claimPlannedExecutionAction({
-    actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id,
-    actionType: PROJECT_VIDEO_APPEND_ACTION, idempotencyKey
-  });
-  if (!claim.claimed) return { status: "already_consumed", appendCalled: false, blockers: ["project_video_append_action_already_recorded"], actionId, idempotencyKey };
   const wire = buildProjectVideoAppendWireBody({ advertiserId, projectId, appendItems });
   const expectedRequestHash = clean(metadata.append_request_hash);
   if (wire.status !== "passed" || (expectedRequestHash && expectedRequestHash !== wire.requestHash)) {
@@ -313,6 +308,24 @@ export async function executeProjectVideoAppendOnce({
       idempotencyKey
     };
   }
+  // Validate the frozen payload before consuming an append execution slot.
+  // Runtime repositories atomically enforce the Case-wide attempt limit and
+  // cooldown; old test doubles retain the generic single-action claim.
+  const claim = typeof repo.claimProjectVideoAppendAction === "function"
+    ? await repo.claimProjectVideoAppendAction({
+      actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id,
+      idempotencyKey, expectedAttemptNo: Number(metadata.append_attempt_no || 0),
+      maximumAttempts: Number(metadata.maximum_append_attempts || 3), minimumIntervalSeconds: 20
+    })
+    : await repo.claimPlannedExecutionAction({
+      actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id,
+      actionType: PROJECT_VIDEO_APPEND_ACTION, idempotencyKey
+    });
+  if (!claim.claimed) return {
+    status: "blocked_before_append", appendCalled: false,
+    blockers: [claim.blocker || "project_video_append_action_already_recorded"], actionId, idempotencyKey,
+    appendAttemptState: claim
+  };
   const requestHash = wire.requestHash;
   let responseHash = "";
   let httpStatus = null;
@@ -329,10 +342,17 @@ export async function executeProjectVideoAppendOnce({
     responseHash = hash(text);
     httpStatus = response.status;
     let parsed = {};
-    try { parsed = JSON.parse(text); } catch { errorCategory = "platform_response_not_json"; }
+    let parsedResponse = true;
+    try { parsed = JSON.parse(text); } catch { parsedResponse = false; errorCategory = "platform_response_not_json"; }
     apiCode = clean(parsed.code ?? parsed.err_no ?? parsed.error_code);
     success = response.ok && apiCode === "0";
-    if (!success && !errorCategory) errorCategory = "platform_rejected";
+    if (!success && !errorCategory) {
+      errorCategory = apiCode
+        ? "platform_rejected"
+        : response.status >= 500
+          ? "platform_http_server_error"
+          : parsedResponse ? "platform_response_missing_business_code" : "platform_response_not_json";
+    }
   } catch (error) {
     errorCategory = error?.name === "PlatformDeadlineError" ? "platform_timeout" : "platform_transport_failed";
   }
@@ -342,6 +362,10 @@ export async function executeProjectVideoAppendOnce({
   const plannedVideoIds = appendItems.map((item) => clean(item.video_id || item.videoId));
   const readback = validateProjectVideoAppendReadback({ plannedOriginResourceIds: appendItems.map((item) => clean(item.origin_resource_id || item.originResourceId)), foundVideoIds: after.videoIds || [], itemMap: appendItems.map((item) => ({ originResourceId: item.origin_resource_id || item.originResourceId, videoId: item.video_id || item.videoId })) });
   const actionStatus = after.status === "passed" && readback.status === "passed" ? "succeeded" : "failed_or_unconfirmed";
+  // platform_actions.error_category is an allowlisted diagnostic field. Keep
+  // the transport outcome separately in safe metadata so unknown HTTP/JSON
+  // failures cannot bypass the recovery policy or violate the DB contract.
+  const persistedErrorCategory = success ? "" : "unclassified";
   await repo.finishPlannedExecutionAction({
     actionId,
     jobId: bundle.job.job_id,
@@ -354,16 +378,17 @@ export async function executeProjectVideoAppendOnce({
     responseHash,
     httpStatus,
     apiCode,
-    errorCategory: success ? "" : (errorCategory || "platform_rejected"),
+    errorCategory: persistedErrorCategory,
     requestFieldManifest: wire.requestFieldManifest,
-    metadata: { platform_write_called: true, platform_response_confirmed: success, error_category: success ? "" : (errorCategory || "platform_rejected"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, raw_payload_stored: false, raw_response_stored: false }
+    attemptNo: Number(claim.attemptNo || metadata.append_attempt_no || 1),
+    metadata: { platform_write_called: true, platform_response_confirmed: success, platform_result: success ? "accepted" : errorCategory === "platform_rejected" ? "explicit_rejection" : "unconfirmed", platform_outcome_code: success ? "" : (errorCategory || "platform_response_unknown"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, payload_persisted: false, response_persisted: false }
   });
   if (typeof repo.upsertReadbackRecord === "function") {
     await repo.upsertReadbackRecord({
       readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-APPEND`, jobId: bundle.job.job_id,
       objectType: "oc_project_video_append", objectId: projectId, objectName: "project_video_append",
       readbackStatus: actionStatus === "succeeded" ? "readback_verified" : "not_found_or_mismatch",
-      fieldDiffSummary: { requested_count: plannedVideoIds.length, verified_count: readback.verifiedCount, unresolved_count: readback.unresolvedOriginResourceIds.length, raw_response_stored: false },
+      fieldDiffSummary: { requested_count: plannedVideoIds.length, verified_count: readback.verifiedCount, unresolved_count: readback.unresolvedOriginResourceIds.length, response_persisted: false },
       evidenceRef: `EV-${bundle.job.job_id}-PROJECT-VIDEO-APPEND-READBACK`
     });
   }
@@ -522,7 +547,7 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
       passed = response.ok && (apiCode === "0" || apiCode === "") && !(batch.source_video_ids || batch.sourceVideoIds || []).some((id) => failedIds.has(clean(id)));
       if (!passed && !errorCategory) errorCategory = "platform_rejected";
     } catch (error) { errorCategory = error?.name === "PlatformDeadlineError" ? "platform_timeout" : "platform_transport_failed"; }
-    await repo.finishPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION, idempotencyKey: `append-push:${plan.plan_hash || ""}:${batch.batch_index || batch.batchIndex}`, actionStatus: passed ? "succeeded" : "failed_or_unconfirmed", metadata: { platform_write_called: true, platform_response_confirmed: passed, error_category: passed ? "" : errorCategory, batch_index: batch.batch_index || batch.batchIndex, raw_payload_stored: false, raw_response_stored: false }, responseHash, httpStatus, apiCode });
+    await repo.finishPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION, idempotencyKey: `append-push:${plan.plan_hash || ""}:${batch.batch_index || batch.batchIndex}`, actionStatus: passed ? "succeeded" : "failed_or_unconfirmed", metadata: { platform_write_called: true, platform_response_confirmed: passed, error_category: passed ? "" : errorCategory, batch_index: batch.batch_index || batch.batchIndex, payload_persisted: false, response_persisted: false }, responseHash, httpStatus, apiCode });
     if (!passed) return { status: "failed_or_unconfirmed", writeCalled: true, blockers: [errorCategory || "platform_rejected"], stoppedAfterBatch: batch.batch_index || batch.batchIndex };
   }
   const wanted = batches.flatMap((batch) => batch.origin_resource_ids || batch.originResourceIds || []);
@@ -543,7 +568,7 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
         verified_count: wanted.length - unresolved.length,
         unresolved_count: unresolved.length,
         blocker,
-        raw_response_stored: false
+        response_persisted: false
       },
       evidenceRef: `EV-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH-READBACK`
     });

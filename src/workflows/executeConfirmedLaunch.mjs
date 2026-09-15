@@ -267,8 +267,8 @@ export async function executeConfirmedLaunch({
           allowed_actions: [PROJECT_VIDEO_APPEND_ACTION],
           maximum_platform_calls: 1,
           retry_allowed: false,
-          raw_payload_stored: false,
-          raw_response_stored: false
+          payload_persisted: false,
+          response_persisted: false
         }
       });
       if (confirmationClaim?.claimed !== true) {
@@ -324,8 +324,8 @@ export async function executeConfirmedLaunch({
           maximum_delivery_calls: maximumDeliveryCalls,
           rate_limit_redelivery: rateLimitRedelivery,
           retry_allowed: false,
-          raw_payload_stored: false,
-          raw_response_stored: false
+          payload_persisted: false,
+          response_persisted: false
         }
       });
       if (confirmationClaim?.claimed !== true) {

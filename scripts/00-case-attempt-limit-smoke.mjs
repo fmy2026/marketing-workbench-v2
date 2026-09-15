@@ -70,11 +70,46 @@ try {
   assert(Number(bundle.executionPlan?.metadata?.maximum_create_attempts) === 1, "plan_did_not_use_case_attempt_limit");
   assert(Number(state.maximumCreateAttempts) === 1, "repository_attempt_state_did_not_use_case_attempt_limit");
 
+  const appendCase = await createWorkflowCase(repo, {
+    case_key: `smoke.append-attempt-limit.${Date.now()}`,
+    route_id: TARGET.routeId,
+    game_code: TARGET.gameCode,
+    advertiser_id: TARGET.advertiserId,
+    operation: "append_project_videos",
+    project_id: "7684895789612826666",
+    origin_resource_ids: ["4iLE-2"],
+    source_usage: "test_run"
+  });
+  const appendJobs = [];
+  for (let attemptNo = 1; attemptNo <= 3; attemptNo += 1) {
+    const appendJob = await createJob(repo, {
+      route_id: TARGET.routeId, game_code: TARGET.gameCode, advertiser_id: TARGET.advertiserId,
+      case_id: appendCase.case_id, source_usage: "test_run",
+      source_record_ref: `smoke:append-attempt-limit:${attemptNo}:${Date.now()}`
+    });
+    appendJobs.push(appendJob.jobId);
+    jobIds.push(appendJob.jobId);
+    await repo.upsertPlatformAction({
+      actionId: `ACTION-SMOKE-APPEND-${Date.now()}-${attemptNo}`, jobId: appendJob.jobId,
+      actionType: "oc_project_video_append", actionStatus: "failed_or_unconfirmed", attemptNo,
+      endpoint: "internal:smoke", method: "INTERNAL",
+      idempotencyKey: `smoke-append-${attemptNo}`, requestHash: `sha256:append-${attemptNo}`,
+      errorCategory: "unclassified", finishedAt: new Date(Date.now() - (attemptNo === 3 ? 0 : 30000)).toISOString(),
+      metadata: { payload_persisted: false, response_persisted: false }
+    });
+  }
+  const appendState = await repo.getCaseProjectVideoAppendAttemptState(appendCase.case_id);
+  assert(Number(appendState.appendActionCount) === 3 && Number(appendState.nextAppendAttemptNo) === 4, "append_attempts_must_accumulate_across_jobs");
+  assert(appendState.appendAttemptLimitReached === true && Number(appendState.maximumAppendAttempts) === 3, "append_case_attempt_limit_invalid");
+  assert(Number(appendState.cooldownRemainingSeconds) > 0, "append_cooldown_must_start_from_latest_attempt");
+
   process.stdout.write(`${JSON.stringify({
     status: "passed",
     ordinaryCaseMaximumCreateAttempts: 3,
     replacementStyleCaseMaximumCreateAttempts: 1,
     planMaximumCreateAttempts: 1,
+    appendAttemptsUsed: Number(appendState.appendActionCount),
+    appendAttemptLimitReached: appendState.appendAttemptLimitReached,
     platformWrites: 0
   }, null, 2)}\n`);
 } finally {

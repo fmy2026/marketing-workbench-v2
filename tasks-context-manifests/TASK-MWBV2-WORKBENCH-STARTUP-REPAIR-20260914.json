@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "status": "active",
   "created_at": "2026-09-14T08:06:01.646Z",
-  "updated_at": "2026-09-15T10:34:00.000+08:00",
+  "updated_at": "2026-09-15T11:02:00.000+08:00",
   "base_revision": "8ec48c89b36263d5ad2ebc6c79c4781c55cc803d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data", "deploy"],
@@ -47,6 +47,7 @@
     "src/workflows/skills/oe3/04-video-material-readiness.mjs",
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-case-attempt-limit-smoke.mjs",
     "scripts/00-workbench-runtime-write-policy-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
     "docs/Solution Design.md",
@@ -145,10 +146,10 @@
     {
       "acceptance_id": "AC-09",
       "status": "not_run",
-      "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages; readonly recheck of existing Case",
-      "verified_at": "2026-09-15T10:35:00.000+08:00",
-      "summary": "追加 wire 现在冻结并发送当前 Job 的引导视频 ID，账户/项目 ID 保持无损整数，视频与引导视频 ID 保持原始字符串；回查区分平台受理、拒绝和结果未明，fresh 恢复要求最新成功只读回查确认仍缺失。相关隔离回归已通过；待发布后由账户本人在既有 Case 发起 fresh readonly，止于新的确认卡。",
-      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/launchWorkflow.mjs", "src/repositories/postgresRepository.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs"]
+      "command": "npm run test:case-attempt-limit; npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run test:workbench-client-pages; readonly recheck of existing Case",
+      "verified_at": "2026-09-15T11:05:00.000+08:00",
+      "summary": "追加 wire 与 Plan metadata 不再写入受限 raw 字段；账户/项目 ID 保持无损整数，视频与引导视频 ID 保持原始字符串。隔离 PostgreSQL 证明追加 action 跨 Job 累计 3 次、第四次被限制且最新 action 开始 20 秒冷却；平台明确拒绝、结果不明和只读回查的恢复边界由服务端执行。页面、对话和进度回归通过。待发布后在既有 Case 发起只读准备，止于新的确认卡。",
+      "evidence_refs": ["src/platforms/oceanengineProjectVideoAppendExecutor.mjs", "src/workflows/launchWorkflow.mjs", "src/repositories/postgresRepository.mjs", "scripts/00-case-attempt-limit-smoke.mjs", "scripts/00-project-video-append-smoke.mjs", "scripts/00-workbench-conversation-smoke.mjs", "scripts/00-workbench-progress-smoke.mjs", "scripts/00-workbench-client-pages-smoke.mjs"]
     }
   ],
   "documentation_updates": [

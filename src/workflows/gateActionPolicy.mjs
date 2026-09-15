@@ -74,7 +74,7 @@ function attemptLimitReviewMessage(manualReviewApproved = false) {
     : "该 Case 已用尽创建次数，旧 Plan 已消耗且未创建项目。禁止重试或继续执行；等待人工复盘、明确平台原因和单一修复后，才能由账户本人输入“重新只读准备”。";
 }
 
-export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
+export function buildConfirmationPreview(bundle = {}, caseSummary = null, executionAvailability = {}) {
   const plan = bundle.executionPlan || {};
   const gate = clean(caseSummary?.current_gate);
   const actions = Array.isArray(plan.planned_actions) ? plan.planned_actions : [];
@@ -158,6 +158,9 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
       guideVideoBoundCount: Number(metadata.append_summary?.guide_video_bound_count || 0)
     }
     : null;
+  const appendAttemptNo = Number(metadata.append_attempt_no || 0);
+  const maximumAppendAttempts = Number(metadata.maximum_append_attempts || 0);
+  const cooldownRemainingSeconds = Number(executionAvailability?.cooldownRemainingSeconds || 0);
   return {
     status: "confirmation_required",
     planKind,
@@ -182,6 +185,7 @@ export function buildConfirmationPreview(bundle = {}, caseSummary = null) {
     targetEmptyBrandOmit,
     materialSummary,
     appendSummary,
+    ...(isProjectVideoAppendPlan ? { appendAttemptNo, maximumAppendAttempts, cooldownRemainingSeconds } : {}),
     ...(isMonitorBootstrapPlan ? {
       cycle: clean(monitor.cycle_id),
       attemptNo: Number(monitor.attempt_no || 0),
@@ -289,6 +293,9 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
   if (intent.intent === "request_append_reprepare") {
     if (currentGate !== "run_project_video_append_readback") {
       return { ...base, effect: "append_reprepare_unavailable", message: "当前没有可重新准备的追加动作；请先查看最新进度。" };
+    }
+    if (caseGate?.appendAttemptLimitReached === true) {
+      return { ...base, effect: "append_reprepare_attempt_limit_reached", message: `当前 Case 的追加额度已用完（${caseGate.appendAttemptsUsed}/${caseGate.maximumAppendAttempts}）。可继续只读回查并人工排查，系统不会再次追加。` };
     }
     return {
       ...base,

@@ -292,6 +292,11 @@ export async function validateProjectVideoAppendPlanConfirmationScope({
   const existingConfirmation = await repo.getLaunchConfirmationForPlan(plan?.plan_id || plan?.planId || "");
   const actionScope = validateExecutionPlanActionScope({ plan, allowedActions: scope.allowed_actions || [] });
   const append = plan?.metadata?.append_summary || {};
+  const appendAttemptState = typeof repo.getCaseProjectVideoAppendAttemptState === "function"
+    ? await repo.getCaseProjectVideoAppendAttemptState(bundle.job.case_id)
+    : null;
+  const plannedAttemptNo = Number(plan?.metadata?.append_attempt_no || 1);
+  const maximumAppendAttempts = Number(plan?.metadata?.maximum_append_attempts || appendAttemptState?.maximumAppendAttempts || 3);
   const checks = [
     ...authorization.blockers,
     ...(bundle.case?.lifecycle_status === "active" ? [] : ["workflow_case_not_active"]),
@@ -310,6 +315,10 @@ export async function validateProjectVideoAppendPlanConfirmationScope({
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...(String(scope.target_project_id || plan?.metadata?.project_id || "") === String(bundle.case?.target_project_id || "") ? [] : ["project_video_append_target_project_mismatch"]),
     ...(Number(append.append_ready_count || 0) > 0 ? [] : ["project_video_append_items_missing"]),
+    ...(appendAttemptState?.appendAttemptLimitReached === true ? ["project_video_append_attempt_limit_reached"] : []),
+    ...(Number(appendAttemptState?.cooldownRemainingSeconds || 0) > 0 ? ["project_video_append_cooldown_active"] : []),
+    ...(appendAttemptState && Number(appendAttemptState.nextAppendAttemptNo || 0) !== plannedAttemptNo ? ["project_video_append_attempt_state_changed"] : []),
+    ...(plannedAttemptNo <= maximumAppendAttempts ? [] : ["project_video_append_attempt_limit_reached"]),
     ...(existingConfirmation ? ["execution_plan_confirmation_already_recorded"] : [])
   ];
   return {
@@ -317,13 +326,17 @@ export async function validateProjectVideoAppendPlanConfirmationScope({
     blockers: [...new Set(checks)],
     plan,
     scope,
+    appendAttemptState,
     scopeSummary: {
       authorizationMode: authorization.authorizationMode,
       bindingMode: scope.binding_mode || "",
       planReady: plan?.plan_status === "ready",
       actionCount: actions.length,
       existingConfirmation: Boolean(existingConfirmation),
-      retryAllowed: scope.retry_allowed === true
+      retryAllowed: scope.retry_allowed === true,
+      appendAttemptNo: plannedAttemptNo,
+      maximumAppendAttempts,
+      cooldownRemainingSeconds: Number(appendAttemptState?.cooldownRemainingSeconds || 0)
     }
   };
 }
@@ -553,7 +566,9 @@ export async function getExecutionGrantAvailability({ repo, bundle, projectState
     canExecuteOnce: scope.status === "passed",
     alreadyAttempted,
     authorizationMode: scope.scopeSummary?.authorizationMode || (scope.status === "passed" ? "task_scope" : "none"),
-    reasonCode: scope.blockers?.[0] || ""
+    reasonCode: scope.blockers?.[0] || "",
+    appendAttemptState: scope.appendAttemptState || null,
+    cooldownRemainingSeconds: Number(scope.scopeSummary?.cooldownRemainingSeconds || 0)
   };
 }
 

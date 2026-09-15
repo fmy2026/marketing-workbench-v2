@@ -3091,7 +3091,10 @@ export class PostgresRepository {
                   AND plan.plan_status = 'consumed'
                   AND action.action_type = 'oc_project_video_append'
                   AND action.action_status = 'failed_or_unconfirmed'
-                  AND coalesce(nullif(action.error_category, ''), action.metadata->>'error_category', '') = 'platform_rejected'
+                  AND (
+                    action.metadata->>'platform_result' = 'explicit_rejection'
+                    OR coalesce(nullif(action.error_category, ''), action.metadata->>'error_category', '') = 'platform_rejected'
+                  )
                   AND coalesce((
                     SELECT readback.readback_status = 'not_found_or_mismatch'
                       AND coalesce(readback.field_diff_summary->>'query_status', '') = 'passed'
@@ -3103,6 +3106,14 @@ export class PostgresRepository {
                     LIMIT 1
                   ), false)
               )
+              AND (
+                SELECT count(*)
+                FROM mwb.platform_actions action
+                JOIN mwb.launch_jobs action_job ON action_job.job_id = action.job_id
+                WHERE action_job.case_id = j.case_id
+                  AND action_job.source_usage = j.source_usage
+                  AND action.action_type = 'oc_project_video_append'
+              ) < wc.maximum_create_attempts
             )
             OR (
               j.job_status = 'failed_waiting_manual_review'
@@ -5585,6 +5596,73 @@ export class PostgresRepository {
     return result || { claimed: false };
   }
 
+  async claimProjectVideoAppendAction({
+    actionId, jobId, confirmationId, planId, idempotencyKey,
+    expectedAttemptNo = 0, maximumAttempts = 3, minimumIntervalSeconds = 20
+  }) {
+    [["action_id", actionId], ["job_id", jobId], ["confirmation_id", confirmationId], ["plan_id", planId]].forEach(([name, value]) => assertId(name, value));
+    const maximum = Number(maximumAttempts);
+    const interval = Number(minimumIntervalSeconds);
+    const expected = Number(expectedAttemptNo || 0);
+    if (!Number.isInteger(maximum) || maximum < 1 || maximum > 3 || !Number.isInteger(interval) || interval < 0 || interval > 300 || !Number.isInteger(expected) || expected < 0) throw new Error("invalid_project_video_append_claim_contract");
+    const result = await queryJson(`
+      WITH selected_job AS (
+        SELECT job.*, workflow_case.maximum_create_attempts
+        FROM mwb.launch_jobs job JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = job.case_id
+        WHERE job.job_id = ${sqlLiteral(jobId)} AND job.source_usage = workflow_case.source_usage AND workflow_case.lifecycle_status = 'active'
+      ), scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended((SELECT case_id FROM selected_job), 0)) AS locked
+      ), confirmed AS (
+        SELECT job.case_id, job.source_usage, job.maximum_create_attempts
+        FROM selected_job job CROSS JOIN scope_lock
+        JOIN mwb.launch_confirmations confirmation ON confirmation.confirmation_id = ${sqlLiteral(confirmationId)}
+        JOIN mwb.launch_execution_plans plan ON plan.plan_id = confirmation.plan_id
+        WHERE confirmation.job_id = job.job_id AND confirmation.plan_id = ${sqlLiteral(planId)}
+          AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          AND plan.job_id = job.job_id AND plan.plan_status = 'executing' AND plan.plan_kind = 'project_video_append'
+      ), attempts AS (
+        SELECT action.action_id, coalesce(action.finished_at, action.started_at) AS attempted_at
+        FROM mwb.platform_actions action JOIN mwb.launch_jobs job ON job.job_id = action.job_id
+        JOIN confirmed confirmed ON confirmed.case_id = job.case_id AND confirmed.source_usage = job.source_usage
+        WHERE action.action_type = 'oc_project_video_append'
+      ), attempt_state AS (
+        SELECT count(*)::integer AS action_count, max(attempted_at) AS latest_attempt_at FROM attempts
+      ), eligibility AS (
+        SELECT confirmed.*, attempt_state.action_count, attempt_state.latest_attempt_at,
+          attempt_state.action_count < least(confirmed.maximum_create_attempts, ${maximum}) AS within_limit,
+          coalesce(attempt_state.latest_attempt_at + make_interval(secs => ${interval}) <= now(), true) AS cooldown_elapsed
+        FROM confirmed CROSS JOIN attempt_state
+      ), claimed AS (
+        INSERT INTO mwb.platform_actions (
+          action_id, job_id, confirmation_id, plan_id, action_type, endpoint, method, action_status,
+          attempt_no, request_hash, idempotency_key, request_field_manifest, response_summary, metadata, started_at
+        )
+        SELECT ${sqlLiteral(actionId)}, ${sqlLiteral(jobId)}, ${sqlLiteral(confirmationId)}, ${sqlLiteral(planId)},
+          'oc_project_video_append', 'internal:confirmed-plan-orchestrator', 'INTERNAL', 'started',
+          eligibility.action_count + 1, '', ${sqlLiteral(idempotencyKey || "")}, '{}'::jsonb, '{}'::jsonb,
+          ${sqlJson({ high_level_plan_action: true, retry_allowed: false, payload_persisted: false, response_persisted: false })}, now()
+        FROM eligibility
+        WHERE eligibility.within_limit AND eligibility.cooldown_elapsed
+          AND (${expected} = 0 OR eligibility.action_count + 1 = ${expected})
+        ON CONFLICT DO NOTHING RETURNING attempt_no
+      )
+      SELECT jsonb_build_object(
+        'claimed', EXISTS (SELECT 1 FROM claimed),
+        'attemptNo', coalesce((SELECT attempt_no FROM claimed), (SELECT action_count + 1 FROM attempt_state)),
+        'appendAttemptsUsed', coalesce((SELECT action_count FROM attempt_state), 0),
+        'maximumAppendAttempts', coalesce((SELECT least(maximum_create_attempts, ${maximum}) FROM confirmed), ${maximum}),
+        'cooldownRemainingSeconds', coalesce((SELECT greatest(0, ceil(extract(epoch FROM (latest_attempt_at + make_interval(secs => ${interval}) - now())))::integer) FROM attempt_state), 0),
+        'blocker', CASE
+          WHEN NOT EXISTS (SELECT 1 FROM confirmed) THEN 'project_video_append_claim_context_invalid'
+          WHEN (SELECT action_count FROM attempt_state) >= coalesce((SELECT least(maximum_create_attempts, ${maximum}) FROM confirmed), ${maximum}) THEN 'project_video_append_attempt_limit_reached'
+          WHEN NOT coalesce((SELECT cooldown_elapsed FROM eligibility), false) THEN 'project_video_append_cooldown_active'
+          WHEN ${expected} > 0 AND (SELECT action_count + 1 FROM attempt_state) <> ${expected} THEN 'project_video_append_attempt_state_changed'
+          ELSE 'project_video_append_action_already_recorded' END
+      )::text;
+    `, this.database);
+    return result || { claimed: false, blocker: "project_video_append_claim_context_invalid" };
+  }
+
   async finishPlannedExecutionAction({
     actionId,
     jobId,
@@ -5599,7 +5677,8 @@ export class PostgresRepository {
     apiCode = "",
     errorCategory = "",
     requestFieldManifest = {},
-    metadata = {}
+    metadata = {},
+    attemptNo = 1
   }) {
     return this.upsertPlatformAction({
       actionId,
@@ -5610,7 +5689,7 @@ export class PostgresRepository {
       endpoint: "internal:confirmed-plan-orchestrator",
       method: "INTERNAL",
       actionStatus,
-      attemptNo: 1,
+      attemptNo,
       idempotencyKey,
       requestHash,
       responseHash,
@@ -6243,6 +6322,38 @@ export class PostgresRepository {
         'maxCreateAttemptNo', coalesce((SELECT max(attempt_no) FROM create_actions), 0),
         'nextCreateAttemptNo', coalesce((SELECT max(attempt_no) + 1 FROM create_actions), 1),
         'maximumCreateAttempts', coalesce((SELECT maximum_create_attempts FROM workflow_case), 3)
+      )::text;
+    `, this.database);
+  }
+
+  async getCaseProjectVideoAppendAttemptState(caseId, { minimumIntervalSeconds = 20 } = {}) {
+    assertId("case_id", caseId);
+    const interval = Number(minimumIntervalSeconds);
+    if (!Number.isInteger(interval) || interval < 0 || interval > 300) throw new Error("invalid_project_video_append_cooldown_seconds");
+    return queryJson(`
+      WITH workflow_case AS (
+        SELECT case_id, source_usage, maximum_create_attempts
+        FROM mwb.workflow_cases WHERE case_id = ${sqlLiteral(caseId)}
+      ), append_actions AS (
+        SELECT action.action_id, action.attempt_no, coalesce(action.finished_at, action.started_at) AS attempted_at
+        FROM mwb.platform_actions action
+        JOIN mwb.launch_jobs job ON job.job_id = action.job_id
+        JOIN workflow_case workflow_case ON workflow_case.case_id = job.case_id
+        WHERE action.action_type = 'oc_project_video_append'
+          AND job.source_usage = workflow_case.source_usage
+      ), latest AS (
+        SELECT attempted_at FROM append_actions ORDER BY attempted_at DESC NULLS LAST, action_id DESC LIMIT 1
+      )
+      SELECT jsonb_build_object(
+        'caseId', ${sqlLiteral(caseId)},
+        'appendActionCount', (SELECT count(*) FROM append_actions),
+        'nextAppendAttemptNo', (SELECT count(*) + 1 FROM append_actions),
+        'maximumAppendAttempts', coalesce((SELECT maximum_create_attempts FROM workflow_case), 3),
+        'appendAttemptLimitReached', (SELECT count(*) FROM append_actions) >= coalesce((SELECT maximum_create_attempts FROM workflow_case), 3),
+        'cooldownRemainingSeconds', coalesce((
+          SELECT greatest(0, ceil(extract(epoch FROM (attempted_at + make_interval(secs => ${interval}) - now())))::integer)
+          FROM latest
+        ), 0)
       )::text;
     `, this.database);
   }

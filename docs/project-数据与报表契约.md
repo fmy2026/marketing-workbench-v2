@@ -195,6 +195,8 @@ migration `092_project_video_append.sql` 为 `mwb.workflow_cases` 增加 `operat
 
 `mwb.launch_execution_plans.plan_kind` 增加 `project_video_append`，用于冻结目标项目、待新增视频摘要、只读快照 hash、单一追加 action 及一次确认范围。
 
+追加 action 的恢复额度按同一 `workflow_cases.maximum_create_attempts`（默认 3）跨同一 `source_usage` 的 Job 聚合，只有 `oc_project_video_append` action 计入；只读、Plan 保存和素材推送均不计入。领取额度时锁定 Case，确认最新 Job、冻结 Plan、本人确认、次数与最近 action 的结束时间；相邻请求至少 20 秒。结果不明确时只允许回查，不能借恢复入口再次写入。
+
 ### 追加项目候选的只读口径
 
 工作台的追加项目推荐只查询 Postgres，不调用平台列表。候选以 `created_objects.object_type='std_project'` 为粒度，关联 `launch_jobs`、已完成的 `workflow_cases` 与同一 Job、对象的最新 `readback_records`；仅保留 `runtime_truth`、当前登录用户拥有的账户和 Case、对象与最新回查均为 `readback_verified`、且项目 ID 为合法数字的记录。推荐列表按项目 ID 去重、按最新回查时间倒序，最多返回五项；手动项目 ID 仍在同一完整候选口径中精确查询，不受推荐上限影响。输出仅含项目 ID、名称、路线、游戏、验证时间和固定来源标记，不返回原始响应或执行载荷。该查询只服务 Intake 上下文补齐，不是平台事实的替代，启动后的既有只读核验保持必经。

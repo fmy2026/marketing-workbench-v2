@@ -131,6 +131,7 @@ const appendWireContract = buildProjectVideoAppendWireBody({
   appendItems: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }]
 });
 assert(appendWireContract.status === "passed", "append_wire_body_not_built");
+assert(appendWireContract.requestFieldManifest.payload_persisted === false && !Object.hasOwn(appendWireContract.requestFieldManifest, "raw_payload_stored"), "append_wire_manifest_must_not_use_forbidden_raw_payload_key");
 assert(appendWireContract.body.includes(`\"advertiser_id\":${request.advertiser_id}`), "append_advertiser_id_must_be_lossless_json_integer");
 assert(appendWireContract.body.includes(`\"project_id\":${request.project_id}`), "append_project_id_must_be_lossless_json_integer");
 assert(appendWireContract.body.includes(`\"video_id\":\"${opaqueVideoId}\"`), "append_video_id_must_remain_json_string");
@@ -209,6 +210,7 @@ assert(JSON.parse(appendWire).video_material_list[0].video_id === opaqueVideoId,
 assert(JSON.parse(appendWire).video_material_list[0].guide_video_id === "guide-video-opaque", "append_request_lost_guide_video_id");
 assert(appendWire.includes(`\"advertiser_id\":${request.advertiser_id}`) && appendWire.includes(`\"project_id\":${request.project_id}`), "append_execution_must_send_lossless_integer_ids");
 assert(appendActionFinishes[0]?.httpStatus === 200 && appendActionFinishes[0]?.apiCode === "0" && appendActionFinishes[0]?.requestHash === guidedAppendWire.requestHash, "append_action_audit_must_record_wire_result");
+assert(appendActionFinishes[0]?.attemptNo === 1, "append_action_must_record_the_frozen_attempt_number");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))

@@ -994,7 +994,7 @@ function appendAmbiguousVideoDetail(executionPlan = {}) {
     : {};
 }
 
-function caseGateView(summary = null, jobId = "", workflowCase = {}, executionPlan = {}) {
+function caseGateView(summary = null, jobId = "", workflowCase = {}, executionPlan = {}, executionAvailability = {}) {
   const isLatestCaseJob = Boolean(summary?.latest_job_id && summary.latest_job_id === jobId);
   const rootBlockerCode = Array.isArray(summary?.root_blocker_codes) ? summary.root_blocker_codes[0] || "" : "";
   const publicBlockerCode = (value = "") => String(value)
@@ -1020,6 +1020,10 @@ function caseGateView(summary = null, jobId = "", workflowCase = {}, executionPl
       3
     ),
     manualReviewApproved: workflowCase?.metadata?.manual_review?.approved === true,
+    appendAttemptsUsed: Number(executionAvailability?.appendAttemptState?.appendActionCount || 0),
+    maximumAppendAttempts: Number(executionAvailability?.appendAttemptState?.maximumAppendAttempts || workflowCase?.maximum_create_attempts || 3),
+    appendAttemptLimitReached: executionAvailability?.appendAttemptState?.appendAttemptLimitReached === true,
+    cooldownRemainingSeconds: Number(executionAvailability?.cooldownRemainingSeconds || 0),
     monitorResolved: summary?.monitor_resolved === true,
     isLatestCaseJob
   };
@@ -1114,7 +1118,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       evidenceRefs: row.evidence_refs || []
     };
   });
-  const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {}, bundle.executionPlan || {});
+  const caseGate = caseGateView(caseSummary, bundle.job.job_id, bundle.case || {}, bundle.executionPlan || {}, executionAvailability);
   const progress = workflowProgressView(nodes, bundle, operationView);
   const phases = workflowPhasesView(nodes, bundle, executionAvailability, {
     currentCaseReadiness: caseGate.isLatestCaseJob && presentation.currentCaseReadiness !== false,
@@ -1127,7 +1131,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
   const actions = actionView(bundle, createReadiness);
   const primaryAction = primaryActionView(bundle, createReadiness, executionAvailability);
   const confirmationPreview = executionAvailability.canExecuteOnce === true
-    ? buildConfirmationPreview(bundle, caseSummary)
+    ? buildConfirmationPreview(bundle, caseSummary, executionAvailability)
     : null;
   caseGate.progressNarrative = presentWorkflowProgress({
     caseGate,
@@ -1915,7 +1919,13 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   const appendWireValid = !appendWire || appendWire.status === "passed";
   const guideVideoBlocked = guideVideoReadiness.status === "blocked";
   const explicitCoverBlocked = bundle.account?.video_cover_required === true && appendCandidates.length > 0;
-  const action = effectivePlan.status === "ready" && appendWireValid && !guideVideoBlocked && !explicitCoverBlocked ? {
+  const appendAttemptState = !isMaterialPush && appendCandidates.length && typeof repo.getCaseProjectVideoAppendAttemptState === "function"
+    ? await repo.getCaseProjectVideoAppendAttemptState(bundle.job.case_id)
+    : null;
+  const maximumAppendAttempts = Number(appendAttemptState?.maximumAppendAttempts || bundle.case?.maximum_create_attempts || 3);
+  const appendAttemptNo = Number(appendAttemptState?.nextAppendAttemptNo || 1);
+  const appendAttemptLimitReached = !isMaterialPush && appendCandidates.length > 0 && appendAttemptNo > maximumAppendAttempts;
+  const action = effectivePlan.status === "ready" && appendWireValid && !guideVideoBlocked && !explicitCoverBlocked && !appendAttemptLimitReached ? {
     action_type: isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION,
     target_ref: isMaterialPush ? `advertiser:${bundle.job.advertiser_id}` : `project:${bundle.case?.target_project_id || ""}`,
     idempotency_key: `${isMaterialPush ? "append-push" : "append"}:${hashText(JSON.stringify(isMaterialPush ? effectivePlan.batches || [] : effectivePlan.originResourceIds || [])).slice(0, 32)}`,
@@ -1932,6 +1942,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     ...(effectivePlan.blockerCodes || prepared.blockerCodes || []),
     ...(guideVideoBlocked ? (guideVideoReadiness.blockers || ["guide_video_capability_probe_failed"]) : []),
     ...(explicitCoverBlocked ? ["append_video_cover_current_job_contract_missing"] : []),
+    ...(appendAttemptLimitReached ? ["project_video_append_attempt_limit_reached"] : []),
     ...(appendWire && appendWire.status !== "passed" ? (appendWire.blockers || ["project_video_append_wire_body_invalid"]) : [])
   ].map((value) => String(value || "").trim()).filter(Boolean))];
   const primaryBlocker = blockers[0] || "";
@@ -1955,7 +1966,9 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
         responseHash: guideVideoReadiness.responseHash || "",
         verifiedInstanceId: guideVideoReadiness.verifiedInstanceId || ""
       },
-      pushBatches: isMaterialPush ? effectivePlan.batches || [] : []
+      pushBatches: isMaterialPush ? effectivePlan.batches || [] : [],
+      appendAttemptNo,
+      maximumAppendAttempts
     }))}`,
     plannedActions: action ? [action] : [],
     blockerCodes: blockers,
@@ -1977,6 +1990,9 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
         }),
       append_request_hash: appendWire?.requestHash || "",
       append_request_field_manifest: appendWire?.requestFieldManifest || {},
+      append_attempt_no: appendAttemptNo,
+      maximum_append_attempts: maximumAppendAttempts,
+      append_retry_cooldown_seconds: 20,
       append_material_contract: {
         guide_video_required: guideVideoReadiness.required === true,
         guide_video_ready: guideVideoReadiness.status === "passed",
@@ -1985,7 +2001,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
         guide_video_evidence_ref: guideVideoReadiness.evidenceRef || "",
         guide_video_verified_instance_id: guideVideoReadiness.verifiedInstanceId || "",
         cover_policy: bundle.account?.video_cover_required === true ? "explicit_cover_required" : "platform_default_allowed",
-        raw_payload_stored: false
+        payload_persisted: false
       },
       project_snapshot_hash: effectivePlan.projectSnapshotHash || "",
       material_account_id: isMaterialPush ? effectivePlan.materialAccountId : "",
@@ -2020,7 +2036,14 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     }
   };
   plan.metadata.execution_scope.target_plan_hash = plan.planHash;
-  await repo.upsertLaunchExecutionPlan(plan);
+  try {
+    await repo.upsertLaunchExecutionPlan(plan);
+  } catch (error) {
+    const publicError = new Error("append_plan_persistence_failed");
+    publicError.statusCode = 409;
+    publicError.details = { diagnostic_fingerprint: `sha256:${hashText(String(error?.message || "append_plan_persistence_failed"))}` };
+    throw publicError;
+  }
   const nodeStatuses = [
     nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
     nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已进入只读核验。" }),
@@ -2136,7 +2159,7 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
       unresolved_count: Array.isArray(comparison.unresolvedOriginResourceIds) ? comparison.unresolvedOriginResourceIds.length : appendItems.length,
       query_status: project.status || "blocked",
       blocker,
-      raw_response_stored: false
+      response_persisted: false
     },
     evidenceRef: `EV-${jobId}-PROJECT-VIDEO-APPEND-READBACK-${Date.now()}`
   });

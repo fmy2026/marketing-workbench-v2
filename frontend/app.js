@@ -688,6 +688,8 @@ import {
         ["本次核验", `${preview.appendSummary.requestedCount} 条`],
         ["项目已有", `${preview.appendSummary.alreadyInProjectCount} 条`],
         ["待追加", `${preview.appendSummary.pendingAppendCount} 条`],
+        ...(preview.appendAttemptNo ? [["本次追加", "第 " + preview.appendAttemptNo + "/" + (preview.maximumAppendAttempts || 3) + " 次"]] : []),
+        ...(preview.cooldownRemainingSeconds > 0 ? [["确认等待", preview.cooldownRemainingSeconds + " 秒后可确认"]] : []),
         ...(preview.appendSummary.guideVideoBoundCount > 0 ? [["引导视频绑定", `${preview.appendSummary.guideVideoBoundCount} 条`]] : [])
       ] : []),
       ["自动重试", preview.retryAllowed ? "允许" : "禁止"],
@@ -719,7 +721,7 @@ import {
       activeConfirmationSubmission?.planHash === preview.planHash;
     const button = el("button", "confirmation-button", submittingThisPlan
       ? "提交中…"
-      : canExecute ? (preview.confirmationPhrase || "确认创建") : "当前 Plan 不可确认");
+      : canExecute ? (preview.confirmationPhrase || "确认创建") : preview.cooldownRemainingSeconds > 0 ? "等待 " + preview.cooldownRemainingSeconds + " 秒" : "当前 Plan 不可确认");
     button.type = "button";
     button.disabled = busy || !canExecute;
     button.setAttribute("aria-busy", submittingThisPlan ? "true" : "false");
@@ -1189,6 +1191,11 @@ import {
       message("agent", `账户预检未通过，流程尚未建立。${accountBootstrapMessage(error.details?.blockers)} ${accountBootstrapNextStep(error.details?.blockers)}`);
       return;
     }
+    if (error?.message === "append_plan_persistence_failed") {
+      const fingerprint = String(error.details?.diagnostic_fingerprint || "");
+      message("agent", "追加计划保存失败，请修复服务后重新核验。诊断码：" + (/^sha256:[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "未返回") + "。");
+      return;
+    }
     if (error?.status >= 500 || error?.message === "internal_error") {
       const fingerprint = String(error.details?.diagnostic_fingerprint || "");
       const diagnosticCode = /^sha256:[a-f0-9]{64}$/.test(fingerprint) ? fingerprint : "未返回";
@@ -1439,7 +1446,9 @@ import {
         })
       }));
     } catch (error) {
-      replaceMessage(reply, `处理未完成：${error?.message || "请求失败"}。`);
+      replaceMessage(reply, error?.message === "append_plan_persistence_failed"
+        ? "追加计划保存失败，请修复服务后重新核验。"
+        : `处理未完成：${error?.message || "请求失败"}。`);
       throw error;
     } finally {
       if (ownsBusy) setBusy(false);
