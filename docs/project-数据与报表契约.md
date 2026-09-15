@@ -56,7 +56,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
 | L5 审计（7） | `launch_execution_plans`、`launch_confirmations` | Job×Plan 版本、Plan-bound confirmation；confirmation ID 从 `plan_id` 派生，并保存真实 `confirmed_by_user_id`。claim 在同一事务核验 Plan/hash、latest Job、Case 生命周期和 owner；同一 Job 已确认 `std_project_create` 后不得再发布 Plan。`plan_version` 在同一 Job 的 monitor/resource/create Plan 间单调递增并在同轮普通编译中稳定复用，`create_attempt_no` 独立计数。`plan_kind` 仅为 monitor bootstrap / resource / project / blocked；首次工作台 dry-run 的 monitor readonly合同可直接编译唯一 ready `monitor_bootstrap` Plan，但不产生 confirmation/action/attempt。任一已记录平台 action 的 ready Plan 必须离开 `ready`。Create 成功链固定为 `ready → waiting_readback → consumed`；明确失败与回查未确认的结果均为 `consumed` + 脱敏 outcome metadata，不代表执行成功 | Plan 编译、显式确认、终态收口与 Create 回查 | 执行 scope、Case summary |
-|  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于精确 `std_project/create + 40100 + 无对象 ID`，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
+|  | `platform_actions`、`platform_action_deliveries`、`created_objects` | 外部逻辑 action×Attempt、其最多三条物理 delivery、创建对象；delivery 仅适用于新冻结的精确 `std_project/create` 或 `oc_project/material/create` 的 `HTTP 200 + 40100` 有界重投，保存序号、计划/实际时间、HTTP/API code、hash、request ID/对象 ID 存在性和安全分类，不保存原始请求/响应或平台消息 | executor / create result mapping | Node 06–07、Case summary |
 |  | `readback_records`、`evidence_artifacts` | Job×回查观察、脱敏证据；每次 Node 7 `readback_only` 生成独立 readback/evidence ID，历史观察不覆盖，消费者按 `created_at` 选择最新记录。追加素材推送同样写独立目标库存回查，摘要只保存请求、已验证和未解决数量及受控 blocker，不保存视频 ID 或原始响应 | Node 04/07 与各 executor | Case summary、审计与诊断 |
 
 ### 核心关联
@@ -195,7 +195,7 @@ migration `092_project_video_append.sql` 为 `mwb.workflow_cases` 增加 `operat
 
 `mwb.launch_execution_plans.plan_kind` 增加 `project_video_append`，用于冻结目标项目、待新增视频摘要、只读快照 hash、单一追加 action 及一次确认范围。
 
-追加 action 的恢复额度按同一 `workflow_cases.maximum_create_attempts`（默认 3）跨同一 `source_usage` 的 Job 聚合，只有 `oc_project_video_append` action 计入；只读、Plan 保存和素材推送均不计入。领取额度时锁定 Case，确认最新 Job、冻结 Plan、本人确认、次数与最近 action 的结束时间；相邻请求至少 20 秒。结果不明确时只允许回查，不能借恢复入口再次写入。`platform_actions.error_category` 保持既有 allowlist；追加适配器将细分的受控平台结果写入 `metadata.error_category` 与 `metadata.platform_outcome_code`，Plan 收口和 Gate 投影据此区分明确拒绝与结果不明。
+追加 action 的恢复额度按同一 `workflow_cases.maximum_create_attempts`（默认 3）跨同一 `source_usage` 的 Job 聚合，只有 `oc_project_video_append` action 计入；只读、Plan 保存和素材推送均不计入。领取额度时锁定 Case，确认最新 Job、冻结 Plan、本人确认、次数与最近 action 的结束时间；相邻请求至少 20 秒。新 Plan 明确冻结 `40100` delivery 合同时，一个逻辑 action 最多三笔相同 hash 的物理请求，仍只计一个 Case action。结果不明确时只允许回查，不能借恢复入口再次写入。`platform_actions.error_category` 保持既有 allowlist；追加适配器将细分的受控平台结果写入 `metadata.error_category` 与 `metadata.platform_outcome_code`，Plan 收口和 Gate 投影据此区分系统限流、明确拒绝与结果不明。
 
 ### 追加项目候选的只读口径
 

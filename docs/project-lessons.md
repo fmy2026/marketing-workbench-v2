@@ -147,6 +147,7 @@ Node 4 的资源 Skill 独立判断：先查资源归属和流转路径，再查
 | 优化目标核查 | 配置 6/6 后，继续使用 `GET /open_api/v3.0/event_manager/optimized_goal/get/` 验证 `PAY + PURCHASE_ROI_7D`，并使用 `GET /open_api/v3.0/event_manager/dbt/get/` 验证 `PER_AND_SEVEN_PAY_ROI`；这两段通过后才允许关闭事件链。 |
 | 写入边界 | 事件资产创建最多 1 次；事件配置创建最多 6 次；每个动作都必须绑定当前 Job、Plan、confirmation、route、game、advertiser 与模板 hash。创建成功但回查不到、候选歧义、App/instance 不匹配、任一 API 非 0 或权限异常时停止，不自动扩大范围。 |
 | 幂等与审计 | orchestrator 的 internal claim 必须同时绑定 plan id 和 idempotency key；不同 plan/version 不得互相挡住，但同一 plan/action 不得重复消费。Create Plan 在确认前还必须让最终 Draft 精确绑定 Plan ID/hash；缺失绑定必须早于 confirmation/action fail-closed，已确认且零 action 的预写入阻断 Plan 必须 consumed 收口。事件配置 create 子 action 必须使用“已验证 planned action key + 当前 Plan ID + event type”，request hash 只作请求证据，不能充当跨 Job 的全局幂等身份。动作审计字段与保存边界查 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
+| 追加视频系统限流 | 本地官方 `40100` 是接口总频控，不是参数、权限或 token 错误。仅新冻结并在 Plan、scope 与 action 三处携带同一 delivery 合同的项目素材追加，才可在同一 confirmation 内以相同 request hash 错峰最多三次；每笔写入 delivery 审计，其他结果只回查。 |
 | 通过标准 | `event_configs/get` 6/6、`optimized_goal/get` 主/深度目标命中、`dbt/get` 深度优化方式命中；事件链 blocker 随核验结果解除，资源状态记录遵循 [数据合同](project-数据与报表契约.md#配置与资源来源)。 |
 | 验证状态 | 已闭环；已形成“查找 -> 缺失创建资产 -> 缺失创建 baseline 事件 -> 配置核查 -> 优化目标/DBT 核查 -> READY”的真实可复用经验。 |
 | 不适用边界 | 不把平台 UI 截图、旧账户资产、旧库 event_id、历史目标户候选或 `available_events/get` 创建后为空当作 READY 证据；不在本模块触发标准项目、Promotion、预算、出价、素材、DMP、头像、备用页或 token 刷新。 |

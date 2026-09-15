@@ -6,6 +6,7 @@ import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs"
 import { filenameMatchesMaterialCode } from "./materialCodeMatcher.mjs";
 import { videoMaterialBatchBindTransportPayload } from "./oceanengineVideoMaterialExecutor.mjs";
 import { buildLosslessJsonWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
+import { STD_PROJECT_40100_REDELIVERY_POLICY, stdProjectRateLimitRedeliverySchedule } from "./oceanengineStdProjectCreateExecutor.mjs";
 
 export const PROJECT_VIDEO_APPEND_ENDPOINT = "/open_api/v3.0/oc_project/material/create/";
 export const PROJECT_VIDEO_APPEND_ACTION = "oc_project_video_append";
@@ -13,6 +14,14 @@ export const PROJECT_VIDEO_MATERIAL_PUSH_ACTION = "oc_project_video_material_pus
 export const PROJECT_VIDEO_MATERIAL_PUSH_ENDPOINT = "/open_api/2/file/material/bind/";
 export const PROJECT_VIDEO_APPEND_MAX_ITEMS = 100;
 export const PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE = 50;
+export const PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY = Object.freeze({
+  endpoint: PROJECT_VIDEO_APPEND_ENDPOINT,
+  api_code: "40100",
+  maximum_delivery_calls: STD_PROJECT_40100_REDELIVERY_POLICY.maximum_delivery_calls,
+  scheduled_offsets_ms: STD_PROJECT_40100_REDELIVERY_POLICY.scheduled_offsets_ms,
+  jitter_max_ms: STD_PROJECT_40100_REDELIVERY_POLICY.jitter_max_ms,
+  maximum_total_elapsed_ms: STD_PROJECT_40100_REDELIVERY_POLICY.maximum_total_elapsed_ms
+});
 
 function clean(value) { return String(value ?? "").trim(); }
 function hash(value) { return `sha256:${createHash("sha256").update(String(value)).digest("hex")}`; }
@@ -39,6 +48,34 @@ function requiredVideoId(name, value) {
 function optionalVideoId(name, value) {
   if (value === undefined || value === null || String(value).trim() === "") return "";
   return requiredVideoId(name, value);
+}
+
+function sameAppendRateLimitPolicy(policy = {}) {
+  const expected = PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY;
+  return String(policy.endpoint || "") === expected.endpoint &&
+    String(policy.api_code || "") === expected.api_code &&
+    Number(policy.maximum_delivery_calls) === expected.maximum_delivery_calls &&
+    Number(policy.jitter_max_ms) === expected.jitter_max_ms &&
+    Number(policy.maximum_total_elapsed_ms) === expected.maximum_total_elapsed_ms &&
+    JSON.stringify(policy.scheduled_offsets_ms || []) === JSON.stringify(expected.scheduled_offsets_ms);
+}
+
+function appendRateLimitPolicyFromPlan(plan = {}, action = {}) {
+  const scope = plan.metadata?.execution_scope || {};
+  const policy = plan.metadata?.append_rate_limit_redelivery || {};
+  const enabled = sameAppendRateLimitPolicy(policy) &&
+    sameAppendRateLimitPolicy(scope.rate_limit_redelivery) &&
+    sameAppendRateLimitPolicy(action.rate_limit_redelivery) &&
+    Number(scope.maximum_platform_calls) === policy.maximum_delivery_calls &&
+    Number(action.maximum_platform_calls) === policy.maximum_delivery_calls;
+  return enabled ? policy : null;
+}
+
+function appendSafeErrorCategory({ apiCode = "", responseOk = false, parsed = true } = {}) {
+  if (apiCode === "40100") return "system_rate_limited";
+  if (!parsed) return "platform_response_not_json";
+  if (apiCode) return "platform_rejected";
+  return responseOk ? "platform_response_missing_business_code" : "platform_http_failed";
 }
 
 function videoItems(payload = {}) {
@@ -268,7 +305,9 @@ export async function executeProjectVideoAppendOnce({
   credentialSummary = getOceanEngineCredentialSummary(),
   credentialEnv = readOceanEngineEnv().env,
   readonlyClient = createOceanEngineReadonlyClient({ fetchImpl }),
-  allowNetworkWrite = false
+  allowNetworkWrite = false,
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  nowMs = () => Date.now()
 } = {}) {
   const plan = bundle?.executionPlan || {};
   const metadata = plan.metadata || {};
@@ -327,37 +366,72 @@ export async function executeProjectVideoAppendOnce({
     appendAttemptState: claim
   };
   const requestHash = wire.requestHash;
+  const rateLimitPolicy = appendRateLimitPolicyFromPlan(plan, action);
+  const deliveryOffsets = rateLimitPolicy
+    ? stdProjectRateLimitRedeliverySchedule(actionId, rateLimitPolicy)
+    : [0];
+  const deliveryStartedAtMs = nowMs();
   let responseHash = "";
   let httpStatus = null;
   let apiCode = "";
   let success = false;
   let errorCategory = "";
-  try {
-    const response = await fetchWithDeadline(fetchImpl, `https://api.oceanengine.com${PROJECT_VIDEO_APPEND_ENDPOINT}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", "Access-Token": credentialEnv.OCEANENGINE_ACCESS_TOKEN },
-      body: wire.body
-    }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
-    const text = await response.text();
-    responseHash = hash(text);
-    httpStatus = response.status;
+  let deliveryCount = 0;
+  let rateLimitedDeliveryCount = 0;
+  for (let index = 0; index < deliveryOffsets.length; index += 1) {
+    const deliveryNo = index + 1;
+    const scheduledOffsetMs = deliveryOffsets[index];
+    const remainingDelayMs = Math.max(0, deliveryStartedAtMs + scheduledOffsetMs - nowMs());
+    if (remainingDelayMs > 0) await wait(remainingDelayMs);
+    const scheduledAt = new Date(deliveryStartedAtMs + scheduledOffsetMs).toISOString();
+    const deliveryId = `${actionId}-DELIVERY-${String(deliveryNo).padStart(2, "0")}`;
+    const startedAt = new Date(nowMs()).toISOString();
+    if (typeof repo.upsertPlatformActionDelivery === "function") {
+      await repo.upsertPlatformActionDelivery({
+        deliveryId, actionId, deliveryNo, deliveryStatus: "started", scheduledOffsetMs, scheduledAt,
+        startedAt, requestHash, metadata: { payload_stored: false, response_stored: false, retry_allowed: false }
+      });
+    }
+    let response;
     let parsed = {};
     let parsedResponse = true;
-    try { parsed = JSON.parse(text); } catch { parsedResponse = false; errorCategory = "platform_response_not_json"; }
-    apiCode = clean(parsed.code ?? parsed.err_no ?? parsed.error_code);
-    success = response.ok && apiCode === "0";
-    if (!success && !errorCategory) {
-      errorCategory = apiCode
-        ? "platform_rejected"
-        : response.status >= 500
-          ? "platform_http_server_error"
-          : parsedResponse ? "platform_response_missing_business_code" : "platform_response_not_json";
+    try {
+      response = await fetchWithDeadline(fetchImpl, `https://api.oceanengine.com${PROJECT_VIDEO_APPEND_ENDPOINT}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "Access-Token": credentialEnv.OCEANENGINE_ACCESS_TOKEN },
+        body: wire.body
+      }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
+      const text = await response.text();
+      responseHash = hash(text);
+      httpStatus = response.status;
+      try { parsed = JSON.parse(text); } catch { parsedResponse = false; }
+      apiCode = clean(parsed.code ?? parsed.err_no ?? parsed.error_code);
+      success = response.ok && apiCode === "0";
+      errorCategory = success ? "" : appendSafeErrorCategory({ apiCode, responseOk: response.ok, parsed: parsedResponse });
+    } catch (error) {
+      httpStatus = null;
+      apiCode = error?.name === "PlatformDeadlineError" ? "timeout" : "transport_error";
+      responseHash = hash(canonical({ request_hash: requestHash, outcome: apiCode }));
+      errorCategory = error?.name === "PlatformDeadlineError" ? "platform_timeout" : "platform_transport_failed";
     }
-  } catch (error) {
-    errorCategory = error?.name === "PlatformDeadlineError" ? "platform_timeout" : "platform_transport_failed";
+    deliveryCount = deliveryNo;
+    const rateLimited = httpStatus === 200 && apiCode === "40100" && errorCategory === "system_rate_limited";
+    if (rateLimited) rateLimitedDeliveryCount += 1;
+    if (typeof repo.upsertPlatformActionDelivery === "function") {
+      await repo.upsertPlatformActionDelivery({
+        deliveryId, actionId, deliveryNo,
+        deliveryStatus: success ? "succeeded" : rateLimited ? "rate_limited" : "failed_or_unconfirmed",
+        scheduledOffsetMs, scheduledAt, startedAt, finishedAt: new Date(nowMs()).toISOString(), requestHash, responseHash,
+        httpStatus, apiCode, requestIdPresent: Boolean(clean(parsed.request_id)), objectIdPresent: false,
+        errorCategory: success ? "" : (rateLimited ? "system_rate_limited" : "unclassified"),
+        errorSummary: success ? "" : rateLimited ? "platform_system_rate_limited" : "platform_append_not_confirmed",
+        metadata: { payload_stored: false, response_stored: false, retry_allowed: false }
+      });
+    }
+    if (!(rateLimited && rateLimitPolicy && deliveryNo < deliveryOffsets.length)) break;
   }
-  // A rejected, timed-out, or malformed response is never retried. It still
-  // gets one authoritative readback because the platform may have consumed it.
+  // No non-40100 result is retried. A readback is always retained because a
+  // platform response can be accepted before project material visibility.
   const after = await readProjectVideoIds({ client: readonlyClient, advertiserId, projectId });
   const plannedVideoIds = appendItems.map((item) => clean(item.video_id || item.videoId));
   const readback = validateProjectVideoAppendReadback({ plannedOriginResourceIds: appendItems.map((item) => clean(item.origin_resource_id || item.originResourceId)), foundVideoIds: after.videoIds || [], itemMap: appendItems.map((item) => ({ originResourceId: item.origin_resource_id || item.originResourceId, videoId: item.video_id || item.videoId })) });
@@ -365,8 +439,8 @@ export async function executeProjectVideoAppendOnce({
   // platform_actions.error_category is an allowlisted diagnostic field. Keep
   // the transport outcome separately in safe metadata so unknown HTTP/JSON
   // failures cannot bypass the recovery policy or violate the DB contract.
-  const persistedErrorCategory = success ? "" : "unclassified";
-  await repo.finishPlannedExecutionAction({
+  const persistedErrorCategory = success ? "" : errorCategory === "system_rate_limited" ? "system_rate_limited" : "unclassified";
+  const finalAction = {
     actionId,
     jobId: bundle.job.job_id,
     confirmationId,
@@ -381,18 +455,50 @@ export async function executeProjectVideoAppendOnce({
     errorCategory: persistedErrorCategory,
     requestFieldManifest: wire.requestFieldManifest,
     attemptNo: Number(claim.attemptNo || metadata.append_attempt_no || 1),
-    metadata: { platform_write_called: true, platform_response_confirmed: success, platform_result: success ? "accepted" : errorCategory === "platform_rejected" ? "explicit_rejection" : "unconfirmed", error_category: success ? "" : (errorCategory || "platform_response_unknown"), platform_outcome_code: success ? "" : (errorCategory || "platform_response_unknown"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, payload_persisted: false, response_persisted: false }
-  });
+    metadata: {
+      platform_write_called: true, platform_response_confirmed: success,
+      platform_result: success ? "accepted" : errorCategory === "platform_rejected" ? "explicit_rejection" : "unconfirmed",
+      error_category: success ? "" : (errorCategory || "platform_response_unknown"),
+      platform_outcome_code: success ? "" : (errorCategory || "platform_response_unknown"),
+      readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length,
+      delivery_count: deliveryCount, rate_limited_delivery_count: rateLimitedDeliveryCount,
+      maximum_delivery_calls: rateLimitPolicy?.maximum_delivery_calls || 1,
+      payload_persisted: false, response_persisted: false
+    }
+  };
+  if (typeof repo.upsertPlatformAction === "function") {
+    await repo.upsertPlatformAction({
+      ...finalAction,
+      endpoint: PROJECT_VIDEO_APPEND_ENDPOINT,
+      method: "POST",
+      requestIdPresent: false,
+      objectIdPresent: false,
+      errorSummary: success ? "" : errorCategory === "system_rate_limited" ? "platform_system_rate_limited" : "platform_append_not_confirmed",
+      requestId: "",
+      offendingFieldPath: "",
+      responseSummary: {
+        api_code: apiCode || "unknown",
+        delivery_count: deliveryCount,
+        rate_limited_delivery_count: rateLimitedDeliveryCount,
+        maximum_delivery_calls: rateLimitPolicy?.maximum_delivery_calls || 1,
+        response_hash_present: Boolean(responseHash),
+        raw_response_stored: false
+      },
+      finishedAt: new Date(nowMs()).toISOString()
+    });
+  } else {
+    await repo.finishPlannedExecutionAction(finalAction);
+  }
   if (typeof repo.upsertReadbackRecord === "function") {
     await repo.upsertReadbackRecord({
       readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-APPEND`, jobId: bundle.job.job_id,
       objectType: "oc_project_video_append", objectId: projectId, objectName: "project_video_append",
       readbackStatus: actionStatus === "succeeded" ? "readback_verified" : "not_found_or_mismatch",
-      fieldDiffSummary: { requested_count: plannedVideoIds.length, verified_count: readback.verifiedCount, unresolved_count: readback.unresolvedOriginResourceIds.length, response_persisted: false },
+      fieldDiffSummary: { requested_count: plannedVideoIds.length, verified_count: readback.verifiedCount, unresolved_count: readback.unresolvedOriginResourceIds.length, query_status: after.status || "blocked", response_persisted: false },
       evidenceRef: `EV-${bundle.job.job_id}-PROJECT-VIDEO-APPEND-READBACK`
     });
   }
-  return { status: actionStatus === "succeeded" ? "readback_verified" : "failed_or_unconfirmed", appendCalled: true, actionId, idempotencyKey, requestHash, responseHash, httpStatus, apiCode, ...(success ? {} : { blockers: [errorCategory || "platform_rejected"] }), readback };
+  return { status: actionStatus === "succeeded" ? "readback_verified" : "failed_or_unconfirmed", appendCalled: true, actionId, idempotencyKey, requestHash, responseHash, httpStatus, apiCode, deliveryCount, rateLimitedDeliveryCount, maximumDeliveryCalls: rateLimitPolicy?.maximum_delivery_calls || 1, ...(success ? {} : { blockers: [errorCategory || "platform_rejected"] }), readback };
 }
 
 export function classifyProjectVideoAppendItems({ originResourceIds = [], projectVideoIds = [], targetVideos = [], sourceVideos = [] } = {}) {

@@ -15,6 +15,7 @@ import {
   validateExecutionPlanActionScope
 } from "./executionPlan.mjs";
 import { FORMAL_CONFIRMED_ACTION_ORDER } from "./skills/oe3/04-resource-action-registry.mjs";
+import { PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
 import {
   DEFAULT_PROJECT_STATE_PATH,
   evaluatePlanBoundWriteAuthorization
@@ -106,6 +107,29 @@ function stdProjectCreateDeliveryContractBlockers({ scope = {}, createAction = {
     ...(Number(scope.maximum_platform_calls) === STD_PROJECT_40100_REDELIVERY_CONTRACT.maximum_delivery_calls
       ? []
       : ["std_project_rate_limit_redelivery_scope_call_limit_invalid"])
+  ];
+}
+
+function sameAppendRateLimitRedeliveryContract(value = {}) {
+  const expected = PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY;
+  return value &&
+    value.endpoint === expected.endpoint && value.api_code === expected.api_code &&
+    Number(value.maximum_delivery_calls) === expected.maximum_delivery_calls &&
+    Array.isArray(value.scheduled_offsets_ms) &&
+    value.scheduled_offsets_ms.every((offset, index) => Number(offset) === expected.scheduled_offsets_ms[index]) &&
+    value.scheduled_offsets_ms.length === expected.scheduled_offsets_ms.length &&
+    Number(value.jitter_max_ms) === expected.jitter_max_ms && Number(value.maximum_total_elapsed_ms) === expected.maximum_total_elapsed_ms;
+}
+
+function appendDeliveryContractBlockers({ scope = {}, action = {}, plan = {} } = {}) {
+  const policy = plan.metadata?.append_rate_limit_redelivery || {};
+  const expectedCalls = PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY.maximum_delivery_calls;
+  return [
+    ...(sameAppendRateLimitRedeliveryContract(policy) ? [] : ["project_video_append_rate_limit_redelivery_plan_invalid"]),
+    ...(sameAppendRateLimitRedeliveryContract(scope.rate_limit_redelivery) ? [] : ["project_video_append_rate_limit_redelivery_scope_invalid"]),
+    ...(sameAppendRateLimitRedeliveryContract(action.rate_limit_redelivery) ? [] : ["project_video_append_rate_limit_redelivery_action_invalid"]),
+    ...(actionMaximumPlatformCalls(action) === expectedCalls ? [] : ["project_video_append_rate_limit_redelivery_action_call_limit_invalid"]),
+    ...(Number(scope.maximum_platform_calls) === expectedCalls ? [] : ["project_video_append_rate_limit_redelivery_scope_call_limit_invalid"])
   ];
 }
 
@@ -310,8 +334,8 @@ export async function validateProjectVideoAppendPlanConfirmationScope({
     ...(scope.target_plan_hash === plan?.plan_hash ? [] : ["platform_write_scope_plan_hash_mismatch"]),
     ...(actionScope.status === "passed" ? [] : actionScope.blockers),
     ...(actions.length === 1 && action.action_type === ACTION_PROJECT_VIDEO_APPEND ? [] : ["project_video_append_action_set_invalid"]),
-    ...(Number(actionMaximumPlatformCalls(action)) === 1 ? [] : ["project_video_append_call_limit_invalid"]),
-    ...(Number(scope.maximum_actions) === 1 && Number(scope.maximum_platform_calls) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
+    ...appendDeliveryContractBlockers({ scope, action, plan }),
+    ...(Number(scope.maximum_actions) === 1 ? [] : ["platform_write_scope_maximum_actions_invalid"]),
     ...(scope.retry_allowed === false ? [] : ["platform_write_scope_retry_allowed_must_be_false"]),
     ...(String(scope.target_project_id || plan?.metadata?.project_id || "") === String(bundle.case?.target_project_id || "") ? [] : ["project_video_append_target_project_mismatch"]),
     ...(Number(append.append_ready_count || 0) > 0 ? [] : ["project_video_append_items_missing"]),

@@ -256,6 +256,8 @@ export async function executeConfirmedLaunch({
       return { ...view, executionGrant: { status: pushResult.status === "readback_verified" ? "consumed" : "blocked", grantSource, executionGrantId, createCalled: false, materialPushCalled: pushResult.writeCalled === true, maximumActions: 1, retryAllowed: false, ...(pushResult.blockers?.length ? { blockers: pushResult.blockers } : {}) } };
     }
     if ((latestBundleBeforeCreate.executionPlan?.plan_kind || latestBundleBeforeCreate.executionPlan?.metadata?.plan_kind) === "project_video_append") {
+      const appendRateLimitRedelivery = planMetadata.execution_scope?.rate_limit_redelivery || {};
+      const appendMaximumDeliveryCalls = Number(appendRateLimitRedelivery.maximum_delivery_calls || 1);
       const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
         confirmationId: planConfirmationId(currentPlanId),
         jobId,
@@ -275,7 +277,8 @@ export async function executeConfirmedLaunch({
           advertiser_id: latestBundleBeforeCreate.job.advertiser_id,
           target_project_id: latestBundleBeforeCreate.case?.target_project_id || "",
           allowed_actions: [PROJECT_VIDEO_APPEND_ACTION],
-          maximum_platform_calls: 1,
+          maximum_platform_calls: appendMaximumDeliveryCalls,
+          rate_limit_redelivery: appendRateLimitRedelivery,
           retry_allowed: false,
           payload_persisted: false,
           response_persisted: false
@@ -314,7 +317,7 @@ export async function executeConfirmedLaunch({
           executionGrantId,
           createCalled: false,
           appendCalled: appendResult.appendCalled === true,
-          maximumActions: 1,
+          maximumActions: appendMaximumDeliveryCalls,
           retryAllowed: false,
           ...(appendResult.blockers?.length ? { blockers: appendResult.blockers } : {})
         }

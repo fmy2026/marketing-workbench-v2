@@ -5,6 +5,7 @@ import {
   buildProjectVideoAppendWireBody,
   prepareProjectVideoAppendReadonly,
   PROJECT_VIDEO_APPEND_ACTION,
+  PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY,
   PROJECT_VIDEO_MATERIAL_PUSH_ACTION,
   readProjectVideoIds,
   validateProjectVideoAppendReadback
@@ -1940,6 +1941,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   const maximumAppendAttempts = Number(appendAttemptState?.maximumAppendAttempts || bundle.case?.maximum_create_attempts || 3);
   const appendAttemptNo = Number(appendAttemptState?.nextAppendAttemptNo || 1);
   const appendAttemptLimitReached = !isMaterialPush && appendCandidates.length > 0 && appendAttemptNo > maximumAppendAttempts;
+  const appendRateLimitPolicy = !isMaterialPush ? PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY : null;
   const action = effectivePlan.status === "ready" && appendWireValid && !guideVideoBlocked && !explicitCoverBlocked && !appendAttemptLimitReached ? {
     action_type: isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION,
     target_ref: isMaterialPush ? `advertiser:${bundle.job.advertiser_id}` : `project:${bundle.case?.target_project_id || ""}`,
@@ -1951,7 +1953,8 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     depends_on: ["project_material_readonly", "video_origin_mapping_readonly"],
     writes_to: ["platform_actions", "readback_records"],
     reason: isMaterialPush ? "push_verified_source_videos_to_target_account" : "append_verified_target_videos_only",
-    maximum_platform_calls: isMaterialPush ? Number((effectivePlan.batches || []).length) : 1,
+    maximum_platform_calls: isMaterialPush ? Number((effectivePlan.batches || []).length) : appendRateLimitPolicy.maximum_delivery_calls,
+    ...(appendRateLimitPolicy ? { rate_limit_redelivery: appendRateLimitPolicy } : {}),
     endpoint: effectivePlan.endpoint,
     method: effectivePlan.method
   } : null;
@@ -1985,7 +1988,8 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       },
       pushBatches: isMaterialPush ? effectivePlan.batches || [] : [],
       appendAttemptNo,
-      maximumAppendAttempts
+      maximumAppendAttempts,
+      appendRateLimitRedelivery: appendRateLimitPolicy || {}
     }))}`,
     plannedActions: action ? [action] : [],
     blockerCodes: blockers,
@@ -2010,6 +2014,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       append_attempt_no: appendAttemptNo,
       maximum_append_attempts: maximumAppendAttempts,
       append_retry_cooldown_seconds: 20,
+      append_rate_limit_redelivery: appendRateLimitPolicy || {},
       append_material_contract: {
         guide_video_required: guideVideoReadiness.required === true,
         guide_video_ready: guideVideoReadiness.status === "passed",
@@ -2045,6 +2050,7 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
         allowed_plan_actions: action ? [isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION] : [],
         maximum_actions: action ? 1 : 0,
         maximum_platform_calls: action ? Number(action.maximum_platform_calls || 0) : 0,
+        rate_limit_redelivery: appendRateLimitPolicy || {},
         maximum_create_calls: 0,
         retry_allowed: false
       },
@@ -2144,13 +2150,22 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
     ""
   ).trim();
   const executionOutcome = String(plan.metadata?.confirmed_execution_outcome || "").trim();
+  const rateLimitExhausted = executionErrorCategory === "system_rate_limited" &&
+    Number(appendAction?.metadata?.delivery_count || 0) >= Number(appendAction?.metadata?.maximum_delivery_calls || 1);
   const executionNode = platformResponseConfirmed
     ? nodeStatus({
       nodeKey: "std_project_create_executor",
       status: "passed",
       summary: "追加请求已获平台受理，正在等待项目素材回查。"
     })
-    : executionErrorCategory === "platform_rejected"
+    : rateLimitExhausted
+      ? nodeStatus({
+        nodeKey: "std_project_create_executor",
+        status: "blocked",
+        summary: "平台系统繁忙，本次有限尝试已结束；旧 Plan 不会重发。",
+        diagnosticLevel: "warning"
+      })
+      : executionErrorCategory === "platform_rejected"
       ? nodeStatus({
         nodeKey: "std_project_create_executor",
         status: "blocked",
@@ -2182,12 +2197,16 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
     evidenceRef: `EV-${jobId}-PROJECT-VIDEO-APPEND-READBACK-${Date.now()}`
   });
   await repo.upsertNodeRuns(jobId, [
+    nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
+    nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已完成核验。" }),
+    nodeStatus({ nodeKey: "game_launch_pack", status: "passed", summary: "指定视频已完成唯一核验。" }),
+    nodeStatus({ nodeKey: "account_resource_prepare", status: "passed", summary: "追加前资源与素材合同已完成核验。" }),
     nodeStatus({ nodeKey: "std_project_draft_builder", status: "passed", summary: "追加计划已确认，旧 Plan 已消费。" }),
     executionNode,
     nodeStatus({
       nodeKey: "readback_closer",
       status: verified ? "passed" : "blocked",
-      summary: verified ? "追加视频已通过项目素材回查。" : project.status !== "passed" ? "项目素材回查未完成，无法判断追加结果。" : "项目素材回查未发现待追加视频。",
+      summary: verified ? "追加视频已通过项目素材回查。" : project.status !== "passed" ? "项目素材回查未完成，无法判断追加结果。" : rateLimitExhausted ? "平台系统繁忙，本次有限尝试已结束；项目素材回查未发现待追加视频。" : "项目素材回查未发现待追加视频。",
       diagnosticLevel: verified ? "info" : "warning",
       outputSummary: {
         readbackStatus: verified ? "readback_verified" : "not_found_or_mismatch",

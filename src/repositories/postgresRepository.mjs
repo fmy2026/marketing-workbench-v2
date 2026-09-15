@@ -5905,6 +5905,13 @@ export class PostgresRepository {
     `, this.database);
   }
 
+  // The delivery table records bounded physical requests below one logical
+  // action. Its schema is deliberately endpoint-neutral; keep the historic
+  // standard-project method as a compatibility alias.
+  async upsertPlatformActionDelivery(delivery = {}) {
+    return this.upsertStdProjectCreateDelivery(delivery);
+  }
+
   async mergePlatformActionMetadata(actionId, metadata = {}) {
     assertId("action_id", actionId);
     await runPsql(`

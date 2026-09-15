@@ -2,6 +2,7 @@ import {
   classifyProjectVideoAppendItems,
   buildProjectVideoAppendPlan,
   buildProjectVideoAppendWireBody,
+  PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY,
   buildProjectVideoMaterialPushPlan,
   executeProjectVideoAppendOnce,
   executeProjectVideoMaterialPushOnce,
@@ -211,6 +212,70 @@ assert(JSON.parse(appendWire).video_material_list[0].guide_video_id === "guide-v
 assert(appendWire.includes(`\"advertiser_id\":${request.advertiser_id}`) && appendWire.includes(`\"project_id\":${request.project_id}`), "append_execution_must_send_lossless_integer_ids");
 assert(appendActionFinishes[0]?.httpStatus === 200 && appendActionFinishes[0]?.apiCode === "0" && appendActionFinishes[0]?.requestHash === guidedAppendWire.requestHash, "append_action_audit_must_record_wire_result");
 assert(appendActionFinishes[0]?.attemptNo === 1, "append_action_must_record_the_frozen_attempt_number");
+const rateLimitedDeliveries = [];
+const rateLimitedFinishes = [];
+const rateLimitCalls = [];
+let rateLimitNow = 0;
+let rateLimitedReadCount = 0;
+const rateLimitedAppend = await executeProjectVideoAppendOnce({
+  repo: {
+    async claimProjectVideoAppendAction() { return { claimed: true, attemptNo: 1 }; },
+    async finishPlannedExecutionAction(input) { rateLimitedFinishes.push(input); },
+    async upsertPlatformActionDelivery(input) { rateLimitedDeliveries.push(input); },
+    async upsertReadbackRecord() {}
+  },
+  bundle: {
+    job: { job_id: "JOB-APPEND-40100", advertiser_id: request.advertiser_id },
+    case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-APPEND-40100", plan_hash: "sha256:append-40100", plan_status: "executing",
+      planned_actions: [{ action_type: "oc_project_video_append", idempotency_key: "append:40100", maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY }],
+      metadata: {
+        project_id: request.project_id, project_snapshot_hash: appendSnapshot.snapshotHash,
+        append_rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY,
+        execution_scope: { maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY },
+        append_material_contract: { guide_video_required: false, guide_video_ready: true },
+        append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }]
+      }
+    }
+  },
+  confirmationId: "CONFIRM-APPEND-40100", allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] }, credentialEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+  readonlyClient: { async get() { rateLimitedReadCount += 1; return { status: "passed", responseHash: "sha256:append-40100-readback", summary: { projectIdPresent: true, totalPage: 1, videoIds: rateLimitedReadCount === 1 ? [] : [opaqueVideoId] } }; } },
+  fetchImpl: async (_url, options) => {
+    rateLimitCalls.push(options.body);
+    return new Response(JSON.stringify({ code: rateLimitCalls.length === 1 ? 40100 : 0 }), { status: 200 });
+  },
+  nowMs: () => rateLimitNow,
+  wait: async (ms) => { rateLimitNow += ms; }
+});
+assert(rateLimitedAppend.status === "readback_verified" && rateLimitedAppend.deliveryCount === 2 && rateLimitedAppend.rateLimitedDeliveryCount === 1, "append_40100_second_delivery_not_verified");
+assert(rateLimitCalls.length === 2 && rateLimitCalls[0] === rateLimitCalls[1], "append_40100_delivery_payload_drifted");
+assert(rateLimitedDeliveries.filter((delivery) => delivery.deliveryStatus === "rate_limited").length === 1 && rateLimitedDeliveries.filter((delivery) => delivery.deliveryStatus === "succeeded").length === 1, "append_40100_deliveries_not_audited");
+assert(rateLimitedFinishes[0]?.errorCategory === "" && rateLimitedFinishes[0]?.metadata?.delivery_count === 2, "append_40100_final_action_not_audited");
+const exhaustedCalls = [];
+let exhaustedNow = 0;
+const exhaustedAppend = await executeProjectVideoAppendOnce({
+  repo: {
+    async claimProjectVideoAppendAction() { return { claimed: true, attemptNo: 1 }; },
+    async finishPlannedExecutionAction() {}, async upsertPlatformActionDelivery() {}, async upsertReadbackRecord() {}
+  },
+  bundle: {
+    job: { job_id: "JOB-APPEND-40100-EXHAUSTED", advertiser_id: request.advertiser_id }, case: { target_project_id: request.project_id },
+    executionPlan: {
+      plan_id: "PLAN-APPEND-40100-EXHAUSTED", plan_hash: "sha256:append-40100-exhausted", plan_status: "executing",
+      planned_actions: [{ action_type: "oc_project_video_append", maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY }],
+      metadata: { project_id: request.project_id, project_snapshot_hash: appendSnapshot.snapshotHash, append_rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY, execution_scope: { maximum_platform_calls: 3, rate_limit_redelivery: PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY }, append_material_contract: { guide_video_required: false, guide_video_ready: true }, append_items: [{ origin_resource_id: "opaque-code", video_id: opaqueVideoId }] }
+    }
+  },
+  confirmationId: "CONFIRM-APPEND-40100-EXHAUSTED", allowNetworkWrite: true,
+  credentialSummary: { status: "valid", blockers: [] }, credentialEnv: { OCEANENGINE_ACCESS_TOKEN: "test-token" },
+  readonlyClient: { async get() { return { status: "passed", responseHash: "sha256:append-40100-empty", summary: { projectIdPresent: true, totalPage: 1, videoIds: [] } }; } },
+  fetchImpl: async (_url, options) => { exhaustedCalls.push(options.body); return new Response(JSON.stringify({ code: 40100 }), { status: 200 }); },
+  nowMs: () => exhaustedNow, wait: async (ms) => { exhaustedNow += ms; }
+});
+assert(exhaustedAppend.deliveryCount === 3 && exhaustedAppend.rateLimitedDeliveryCount === 3 && exhaustedCalls.length === 3, "append_40100_must_stop_after_three_deliveries");
+assert(new Set(exhaustedCalls).size === 1, "append_40100_exhausted_payload_drifted");
 const push51 = buildProjectVideoMaterialPushPlan({
   advertiserId: request.advertiser_id, materialAccountId: "2234567890123456", projectId: request.project_id,
   items: Array.from({ length: 51 }, (_, index) => ({ originResourceId: `origin-${index}`, sourceVideoId: String(3000000000000000 + index), status: "target_push_required" }))
