@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-APPEND-UNIFIED-CLOSURE-20260915",
   "task_ref": "tasks/TASK-MWBV2-APPEND-UNIFIED-CLOSURE-20260915.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-15T12:40:00+08:00",
-  "updated_at": "2026-09-15T12:40:00+08:00",
+  "updated_at": "2026-09-15T12:52:30+08:00",
   "base_revision": "b37a847be82fb347f785f33ddb50dcc98cae2a6d",
   "baseline_dirty_files": {},
   "domains": ["control", "workflow", "data", "security", "deploy"],
@@ -38,6 +38,7 @@
     "src/repositories/postgresRepository.mjs",
     "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
     "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
@@ -65,9 +66,64 @@
     {"acceptance_id": "AC-04", "command": "guarded existing-evidence repair followed by read-only Case verification"},
     {"acceptance_id": "AC-05", "command": "npm run test:workbench-progress && npm run test:workbench-conversation && npm run check:project -- --phase before-close; release and online verification"}
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:project-video-append",
+      "verified_at": "2026-09-15T12:48:00+08:00",
+      "summary": "The isolated append suite covers an immediate verified result and a later verified observation through the same closure, producing seven passed nodes.",
+      "evidence_refs": ["scripts/00-project-video-append-smoke.mjs"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:project-video-append && npm run test:execution-grant",
+      "verified_at": "2026-09-15T12:48:00+08:00",
+      "summary": "Repeated confirmation remains Plan-bound, non-40100 results do not redeliver, 40100 with contradictory object evidence does not redeliver, and the bounded delivery contract remains enforced.",
+      "evidence_refs": ["scripts/00-project-video-append-smoke.mjs", "src/workflows/executionGrantScope.mjs"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:project-video-append && npm run db:contract-check",
+      "verified_at": "2026-09-15T12:48:00+08:00",
+      "summary": "The closure transaction persists a matching readback and redacted evidence artifact before synchronizing nodes, Job and Case; database contract validation passed.",
+      "evidence_refs": ["scripts/00-project-video-append-smoke.mjs", "src/repositories/postgresRepository.mjs"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "guarded existing-evidence repair followed by read-only Case verification",
+      "verified_at": "2026-09-15T12:46:39+08:00",
+      "summary": "The repair reused the existing succeeded action and 12:34:35 verified observation only. It added the matching redacted evidence and synchronized all seven nodes without a new platform request.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-UNIFIED-CLOSURE-20260915/current-case-repair.md"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-conversation && npm run check:project -- --phase before-close; fixed release and online verification",
+      "verified_at": "2026-09-15T12:50:00+08:00",
+      "summary": "Presentation tests passed. Revision c0c701c was pushed, released and reloaded; the Case URL returned HTTP 200, the active LaunchAgent points at that release, and online asset hashes match it.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-UNIFIED-CLOSURE-20260915/release-verification.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "Records the unified append observation and closure decision."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "Defines one append readback closure and its Node 05–07 projection."},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "Defines the transactional observation/evidence/node/Case audit contract."},
+    {"ref": "deploy/README.md", "status": "not_needed", "reason": "The existing fixed-release company-mode deployment process was used without change."}
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Unified append-video success closure and repaired the completed Case's missing nodes and evidence without another platform request.",
+    "side_effects": "The approved repair added a local redacted evidence artifact and synchronized Node 05–07 for the existing verified Case. It did not alter the existing action, confirmation, Plan or original readback observation.",
+    "remaining_risks": ["A platform rate limit may still exhaust the frozen three-delivery contract; in that event only authority readback can determine completion."],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_cases:CASE-MWBV2-5389271163DB6B8730",
+      "postgres:mwb.platform_actions:ACTION-JOB-MWBV2-20260915043353-B4C3E3-PROJECT-VIDEO-APPEND",
+      "postgres:mwb.readback_records:READBACK-JOB-MWBV2-20260915043353-B4C3E3-PROJECT-VIDEO-APPEND"
+    ]
+  },
+  "closed_at": "2026-09-15T12:52:30+08:00"
 }
