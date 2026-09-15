@@ -115,8 +115,8 @@
       "acceptance_id": "AC-05",
       "status": "passed",
       "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root .local/releases/17ccc80c8c00a91787c0e110ef007e4fe1e6195b; launchctl print; curl http://192.168.42.7:3000/ and /app.js SHA-256",
-      "verified_at": "2026-09-14T18:32:09+08:00",
-      "summary": "公司模式已成功重载至 release 17ccc80c8c00a91787c0e110ef007e4fe1e6195b；LaunchAgent 工作目录、根地址响应和在线 app.js 摘要均与该 release 一致，共享凭据可读检查由模式切换器完成。账户本人对既有 Case 的新版只读核验待浏览器连接恢复后执行。",
+      "verified_at": "2026-09-15T11:08:00+08:00",
+      "summary": "公司模式已成功重载至 release aab1a396b5682cd7e07643f9d6400c693da01cab；在线 app.js 与 workbench-progress.mjs 的 SHA-256 均与 release 源文件一致。已用当前 Case 的 release 参数地址导航 Chrome；浏览器自动化连接仍不可用，未能截图确认。账户本人对既有 Case 的新版只读核验仍待执行。",
       "evidence_refs": ["scripts/00-workbench-mode-switch.mjs"]
     },
     {
@@ -176,9 +176,9 @@
   ],
   "temporary_authorizations": [],
   "result": {
-    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。追加 Plan 现复用创建链的当前 Job 引导视频只读核验，冻结完整视频条目、请求 hash 和证据摘要；回查与 fresh 恢复继续禁止旧 Plan 重发。",
-    "side_effects": "本轮只执行测试和发布；未执行平台写入、Plan 确认或既有 Case 的 workflow readonly。",
-    "remaining_risks": ["账户本人仍需在既有 Case 上点击“重新准备追加”建立 fresh Job，再点击“开始只读核验”生成只含待追加视频并携带引导视频的“确认追加视频”卡；不得在验证中确认追加视频。"],
+    "summary": "已修复完整 LaunchRequest 在前端启动时被裁剪的问题、追加视频项目素材过滤、真实 blocker 投影和追加专用节点展示，并统一初始 readonly 与受阻恢复入口；素材标识码现按原始大小写精确匹配。追加 Plan 现复用创建链的当前 Job 引导视频只读核验，冻结完整视频条目、请求 hash 和证据摘要；回查与 fresh 恢复继续禁止旧 Plan 重发。追加 action 现在按同一 Case 跨 Job 最多三次、20 秒冷却，并由数据库在完整请求校验后原子领取额度。",
+    "side_effects": "本轮执行隔离测试、发布和 Chrome 导航；未执行平台写入、Plan 确认或既有 Case 的 workflow readonly。",
+    "remaining_risks": ["账户本人仍需在既有 Case 上点击“开始只读核验”修复当前 recovery Job，生成只含待追加视频并携带引导视频的“确认追加视频”卡；不得在验证中确认追加视频。"],
     "business_evidence_refs": ["postgres:mwb.workflow_case_summary:CASE-MWBV2-718FF962130E387B3A", "postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260914083827-59ABB4-APPEND-V6"]
   },
   "closed_at": null
