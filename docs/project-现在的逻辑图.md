@@ -96,7 +96,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 = 唯一可执行的平台写入
 ```
 
-- Case 是持续目标，Job 是一次运行；fresh Job 不继承旧 Plan、确认、grant 或 idempotency key。
+- Case 是持续目标，Job 是一次运行；fresh Job 不继承旧 Plan、确认或 grant。追加 action 的幂等键绑定冻结 Plan ID 与已核验素材集合：同一 Plan 的重复提交保持同一键，fresh Plan 即使素材集合相同也使用新键。
 - 页面只读同一服务端 progress 投影：资源 Plan 待确认是 3/7、资源执行是 Node 04；草稿检查通过是 5/7，创建确认或执行仍是 Node 06 的 5/7，创建成功待权威回查为 6/7，只有 Node 07 verified 才是 7/7。确认卡的资源数量、批次、动作码和调用上限均来自冻结 Plan；只读核验不计入平台写入上限。
 - monitor、资源准备、项目创建分别确认；确认前必须 fresh readonly，资源、调用量、Draft/hash、授权、重复或 effective config 漂移均 fail-closed。视频资源还必须重算当前绑定集合、批次与集合 hash；无法核验、集合变化或 hash 不同在占用 confirmation 前停止。
 - 已确认 Create Plan 在实际 create action 前停止时，冻结 Plan 仍消费，executor 必须记录最具体的上游 blocker 及脱敏观察引用。同一 Job 已确认 `std_project_create` 后，Node 01–05、普通 runner 和 Plan 发布事务均拒绝重跑或生成后续 Plan；只有原 Plan 的 Node 07 回查可继续。若 Case 最新、本人范围、无 create action、无创建对象且次数未耗尽，Gate 只允许既有 fresh readonly recovery；它按 Case 锁去重，产生新 Job、新 Plan/hash 和新确认。已有 action、对象或结果不明一律只走 readonly readback，不能恢复性创建。

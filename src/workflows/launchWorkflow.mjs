@@ -1943,7 +1943,9 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
   const action = effectivePlan.status === "ready" && appendWireValid && !guideVideoBlocked && !explicitCoverBlocked && !appendAttemptLimitReached ? {
     action_type: isMaterialPush ? PROJECT_VIDEO_MATERIAL_PUSH_ACTION : PROJECT_VIDEO_APPEND_ACTION,
     target_ref: isMaterialPush ? `advertiser:${bundle.job.advertiser_id}` : `project:${bundle.case?.target_project_id || ""}`,
-    idempotency_key: `${isMaterialPush ? "append-push" : "append"}:${hashText(JSON.stringify(isMaterialPush ? effectivePlan.batches || [] : effectivePlan.originResourceIds || [])).slice(0, 32)}`,
+    // A retry of this frozen Plan must retain its key, while a fresh Job/Plan
+    // for the same material set must not collide with an earlier action.
+    idempotency_key: `${isMaterialPush ? "append-push" : "append"}:${hashText(JSON.stringify({ planId, items: isMaterialPush ? effectivePlan.batches || [] : effectivePlan.originResourceIds || [] })).slice(0, 32)}`,
     status: "ready",
     module_ref: "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
     depends_on: ["project_material_readonly", "video_origin_mapping_readonly"],
@@ -2137,6 +2139,7 @@ export async function runProjectVideoAppendReadback(repo, jobId, options = {}) {
   const executionErrorCategory = String(
     appendAction?.error_category ||
     appendAction?.metadata?.error_category ||
+    appendAction?.metadata?.platform_outcome_code ||
     plan.metadata?.confirmed_execution_error_category ||
     ""
   ).trim();

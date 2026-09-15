@@ -4477,7 +4477,7 @@ export class PostgresRepository {
             metadata = plan.metadata || jsonb_build_object(
               'confirmed_execution_outcome', coalesce((SELECT action_status FROM terminal_action), 'failed_or_unconfirmed'),
               'confirmed_execution_platform_response_confirmed', coalesce((SELECT (metadata->>'platform_response_confirmed')::boolean FROM terminal_action), false),
-              'confirmed_execution_error_category', coalesce(nullif((SELECT error_category FROM terminal_action), ''), nullif((SELECT metadata->>'error_category' FROM terminal_action), ''), ''),
+              'confirmed_execution_error_category', coalesce(nullif((SELECT error_category FROM terminal_action), ''), nullif((SELECT metadata->>'error_category' FROM terminal_action), ''), nullif((SELECT metadata->>'platform_outcome_code' FROM terminal_action), ''), ''),
               'retry_allowed', false,
               'platform_action_count', 1
             ),

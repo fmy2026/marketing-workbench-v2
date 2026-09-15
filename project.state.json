@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-15T03:24:00.000Z",
+  "updated_at": "2026-09-15T12:22:00+08:00",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -9,7 +9,11 @@
     "lifecycle": "active",
     "capabilities_version": "workflow-case-v1"
   },
-  "active_task": null,
+  "active_task": {
+    "id": "TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915",
+    "task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.json"
+  },
   "last_closed_task_ref": "tasks/TASK-MWBV2-WORKBENCH-STARTUP-REPAIR-20260914.md",
   "guardrails": {
     "platform_write_allowed": false,

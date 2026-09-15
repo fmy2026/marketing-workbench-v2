@@ -137,7 +137,7 @@ route_id + game_code
 | Job / Node / Skill / execution cycle | `job_id` / `node_run_id` / `skill_run_id` / `cycle_id`；Node 唯一 job×node_key，Skill 唯一 job×execution_cycle×skill_key×attempt_no，cycle 唯一 job×cycle_no | cycle 从真实开始到结束独立记录；Skill 关联单一 cycle。轮次间人工等待不并入 Skill 耗时，运行中的 cycle 不写结束时间；没有 cycle 的历史 Skill 保留原记录，仅按历史聚合口径展示 |
 | Draft / 名称预留 | `draft_id` / `reservation_id`；名称预留有 job 唯一及 scope×序号、scope×名称约束 | fresh Job 不继承旧确认；runtime 名称占用保留，测试占用单独清理 |
 | Plan / confirmation | `plan_id` / `confirmation_id`；Plan 唯一 job×plan_version，confirmation ID 由 Plan ID 派生并按 Plan 单次占有 | Plan 版本不等于创建次数；immutable Plan/hash 绑定最终 Draft，确认 claim 同时校验 owner/latest Job/Case 生命周期，授权消费留在数据库审计 |
-| Action / delivery / 创建对象 | `action_id` / `(action_id, delivery_no)` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；delivery 序号限定 1–3；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合且只按逻辑 action 计数；`40100` 的物理 delivery 不增加 Attempt。外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
+| Action / delivery / 创建对象 | `action_id` / `(action_id, delivery_no)` / `created_object_id`；action 使用独立幂等键及 job×action_type×attempt_no 约束；delivery 序号限定 1–3；对象唯一 job×object_type×object_id | Case 创建次数跨同 source_usage 的 Job 聚合且只按逻辑 action 计数；追加 action 的键包含冻结 Plan ID 与素材集合，故同 Plan 防重、fresh Plan 不会与旧 action 冲突；`40100` 的物理 delivery 不增加 Attempt。外部调用时间与本地记录时间分开，不能用 fresh Job 重置历史次数 |
 | Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
 | Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
 | 用户 / 会话 / 用户审计 | `user_id` / `session_id` / `audit_event_id`；登录名与 owner key 大小写归一后唯一，会话 token hash 唯一 | 会话到期/撤销与用户变更审计独立；报表读取权限不能推导为账户操作权限 |
@@ -195,7 +195,7 @@ migration `092_project_video_append.sql` 为 `mwb.workflow_cases` 增加 `operat
 
 `mwb.launch_execution_plans.plan_kind` 增加 `project_video_append`，用于冻结目标项目、待新增视频摘要、只读快照 hash、单一追加 action 及一次确认范围。
 
-追加 action 的恢复额度按同一 `workflow_cases.maximum_create_attempts`（默认 3）跨同一 `source_usage` 的 Job 聚合，只有 `oc_project_video_append` action 计入；只读、Plan 保存和素材推送均不计入。领取额度时锁定 Case，确认最新 Job、冻结 Plan、本人确认、次数与最近 action 的结束时间；相邻请求至少 20 秒。结果不明确时只允许回查，不能借恢复入口再次写入。
+追加 action 的恢复额度按同一 `workflow_cases.maximum_create_attempts`（默认 3）跨同一 `source_usage` 的 Job 聚合，只有 `oc_project_video_append` action 计入；只读、Plan 保存和素材推送均不计入。领取额度时锁定 Case，确认最新 Job、冻结 Plan、本人确认、次数与最近 action 的结束时间；相邻请求至少 20 秒。结果不明确时只允许回查，不能借恢复入口再次写入。`platform_actions.error_category` 保持既有 allowlist；追加适配器将细分的受控平台结果写入 `metadata.error_category` 与 `metadata.platform_outcome_code`，Plan 收口和 Gate 投影据此区分明确拒绝与结果不明。
 
 ### 追加项目候选的只读口径
 

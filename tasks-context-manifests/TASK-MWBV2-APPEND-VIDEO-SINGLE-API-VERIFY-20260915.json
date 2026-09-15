@@ -1,0 +1,97 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915",
+  "task_ref": "tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.md",
+  "status": "active",
+  "created_at": "2026-09-15T12:05:00+08:00",
+  "updated_at": "2026-09-15T12:25:00+08:00",
+  "base_revision": "86ac64878d4249d73295bc286928cee26436d4bd",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data", "security", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/qiankun-api-docs-20260911.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/repositories/postgresRepository.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.json",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915/**",
+    "evidence/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915/**",
+    ".archive/**",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/executionGrantScope.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "db/**",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-case-attempt-limit-smoke.mjs",
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    ".local/releases/**"
+  ],
+  "forbidden_actions": [
+    "账户本人确认冻结预览前的追加 POST",
+    "第二次追加 POST、自动重试或 curl 旁路",
+    "素材推送、项目创建、预算或出价修改",
+    "修改或重放历史确认、Plan 或 action",
+    "输出或保存 token、Cookie、secret、原始 request/response 或完整触点 URL",
+    "新增长期 package 入口、公开 API 旁路、账户专用 runtime 分支、Node 或 Gate"
+  ],
+  "stop_conditions": [
+    "4iLE-2 在目标账户库存中不是唯一可用视频，或已在目标项目中",
+    "引导视频、封面、项目快照、账户归属、Case 额度或冷却不满足",
+    "历史 action 结果不明且无法先以权威回查澄清",
+    "账户本人未明确确认冻结的 Job、Plan、hash 和一次调用预览",
+    "平台拒绝、超时、查询失败或任何步骤要求第二次 POST",
+    "发布重载失败且现有恢复机制无法恢复服务"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run check:project -- --phase start"},
+    {"acceptance_id": "AC-02", "command": "Task-private one-shot runner --preview; Postgres readonly Case/action/attempt query"},
+    {"acceptance_id": "AC-03", "command": "Task-private one-shot runner --prepare --preview; no-network-write assertion"},
+    {"acceptance_id": "AC-04", "command": "After explicit Codex confirmation only: Task-private one-shot runner --execute-once; repeat invocation assertion"},
+    {"acceptance_id": "AC-05", "command": "Task-private one-shot runner authoritative project-material readback; Postgres action/readback query"},
+    {"acceptance_id": "AC-06", "command": "Task-private readonly verification SQL and sanitized evidence snapshot"},
+    {"acceptance_id": "AC-07", "command": "npm run test:project-video-append; npm run test:workbench-conversation; npm run test:workbench-progress; npm run check:project -- --phase before-close; git diff --check; release and online SHA verification"},
+    {"acceptance_id": "AC-08", "command": "Revoke /guardrails platform scope; archive task-private runner; npm run check:project -- --phase before-close; npm run check:project -- --phase after-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"npm run check:project -- --phase start","verified_at":"2026-09-15T11:42:00+08:00","summary":"Task、Manifest、当前指针和专项临时授权合同均通过启动检查。","evidence_refs":["tasks/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915.md"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"Task-private one-shot runner --prepare --preview; Postgres readonly Case/action/attempt query","verified_at":"2026-09-15T11:46:00+08:00","summary":"目标账户库存唯一匹配 4iLE-2；项目中尚未存在该视频，引导视频合同通过，封面合同允许省略。","evidence_refs":["postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260915034556-DC2B4A-APPEND-V1","evidence/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915/append-verification.md"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"Task-private one-shot runner --prepare --preview; no-network-write assertion","verified_at":"2026-09-15T11:46:00+08:00","summary":"新诊断 Job、单项 ready Plan、请求 hash 和 Plan 专属幂等键已冻结；confirmation/action 计数均为 0 后才展示给本人确认。","evidence_refs":["postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260915034556-DC2B4A-APPEND-V1","postgres:mwb.evidence_artifacts:EV-JOB-MWBV2-20260915034556-DC2B4A-SINGLE-API-PREVIEW"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"Task-private one-shot runner --execute-once","verified_at":"2026-09-15T11:47:00+08:00","summary":"本人确认后原子登记 confirmation/action，并只发送 1 次追加 POST；action attempt 为 2，未发生自动重试。","evidence_refs":["postgres:mwb.launch_confirmations:CONFIRM-PLAN-JOB-MWBV2-20260915034556-DC2B4A-APPEND-V1-PLAN","postgres:mwb.platform_actions:ACTION-JOB-MWBV2-20260915034556-DC2B4A-PROJECT-VIDEO-APPEND"]},
+    {"acceptance_id":"AC-05","status":"passed","command":"Task-private one-shot runner --readback-only","verified_at":"2026-09-15T11:48:00+08:00","summary":"平台 HTTP 200、业务码 40100 被记录为明确拒绝；共三次项目素材权威回查均未发现视频，verified_count=0，未重发。","evidence_refs":["postgres:mwb.platform_actions:ACTION-JOB-MWBV2-20260915034556-DC2B4A-PROJECT-VIDEO-APPEND","postgres:mwb.readback_records:JOB-MWBV2-20260915034556-DC2B4A","evidence/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915/append-verification.md"]},
+    {"acceptance_id":"AC-06","status":"passed","command":"Task-private readonly verification SQL and sanitized evidence snapshot","verified_at":"2026-09-15T11:49:00+08:00","summary":"专项核验可关联目标、Plan、confirmation、唯一 action 和三次回查；脱敏快照已保存。","evidence_refs":["evidence/TASK-MWBV2-APPEND-VIDEO-SINGLE-API-VERIFY-20260915/append-verification.md"]}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录经真实平台拒绝和回查验证的跨 Plan 幂等及受控拒绝分类选择。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "明确追加 action 的幂等键在同 Plan 防重、fresh Plan 跨 Job 不冲突。"},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "记录追加 action 幂等键来源和明确拒绝的受控 metadata 投影。"},
+    {"ref": "deploy/README.md", "status": "not_needed", "reason": "Deployment documentation changes only if the later verified release procedure changes."}
+  ],
+  "temporary_authorizations": [
+    {"path": "/guardrails/platform_write_allowed", "restore_value": false},
+    {"path": "/guardrails/platform_write_scope", "restore_value": {"binding_mode": "single_confirmation_plan", "action_grants": {}, "retry_allowed": false, "target_job_id": "JOB-MWBV2-20260831092159-D13FDB", "target_plan_id": "PLAN-JOB-MWBV2-20260831092159-D13FDB-V3", "allowed_actions": [], "maximum_actions": 0, "target_draft_id": "", "target_plan_hash": "sha256:61be67cf3a057f56a28b14dcdd52a3a6743c8f0ae8824927ca3fb74d98144cbe", "target_attempt_no": 1, "target_payload_hash": "", "allowed_plan_actions": [], "maximum_create_calls": 0, "target_advertiser_id": "1871922414575753", "maximum_total_attempts": 1, "granted_by_task_id": "TASK-MWBV2-CASE-5B75-EVENT-RESOURCE-PLAN-20260901", "granted_at": "2026-09-01T12:45:00+08:00", "revoked_at": "2026-09-01T12:52:00+08:00", "revocation_reason": "resource_plan_blocked_before_platform_write:credential_required", "maximum_platform_calls": 0}}
+  ],
+  "result": null,
+  "closed_at": null
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": "2026-09-08.project-archive-index-v1",
-  "updated_at": "2026-09-08T08:08:40Z",
+  "updated_at": "2026-09-15T12:27:00+08:00",
   "status": "historical_reference_only",
   "runtime_import_forbidden": true,
   "package_entry_forbidden": true,
@@ -54,6 +54,12 @@
       "kind": "archive_group",
       "reason": "旧版乾坤 API 文档归档，切换当前文档版本。",
       "current_replacement": "docs/qiankun-api-docs-20260911.md。"
+    },
+    {
+      "path": ".archive/20260915-append-video-single-api-verify",
+      "kind": "archive_group",
+      "reason": "已完成的账户和 Case 绑定单次追加 API 验证入口。",
+      "current_replacement": "通用项目视频追加 Plan、confirmed executor 与只读回查链。"
     },
     {
       "path": ".archive/frontend",

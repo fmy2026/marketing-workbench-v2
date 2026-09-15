@@ -381,7 +381,7 @@ export async function executeProjectVideoAppendOnce({
     errorCategory: persistedErrorCategory,
     requestFieldManifest: wire.requestFieldManifest,
     attemptNo: Number(claim.attemptNo || metadata.append_attempt_no || 1),
-    metadata: { platform_write_called: true, platform_response_confirmed: success, platform_result: success ? "accepted" : errorCategory === "platform_rejected" ? "explicit_rejection" : "unconfirmed", platform_outcome_code: success ? "" : (errorCategory || "platform_response_unknown"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, payload_persisted: false, response_persisted: false }
+    metadata: { platform_write_called: true, platform_response_confirmed: success, platform_result: success ? "accepted" : errorCategory === "platform_rejected" ? "explicit_rejection" : "unconfirmed", error_category: success ? "" : (errorCategory || "platform_response_unknown"), platform_outcome_code: success ? "" : (errorCategory || "platform_response_unknown"), readback_status: readback.status, verified_count: readback.verifiedCount, planned_video_count: plannedVideoIds.length, payload_persisted: false, response_persisted: false }
   });
   if (typeof repo.upsertReadbackRecord === "function") {
     await repo.upsertReadbackRecord({
