@@ -1,0 +1,129 @@
+{
+  "verified_at": "2026-09-16T07:52:43+00:00",
+  "base_revision": "55a5394babf363f15c3156d69fdeae0e5acc2982",
+  "sections_1_to_6_unchanged": true,
+  "section_7_before_visible_han": 663,
+  "section_7_after_visible_han": 1263,
+  "net_added_visible_han": 600,
+  "table_rows": [
+    8,
+    4
+  ],
+  "links": [
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "方法论第 2、6、7 节",
+      "target": "/Users/hys/knowledge/01-个人本地知识库/03-人机协作与方法论/1-human-AI/人-agent分类及理解方法论v1.md#maps",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "Solution Design.md",
+      "target": "Solution%20Design.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "当前逻辑图",
+      "target": "project-现在的逻辑图.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "资料入口",
+      "target": "Solution%20Design.md#资料使用",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "数据契约",
+      "target": "project-数据与报表契约.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "AGENTS.md",
+      "target": "../AGENTS.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "project.state.json",
+      "target": "../project.state.json",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "tasks",
+      "target": "../tasks/",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "tasks-context-manifests",
+      "target": "../tasks-context-manifests/",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "evidence",
+      "target": "../evidence/",
+      "valid": true
+    },
+    {
+      "source": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "label": "package.json",
+      "target": "../package.json",
+      "valid": true
+    },
+    {
+      "source": "docs/Solution Design.md",
+      "label": "批准任务",
+      "target": "../tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Solution Design.md",
+      "label": "清单补充任务",
+      "target": "../tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Solution Design.md",
+      "label": "运行设计补充任务",
+      "target": "../tasks/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.md",
+      "valid": true
+    },
+    {
+      "source": "docs/Solution Design.md",
+      "label": "方法图谱",
+      "target": "Agent项目从零开发-人机协作经验图谱.md",
+      "valid": true
+    },
+    {
+      "source": "tasks/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.md",
+      "label": "Context Manifest",
+      "target": "../tasks-context-manifests/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.json",
+      "valid": true
+    },
+    {
+      "source": "tasks/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.md",
+      "label": "经验复盘决策",
+      "target": "../docs/Solution%20Design.md#有效决策索引",
+      "valid": true
+    }
+  ],
+  "document_sha256": "65d750f13faa8789123b3966d8d104879f96a29b3c64800ed7f051d9920e145c",
+  "reference_sha256": "a92c9d16cd0082a4b26770509c5d99945089194c94b8bc4a183cad0e4f9977f9",
+  "guardrails_unchanged": true,
+  "runtime_protocol_unchanged": true,
+  "changed_files_at_audit": [
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "docs/Solution Design.md",
+    "evidence/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916/start.json",
+    "project.state.json",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.json",
+    "tasks/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.md"
+  ],
+  "diff_check": "passed"
+}

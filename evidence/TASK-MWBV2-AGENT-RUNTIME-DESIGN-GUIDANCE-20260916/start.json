@@ -1,0 +1,7 @@
+{
+  "command": "npm run check:project -- --phase start",
+  "verified_at": "2026-09-16T07:51:48+00:00",
+  "exit_code": 0,
+  "stdout": "\n> marketing-workbench-v2@0.1.0 check:project\n> node scripts/00-project-contract-check.mjs --phase start\n\n{\n  \"status\": \"passed\",\n  \"phase\": \"start\",\n  \"task_id\": \"TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916\",\n  \"task_status\": \"active\",\n  \"changed_files\": [\n    \"docs/Solution Design.md\",\n    \"project.state.json\",\n    \"tasks-context-manifests/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.json\",\n    \"tasks/TASK-MWBV2-AGENT-RUNTIME-DESIGN-GUIDANCE-20260916.md\"\n  ],\n  \"domains\": [\n    \"control\"\n  ],\n  \"acceptance_count\": 3,\n  \"structure\": {\n    \"archive_entry_count\": 13,\n    \"live_module_count\": 181,\n    \"task_manifest_pair_count\": 280,\n    \"migration_file_count\": 99,\n    \"qiankun_api_doc_ref\": \"docs/qiankun-api-docs-20260911.md\"\n  },\n  \"database_access\": false,\n  \"platform_access\": false\n}\n",
+  "stderr": ""
+}
