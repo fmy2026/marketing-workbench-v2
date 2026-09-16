@@ -15,7 +15,7 @@
 
 | 决策 | 已批准选择与理由 | 依据 / 当前合同 |
 | --- | --- | --- |
-| Agent 开发经验复盘 | 按历史任务证据提炼面向软件 Agent 的人机协作图谱：最小闭环、整体对齐、知识核验、模块变化维度及数据报表思考；历史事实、当前机制与重做建议分别表达。作为方法参考，不替代现有项目合同，也不改变运行行为 | [批准任务](../tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md)、[方法图谱](Agent项目从零开发-人机协作经验图谱.md) |
+| Agent 开发经验复盘 | 按历史任务证据提炼面向软件 Agent 的人机协作图谱：最小闭环、整体对齐、知识核验、模块变化维度及数据报表思考；历史事实、当前机制与重做建议分别表达。补充八项核心事项的最小文档与推进机制清单，标明职责和对应权威文件。作为方法参考，不替代现有项目合同，也不改变运行行为 | [批准任务](../tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md)、[清单补充任务](../tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md)、[方法图谱](Agent项目从零开发-人机协作经验图谱.md) |
 | 项目协作合同 | 保留既有文档骨架，以两份 Schema、单一 Manifest 状态/读取清单及只读检查防止任务记录漂移；先约束新任务 | [本次批准任务](../tasks/TASK-MWBV2-PROJECT-CONTRACT-CHECKS-20260908.md)、[启动协议](../AGENTS.md) |
 | GitHub 交付 | 直接在本地 `main` 用 Git CLI 和既有 credential helper 提交、正常推送并核验远端 SHA；不创建 PR 或功能分支，不强推，也不读取凭据 | [本次批准 Task](../tasks/TASK-MWBV2-MAIN-DELIVERY-LOOPBACK-WORKBENCH-20260913.md)、[启动协议](../AGENTS.md) |
 | 数据库文档唯一入口 | 结构、口径与数据库运维说明全部集中；旧说明及后续获批删除的早期方案由 Git 保留历史，避免重复规则漂移 | [批准任务](../tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md)、[数据契约](project-数据与报表契约.md) |

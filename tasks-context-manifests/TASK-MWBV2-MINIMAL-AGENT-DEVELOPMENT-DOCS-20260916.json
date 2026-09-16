@@ -1,0 +1,131 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916",
+  "task_ref": "tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md",
+  "status": "completed",
+  "created_at": "2026-09-16T07:36:15+00:00",
+  "updated_at": "2026-09-16T07:38:02+00:00",
+  "base_revision": "12706a2701aef58129cef172c384086bd8e3aa6d",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md",
+    "tasks-context-manifests/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.json",
+    "docs/Solution Design.md",
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "docs/project-现在的逻辑图.md#1-唯一闭环与真值分工",
+    "docs/project-数据与报表契约.md#1-六层数据流",
+    "package.json"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md",
+    "tasks-context-manifests/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/**",
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "docs/Solution Design.md"
+  ],
+  "forbidden_actions": [
+    "修改业务代码、数据库、API、平台状态、运行机制或全局 guardrails",
+    "重跑历史业务或新建平行权威文档"
+  ],
+  "stop_conditions": [
+    "范围超出获批文档补充、发现并行任务或工作区冲突、或新增表述无法由当前合同支持时停止相关操作并报告"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "Python 对比基线正文、统计新增汉字和表格行；人工逐项核对批准清单及七维度覆盖"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "人工对照当前 AGENTS、Solution Design、逻辑图、数据契约和 package.json；Python 核验新增链接目标及锚点"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run check:project -- --phase start；Git 改动范围核验及 Python 比较基线 guardrails"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Python 对比基线正文、统计新增汉字和表格行；人工逐项核对批准清单及七维度覆盖",
+      "verified_at": "2026-09-16T07:37:46+00:00",
+      "summary": "追加 672 汉字、八项表、推进顺序及三条经验；原正文不变，七维度覆盖已核对。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/static-audit.json",
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/review.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "人工对照当前 AGENTS、Solution Design、逻辑图、数据契约和 package.json；Python 核验新增链接目标及锚点",
+      "verified_at": "2026-09-16T07:37:46+00:00",
+      "summary": "文件职责与当前合同一致，十个新增链接和资料锚点有效；明确状态、验收与知识准备边界。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/static-audit.json",
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/review.md"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start；Git 改动范围核验及 Python 比较基线 guardrails",
+      "verified_at": "2026-09-16T07:37:46+00:00",
+      "summary": "启动检查通过；Git 范围、空白核验通过，guardrails 及业务代码、数据库定义、运行配置不变。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/start.json",
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/static-audit.json",
+        "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/review.md"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "经验复盘决策增加最小清单选择与本次批准 Task 引用。"
+    },
+    {
+      "ref": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "status": "updated",
+      "reason": "原文末尾追加第 7 节，既有分析不变。"
+    },
+    {
+      "ref": "AGENTS.md",
+      "status": "not_needed",
+      "reason": "仅归纳现行文档职责，启动、权限、闭环协议均未改变。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "not_needed",
+      "reason": "流程机制未变，仅被方法文档引用。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "数据结构、读写责任和报表规则未变，仅被方法文档引用。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "not_needed",
+      "reason": "本次为现有经验的表达压缩，未新增跨任务实证结论。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "经验图谱第 7 节提供四类设计依据、四类推进机制，以及推进顺序与维护经验。",
+    "side_effects": "仅更新文档、任务协调状态和核验证据；无数据库或平台操作，无业务实现、运行机制或全局边界变化。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-16T07:38:02+00:00"
+}

@@ -1,0 +1,83 @@
+{
+  "verified_at": "2026-09-16T07:37:10+00:00",
+  "base_revision": "12706a2701aef58129cef172c384086bd8e3aa6d",
+  "original_body_unchanged": true,
+  "added_visible_han_count": 672,
+  "added_table_rows": 8,
+  "maintenance_bullets": 3,
+  "new_section_line": 104,
+  "links": [
+    {
+      "label": "Solution Design.md",
+      "target": "Solution%20Design.md",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "当前逻辑图",
+      "target": "project-现在的逻辑图.md",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "资料入口",
+      "target": "Solution%20Design.md#资料使用",
+      "exists": true,
+      "anchor_valid": true
+    },
+    {
+      "label": "数据契约",
+      "target": "project-数据与报表契约.md",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "AGENTS.md",
+      "target": "../AGENTS.md",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "project.state.json",
+      "target": "../project.state.json",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "tasks",
+      "target": "../tasks/",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "tasks-context-manifests",
+      "target": "../tasks-context-manifests/",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "evidence",
+      "target": "../evidence/",
+      "exists": true,
+      "anchor_valid": null
+    },
+    {
+      "label": "package.json",
+      "target": "../package.json",
+      "exists": true,
+      "anchor_valid": null
+    }
+  ],
+  "guardrails_unchanged": true,
+  "runtime_and_protocol_unchanged": true,
+  "changed_files_at_audit": [
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "docs/Solution Design.md",
+    "evidence/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916/start.json",
+    "project.state.json",
+    "tasks-context-manifests/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.json",
+    "tasks/TASK-MWBV2-MINIMAL-AGENT-DEVELOPMENT-DOCS-20260916.md"
+  ],
+  "document_sha256": "cb199ec55904024e01a2d0cd2953cf38292fb636e3729ba66ff4b1ee54ee9fea",
+  "diff_check": "passed"
+}
