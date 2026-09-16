@@ -1,0 +1,23 @@
+{
+  "verified_at": "2026-09-16T07:13:57.917696+00:00",
+  "status": "passed",
+  "historical_tasks": 277,
+  "matching_manifests": 277,
+  "historical_file_fingerprints_verified": 554,
+  "date_basis_counts": {
+    "task.recorded_date": 32,
+    "manifest.created_at": 237,
+    "git.first_added (not creation)": 8
+  },
+  "visible_han_characters": 2201,
+  "mermaid_blocks": 2,
+  "markdown_tables": 3,
+  "local_links_checked": 136,
+  "link_errors": [],
+  "protected_runtime_paths_unchanged": true,
+  "guardrails_unchanged": true,
+  "git_diff_check": "passed",
+  "database_access": false,
+  "platform_access": false,
+  "mermaid_review": "Flowchart source manually reviewed; two diagrams distinguish development from runtime responsibilities. No renderer validation claimed."
+}

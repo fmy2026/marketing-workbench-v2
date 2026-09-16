@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "phase": "before-close",
+  "task_id": "TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916",
+  "task_status": "active",
+  "changed_files": [
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "docs/Solution Design.md",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/source-review.md",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/start.json",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/static-audit.json",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/task-index.json",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/validation.md",
+    "project.state.json",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.json",
+    "tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md"
+  ],
+  "domains": [
+    "control"
+  ],
+  "acceptance_count": 4,
+  "structure": {
+    "archive_entry_count": 13,
+    "live_module_count": 181,
+    "task_manifest_pair_count": 278,
+    "migration_file_count": 99,
+    "qiankun_api_doc_ref": "docs/qiankun-api-docs-20260911.md"
+  },
+  "database_access": false,
+  "platform_access": false
+}

@@ -1,0 +1,157 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916",
+  "task_ref": "tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md",
+  "status": "completed",
+  "created_at": "2026-09-16T07:08:39+00:00",
+  "updated_at": "2026-09-16T07:15:11+00:00",
+  "base_revision": "de5a6fe0926ae7c6aff833621451b88f518f11b7",
+  "baseline_dirty_files": {},
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-lessons.md"
+  ],
+  "reference_only": [
+    {
+      "ref": "tasks/",
+      "reason": "开始时的277份历史任务仅供复盘，排除本任务；逐文件索引保存在本任务证据。"
+    },
+    {
+      "ref": "tasks-context-manifests/",
+      "reason": "开始时对应277份历史Manifest仅用于核对历史时间与证据，不作为当前任务合同。"
+    },
+    {
+      "ref": "/Users/hys/knowledge/01-个人本地知识库/03-人机协作与方法论/1-human-AI/人-agent分类及理解方法论v1.md",
+      "reason": "用户指定的分类和选型方法参考；不据此新增项目规则或引入未经复核的时效性产品结论。"
+    }
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916.json",
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/Agent项目从零开发-人机协作经验图谱.md",
+    "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/**"
+  ],
+  "forbidden_actions": [
+    "修改业务代码、数据库、API、Schema、部署或guardrails",
+    "调用业务平台、读取凭据、重跑业务Case或补造历史证据",
+    "修改本项目以外的知识库文件"
+  ],
+  "stop_conditions": [
+    "发现已有并行任务或范围冲突；必须修改业务行为、访问凭据或数据库才能完成复盘；证据不足却必须作确定性结论。可通过缩小结论并标明局限解决的情况继续完成文档。"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "核对历史Task/Manifest全覆盖索引、日期来源和关键原文/验收引用"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "静态核验正文字数、两张Mermaid图、三张表及批准内容覆盖"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "核验Markdown本地链接、图文对应及研究/编程/业务执行迁移边界"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "git diff --check；guardrails和变更范围比较；check:project start；关闭材料核验（before-close、after-close与Git交付结果执行后另记）"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "核对历史Task/Manifest全覆盖索引、日期来源和关键原文/验收引用",
+      "verified_at": "2026-09-16T07:14:44+00:00",
+      "summary": "277组历史记录完整覆盖，554份指纹与Git开始基线一致；时间依据和关键证据边界已核对。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/validation.md#ac-01",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/task-index.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "静态核验正文字数、两张Mermaid图、三张表及批准内容覆盖",
+      "verified_at": "2026-09-16T07:14:44+00:00",
+      "summary": "正文2201个汉字、两张Mermaid图、三张表；批准结构和核心内容完整。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/validation.md#ac-02",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/static-audit.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "核验Markdown本地链接、图文对应及研究/编程/业务执行迁移边界",
+      "verified_at": "2026-09-16T07:14:44+00:00",
+      "summary": "136处本地引用有效；模块/数据扩展及三类Agent的适用边界明确。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/validation.md#ac-03",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/static-audit.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "git diff --check；guardrails和变更范围比较；check:project start；关闭材料核验（before-close、after-close与Git交付结果执行后另记）",
+      "verified_at": "2026-09-16T07:14:44+00:00",
+      "summary": "实际start、before-close和after-close检查均通过，范围与guardrails核验通过；Git交付由后续实际提交、推送与远端SHA结果确认。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/validation.md#ac-04",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/static-audit.json",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/before-close.json",
+        "evidence/TASK-MWBV2-AGENT-DEVELOPMENT-EXPERIENCE-MAP-20260916/after-close.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Agent项目从零开发-人机协作经验图谱.md",
+      "status": "updated",
+      "reason": "新增已批准的精简方法图谱。"
+    },
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "记录已批准的方法复盘选择并提供文档入口。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "not_needed",
+      "reason": "仅引用静态机制，未改变任何流程或运行行为。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "not_needed",
+      "reason": "新增文档讨论未来项目的数据设计方法，未改变现有数据库或报表口径。"
+    },
+    {
+      "ref": "docs/project-lessons.md",
+      "status": "not_needed",
+      "reason": "仅作为历史经验参考，无新增在线业务验证，不重复写入现有经验库。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "完成Agent从零开发的人机协作经验图谱：两图三表、七维度、分阶段闭环、模块与数据扩展；历史依据与建议分开。",
+    "side_effects": "只修改批准的Markdown、项目协调合同和复盘证据；没有数据库、平台或外部知识库写入，guardrails不变。",
+    "remaining_risks": [
+      "跨场景方法是基于案例的建议，需要在新项目自行验证；本次未重跑历史业务。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-16T07:15:10+00:00"
+}
