@@ -1,0 +1,53 @@
+
+> marketing-workbench-v2@0.1.0 check:project
+> node scripts/00-project-contract-check.mjs --phase after-close
+
+{
+  "status": "passed",
+  "phase": "after-close",
+  "task_id": "TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918",
+  "task_status": "completed",
+  "changed_files": [
+    "deploy/README.md",
+    "docs/Solution Design.md",
+    "docs/project-数据与报表契约.md",
+    "docs/project-现在的逻辑图.md",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/after-close.txt",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/before-close.txt",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/delivery.json",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/functional.json",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/verification.json",
+    "frontend/app.js",
+    "frontend/market-intelligence.css",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.mjs",
+    "project.state.json",
+    "scripts/00-agent-hub-smoke.mjs",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/marketIntelligenceConversation.mjs",
+    "src/platforms/marketIntelligenceClient.mjs",
+    "src/security/marketIntelligenceConnectionStore.mjs",
+    "src/server/workbenchServer.mjs",
+    "tasks-context-manifests/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.json",
+    "tasks/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.md",
+    "tests/market-intelligence.test.mjs",
+    "tests/suites.json"
+  ],
+  "domains": [
+    "control",
+    "data",
+    "deploy",
+    "security",
+    "workflow"
+  ],
+  "acceptance_count": 4,
+  "structure": {
+    "archive_entry_count": 13,
+    "live_module_count": 184,
+    "task_manifest_pair_count": 281,
+    "migration_file_count": 99,
+    "qiankun_api_doc_ref": "docs/qiankun-api-docs-20260911.md"
+  },
+  "database_access": false,
+  "platform_access": false
+}

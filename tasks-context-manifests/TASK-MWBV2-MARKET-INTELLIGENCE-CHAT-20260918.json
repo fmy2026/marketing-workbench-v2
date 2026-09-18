@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918",
   "task_ref": "tasks/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-18T09:55:07.553394+00:00",
-  "updated_at": "2026-09-18T09:55:07.553394+00:00",
+  "updated_at": "2026-09-18T10:17:14.529145+00:00",
   "base_revision": "90a778bf5567818ac1fe71a48f231567ba813467",
   "baseline_dirty_files": {
     "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
@@ -86,9 +86,82 @@
       "command": "check:project start/before-close/after-close; git push origin main and remote SHA; workbench:release and workbench:mode company; HTTP release check"
     }
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:agent-hub; node --import ./tests/support/network.mjs tests/market-intelligence.test.mjs; browser preview",
+      "verified_at": "2026-09-18T10:17:06.490137+00:00",
+      "summary": "Agent 广场与独立对话页、列表/详情/视频/趋势/未支持提示通过；55 项隔离检查通过，浏览器验证完成。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/functional.json",
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/verification.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "node --import ./tests/support/network.mjs tests/market-intelligence.test.mjs; npm run test:agent-model-config; npm run test:workbench-auth-http",
+      "verified_at": "2026-09-18T10:17:06.490137+00:00",
+      "summary": "凭据不回显、用户隔离、CSRF、私网地址/重定向/响应/Range 边界验证通过；现有模型配置和登录 HTTP 回归通过。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/functional.json",
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/verification.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "nc/curl public service unauthenticated probe; CUA desktop/mobile/synthetic video verification",
+      "verified_at": "2026-09-18T10:17:06.490137+00:00",
+      "summary": "公共服务 TCP 可达、无 Token 返回 401；桌面/390px 窄屏和合成视频完整播放通过，0/null 趋势语义通过；用户稍后录入 Token，真实数据尚未验证。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/verification.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start; git diff --check; git push origin main; git ls-remote origin refs/heads/main; npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <code revision>; HTTP status/content hash verification",
+      "verified_at": "2026-09-18T10:17:06.490137+00:00",
+      "summary": "启动合同检查及空白检查通过；代码正常推送 main，远端 SHA 一致；正式页面与脚本内容核对通过，数据接口未登录 401。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/delivery.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "登记用户批准的最简市场情报只读接入方案和限制。"
+    },
+    {
+      "ref": "docs/project-现在的逻辑图.md",
+      "status": "updated",
+      "reason": "更新 Agent 广场可用入口与市场情报独立只读会话机制。"
+    },
+    {
+      "ref": "docs/project-数据与报表契约.md",
+      "status": "updated",
+      "reason": "承接外部服务字段、响应投影、日人气零值/缺失值及凭据/数据存储规则。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "updated",
+      "reason": "补页面连接录入、独立凭据文件和局域网 HTTP 明示要求。"
+    }
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "市场情报最简只读对话已在公司工作台发布；当前支持常用自然语言规则下的素材列表、详情/平台分析/视频及单条日人气趋势，真实带凭证验证待用户页面录入 Token。",
+    "side_effects": "新增市场情报前后端只读接入；main 正常推送并发布 release，重载工作台服务；无数据库迁移、业务状态变更或外部平台写入，既存模板改动保留。",
+    "remaining_risks": [
+      "公共电脑带凭证查询和实际素材播放尚未验收；与真实服务字段的最终兼容性待用户录入 Token 后验证。",
+      "自然语言为有限规则；排名、聚合、对比、ROI、模型视频理解尚未实现。",
+      "公共电脑 HTTP 不加密，页面要求用户显式确认；服务手动启动、地址可能随 DHCP 变化。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-18T10:17:14.529145+00:00"
 }

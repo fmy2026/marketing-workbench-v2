@@ -1,0 +1,35 @@
+{
+  "verified_at": "2026-09-18T10:16:48.796068+00:00",
+  "code_revision": "afcec2c44400309366fe10a31bfaad7345fd0c38",
+  "remote_sha": "afcec2c44400309366fe10a31bfaad7345fd0c38",
+  "git_push": "normal origin/main push succeeded; ls-remote matched",
+  "release_status": "applied",
+  "mode": "company",
+  "origin": "http://192.168.42.7:3000",
+  "checks": [
+    {
+      "route": "/",
+      "status": 200,
+      "expected_status": 200
+    },
+    {
+      "route": "/agents/market-intelligence",
+      "status": 200,
+      "expected_status": 200,
+      "matches_release_file": true
+    },
+    {
+      "route": "/market-intelligence.mjs",
+      "status": 200,
+      "expected_status": 200,
+      "matches_release_file": true
+    },
+    {
+      "route": "/api/agents/market_intelligence/connection",
+      "status": 401,
+      "expected_status": 401
+    }
+  ],
+  "public_data_authenticated": false,
+  "deployment_recovery": "Initial page probe returned 404 because orphan process PID 20011 still served previous release a7836453f0a62b16f0ce01a25509f4231ef20606. Confirmed process cwd and that no launchctl label owned PID, terminated that stale server with SIGTERM, kickstarted current release LaunchAgent. Rechecked new page and script content hashes."
+}
