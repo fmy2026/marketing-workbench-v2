@@ -50,6 +50,16 @@ const AGENTS = Object.freeze([
       resourceTypeCount: OE3_REQUIRED_RESOURCE_TYPES.length,
       planKindCount: PLAN_KINDS.length
     })
+  }),
+  Object.freeze({
+    agentKey: "market_intelligence",
+    displayName: "市场情报",
+    description: "查询公共素材、观看视频与查看人气趋势，用真实数据核对市场信息。",
+    status: "available",
+    modelConfigurable: false,
+    modules: [Object.freeze({ key: "conversation", label: "对话" })],
+    conversationPresets: {},
+    capabilitySummary: { readOnly: true }
   })
 ]);
 
@@ -91,6 +101,11 @@ export function listPublicAgents() {
 export function getPublicAgent(agentKey) {
   const agent = AGENTS.find((candidate) => candidate.agentKey === String(agentKey || "").trim());
   if (!agent || agent.status !== "available") return null;
+  if (agent.agentKey === "market_intelligence") return {
+    ...publicAgent(agent),
+    positioning: "查询公共素材的只读助手，使用常用自然语言规则。",
+    supportedScope: "素材列表、平台已有分析、视频播放和单条人气值日趋势。"
+  };
   return {
     ...publicAgent(agent),
     positioning: "任务型投放创建 Agent；模型只可参与意图与槽位识别，Workflow、Gate、Plan 与执行权限保持确定性。",

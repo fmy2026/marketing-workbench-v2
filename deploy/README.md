@@ -110,3 +110,11 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 ## 开发回归服务
 
 HTTP 回归由统一测试入口启动独立 loopback 临时端口服务，并在结束时关闭；不会连接默认 3000 工作台或修改真实用户密码。数据库与测试入口详见[隔离测试数据库](../docs/project-数据与报表契约.md#隔离测试数据库)。正式 `npm start` / LaunchAgent 入口保持原配置。
+
+## 市场情报数据连接
+
+登录后从 Agent 广场进入“市场情报”。页面保留一个对话区，右上角“数据连接”填写公共电脑 HTTP(S) 私网 IPv4 origin 和安全交接的 Token；不接受路径、查询参数、URL 内凭据、域名或重定向。HTTP 联调需在配置表单中明确确认明文传输及只读用途，随后执行健康接口验证再保存。空 Token 只在地址未变化时沿用已有配置；更换地址必须重新录入，防止旧凭证被转发到新服务。
+
+连接按当前登录用户保存于操作系统用户主目录下 `.config/marketing-workbench/market-intelligence.json`，目录新建模式 0700、文件 0600、原子替换；这是项目外凭据文件，不进入 Git、数据库、普通日志或 release。服务只回传地址和是否配置，不回显 Token；管理员也不代读或代改他人配置。通过“移除连接”删除本人记录；如要撤销 Token 本身需在公共电脑侧办理。测试只通过构造器环境 `MWBV2_MI_CONNECTION_STORE_PATH` 指向独立临时文件，不访问真实凭据。
+
+浏览器的视频 URL 指向已登录工作台自己的 `/api/agents/market_intelligence/files/{id}`，由后端携带本人 Token 只读访问公共服务；不提供含 Token 的分享链接，不缓存视频或原始响应。正文只接受常用自然语言规则，可使用“有哪些素材”“游戏：游戏名”“播放第一条”“看看这条素材最近 7 天的趋势”“下一页”；尚未接入大模型。真实连接需要公共电脑持续运行，IP 变化后在页面重新配置。模型/接口 Schema 测试与真实素材的带凭证查询、MP4/WebM 播放分别验收，不能混为成功。

@@ -1,0 +1,72 @@
+{
+  "captured_at": "2026-09-18T10:10:58.281920+00:00",
+  "kind": "observed_tool_results_summary",
+  "live_probe": {
+    "commands": [
+      "nc -vz -G 5 192.168.16.136 8787",
+      "curl --noproxy * --connect-timeout 5 --max-time 10 (no Authorization) /api/v1/health"
+    ],
+    "tcp": "connected",
+    "http_status": 401,
+    "authenticated_remote_data_tested": false,
+    "reason": "User elected to enter Token later in page"
+  },
+  "browser": {
+    "origin": "http://127.0.0.1:3138",
+    "synthetic_only": true,
+    "desktop": "1280x720 initial page, agent hub to market conversation, asset list, detail and video controls visible",
+    "mobile": "390x844 initial page and list fit without horizontal overflow; viewport reset after test",
+    "queries": [
+      "有哪些素材？",
+      "播放第一条",
+      "第一条素材最近 7 天的人气趋势"
+    ],
+    "trend_table_values": [
+      0,
+      null,
+      120,
+      100
+    ],
+    "video": {
+      "kind": "ffmpeg generated two-second synthetic MP4",
+      "readyState": 4,
+      "duration": 2,
+      "videoWidth": 480,
+      "keyboard_play": {
+        "paused": false,
+        "currentTime": 0.005469,
+        "error": null
+      },
+      "completed": {
+        "currentTime": 2,
+        "ended": true,
+        "error": null
+      }
+    },
+    "configuration": "dialog displays configured status and blank password field, never credential value",
+    "browser_console_errors": [],
+    "tool_issue": "Initial native accessibility media-control click crashed IAB tab; fresh same-browser tab and keyboard playback completed. Chrome control unavailable; no Chrome playback claim."
+  },
+  "regression_observed": [
+    {
+      "command": "npm run test:agent-hub",
+      "status": "passed",
+      "duration_ms": 235
+    },
+    {
+      "command": "npm run test:agent-model-config",
+      "status": "passed",
+      "duration_ms": 201
+    },
+    {
+      "command": "npm run test:workbench-auth-http",
+      "status": "passed",
+      "duration_ms": 5072,
+      "schema_hash": "sha256:9a05b2db1b532cd5daccee8ff1cdeede3cdc0b30b000726f2a26bc2e2af7de8c"
+    }
+  ],
+  "limits": [
+    "Public computer authenticated assets/trend and actual MP4/WebM playback await user Token entry; no success inferred from synthetic fixtures.",
+    "Natural language uses bounded rules, not an LLM; unsupported aggregate/video-understanding requests explicitly report unavailable."
+  ]
+}

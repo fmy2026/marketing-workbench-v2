@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { createMiConnectionStore, miError, normalizeMiOrigin, normalizeMiToken } from "../security/marketIntelligenceConnectionStore.mjs";
+import { createMiClient } from "../platforms/marketIntelligenceClient.mjs";
+import { answerMarketIntelligence } from "../agents/marketIntelligenceConversation.mjs";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import {
   getPublicAgent,
@@ -57,9 +62,10 @@ import {
 import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
 import { internalErrorDiagnostic, publicErrorResponse } from "./publicError.mjs";
 
-export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env } = {}) {
+export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env, marketIntelligenceFetch = globalThis.fetch } = {}) {
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
+const miConnections = createMiConnectionStore({ path: env.MWBV2_MI_CONNECTION_STORE_PATH });
 const networkPolicy = resolveWorkbenchNetworkPolicy(env);
 const { bindHost, bindPort, publicOrigin, publicOriginUrl, secureCookies } = networkPolicy;
 const acceptedOrigins = new Set([
@@ -291,7 +297,8 @@ async function readBody(req) {
 }
 
 async function serveStatic(req, res, pathname) {
-  const requested = pathname === "/" || isRegisteredAgentPath(pathname) ? "/index.html" : pathname;
+  const requested = pathname.replace(/\/$/, "") === "/agents/market-intelligence" ? "/market-intelligence.html"
+    : pathname === "/" || isRegisteredAgentPath(pathname) ? "/index.html" : pathname;
   const safePath = normalize(join(frontendDir, requested));
   if (!safePath.startsWith(frontendDir)) {
     res.writeHead(403);
@@ -391,6 +398,58 @@ async function handleApi(req, res, url) {
 
   if (auth.user.must_change_password === true) throw requestError("password_change_required", 403);
 
+  if (pathname.startsWith("/api/agents/market_intelligence/")) {
+    try {
+      const route = pathname.slice("/api/agents/market_intelligence".length);
+      const userId = auth.user.user_id;
+      if (route === "/connection" && req.method === "GET") return sendJson(res, 200, miConnections.status(userId));
+      if (route === "/connection" && req.method === "POST") {
+        const body = await readBody(req);
+        const baseUrl = normalizeMiOrigin(body.baseUrl);
+        if (baseUrl.startsWith("http:") && body.allowHttp !== true) throw miError("mi_http_confirmation_required");
+        const previous = miConnections.get(userId);
+        const token = normalizeMiToken(body.token || (previous?.baseUrl === baseUrl ? previous.token : ""));
+        await createMiClient({ baseUrl, token, fetchImpl: marketIntelligenceFetch }).json("/health");
+        return sendJson(res, 200, miConnections.set(userId, { baseUrl, token }));
+      }
+      if (route === "/connection/remove" && req.method === "POST") return sendJson(res, 200, miConnections.remove(userId));
+      if (route === "/conversation" && req.method === "POST") {
+        const body = await readBody(req);
+        const connection = miConnections.get(userId);
+        const client = connection ? createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }) : null;
+        return sendJson(res, 200, await answerMarketIntelligence({ message: body.message, context: body.context, client }));
+      }
+      const file = route.match(/^\/files\/([a-fA-F0-9]{32})$/);
+      if (file && ["GET", "HEAD"].includes(req.method)) {
+        const connection = miConnections.get(userId);
+        if (!connection) throw miError("mi_connection_required", 409);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 120000);
+        const stop = () => controller.abort();
+        res.once("close", stop);
+        try {
+          const response = await createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }).video(file[1], {
+            method: req.method, range: String(req.headers.range || ""), signal: controller.signal
+          });
+          const headers = { ...securityHeaders, "cache-control": "private, no-store" };
+          for (const name of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+            if (response.headers.has(name)) headers[name] = response.headers.get(name);
+          }
+          res.writeHead(response.status, headers);
+          if (req.method === "HEAD" || !response.body) { await response.body?.cancel(); res.end(); }
+          else await pipeline(Readable.fromWeb(response.body), res);
+        } finally { clearTimeout(timer); res.removeListener("close", stop); controller.abort(); }
+        return;
+      }
+      return sendJson(res, 404, { error: "mi_not_found" });
+    } catch (error) {
+      if (res.headersSent) { res.destroy(); return; }
+      // Never forward upstream error text, request bodies, or credential values.
+      const code = /^mi_[a-z_]+$/.test(error.message || "") ? error.message : "mi_service_error";
+      return sendJson(res, error.statusCode || 502, { error: code });
+    }
+  }
+
   if (req.method === "GET" && pathname === "/api/agents") {
     return sendJson(res, 200, { agents: listPublicAgents() });
   }
@@ -411,6 +470,7 @@ async function handleApi(req, res, url) {
   const agentModelConfigMatch = pathname.match(/^\/api\/agents\/([^/]+)\/model-config$/);
   if (agentModelConfigMatch) {
     const agentKey = requireRegisteredAgent(decodeURIComponent(agentModelConfigMatch[1]));
+    if (!getPublicAgent(agentKey).modelConfigurable) throw requestError("agent_model_not_available", 404);
     if (req.method === "GET") {
       const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
       return sendJson(res, 200, { config: current.publicConfig });
@@ -461,6 +521,7 @@ async function handleApi(req, res, url) {
   const agentModelConfigTestMatch = pathname.match(/^\/api\/agents\/([^/]+)\/model-config\/test$/);
   if (req.method === "POST" && agentModelConfigTestMatch) {
     const agentKey = requireRegisteredAgent(decodeURIComponent(agentModelConfigTestMatch[1]));
+    if (!getPublicAgent(agentKey).modelConfigurable) throw requestError("agent_model_not_available", 404);
     const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
     if (!current.config || !current.credentialConfigured) throw requestError("model_config_not_ready_for_test", 409);
     const test = await testOpenAiCompatibleModelConfig({

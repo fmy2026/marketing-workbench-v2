@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>市场情报 · 数字员工广场</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/market-intelligence.css">
+</head>
+<body class="mi-page">
+  <header class="mi-header">
+    <div class="mi-heading"><a class="mi-back" href="/agents" aria-label="返回数字员工广场">←</a><span class="brand-mark" aria-hidden="true">情</span><h1>市场情报</h1><span class="mi-readonly">只读</span></div>
+    <button type="button" class="secondary-button" id="connectionButton">数据连接</button>
+  </header>
+  <main class="mi-main" id="miMain" hidden>
+    <section class="mi-welcome" id="welcome">
+      <p class="mi-eyebrow">从素材开始，了解市场</p>
+      <h2>想查看哪些素材？</h2>
+      <p>查询公共素材、播放视频，或看看一条素材的人气变化。</p>
+      <div class="mi-suggestions" aria-label="试着问我">
+        <button type="button" data-prompt="有哪些素材？">有哪些素材？</button>
+        <button type="button" data-prompt="测试数据连接">测试数据连接</button>
+        <button type="button" data-prompt="你能做什么？">你能做什么？</button>
+      </div>
+    </section>
+    <div class="mi-messages" id="messages" role="log" aria-live="polite" aria-label="市场情报对话"></div>
+    <div class="mi-composer-wrap">
+      <form class="mi-composer" id="chatForm">
+        <label class="mi-visually-hidden" for="messageInput">输入想查看的素材或问题</label>
+        <textarea id="messageInput" rows="2" maxlength="2000" placeholder="例如：有哪些素材？也可以说“播放第一条”。" required></textarea>
+        <button type="submit" class="start-button" id="sendButton">发送</button>
+      </form>
+      <p class="mi-footnote" id="connectionState">正在检查连接配置…</p>
+    </div>
+  </main>
+  <p class="mi-loading" id="loading" role="status">正在验证登录状态…</p>
+  <dialog id="connectionDialog" aria-labelledby="connectionTitle">
+    <form id="connectionForm" class="mi-connection-form">
+      <div class="mi-dialog-heading"><h2 id="connectionTitle">数据连接</h2><button id="closeConnection" type="button" class="icon-button" aria-label="关闭数据连接">×</button></div>
+      <p>仅为当前工作台账号保存；Token 保存后不会回显。</p>
+      <label for="serviceAddress">公共电脑服务地址</label>
+      <input id="serviceAddress" type="url" placeholder="http://公共电脑的内网 IP:8787" autocomplete="off" required>
+      <label for="serviceToken">访问 Token</label>
+      <input id="serviceToken" type="password" placeholder="粘贴通过安全方式取得的 Token" autocomplete="off" maxlength="512">
+      <p class="mi-small" id="tokenState">尚未配置</p>
+      <label class="mi-consent"><input id="allowHttp" type="checkbox">我确认使用此连接进行只读验证；HTTP 链路上的 Token 传输未加密。</label>
+      <p class="mi-error" id="connectionError" role="alert"></p>
+      <div class="mi-dialog-actions"><button id="removeConnection" type="button" class="secondary-button" hidden>移除连接</button><button id="saveConnection" type="submit" class="start-button">保存并测试连接</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="/market-intelligence.mjs"></script>
+</body>
+</html>

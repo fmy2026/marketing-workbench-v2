@@ -15,7 +15,9 @@ function assert(condition, message) {
 }
 
 const agents = listPublicAgents();
-assert(agents.length === 1, "p0_must_expose_one_available_agent");
+assert(agents.length === 2, "must_expose_launch_and_market_agents");
+assert(getPublicAgent("market_intelligence")?.capabilitySummary.readOnly === true, "market_must_be_readonly");
+assert(isRegisteredAgentPath("/agents/market-intelligence"), "market_agent_path_missing");
 const launch = agents[0];
 assert(launch.agentKey === "launch_creation", "launch_creation_agent_missing");
 assert(launch.status === "available", "launch_creation_agent_not_available");
@@ -47,10 +49,10 @@ assert(html.includes('src="/app.js"') && !html.includes('src="./app.js"'), "deep
 assert(appSource.includes("passwordChangeForced") && appSource.includes("Escape"), "password_or_menu_interaction_missing");
 assert(html.includes("数字员工广场") && html.includes("数据统计") && !html.includes(">SOP<"), "agent_shell_labels_incorrect");
 assert(html.includes("市场情报提供依据，投放策略形成建议，投放创建承接受控执行。"), "agent_hub_positioning_copy_missing");
-assert(appSource.includes("const AGENT_PREVIEWS") && appSource.includes('icon: "情"') && appSource.includes('icon: "策"'), "agent_preview_catalog_missing");
-assert(appSource.includes('displayName: "市场情报"') && appSource.includes('displayName: "投放策略"'), "agent_preview_names_missing");
+assert(appSource.includes("const AGENT_PREVIEWS") && appSource.includes('icon: "策"'), "agent_preview_catalog_missing");
+assert(!appSource.includes('displayName: "市场情报"') && appSource.includes('displayName: "投放策略"'), "only_strategy_remains_preview");
 const previewCatalog = appSource.slice(appSource.indexOf("const AGENT_PREVIEWS"), appSource.indexOf("function renderPreviewCard"));
-assert((previewCatalog.match(/displayName:/g) || []).length === 2 && agents.length + (previewCatalog.match(/displayName:/g) || []).length === 3, "agent_hub_card_count_mismatch");
+assert((previewCatalog.match(/displayName:/g) || []).length === 1 && agents.length + (previewCatalog.match(/displayName:/g) || []).length === 3, "agent_hub_card_count_mismatch");
 assert(appSource.includes('"筹备中"') && appSource.includes('"敬请期待"'), "agent_preview_status_or_button_missing");
 assert(!appSource.includes('"即将上线"') && !appSource.includes('"更多数字员工正在接入中。"'), "generic_agent_preview_must_be_removed");
 const previewRenderer = appSource.slice(appSource.indexOf("function renderPreviewCard"), appSource.indexOf("function renderAgentCards"));

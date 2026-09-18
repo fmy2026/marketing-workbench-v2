@@ -1,0 +1,1 @@
+{"status":"passed","checks":55,"fixtureOnly":true,"externalRequests":0,"covers":["user isolation","CSRF","credential non-disclosure","private origin","read-only","projection","zero vs null","date range","unsupported capability","pagination","video range","webm MIME","upstream failure","response limit","redirect rejection"]}

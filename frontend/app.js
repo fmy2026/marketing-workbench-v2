@@ -340,11 +340,6 @@ import {
 
   const AGENT_PREVIEWS = Object.freeze([
     Object.freeze({
-      icon: "情",
-      displayName: "市场情报",
-      description: "整理市场、竞品与素材信息，形成有来源依据的情报摘要，为投放决策提供参考。"
-    }),
-    Object.freeze({
       icon: "策",
       displayName: "投放策略",
       description: "结合市场情报、业务目标与投放数据，形成投放方案和执行建议。"
@@ -371,19 +366,19 @@ import {
     grid.innerHTML = "";
     for (const agent of agents) {
       const card = el("article", "agent-card");
-      card.append(el("span", "agent-card-icon", "投"));
+      card.append(el("span", "agent-card-icon", agent.agentKey === "market_intelligence" ? "情" : "投"));
       const heading = el("div", "agent-card-heading");
       heading.append(el("h2", "", agent.displayName));
-      heading.append(el("span", "agent-availability", "在线"));
+      heading.append(el("span", "agent-availability", agent.agentKey === "market_intelligence" ? "只读验证" : "在线"));
       card.append(heading);
       card.append(el("p", "", agent.description));
       const metrics = el("div", "agent-card-metrics");
       const summary = agent.capabilitySummary || {};
-      [
+      (summary.readOnly ? [] : [
         [summary.workflowNodeCount || 0, "Workflow Node"],
         [summary.resourceTypeCount || 0, "资源"],
         [summary.planKindCount || 0, "Plan"]
-      ].forEach(([value, label]) => {
+      ]).forEach(([value, label]) => {
         const metric = el("span", "");
         metric.append(el("strong", "", String(value)));
         metric.append(document.createTextNode(` ${label}`));
@@ -393,6 +388,10 @@ import {
       const open = el("button", "agent-open-button", "进入 Agent");
       open.type = "button";
       open.addEventListener("click", async () => {
+        if (agent.agentKey === "market_intelligence") {
+          window.location.assign("/agents/market-intelligence");
+          return;
+        }
         setCurrentUrl(workspacePath({ module: "conversation", keepProgressTarget: false }));
         showAgentWorkspace();
         await loadAgentWorkspace();

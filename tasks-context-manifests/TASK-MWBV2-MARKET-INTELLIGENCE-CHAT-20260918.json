@@ -1,0 +1,94 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918",
+  "task_ref": "tasks/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.md",
+  "status": "active",
+  "created_at": "2026-09-18T09:55:07.553394+00:00",
+  "updated_at": "2026-09-18T09:55:07.553394+00:00",
+  "base_revision": "90a778bf5567818ac1fe71a48f231567ba813467",
+  "baseline_dirty_files": {
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": [
+    "control",
+    "workflow",
+    "data",
+    "security",
+    "deploy"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.md",
+    "tasks-context-manifests/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/agents/agentRegistry.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/security/workbenchAgentModelCredentialStore.mjs",
+    "frontend/app.js",
+    "frontend/index.html"
+  ],
+  "reference_only": [
+    {
+      "ref": "docs/.开发方案/公共电脑-局域网服务已上线请跨机验证-20260918.md",
+      "reason": "用户指定的公共服务交接资料；接口要求经当前数据契约承接；动态事实以实际 HTTP 回查为准。"
+    }
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.md",
+    "tasks-context-manifests/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-MARKET-INTELLIGENCE-CHAT-20260918/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/marketIntelligenceConversation.mjs",
+    "src/platforms/marketIntelligenceClient.mjs",
+    "src/security/marketIntelligenceConnectionStore.mjs",
+    "src/server/workbenchServer.mjs",
+    "frontend/app.js",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.mjs",
+    "frontend/market-intelligence.css",
+    "tests/market-intelligence.test.mjs",
+    "tests/suites.json",
+    "scripts/00-agent-hub-smoke.mjs"
+  ],
+  "forbidden_actions": [
+    "未获授权的外部平台写入与范围外修改"
+  ],
+  "stop_conditions": [
+    "出现越权、凭证泄漏、需平台写入或现有投放创建回归失败时停止对应发布",
+    "接口缺失能力明确报告，真实凭证未录入不阻止开发验收，但禁止虚构真实查询成功"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run test:agent-hub; node tests/run.mjs --file tests/market-intelligence.test.mjs; browser verification"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "node tests/run.mjs --file tests/market-intelligence.test.mjs; npm run test:agent-model-config; npm run test:workbench-auth-http"
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "nc/curl public service unauthenticated probe; browser desktop and mobile verification with isolated fixtures"
+    },
+    {
+      "acceptance_id": "AC-04",
+      "command": "check:project start/before-close/after-close; git push origin main and remote SHA; workbench:release and workbench:mode company; HTTP release check"
+    }
+  ],
+  "validation_results": [],
+  "documentation_updates": [],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

@@ -1,0 +1,74 @@
+.mi-page { margin: 0; background: #f8fafb; color: #202b30; }
+.mi-header { height: 72px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e4e9ec; background: #fff; gap: 16px; }
+.mi-heading { display: flex; align-items: center; gap: 12px; }
+.mi-heading h1 { font-size: 18px; margin: 0; letter-spacing: -.3px; }
+.mi-back { color: #66777f; padding: 8px; text-decoration: none; font-size: 22px; }
+.mi-readonly { color: #708087; font-size: 12px; border: 1px solid #e1e7e9; padding: 2px 7px; border-radius: 5px; }
+.mi-main { width: min(820px, calc(100% - 40px)); margin: 0 auto; min-height: calc(100dvh - 72px); display: flex; flex-direction: column; }
+.mi-main[hidden] { display: none; }
+.mi-welcome { text-align: center; padding: clamp(65px, 15vh, 145px) 0 60px; }
+.mi-eyebrow { font-size: 13px; color: #638174; }
+.mi-welcome h2 { font-size: 30px; margin: 14px 0; letter-spacing: -.7px; }
+.mi-welcome > p:not(.mi-eyebrow) { color: #78868c; font-size: 14px; line-height: 1.8; }
+.mi-suggestions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.mi-suggestions button, .mi-small-button { padding: 8px 13px; border-radius: 8px; background: #fff; border: 1px solid #e1e7e9; color: #52636b; cursor: pointer; font-size: 13px; }
+.mi-suggestions button:hover, .mi-small-button:hover { border-color: #8ea99e; background: #f2f8f5; }
+.mi-messages { padding: 24px 0; display: flex; flex-direction: column; gap: 24px; overflow-wrap: anywhere; }
+.mi-message { max-width: 100%; }
+.mi-message.is-user { align-self: flex-end; max-width: 85%; background: #e9f2ee; border-radius: 15px 15px 3px 15px; padding: 12px 17px; }
+.mi-message p { margin: 0; white-space: pre-wrap; line-height: 1.8; font-size: 14px; }
+.mi-message.is-agent { background: #fff; border: 1px solid #e6ebed; border-radius: 3px 15px 15px 15px; padding: 20px; }
+.mi-source { margin-top: 15px !important; font-size: 11px !important; color: #869299; }
+.mi-asset-list { display: grid; gap: 8px; margin: 14px 0; }
+.mi-asset { padding: 12px; background: #f8faf9; border: 1px solid #e6ebed; border-radius: 9px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.mi-asset strong { font-size: 14px; font-weight: 550; }
+.mi-asset small { display: block; color: #839097; margin-top: 5px; }
+.mi-pagination { display: flex; gap: 8px; }
+.mi-composer-wrap { margin-top: auto; position: sticky; bottom: 0; padding: 14px 0 16px; background: #f8fafb; }
+.mi-composer { display: flex; align-items: flex-end; gap: 10px; padding: 14px; border: 1px solid #dce5e0; border-radius: 14px; background: #fff; box-shadow: 0 4px 18px #20383006; }
+.mi-composer:focus-within { border-color: #82a594; }
+.mi-composer textarea { width: 100%; resize: none; min-width: 0; max-height: 160px; border: 0; outline: 0; box-shadow: none; font: inherit; font-size: 14px; line-height: 1.7; padding: 2px; background: none; }
+.mi-composer .start-button { width: auto; min-width: 68px; margin: 0; height: 38px; }
+.mi-footnote { text-align: center; font-size: 11px; color: #8b979c; margin: 10px 0 0; }
+.mi-loading { text-align: center; margin-top: 90px; color: #77878c; }
+.mi-page video { display: block; width: 100%; max-height: 390px; background: #151b19; border-radius: 9px; margin: 16px 0 12px; }
+.mi-detail-title { font-size: 16px; margin: 18px 0 10px; }
+.mi-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.mi-tag { font-size: 12px; background: #edf4f0; color: #557565; padding: 4px 8px; border-radius: 5px; }
+.mi-analysis { border-top: 1px solid #e6ebed; padding-top: 12px; margin-top: 15px; font-size: 13px; }
+.mi-analysis summary { cursor: pointer; color: #5c6b71; }
+.mi-analysis p { font-size: 13px; margin-top: 10px; }
+.mi-chart { width: 100%; height: auto; margin: 16px 0 4px; display: block; }
+.mi-chart text { font: 11px sans-serif; fill: #81908a; }
+.mi-chart .mi-chart-line { stroke: #608c77; stroke-width: 2; fill: none; }
+.mi-table-wrap { max-height: 240px; overflow: auto; margin-top: 10px; }
+.mi-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mi-table-wrap th, .mi-table-wrap td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e8eeeb; }
+.mi-page dialog { border: 1px solid #e3e9e6; border-radius: 16px; padding: 25px; width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 40px); overflow: auto; box-shadow: 0 18px 80px #20383026; }
+.mi-page dialog::backdrop { background: #16282140; }
+.mi-connection-form { display: flex; flex-direction: column; gap: 12px; }
+.mi-dialog-heading { display: flex; align-items: center; justify-content: space-between; }
+.mi-dialog-heading h2 { font-size: 18px; margin: 0; }
+.mi-connection-form > p { font-size: 12px; color: #79878e; line-height: 1.7; margin: 0; }
+.mi-connection-form > label { font-size: 13px; color: #4f6269; }
+.mi-connection-form > input { width: 100%; padding: 11px; border: 1px solid #dbe4df; border-radius: 7px; font: inherit; font-size: 14px; }
+.mi-consent { display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+.mi-consent input { flex: 0 0 auto; margin-top: 4px; }
+.mi-error { color: #ad503e !important; font-size: 12px !important; margin-top: 8px !important; }
+.mi-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.mi-dialog-actions .start-button { width: auto; margin: 0; }
+.mi-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.mi-page button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 600px) {
+  .mi-header { padding: 0 14px; height: 62px; }
+  .mi-heading { gap: 7px; }
+  .mi-heading .brand-mark { display: none; }
+  .mi-heading h1 { font-size: 16px; }
+  .mi-main { width: calc(100% - 24px); min-height: calc(100dvh - 62px); }
+  .mi-welcome { padding-top: 70px; }
+  .mi-welcome h2 { font-size: 25px; }
+  .mi-message.is-agent { padding: 14px; }
+  .mi-asset { align-items: flex-start; }
+  .mi-asset button { flex: 0 0 auto; }
+  .mi-composer { padding: 10px; }
+}

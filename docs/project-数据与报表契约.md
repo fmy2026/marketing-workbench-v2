@@ -234,3 +234,13 @@ npm run db:backup
 `npm run test:unit` 运行无业务库依赖的合同测试；`npm run test:integration` 运行独立数据库及 HTTP 测试；`npm run test:workflow-regression` 聚合两者。既有专项测试命令委托同一入口。`tests/isolation.test.mjs` 单独验证禁止业务库连接、仅导入结构和清理结果。缺少夹具或未配置的外部请求使测试失败，不能作为跳过项。测试库所需 PostgreSQL 建库权限仅用于本地回归；应用默认数据库仍由仓储构造器定义。
 
 追加视频可使用两类 Plan：`project_video_material_push` 仅用于将已核验的物料户视频分批推送至目标账户，`project_video_append` 仅用于把目标账户已可用的视频追加到指定项目。推送动作和目标库存回查分别记录；回查未通过也消费推送 Plan 并保留受控 blocker，回查通过才可在同一 Job 生成下一份追加 Plan。确认后若动作前核验、action claim 或执行器异常停止，且该 Plan 不存在 platform action，Plan 会以 `blocked_before_platform_write` 消费，并保存唯一 `confirmed_execution_blocker`、受控证据引用与零调用量；Job 进入 `failed_waiting_manual_review`，summary 投影为 `resolve_case_blocker`，只允许 fresh readonly recovery。追加 action 审计记录请求/响应 hash、HTTP 状态、业务码、受控错误分类和字段合同摘要；不记录原始请求或响应。追加发送时账户/项目 ID 是无损 JSON 整数，视频 ID 为原始字符串。已消费追加 Plan 的每次项目素材回查都创建独立 `readback_records` 观察；查询失败与“未发现视频”由摘要中的查询状态和 blocker 区分。只有明确 `platform_rejected` 且最新回查仍缺失时，Case 锁允许生成一个 fresh 追加恢复 Job；旧 Plan/action 仍不可重发。二者的 `metadata.execution_scope`、Plan hash、confirmation 与 action 审计独立保存；结构枚举由迁移 `096_project_video_material_push_plan.sql` 维护。
+
+## 市场情报外部只读合同
+
+公共电脑是市场素材和视频的事实所有者。工作台不复制到 mwb，不新增表/View；数据在一次请求内做允许字段投影后供当前页面使用，不保存原始响应或对话。平台哈希素材 ID 为 32 位十六进制不透明字符串，按原值关联列表、详情、趋势和视频。用户连接凭证的存储与录入查[部署说明](../deploy/README.md#市场情报数据连接)。
+
+公共服务 `/api/v1` 合同：`GET /health` 验证连接；`GET /assets` 返回 data 数组与 meta.total；`GET /assets/{id}` 返回 data.asset、sources、files、metrics；`GET /stats/trend?asset={id}&from=&to=` 返回 data.points 和 summary；`GET/HEAD /files/{id}` 返回 MP4/WebM，支持单段 Range。文件路径、未列明字段、任意来源 URL 和原始载荷不下发浏览器。列表投影仅含稳定 ID、可用名称/游戏、平台标签和更新时间；详情只投影允许的标签和平台脚本文本；未知字段不猜测。
+
+日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 是真实观察，null 为缺失。日期为 YYYY-MM-DD、时区 Asia/Shanghai，观察日期与 meta 的采集更新时间、查询时间分开。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。周参考线不与日值相加。首版不计算排名、标签分布、质量汇总或跨素材对比；meta.total 是服务端全查询范围总数，不能以当前页条数代替。分页默认 5 条；自然语言“最近 N 天”仅用于单条趋势，按上海日期转换查询窗口。
+
+上游返回 401、404、409、416、429、503 等结果映射为受控提示；超时、非 JSON、非成功信封、超出 1 MiB JSON 或趋势合同不符不展示为成功空数据。不回传上游错误原文。后端每次请求重新以登录用户的连接访问数据，同源视频路由沿用同一身份并只转发必要的 MIME、长度和 Range 头；禁止跨地址重定向。

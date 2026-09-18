@@ -40,7 +40,8 @@
     "scripts/04-node4-resource-prep-contracts-smoke.mjs",
     "scripts/04-backup-landing-page-material-inventory-smoke.mjs",
     "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
-    "scripts/00-project-contract-check-smoke.mjs"
+    "scripts/00-project-contract-check-smoke.mjs",
+    "tests/market-intelligence.test.mjs"
   ],
   "integration": [
     "scripts/00-smoke-api.mjs",
@@ -125,6 +126,7 @@
     "scripts/05-runtime-reservations-smoke.mjs",
     "scripts/03-baseline-resource-inheritance-smoke.mjs",
     "scripts/05-guide-video-payload-smoke.mjs",
-    "scripts/06-launch-job-bundle-video-source-smoke.mjs"
+    "scripts/06-launch-job-bundle-video-source-smoke.mjs",
+    "tests/market-intelligence.test.mjs"
   ]
 }
