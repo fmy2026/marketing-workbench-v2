@@ -639,6 +639,7 @@ async function handleApi(req, res, url) {
     if (!current.config || !current.credentialConfigured) throw requestError("model_config_not_ready_for_test", 409);
     const expectedUpdatedAt = String(body.configuration_updated_at ?? body.configurationUpdatedAt ?? "").trim();
     if (expectedUpdatedAt && current.config.updatedAt !== expectedUpdatedAt) throw requestError("model_config_changed", 409);
+    const enableOnPass = typeof body.enabled === "boolean" ? body.enabled : current.config.enabled === true;
     const test = await testOpenAiCompatibleModelConfig({
       apiBase: current.config.apiBase,
       modelName: current.config.modelName,
@@ -649,7 +650,7 @@ async function handleApi(req, res, url) {
       userId: auth.user.user_id,
       agentKey,
       passed: test.status === "passed",
-      enableOnPass: body.enabled === true,
+      enableOnPass,
       expectedUpdatedAt
     });
     if (!config) throw requestError("model_config_changed", 409);

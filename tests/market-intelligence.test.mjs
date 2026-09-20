@@ -233,8 +233,10 @@ if (preview) {
     const modelTestResponse = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelSave.config.updatedAt, enabled: true } });
     check(modelTestResponse.status, 200); const modelTest = await modelTestResponse.json();
     check(modelTest.config.testStatus, "passed"); check(modelTest.config.enabled, true);
+    const modelRetestResponse = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelTest.config.updatedAt } });
+    check(modelRetestResponse.status, 200); const modelRetest = await modelRetestResponse.json(); check(modelRetest.config.enabled, true);
     const modelToggle = await (await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "https://model.example.test/v1", model_name: "test-model", enabled: false } })).json();
-    check(modelToggle.config.testStatus, "passed"); check(modelToggle.config.testedAt, modelTest.config.testedAt); check(modelToggle.config.enabled, false);
+    check(modelToggle.config.testStatus, "passed"); check(modelToggle.config.testedAt, modelRetest.config.testedAt); check(modelToggle.config.enabled, false);
     const staleTest = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelSave.config.updatedAt, enabled: true } });
     check(staleTest.status, 409); check((await staleTest.json()).error, "model_config_changed");
     modelTestMode = "failed";
