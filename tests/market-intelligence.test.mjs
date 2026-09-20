@@ -170,6 +170,8 @@ if (preview) {
     const parsed = await answerMarketIntelligence({ message: "你能做什么？", client: null }); check(parsed.reply.includes("真实游戏名称"), true);
     const catalog = await (await request("/api/agents")).json(); check(catalog.agents.map((a) => a.agentKey), ["launch_creation", "market_intelligence"]);
     check((await request("/api/agents/market-intelligence/model-config")).status, 200);
+    const invalidModelConfig = await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "not-a-url", model_name: "test-model", enabled: false } });
+    check(invalidModelConfig.status, 400); check((await invalidModelConfig.json()).error, "invalid_model_api_base");
     check((await request("/agents/market-intelligence")).status, 200);
     check((await request("/agents/launch-creation")).status, 200);
     check((await request(`${root}/connection/remove`, { body: {} })).status, 200);
@@ -190,6 +192,10 @@ if (preview) {
     check(clientSource.includes("renderStatistics"), true);
     check(clientSource.includes("pendingQuestion"), true);
     check(clientSource.includes("继续查询"), true);
+    check(clientSource.includes("invalid_model_api_base"), true);
+    check(clientSource.includes("配置已保存。请点击“测试”"), true);
+    check(clientPage.includes('id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1" required'), true);
+    check(clientPage.includes("不要填 <code>/chat/completions</code>"), true);
     console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));

@@ -116,6 +116,17 @@ function requestError(message, statusCode) {
   return error;
 }
 
+function publicModelConfigurationError(error) {
+  const code = String(error?.message || "");
+  if (["model_protocol_not_supported", "invalid_model_api_base", "invalid_model_name", "invalid_model_api_key"].includes(code)) {
+    return requestError(code, 400);
+  }
+  if (/^llm_credential_file_(invalid|permissions_invalid)$/.test(code)) {
+    return requestError("model_credential_store_unavailable", 503);
+  }
+  return error;
+}
+
 function requireRegisteredAgent(agentKey) {
   const normalized = String(agentKey || "").trim().replace(/-/g, "_");
   if (!getPublicAgent(normalized)) throw requestError("agent_not_found", 404);
@@ -566,11 +577,16 @@ async function handleApi(req, res, url) {
     }
     if (req.method === "PUT") {
       const body = await readBody(req);
-      const normalized = normalizeOpenAiCompatibleModelConfig({
-        protocol: body.protocol || "openai_compatible",
-        apiBase: body.api_base || body.apiBase,
-        modelName: body.model_name || body.modelName
-      });
+      let normalized;
+      try {
+        normalized = normalizeOpenAiCompatibleModelConfig({
+          protocol: body.protocol || "openai_compatible",
+          apiBase: body.api_base || body.apiBase,
+          modelName: body.model_name || body.modelName
+        });
+      } catch (error) {
+        throw publicModelConfigurationError(error);
+      }
       const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
       const apiKey = String(body.api_key ?? body.apiKey ?? "").trim();
       const configurationChanged = !current.config ||
@@ -585,7 +601,13 @@ async function handleApi(req, res, url) {
       const enabledRequested = body.enabled === true;
       const enabled = configurationChanged ? false : enabledRequested;
       if (enabled && testStatus !== "passed") throw requestError("model_config_test_required", 409);
-      if (apiKey) setWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey, apiKey });
+      if (apiKey) {
+        try {
+          setWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey, apiKey });
+        } catch (error) {
+          throw publicModelConfigurationError(error);
+        }
+      }
       const config = await repo.upsertWorkbenchAgentModelConfig({
         userId: auth.user.user_id,
         agentKey,
