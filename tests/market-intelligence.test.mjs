@@ -164,6 +164,8 @@ if (preview) {
     check((await request("/agents/launch-creation")).status, 200);
     check((await request(`${root}/connection/remove`, { body: {} })).status, 200);
     check((await ask("有哪些素材？")).needsConnection, true);
+    const clientSource = await readFile(new URL("../frontend/market-intelligence.mjs", import.meta.url), "utf8");
+    check(clientSource.includes('$("serviceAddress").value = config?.baseUrl || "";'), true);
     console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));
