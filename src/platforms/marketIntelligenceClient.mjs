@@ -6,6 +6,13 @@ export function miId(value) {
   return value;
 }
 
+export function miCompareIds(value) {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 5) throw miError("mi_bad_query");
+  const ids = value.map(miId);
+  if (new Set(ids).size !== ids.length) throw miError("mi_bad_query");
+  return ids;
+}
+
 export function safeMiText(value, limit = 1000) {
   if (typeof value !== "string" && typeof value !== "number") return "";
   return String(value).replace(/https?:\/\/\S+/gi, "[链接已隐藏]")
@@ -76,14 +83,23 @@ export function projectMiTrend(data) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(point?.date || "") || !Number.isFinite(Date.parse(point.date)) || new Date(point.date).toISOString().slice(0, 10) !== point.date || seen.has(point.date) ||
       !(point.popularity_daily === null || (Number.isSafeInteger(point.popularity_daily) && point.popularity_daily >= 0))) throw miError("mi_invalid_response", 502);
     seen.add(point.date);
-    return { date: point.date, value: point.popularity_daily };
+    const refline = {};
+    for (const key of ["top1", "top5", "top10", "top50"]) {
+      const value = point[key] ?? point[`refline_${key}`];
+      if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) throw miError("mi_invalid_response", 502);
+      if (value !== undefined) refline[key] = value;
+    }
+    return { date: point.date, value: point.popularity_daily, refline };
   }).sort((a, b) => a.date.localeCompare(b.date));
   // Do not derive rankings or replace the upstream summary with client statistics.
   const summary = data.summary || {};
   return { points, summary: {
-    validPoints: Number.isSafeInteger(summary.valid_points) ? summary.valid_points : null,
-    from: safeMiText(summary.from || summary.start_date || summary.first_date, 20),
-    to: safeMiText(summary.to || summary.end_date || summary.last_date, 20),
+    popularityPoints: Number.isSafeInteger(summary.popularity_points) ? summary.popularity_points : null,
+    pointsReturned: Number.isSafeInteger(summary.points_returned) ? summary.points_returned : null,
+    observedFrom: safeMiText(summary.observed_from, 20),
+    observedTo: safeMiText(summary.observed_to, 20),
+    reflineFrom: safeMiText(summary.refline_from, 20),
+    reflineTo: safeMiText(summary.refline_to, 20),
     netChange: typeof summary.net_change === "number" && Number.isFinite(summary.net_change) ? summary.net_change : null
   } };
 }
@@ -93,7 +109,7 @@ export function createMiClient({ baseUrl, token, fetchImpl = globalThis.fetch } 
   const origin = normalizeMiOrigin(baseUrl);
   const credential = normalizeMiToken(token);
   async function request(path, { params = {}, method = "GET", range = "", signal } = {}) {
-    if (!/^\/(health|assets|assets\/[a-fA-F0-9]{32}|stats\/trend|files\/[a-fA-F0-9]{32})$/.test(path) || !["GET", "HEAD"].includes(method)) throw miError("mi_bad_query");
+    if (!/^\/(health|assets|assets\/[a-fA-F0-9]{32}|stats\/(trend|compare)|files\/[a-fA-F0-9]{32})$/.test(path) || !["GET", "HEAD"].includes(method)) throw miError("mi_bad_query");
     if (range && !/^bytes=(?:\d+-\d*|-\d+)$/.test(range)) throw miError("mi_range_invalid", 416);
     const url = new URL(`/api/v1${path}`, origin);
     for (const [name, value] of Object.entries(params)) if (value !== "" && value != null) url.searchParams.set(name, String(value));
@@ -124,6 +140,10 @@ export function createMiClient({ baseUrl, token, fetchImpl = globalThis.fetch } 
         if (value?.ok !== true || !Object.hasOwn(value, "data")) throw new Error();
         return value;
       } catch { throw miError("mi_invalid_response", 502); }
+    },
+    async compare({ assetIds, from, to } = {}) {
+      const assets = miCompareIds(assetIds);
+      return this.json("/stats/compare", { assets: assets.join(","), from, to });
     },
     async video(id, options = {}) {
       const response = await request(`/files/${miId(id)}`, options);

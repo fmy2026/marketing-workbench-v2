@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createWorkbenchServer } from "../src/server/workbenchServer.mjs";
 import { hashPassword, hashSessionToken, WORKBENCH_SESSION_COOKIE } from "../src/security/workbenchAuth.mjs";
 import { createMiConnectionStore, normalizeMiOrigin } from "../src/security/marketIntelligenceConnectionStore.mjs";
-import { createMiClient, projectMiTrend } from "../src/platforms/marketIntelligenceClient.mjs";
+import { createMiClient, miCompareIds, projectMiTrend } from "../src/platforms/marketIntelligenceClient.mjs";
 import { answerMarketIntelligence } from "../src/agents/marketIntelligenceConversation.mjs";
 
 const preview = process.argv.includes("--preview");
@@ -58,7 +58,7 @@ async function fakeFetch(input, options) {
     { id: idB, title: "合成样例 · 策略搭配", game_name: "测试游戏" }
   ];
   else if (url.pathname.includes("/assets/")) data = { asset: { id: url.pathname.split("/").at(-1), title: "合成样例 · 城堡挑战", game_name: "测试游戏", creative_labels: { 创意策略: { 营销卖点: "角色成长" } }, script_analysis: { 视频内容: "这是隔离测试用的合成分析文字。", hook: "展示挑战目标" } }, files: [{ path: "/private/do-not-expose" }], raw_payload: "should-never-be-projected" };
-  else data = { points: [{ date: "2026-09-15", popularity_daily: 0 }, { date: "2026-09-16", popularity_daily: null }, { date: "2026-09-17", popularity_daily: 120 }, { date: "2026-09-18", popularity_daily: 100 }], summary: { valid_points: 3, net_change: 100 } };
+  else data = { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }, { date: "2026-09-16", popularity_daily: null, top10: 80 }, { date: "2026-09-17", popularity_daily: 120, top10: 100 }, { date: "2026-09-18", popularity_daily: 100, top10: 100 }], summary: { popularity_points: 3, points_returned: 4, observed_from: "2026-09-15", observed_to: "2026-09-18", refline_from: "2026-09-15", refline_to: "2026-09-18", net_change: 100 } };
   return Response.json({ ok: true, data, meta });
 }
 let port = 3138;
@@ -113,6 +113,8 @@ if (preview) {
     check(response.detail.asset.labels, ["营销卖点：角色成长"]);
     response = await ask("看看这条素材最近 7 天的趋势", response.context);
     check(response.trend.points.map((p) => p.value), [0, null, 120, 100]);
+    check(response.trend.summary.popularityPoints, 3); check(response.trend.summary.observedFrom, "2026-09-15");
+    check(response.trend.points.map((p) => p.refline.top10 || null), [80, 80, 100, 100]);
     check(calls.at(-1).params.asset, idA);
     check(Boolean(calls.at(-1).params.from && calls.at(-1).params.to), true);
     const count = calls.length;
@@ -135,6 +137,10 @@ if (preview) {
     await assert.rejects(redirectClient.json("/health"), /mi_service_error/); checks++;
     assert.throws(() => projectMiTrend({ points: [{ date: "2026-09-18", popularity_daily: "0" }] }), /mi_invalid_response/); checks++;
     assert.throws(() => projectMiTrend({ points: [{ date: "2026-09-18", popularity_daily: 0 }, { date: "2026-09-18", popularity_daily: 1 }] }), /mi_invalid_response/); checks++;
+    assert.throws(() => projectMiTrend({ points: [{ date: "2026-09-18", popularity_daily: 0, top10: "0" }] }), /mi_invalid_response/); checks++;
+    check(miCompareIds([idA, idB]), [idA, idB]);
+    assert.throws(() => miCompareIds([idA]), /mi_bad_query/); checks++;
+    assert.throws(() => miCompareIds([idA, idA]), /mi_bad_query/); checks++;
     const parsed = await answerMarketIntelligence({ message: "你能做什么？", client: null }); check(parsed.reply.includes("播放第一条"), true);
     const catalog = await (await request("/api/agents")).json(); check(catalog.agents.map((a) => a.agentKey), ["launch_creation", "market_intelligence"]);
     check((await request("/api/agents/market-intelligence/model-config")).status, 404);

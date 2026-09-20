@@ -241,6 +241,8 @@ npm run db:backup
 
 公共服务 `/api/v1` 合同：`GET /health` 验证连接；`GET /assets` 返回 data 数组与 meta.total；`GET /assets/{id}` 返回 data.asset、sources、files、metrics；`GET /stats/trend?asset={id}&from=&to=` 返回 data.points 和 summary；`GET/HEAD /files/{id}` 返回 MP4/WebM，支持单段 Range。文件路径、未列明字段、任意来源 URL 和原始载荷不下发浏览器。列表投影仅含稳定 ID、可用名称/游戏、平台标签和更新时间；详情只投影允许的标签和平台脚本文本；未知字段不猜测。
 
-日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 是真实观察，null 为缺失。日期为 YYYY-MM-DD、时区 Asia/Shanghai，观察日期与 meta 的采集更新时间、查询时间分开。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。周参考线不与日值相加。首版不计算排名、标签分布、质量汇总或跨素材对比；meta.total 是服务端全查询范围总数，不能以当前页条数代替。分页默认 5 条；自然语言“最近 N 天”仅用于单条趋势，按上海日期转换查询窗口。
+日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 表示平台报告值为零，null 为缺失，二者都不能推断投放效果。日期为 YYYY-MM-DD、时区 Asia/Shanghai，观察日期与 meta 的采集更新时间、查询时间分开。`summary` 只读取 `popularity_points`、`points_returned`、`observed_from`、`observed_to`、`refline_from`、`refline_to` 和 `net_change`；缺少字段明确显示未提供，不猜测旧字段名。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。`top1/top5/top10/top50` 是平台百分位参考线的日展开，周参考线不与日值相加。首版不计算排名、标签分布、质量汇总或跨素材对比；meta.total 是服务端全查询范围总数，不能以当前页条数代替。分页默认 5 条；自然语言“最近 N 天”仅用于单条趋势，按上海日期转换查询窗口。
+
+公共电脑完成合同交付后，可增加 `GET /stats/compare`：只接受 2–5 条稳定素材 ID 及日期范围，服务端以同游戏、同来源、同单位和 day 粒度计算共同有效观察期与净变化。共同有效日期不足两天、首值为 0 或存在中间缺失都必须显式返回限制；工作台不自行排名或计算百分比。
 
 上游返回 401、404、409、416、429、503 等结果映射为受控提示；超时、非 JSON、非成功信封、超出 1 MiB JSON 或趋势合同不符不展示为成功空数据。不回传上游错误原文。后端每次请求重新以登录用户的连接访问数据，同源视频路由沿用同一身份并只转发必要的 MIME、长度和 Range 头；禁止跨地址重定向。
