@@ -1193,7 +1193,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
     updatedAt: bundle.job.updated_at || bundle.job.created_at,
     headline,
     agent: {
-      name: "投放创建 Agent",
+      name: "投放执行 Agent",
       status: bundle.job.job_status,
       statusText: completedCase ? "已完成" : statusLabel(bundle.job.job_status),
       mode: modeForStatus(bundle.job.job_status),

@@ -1,0 +1,9 @@
+{
+  "verified_at": "2026-09-20T02:35:00Z",
+  "checks": [
+    {"acceptance_id": "AC-01", "command": "npm run test:agent-hub", "status": "passed"},
+    {"acceptance_id": "AC-02", "command": "rg public naming and Agent sections; npm run test:agent-hub", "status": "passed"},
+    {"acceptance_id": "AC-03", "command": "npm run test:agent-hub; npm run test:workbench-conversation; git diff --check", "status": "passed"}
+  ],
+  "note": "Only presentation names and static mechanism documentation changed; launch_creation remains the internal compatibility key."
+}

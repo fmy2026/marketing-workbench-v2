@@ -9,7 +9,17 @@
 
 本文回答“如何形成方案、为什么选择这条路”。当前行为分别查 [逻辑图](project-现在的逻辑图.md)、[数据与报表契约](project-数据与报表契约.md)、[部署说明](../deploy/README.md)；启动、权限和任务闭环规则只定义在 [AGENTS](../AGENTS.md)。不在这里追加任务执行流水或账户当前状态。
 
-## 已批准：市场情报最简只读对话（2026-09-18）
+## 已批准：三个 Agent 的职责划分与市场情报升级（2026-09-20）
+
+工作台由三个职责明确的 Agent 组成：市场情报负责基于公共只读数据说明观察与依据；投放策略负责未来结合情报、业务目标与已授权效果数据提出策略；投放执行负责将明确需求推进到受控 Workflow、Plan、本人确认、执行及权威回查。市场情报结果不自动创建 Case、Plan 或平台动作；投放策略在本轮只定义边界，不开放入口。
+
+投放执行保留内部 `launch_creation` 标识、既有 URL、模型配置关联和两类业务事项（创建项目、追加视频），仅将所有面向用户的 Agent 名称从“投放创建”改为“投放执行”。市场情报按独立阶段演进：先对齐公共电脑数据合同及可信展示，再接入按用户与 Agent 隔离的受控模型，最后支持用户选定的 2–5 条素材比较和带证据简报。公共电脑仍是采集、历史、质量和指标计算的事实所有者；工作台不复制其业务数据。
+
+公共电脑在 2026-09-18 的人气值核查回复仅作历史参考：`0` 应表述为“平台报告值为 0”，不能推断投放效果或业务真实零值。工作台须使用 `popularity_points`、`observed_from`、`observed_to`、`points_returned` 等经过公共服务确认的字段，分别展示查询、有效观察及参考线覆盖范围；不得将全库更新时间表述为素材新鲜度。参考线是平台百分位基准，区间末值减初值仅为净变化，不表示连续上升。
+
+关联工作台 Task 从 `TASK-MWBV2-AGENT-RESPONSIBILITY-20260920` 开始顺序推进；公共电脑合同、模型接入、比较与双机联调均作为后续独立 Task 验收。
+
+## 已完成：市场情报最简只读对话（2026-09-18）
 
 用户要求在市场情报入口准备简洁自然语言对话用于跨机验证，并选择稍后在页面录入数据服务 Token。沿用工作台登录和视觉样式，提供独立单列对话、折叠式连接配置、素材卡、同源视频播放和单条趋势；常用自然语言由受限规则解析，未支持的排名、聚合、跨素材比较及视频理解明确说明，首版不调用模型。
 
@@ -29,7 +39,7 @@
 | 数据库文档唯一入口 | 结构、口径与数据库运维说明全部集中；旧说明及后续获批删除的早期方案由 Git 保留历史，避免重复规则漂移 | [批准任务](../tasks/TASK-MWBV2-DATABASE-DOC-CONSOLIDATION-20260908.md)、[数据契约](project-数据与报表契约.md) |
 | 3 阶段 7 Node | 节点只从注册表定义，Skill 与 runner 承接固定流程，减少消费者各自解释 | [节点统一任务](../tasks/TASK-MWBV2-WORKFLOW-NODE-REGISTRY-UNIFICATION.md)、[逻辑图](project-现在的逻辑图.md) |
 | 当前逻辑图分层 | 当前逻辑图以唯一闭环为主线，按 7 Node 归纳 Workflow Skill，以资源四态和核心 Gate 场景说明分支，只保留一次 Plan-bound 安全约束；路线字段、接口参数、时间窗口和专项异常只链接唯一合同，避免静态总览退化为实现流水或第二套状态机 | [本次批准任务](../tasks/TASK-MWBV2-WORKFLOW-LOGIC-DOC-SIMPLIFICATION-20260910.md)、[逻辑图](project-现在的逻辑图.md) |
-| 数字员工广场与 Agent 壳层 | 登录后先进入 Agent 广场；可用 Agent 通过服务端公开注册表声明，工作区仅以模块和地址承载既有 Workflow。壳层不计算 Gate、不选择 Plan、不持有账户动态事实；历史 Case/Job 链接统一迁至 Agent 工作区，旧根路径链接重定向兼容。投放创建能力摘要采用真实的 7 Node、8 类资源和 3 类 Plan；市场情报按本文件已批准的最简只读对话方案开放，独立承载数据连接、素材查看和趋势，不继承投放执行能力；投放策略仍是不可进入的前端预告卡。 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md)、[本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-MULTI-MODULE-PREVIEW-20260913.md)、[当前逻辑图](project-现在的逻辑图.md) |
+| 数字员工广场与 Agent 壳层 | 登录后先进入 Agent 广场；可用 Agent 通过服务端公开注册表声明，工作区仅以模块和地址承载既有 Workflow。壳层不计算 Gate、不选择 Plan、不持有账户动态事实；历史 Case/Job 链接统一迁至 Agent 工作区，旧根路径链接重定向兼容。投放执行以真实的 7 Node、8 类资源和 3 类 Plan 承接受控执行；市场情报独立承载数据连接、素材查看和趋势，不继承投放执行能力；投放策略保留为不可进入的前端预告卡。 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md)、[本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-MULTI-MODULE-PREVIEW-20260913.md)、[当前逻辑图](project-现在的逻辑图.md) |
 | 每用户 Agent 模型配置 | 模型配置按 `user_id × agent_key` 隔离；Postgres 仅保存协议、模型、无凭据 API Base、不可逆本地凭据引用、启用和脱敏测试状态，API Key 仅保存于 gitignored 的本机 `0600` 原子凭据库。更新配置即失效，只有无业务数据的固定 Schema 测试通过后可启用；管理员不能读取或代改他人配置 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md)、[数据契约](project-数据与报表契约.md) |
 | LLM 仅作受限意图解析 | 只有本人已测试、已启用的配置才能解析未被规则准确识别的输入；精确确认、取消、状态、继续与 readonly 恢复始终由确定性解析优先处理。模型输入不含 Case、Job、Gate、Plan 或账户运行状态，输出只能是 allowlist intent、置信度和三项 Intake 槽位；超时、非 JSON、低置信或非法输出均回退规则解析。模型不能决定 Gate、Plan、确认、权限或任何平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md)、[当前逻辑图](project-现在的逻辑图.md) |
 | LLM 显式 Intake 与用户语言进度 | 规则完整识别三项 Intake 时直接使用规则；仅部分识别且模型已启用时，模型只能凭输入中可验证的证据补空槽位，规则值不可被覆盖，缺项不得从默认值、历史或账户推断。DeepSeek `api.deepseek.com` 的固定 Schema 测试和槽位请求均关闭 thinking；成功仅显示采用的槽位名，失败只显示超时、供应商拒绝、非 JSON、意图/置信度或槽位/证据等受控分类并回退规则。模型输出不直接作为对话答案；预设不改变 Workflow、Gate、Plan 或平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-DEEPSEEK-SLOT-ASSIST-DIAGNOSTICS-20260914.md)、[当前逻辑图](project-现在的逻辑图.md) |

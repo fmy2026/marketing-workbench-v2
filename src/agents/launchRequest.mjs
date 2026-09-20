@@ -236,11 +236,11 @@ export function normalizeLaunchRequestFromBody(body = {}, { allowNatural = true 
   const hasRequest = Object.hasOwn(body, "request");
   const hasDirect = directFieldsPresent(body);
   const userIntent = String(body.user_intent || body.userIntent || "").trim();
-  if (!hasRequest && !hasDirect && !userIntent) failure("请提供 request 或投放创建输入。", "launch_request_input_required");
+  if (!hasRequest && !hasDirect && !userIntent) failure("请提供 request 或投放执行输入。", "launch_request_input_required");
   // Legacy job callers carry a human-readable business_goal beside the three
   // canonical fields. The fields remain the sole source of the request; only
   // a structured request mixed with another request source is ambiguous.
-  if (hasRequest && (hasDirect || userIntent)) failure("一次提交只能使用一种投放创建输入。", "launch_request_input_conflict");
+  if (hasRequest && (hasDirect || userIntent)) failure("一次提交只能使用一种投放执行输入。", "launch_request_input_conflict");
   if (hasRequest) return { request: validateLaunchRequest(body.request), source: "structured_json" };
   if (hasDirect) {
     const operation = pick(body, "operation") || LAUNCH_REQUEST_OPERATION;

@@ -448,7 +448,7 @@ export async function resolveExplicitLaunchIntake({ message = "", resolver } = {
 export async function resolveLaunchRequestIntake({ userIntent, request, draft, resolver } = {}) {
   const hasRequest = request !== undefined;
   const hasNatural = typeof userIntent === "string" && userIntent.trim().length > 0;
-  if (hasRequest && hasNatural) throw intakeRequestError("一次提交只能使用一种投放创建输入。");
+  if (hasRequest && hasNatural) throw intakeRequestError("一次提交只能使用一种投放执行输入。");
   if (hasRequest) {
     const normalized = request?.operation === PROJECT_VIDEO_APPEND_OPERATION
       ? validateProjectVideoAppendIntakeRequest(request)
@@ -465,7 +465,7 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     }
     return response;
   }
-  if (!hasNatural) throw intakeRequestError("请输入投放创建需求。");
+  if (!hasNatural) throw intakeRequestError("请输入投放执行需求。");
   const text = String(userIntent);
   if (text.length > 20_000) throw intakeRequestError("输入过长，请将视频标识码分批粘贴（每次最多 100 条）。");
   const priorDraft = intakeDraft(draft);

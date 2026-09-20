@@ -1,16 +1,32 @@
-# marketing-workbench-v2｜唯一底层机制：Workflow Skill → Case Gate → 执行闭环
+# marketing-workbench-v2｜Agent 公共基础、投放执行与市场情报
 
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；静态底层机制总览 |
 | 最后更新时间 | 2026-09-14 CST |
 | 校验基线 | 当前代码、Node/Skill/资源注册表与数据契约；Schema 版本与文件数只查数据契约；静态核验 Task `TASK-MWBV2-VIDEO-BIND-PLAN-SOURCE-RESOURCES-20260911` |
-| 适用范围 | OceanEngine 3.0 字节小游戏路线的 Case、Job、资源准备、标准项目创建与权威回查 |
-| 重新校验条件 | Node/Skill、runner mode、资源能力、Plan/确认、Case summary、工作台入口或 Schema/View 变化时 |
+| 适用范围 | Agent 公共基础、投放执行、市场情报与投放策略的职责边界；投放执行当前覆盖 OceanEngine 3.0 字节小游戏路线 |
+| 重新校验条件 | Agent 职责、Node/Skill、runner mode、资源能力、Plan/确认、数据合同、工作台入口或 Schema/View 变化时 |
 
-> “唯一”指每类事实只有一个权威所有者，不表示本路线可直接泛化到其他平台。本文不保存账户、Case、Job、Plan、资源、确认或平台动作状态；动态业务事实只查 Postgres。
+> “唯一”指每类事实只有一个权威所有者，不表示任何一个 Agent 可直接泛化到其他平台。本文不保存账户、Case、Job、Plan、资源、确认或平台动作状态；动态业务事实只查对应的 Postgres 或公共服务只读来源。
 
-## 1. 唯一闭环与真值分工
+## 1. 公共基础：职责、真值与隔离
+
+```text
+市场情报：公共只读数据 → 观察与证据
+投放策略（规划中）：情报 + 业务目标 + 已授权效果数据 → 策略建议
+投放执行：明确执行需求 → Case / Job / Plan / 确认 → 权威回查
+```
+
+| Agent | 目标与输出 | 事实来源与权限 | 当前边界 |
+| --- | --- | --- | --- |
+| 市场情报 | 素材、趋势、平台已有分析及其观察范围；后续提供选定素材比较和证据简报 | 公共电脑只读服务；连接和模型配置按登录用户隔离 | 不写平台，不计算 ROI，不自动生成 Case、Plan 或预算建议 |
+| 投放策略 | 根据证据形成待人工确认的策略建议 | 规划中；未来仅消费已授权的情报与效果数据 | 本轮不开放，不执行任何动作 |
+| 投放执行 | 创建项目或追加视频的状态、确认卡、执行结果与只读回查 | Postgres 的 Case/Job/Plan/summary 与受控平台适配器 | 仅本人范围，只有冻结 Plan、精确确认与 action grant 同时存在才可写平台 |
+
+登录、用户隔离、公开 Agent 注册及按 `user_id × agent_key` 隔离的模型配置是公共基础。公开页面只消费服务端投影；不保存 Token、原始模型输出、对话原文或公共服务原始响应。
+
+## 2. 投放执行 Agent：唯一闭环与真值分工
 
 ```text
 受控咨询 / 自然语言临时草稿 / 标准 JSON → 已选事项的 `LaunchRequest v1/v2` → 本人作用域 Intake → active Case + fresh Job → 3 阶段 7 Node
@@ -33,7 +49,7 @@
 
 JSZC-HUNT 的“当前必需视频集”唯一由物料包中 `video_asset + required=true + status=active` 的条目决定；当前数据可恰有 10 条，但数量不是流程规则。Node 04 以乾坤素材库确认每条静态来源，物料户对账器扫描 `file/video/get` 全页并按完整边界在 `filename` 中唯一匹配来源码，返回项 `id` 写为 `oceanengine_video_mapping.status=verified` 的实际视频 ID；只有该映射才可进入 bind。每条视频再按 `source_asset_id` 关联唯一目标账户资源：默认封面能力开启时明确省略封面，显式封面能力开启时必须有同一 target 资源、当前 Job 的 visible/readback 证据。该单一解析结果进入 Draft、Plan/hash、payload 和嵌套合同。`buildVideoMaterialPreparePlan` 是绑定集合、批次、调用量与集合 hash 的唯一构造入口：全数目标可见为零动作，目标缺失只冻结精确缺失集合；零/多映射、未验证、查询失败、状态不明、封面来源歧义或集合不完整均阻断，绝不回退为默认一次绑定。乾坤预热记录和 `m_id` 是同步审计事实，不能覆盖已验证库存；本地 MP4 与旧 `asset.metadata.video_id` 都不是运行时依据。
 
-## 2. Workflow Skill：三阶段七 Node
+## 3. 投放执行 Agent：Workflow Skill、三阶段七 Node
 
 Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-registry.mjs) 定义；Skill 合同定义依赖、输入、输出和写入责任；实际 schedule 只查 [runner](../src/workflows/skills/oe3/00-runner.mjs)。
 
@@ -58,7 +74,7 @@ Node 结构只由 [Node 注册表](../src/workflows/skills/oe3/00-workflow-node-
 | `readback_only` | 只运行 Node 07 权威回查，绝不创建。 |
 | `aweme_auth_readonly` | 只运行至 Node 04 的抖音号授权核验；不生成 Draft 或 Plan。 |
 
-## 3. 账户资源四态
+## 4. 投放执行 Agent：账户资源四态
 
 Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_asset`、`video_asset`、`product_image`、`brand_info`、`micro_app_instance`、`backup_landing_page`。
 
@@ -81,7 +97,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 
 `resourceReady` 是唯一资源判定；显式省略必须具备有效 readonly 证据，Node 05、字段合同和 Execution Plan 复用该结论。字段账本、存储形态和动态 ID 只查[数据契约](project-数据与报表契约.md#配置与资源来源)及对应 verifier。
 
-## 4. Plan、确认与执行不变量
+## 5. 投放执行 Agent：Plan、确认与执行不变量
 
 | Plan kind | 唯一内容 | 产生条件 | 禁止 |
 | --- | --- | --- | --- |
@@ -105,7 +121,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - 新冻结且携带完整 delivery 合同的 Create 或追加 action，只有在精确 `HTTP 200 + 40100` 且没有对象/受理结果时，才能在同一 confirmation 内最多三次错峰物理投递；请求 hash 不变，调用点为 `0 / 20–24 / 45–49` 秒。其余错误、超时或不明结果不自动重试。OAuth 与存储边界分别查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)和数据契约。
 - Node 05 查重唯一只读限流例外是首次 `GET std_project/list` 的 `HTTP 200 + api_code=40100`：完全相同参数在 Job 确定的 `20–24` 秒后最多重试一次；第二次 `40100` 以 `duplicate_readonly_rate_limited` 停止，其他错误零重试。该 GET 不产生 Plan、confirmation、action 或 Attempt；证据仅记录调用次数、最终业务码与是否恢复。
 
-## 5. Case Gate 与工作台
+## 6. 投放执行 Agent：Case Gate 与工作台
 
 ### 项目视频追加事项
 
@@ -133,12 +149,27 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - consumed Create Plan 的确认前停止只在确有 `blocked_before_create`、零 create action 与零创建对象时进入该同一 readonly 恢复入口；通用 `readiness_not_ready:*`、授权探测包装原因不会覆盖 Skill 的具体传输或合同 blocker。确认卡、提示和按钮都读取同一服务端 Gate/Plan/confirmation 可用性；确认被登记或 Plan 被消费后不再显示陈旧的可确认卡。
 - 确认卡点击时先冻结当前 `jobId`、`planId`、`planHash` 与精确确认短语；提交中只锁定该按钮并显示“提交中”，轮询或界面重绘不得改写本次请求目标。请求结束后只消费同一服务端投影的 `confirmationPreview`；显式 `null` 必须清卡，页面不得以旧 Plan 状态回填。未分类服务错误仅显示受控诊断与最新状态，不推断 confirmation 或平台动作是否已发生。
 - “启动流程”在创建 Case、创建 fresh Job 与启动 readonly 任一阶段遇到未分类 5xx 时，只显示该阶段与脱敏诊断码；服务端只写本地受控诊断（方法、路径、阶段、指纹、受控错误码和不含错误消息的栈帧）。它不是业务 blocker，不触发自动重试、confirmation 或平台创建。
-- 数字员工广场以“市场情报提供依据 → 投放策略形成建议 → 投放创建承接受控执行”说明职责；投放创建和市场情报属于服务端公开注册、可进入工作区的 Agent；投放策略仍是前端静态预告卡。市场情报提供独立单列对话与本人数据连接配置，按受限自然语言规则查询公共素材、详情/视频和单条趋势，不运行投放 Workflow、不使用模型、不新增 Gate/Plan。素材统计和指标口径只消费公共服务返回，未提供的排名、聚合、跨素材比较和视频理解明确提示未支持；刷新后不保存对话。接口与字段查[市场情报外部只读合同](project-数据与报表契约.md#市场情报外部只读合同)。
+- 数字员工广场以“市场情报提供依据 → 投放策略形成建议 → 投放执行承接受控执行”说明职责；内部键仍为 `launch_creation`，名称变更不迁移既有入口、配置或执行合同。
 - Agent 壳层、右侧 Workflow 和统计只消费受控投影：壳层不计算 Gate、blocker、next action、Plan 或执行动作；普通用户仅本人范围，管理员读取全量报表也不获得账户操作权。
 - JSON 不与自然语言草稿混用，且不调用模型；未知 schema/version/operation/字段或无效类型直接拒绝。新建项目仍是完整请求。追加视频在 Intake 可只提供本人账户、已验证项目和视频标识码：服务端以 Postgres 中本人账户的 `runtime_truth`、已回查标准项目记录派生路线和游戏，随后才生成完整 `LaunchRequest v2`。未找到、越权、未验证或显式路线/游戏冲突均不可启动，不回退平台列表或默认值。已选追加、账户和项目而缺少视频时，可直接粘贴标识码列表；逗号、顿号、分号、空白和换行均分隔条目，纯数字无标签输入必须明确标注为视频标识码。自然语言在事项未明确时只返回临时草稿、受控回复和不可启动状态，不创建 Case、Job、Plan 或确认；草稿仅保留在页面内存与单次 Intake 响应，刷新或切换输入方式即重新输入，服务端不保存原始文本或 JSON。
 - 模型仅在规则未完整识别自然语言 Intake 且本人配置已测试启用时补槽位；确认、取消、状态和恢复始终规则优先。DeepSeek `api.deepseek.com` 的固定测试和运行时槽位请求均使用关闭 thinking 的同一请求配置。模型不接收 Case、Job、Gate、Plan 或执行状态，输出只能使用输入中可验证的证据；用户仅看到采用槽位名，或超时、供应商拒绝、非 JSON、意图/置信度、槽位/证据等受控回退分类，绝不显示或保存模型原始输出。
 
-## 6. 权威来源索引
+## 7. 市场情报 Agent：只读证据链与演进边界
+
+```text
+用户问题 → 明确素材、日期和分析目的 → 受限只读查询
+→ 校验字段、观察范围和来源 → 受控模型解释证据 → 结论、依据、限制与可追问方向
+```
+
+市场情报当前可查询公共素材、播放同源视频、阅读平台已有标签/脚本分析并查看单条日人气趋势。`0` 表示平台报告值为零，`null` 或缺失日期表示无该观察；两者均不说明投放效果。查询范围、有效观察范围、参考线覆盖范围、公共服务全库更新时间及逐素材采集时间必须独立呈现。参考线是平台百分位基准，不能与日值相加或表述为某条视频的走势；净变化不是持续上涨。
+
+公共电脑负责采集、存档、质量校验和统一指标计算；工作台只做允许字段投影和解释，任何未知字段、格式异常、上游失败或数据不足均明确停止结论。后续模型只可提出 allowlist 查询与解释已取得的脱敏证据，不能生成数字、执行平台操作、访问任意 URL 或绕开服务端统计。选定素材的比较与简报待公共电脑的统一比较合同通过后开放。市场情报不继承 Case、Gate、Plan、confirmation 或平台写权限。
+
+## 8. 投放策略 Agent：规划中
+
+投放策略将消费市场情报、业务目标及已授权投放效果数据，输出可审阅的策略建议和理由。它不直接执行市场情报结论，也不持有平台写权限；任何可执行动作必须重新进入投放执行 Agent 的 Intake、Case、冻结 Plan 与本人确认闭环。本轮仅保留广场预告，不提供工作区、模型调用或策略结论。
+
+## 9. 权威来源索引
 
 | 要核对的细节 | 唯一或优先来源 |
 | --- | --- |
@@ -152,7 +183,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 | 路线字段、资源来源、Schema 版本 | [数据契约](project-数据与报表契约.md) |
 | 平台接口与运维 | [乾坤 API 文档](qiankun-api-docs-20260911.md)、[部署说明](../deploy/README.md) |
 
-## 7. 开发验证入口
+## 10. 开发验证入口
 
 新能力通过隔离测试入口验证；环境与数据合同见[隔离测试数据库](project-数据与报表契约.md#隔离测试数据库)。正式 server 的 HTTP 处理器由内部 `createWorkbenchServer({ repo, env })` 构造，部署入口仍使用默认仓储与环境；请求参数不能切换仓储或测试模式。测试平台请求必须使用显式假传输和合成凭据依赖，未配置请求阻断并令回归失败；正式 runner、Plan 编译、确认、创建和回查不会因测试来源自动放宽资源、确认或权限判断。
 

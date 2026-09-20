@@ -48,7 +48,7 @@ assert(html.includes('href="/styles.css"') && !html.includes('href="./styles.css
 assert(html.includes('src="/app.js"') && !html.includes('src="./app.js"'), "deep_link_module_must_use_root_path");
 assert(appSource.includes("passwordChangeForced") && appSource.includes("Escape"), "password_or_menu_interaction_missing");
 assert(html.includes("数字员工广场") && html.includes("数据统计") && !html.includes(">SOP<"), "agent_shell_labels_incorrect");
-assert(html.includes("市场情报提供依据，投放策略形成建议，投放创建承接受控执行。"), "agent_hub_positioning_copy_missing");
+assert(html.includes("市场情报提供依据，投放策略形成建议，投放执行承接受控执行。"), "agent_hub_positioning_copy_missing");
 assert(appSource.includes("const AGENT_PREVIEWS") && appSource.includes('icon: "策"'), "agent_preview_catalog_missing");
 assert(!appSource.includes('displayName: "市场情报"') && appSource.includes('displayName: "投放策略"'), "only_strategy_remains_preview");
 const previewCatalog = appSource.slice(appSource.indexOf("const AGENT_PREVIEWS"), appSource.indexOf("function renderPreviewCard"));

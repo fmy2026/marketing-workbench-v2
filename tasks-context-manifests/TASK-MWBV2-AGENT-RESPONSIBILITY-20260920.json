@@ -1,0 +1,69 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-AGENT-RESPONSIBILITY-20260920",
+  "task_ref": "tasks/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920.md",
+  "status": "completed",
+  "created_at": "2026-09-20T02:33:11Z",
+  "updated_at": "2026-09-20T02:36:00Z",
+  "base_revision": "7a23112b3d1b0ce7a2624586f86a55cfaf7d9706",
+  "baseline_dirty_files": {
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "src/agents/agentRegistry.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/index.html",
+    "frontend/app.js"
+  ],
+  "reference_only": [
+    {
+      "ref": "docs/.开发方案/公共电脑回复-人气值0来源核查结论-20260918.md",
+      "reason": "用户指定的历史核查回复；只作为后续市场情报数据合同的依据，不作为当前运行真值。"
+    }
+  ],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920.md",
+    "tasks-context-manifests/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920.json",
+    "evidence/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920/**",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchRequest.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "frontend/index.html",
+    "frontend/app.js",
+    "scripts/00-agent-hub-smoke.mjs"
+  ],
+  "forbidden_actions": ["真实平台写入、权限变更、数据库迁移、公共电脑服务改动"],
+  "stop_conditions": ["名称调整影响内部键、路由或执行合同", "发现需改动公共电脑或真实平台时停止"],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:agent-hub"},
+    {"acceptance_id": "AC-02", "command": "rg semantic checks for the four Agent modules; npm run test:agent-hub"},
+    {"acceptance_id": "AC-03", "command": "npm run test:agent-hub; npm run test:workbench-conversation; npm run check:project -- --phase start/before-close/after-close"}
+  ],
+  "validation_results": [
+    {"acceptance_id": "AC-01", "status": "passed", "command": "npm run test:agent-hub", "verified_at": "2026-09-20T02:35:00Z", "summary": "Agent hub exposes the unchanged launch_creation key with the public name 投放执行.", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920/validation.json"]},
+    {"acceptance_id": "AC-02", "status": "passed", "command": "rg public naming and Agent sections; npm run test:agent-hub", "verified_at": "2026-09-20T02:35:00Z", "summary": "The current logic graph separates common foundation, execution, market intelligence, and planned strategy.", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920/validation.json"]},
+    {"acceptance_id": "AC-03", "status": "passed", "command": "npm run test:agent-hub; npm run test:workbench-conversation; git diff --check", "verified_at": "2026-09-20T02:35:00Z", "summary": "Agent hub, workbench conversation, and whitespace validation passed.", "evidence_refs": ["evidence/TASK-MWBV2-AGENT-RESPONSIBILITY-20260920/validation.json"]}
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "Records the approved Agent responsibility and market-intelligence evolution decision."},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "Reorganizes the static mechanism overview by Agent responsibility."}
+  ],
+  "temporary_authorizations": [],
+  "result": {"summary": "Publicly renamed launch creation as 投放执行 and separated Agent responsibilities.", "side_effects": "No platform, database, credential, route, or internal-key change.", "remaining_risks": ["Public-computer contract, market-model integration, and comparison remain separate Tasks."], "business_evidence_refs": []},
+  "closed_at": "2026-09-20T02:36:00Z"
+}

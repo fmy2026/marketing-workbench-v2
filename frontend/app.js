@@ -162,7 +162,7 @@ import {
 
   function renderAgentOverview() {
     if (!agentProfile) return;
-    document.getElementById("overviewDescription").textContent = agentProfile.positioning || agentProfile.description || "投放创建 Agent";
+    document.getElementById("overviewDescription").textContent = agentProfile.positioning || agentProfile.description || "投放执行 Agent";
     const metrics = document.getElementById("capabilityMetrics");
     metrics.innerHTML = "";
     const summary = agentProfile.capabilitySummary || {};

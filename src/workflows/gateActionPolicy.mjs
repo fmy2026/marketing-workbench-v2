@@ -207,7 +207,7 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     return { ...base, effect: "cancelled", message: "已取消本次对话操作，流程状态未改变。" };
   }
   if (intent.intent === "unknown") {
-    return { ...base, effect: "clarify", message: "我只处理投放创建所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
+    return { ...base, effect: "clarify", message: "我只处理投放执行所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
   }
   if (intent.intent === "intake_update") {
     return { ...base, effect: "intake_not_applicable", message: "当前流程已有 Job；请使用“继续执行”或查看当前状态。" };
@@ -343,5 +343,5 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     const progress = presentWorkflowProgress({ caseGate: progressCaseGate, confirmationPreview, isLatestCaseJob });
     return { ...base, effect: "status", message: progress.message };
   }
-  return { ...base, effect: "clarify", message: "我只处理投放创建所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
+  return { ...base, effect: "clarify", message: "我只处理投放执行所需信息、当前进度、唯一卡点和受控确认，不提供开放问答或策略生成。" };
 }

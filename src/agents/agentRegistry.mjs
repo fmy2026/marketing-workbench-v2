@@ -38,8 +38,8 @@ const LAUNCH_CREATION_CONVERSATION_PRESETS = Object.freeze({
 const AGENTS = Object.freeze([
   Object.freeze({
     agentKey: "launch_creation",
-    displayName: "投放创建",
-    description: "将自然语言或规范化需求转换为可验证的投放创建任务，并按固定 Workflow 推进。",
+    displayName: "投放执行",
+    description: "将自然语言或规范化需求转换为可验证的投放执行任务，并按固定 Workflow 推进。",
     status: "available",
     modelConfigurable: true,
     modules: LAUNCH_CREATION_MODULES,
@@ -108,7 +108,7 @@ export function getPublicAgent(agentKey) {
   };
   return {
     ...publicAgent(agent),
-    positioning: "任务型投放创建 Agent；模型只可参与意图与槽位识别，Workflow、Gate、Plan 与执行权限保持确定性。",
+    positioning: "任务型投放执行 Agent；模型只可参与意图与槽位识别，Workflow、Gate、Plan 与执行权限保持确定性。",
     supportedScope: "当前支持 OE3 字节小游戏、JSZC 的单账户新建项目和已有项目追加视频流程。",
     knowledgeTopics: agent.knowledgeTopics.map((topic) => ({ ...topic })),
     plans: PLAN_KINDS.map(({ key, label }) => ({ key, label })),
