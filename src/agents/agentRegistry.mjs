@@ -10,6 +10,15 @@ const LAUNCH_CREATION_MODULES = Object.freeze([
   Object.freeze({ key: "statistics", label: "数据统计" })
 ]);
 
+const MARKET_INTELLIGENCE_MODULES = Object.freeze([
+  Object.freeze({ key: "overview", label: "Agent 概览" }),
+  Object.freeze({ key: "conversation", label: "对话状态" }),
+  Object.freeze({ key: "memory", label: "记忆" }),
+  Object.freeze({ key: "knowledge", label: "知识库" }),
+  Object.freeze({ key: "skills", label: "技能" }),
+  Object.freeze({ key: "statistics", label: "数据统计" })
+]);
+
 const PLAN_KINDS = Object.freeze([
   Object.freeze({ key: "monitor_bootstrap", label: "监测准备" }),
   Object.freeze({ key: "resource_prepare", label: "资源准备" }),
@@ -35,6 +44,20 @@ const LAUNCH_CREATION_CONVERSATION_PRESETS = Object.freeze({
   ])
 });
 
+const MARKET_INTELLIGENCE_CONVERSATION_PRESETS = Object.freeze({
+  conversation: Object.freeze([
+    Object.freeze({ key: "discover", label: "查找素材", message: "查看当前已采集的游戏和素材" }),
+    Object.freeze({ key: "report", label: "生成月报", message: "生成市场情报月报" }),
+    Object.freeze({ key: "help", label: "能做什么", message: "你能做什么？" })
+  ])
+});
+
+const MARKET_INTELLIGENCE_KNOWLEDGE_TOPICS = Object.freeze([
+  Object.freeze({ title: "观察值与缺失", description: "0 是平台报告值；null 和缺失日期不补零，趋势不说明投放效果。" }),
+  Object.freeze({ title: "数据来源", description: "公共电脑负责采集、历史和指标计算；工作台只读取允许字段并在当前页面使用。" }),
+  Object.freeze({ title: "HTML 月报", description: "只纳入目标月份有有效观察的样本，按固定结构生成当前页面可编辑的离线 HTML。" })
+]);
+
 const AGENTS = Object.freeze([
   Object.freeze({
     agentKey: "launch_creation",
@@ -57,8 +80,9 @@ const AGENTS = Object.freeze([
     description: "查询公共素材、观看视频、核验观察范围，并基于已采集样本生成 HTML 月报。",
     status: "available",
     modelConfigurable: true,
-    modules: [Object.freeze({ key: "conversation", label: "对话" })],
-    conversationPresets: {},
+    modules: MARKET_INTELLIGENCE_MODULES,
+    conversationPresets: MARKET_INTELLIGENCE_CONVERSATION_PRESETS,
+    knowledgeTopics: MARKET_INTELLIGENCE_KNOWLEDGE_TOPICS,
     capabilitySummary: { readOnly: true }
   })
 ]);
@@ -104,7 +128,8 @@ export function getPublicAgent(agentKey) {
   if (agent.agentKey === "market_intelligence") return {
     ...publicAgent(agent),
     positioning: "查询公共素材的只读助手，基于已采集样本整理带证据的月报。",
-    supportedScope: "素材网格、平台已有分析、视频播放、单条人气值日趋势和 HTML 月报。"
+    supportedScope: "素材网格、平台已有分析、视频播放、单条人气值日趋势和 HTML 月报。",
+    knowledgeTopics: agent.knowledgeTopics.map((topic) => ({ ...topic }))
   };
   return {
     ...publicAgent(agent),
@@ -122,3 +147,4 @@ export function isRegisteredAgentPath(pathname = "") {
 }
 
 export const LAUNCH_CREATION_MODULE_KEYS = Object.freeze(LAUNCH_CREATION_MODULES.map((module) => module.key));
+export const MARKET_INTELLIGENCE_MODULE_KEYS = Object.freeze(MARKET_INTELLIGENCE_MODULES.map((module) => module.key));

@@ -239,6 +239,8 @@ npm run db:backup
 
 公共电脑是市场素材和视频的事实所有者。工作台不复制到 mwb，不新增表/View；数据在一次请求内做允许字段投影后供当前页面使用，不保存原始响应或对话。平台哈希素材 ID 为 32 位十六进制不透明字符串，按原值关联列表、详情、趋势和视频。用户连接凭证的存储与录入查[部署说明](../deploy/README.md#市场情报数据连接)。
 
+市场情报页面的研究对象、月份、当前选中素材、短对话和月报草稿只保存在浏览器当前页面内存。六模块中的“记忆”和“数据统计”只读取这些页面状态与当前服务响应，刷新后必须清空；它们不得写入 mwb，也不得把当前候选数量表述为全库数量或排名。
+
 公共服务 `/api/v1` 合同：`GET /health` 验证连接；`GET /assets` 返回 data 数组与 meta.total；`GET /assets/{id}` 返回 data.asset、sources、files、metrics；`GET /stats/trend?asset={id}&from=&to=` 返回 data.points 和 summary；`GET/HEAD /files/{id}` 返回 MP4/WebM，支持单段 Range。文件路径、未列明字段、任意来源 URL 和原始载荷不下发浏览器。列表投影仅含稳定 ID、可用名称/游戏、平台标签和更新时间；详情只投影允许的标签和平台脚本文本；当前没有可安全投影的封面字段时，页面使用标题占位，不能伪造封面。未知字段不猜测。
 
 日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 表示平台报告值为零，null 为缺失，二者都不能推断投放效果。日期为 YYYY-MM-DD、时区 Asia/Shanghai，观察日期与 meta 的采集更新时间、查询时间分开。`summary` 只读取 `popularity_points`、`points_returned`、`observed_from`、`observed_to`、`refline_from`、`refline_to` 和 `net_change`；缺少字段明确显示未提供，不猜测旧字段名。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。`top1/top5/top10/top50` 是平台百分位参考线的日展开，周参考线不与日值相加。首版不计算排名、标签分布、质量汇总或跨素材对比；meta.total 是服务端全查询范围总数，不能以当前页条数代替。

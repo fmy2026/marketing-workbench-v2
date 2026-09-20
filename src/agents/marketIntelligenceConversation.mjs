@@ -35,11 +35,12 @@ export function parseMarketIntelligenceRequest({ message, context = {}, now = ne
   const ordinalIndex = ordinal ? Number(numeral[ordinal[1]] || ordinal[1]) - 1 : -1;
   const assetId = suppliedId || (ordinalIndex >= 0 ? selection.ids[ordinalIndex] || "" : /这条|这个|它|当前|选中/.test(text) ? selection.selectedId : "");
   const returnToSearch = /返回素材|查看素材|素材列表/.test(text);
-  const games = parseGames(text);
+  const discoveryQuestion = /有哪些.*(?:游戏|素材)|什么(?:游戏|素材)|(?:当前|已采集|公共电脑).*(?:游戏|素材)|(?:游戏|素材).*(?:有哪些|有什么)/.test(text);
+  const games = discoveryQuestion ? [] : parseGames(text);
   const wantsTrend = /趋势|人气|曲线|走势/.test(text);
   const wantsInterpret = /为什么值得|值得关注|解读|怎么看|有什么特点/.test(text);
   const wantsDetail = /播放|打开|详情|脚本|分析|标签|看看这|查看这|看这/.test(text);
-  const wantsDiscovery = !games.length && /有哪些.*(?:游戏|素材)|什么(?:游戏|素材)|(?:当前|已采集|公共电脑).*(?:游戏|素材)|(?:游戏|素材).*(?:有哪些|有什么)/.test(text);
+  const wantsDiscovery = !games.length && discoveryQuestion;
   const continuesDiscovery = /继续发现|发现下一页|更多游戏/.test(text);
   const prohibited = /排名|排行|对比|比较|覆盖率|分布|占比|热门|爆款|涨幅|跌幅|上升.*素材|下降.*素材|素材.*(上升|下降)|哪[些个].*(上升|下降|最好)|最高|最低|最多|最少|roi|roas|转化|消耗|曝光|点击|识别视频|分析视频|解读视频|转写|逐镜头|OCR|ASR/i.test(text);
   const purpose = prohibited ? "unsupported" : continuesDiscovery || wantsDiscovery ? "discover" : assetId && wantsTrend ? "trend" : assetId && wantsInterpret ? "interpret" : assetId && wantsDetail ? "detail" : /月报|市场情报.*报告|报告.*市场情报|管理层/.test(text) ? "report" : /下一页|上一页|继续查询|继续找/.test(text) ? "page" : /素材|视频|查找|查看|看看|竞品/.test(text) ? "search" : "unknown";

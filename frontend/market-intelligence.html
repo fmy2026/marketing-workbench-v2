@@ -8,41 +8,63 @@
   <link rel="stylesheet" href="/market-intelligence.css">
 </head>
 <body class="mi-page">
-  <header class="mi-header">
-    <a class="mi-back" href="/agents" aria-label="返回数字员工广场">←</a>
-    <div class="mi-heading"><span class="mi-mark" aria-hidden="true">情</span><h1>市场情报</h1></div>
-    <button id="settingsButton" class="secondary-button" type="button">设置</button>
+  <header class="mi-topbar">
+    <div class="mi-brand-line">
+      <a class="mi-back-button" href="/agents" aria-label="返回数字员工广场">←</a>
+      <a class="mi-brand-home" href="/agents" aria-label="返回数字员工广场"><span class="mi-brand-mark" aria-hidden="true">情</span><strong>数字员工广场</strong></a>
+      <span class="mi-brand-divider" aria-hidden="true"></span><strong class="mi-agent-title">市场情报</strong>
+    </div>
+    <div class="mi-header-actions">
+      <button id="dataConnectionButton" class="mi-header-button" type="button">数据连接</button>
+      <button id="modelConfigButton" class="mi-header-button" type="button">大模型配置</button>
+      <div class="mi-user-menu-wrap">
+        <button class="mi-user-menu-trigger" id="userMenuButton" type="button" aria-expanded="false" aria-controls="userMenu">
+          <span class="mi-user-avatar" id="operatorAvatar" aria-hidden="true">用</span><span id="operatorName">当前用户</span><span aria-hidden="true">⌄</span>
+        </button>
+        <section class="mi-user-menu" id="userMenu" hidden aria-label="用户菜单">
+          <div class="mi-user-identity"><span class="mi-user-avatar" id="userMenuAvatar" aria-hidden="true">用</span><div><strong id="userMenuDisplayName">当前用户</strong><span id="userMenuLoginName"></span></div></div>
+          <button class="mi-user-menu-action" id="backToAgents" type="button">返回数字员工广场</button>
+          <button class="mi-user-menu-action mi-danger" id="logoutButton" type="button">退出登录</button>
+        </section>
+      </div>
+    </div>
   </header>
-  <main class="mi-main" id="miMain" hidden><section class="mi-workspace" id="workspace" aria-live="polite"></section></main>
-  <form class="mi-composer" id="chatForm">
-    <label class="mi-visually-hidden" for="messageInput">输入问题</label>
-    <textarea id="messageInput" rows="1" maxlength="2000" placeholder="查看当前已采集的游戏和素材" required></textarea>
-    <button id="sendButton" class="start-button" type="submit">发送</button>
-  </form>
+  <main class="mi-shell" id="miMain" hidden>
+    <aside class="mi-sidebar" id="miSidebar" aria-label="市场情报模块">
+      <div class="mi-sidebar-heading"><span class="mi-sidebar-icon" aria-hidden="true">情</span><div class="mi-sidebar-name"><span>当前员工</span><strong>市场情报</strong></div><button class="mi-sidebar-collapse" id="sidebarCollapseButton" type="button" aria-label="收起模块导航">‹</button></div>
+      <nav class="mi-module-nav" aria-label="Agent 模块">
+        <button class="mi-module-button" type="button" data-mi-module="overview">Agent 概览</button>
+        <button class="mi-module-button is-active" type="button" data-mi-module="conversation" aria-current="page">对话状态</button>
+        <button class="mi-module-button" type="button" data-mi-module="memory">记忆</button>
+        <button class="mi-module-button" type="button" data-mi-module="knowledge">知识库</button>
+        <button class="mi-module-button" type="button" data-mi-module="skills">技能</button>
+        <button class="mi-module-button" type="button" data-mi-module="statistics">数据统计</button>
+      </nav>
+    </aside>
+    <section class="mi-main-panel" aria-label="市场情报工作区">
+      <section class="mi-module-content" data-mi-module-content="overview" hidden>
+        <p class="mi-eyebrow">Agent 概览</p><h1>市场情报</h1><p class="mi-lead">查询已采集素材，查看证据，整理市场情报。</p>
+        <div class="mi-capability-grid"><button type="button" data-mi-preset="discover">查找素材</button><button type="button" data-mi-preset="insight">素材解读</button><button type="button" data-mi-preset="report">HTML 月报</button></div>
+        <div class="mi-config-summary" id="overviewConfigStatus"></div>
+      </section>
+      <section class="mi-module-content mi-conversation-module" data-mi-module-content="conversation">
+        <div class="mi-panel-title"><div><h1>对话状态</h1><p id="agentStatus">等待输入需求</p></div></div>
+        <div class="mi-conversation-scroll" id="conversationScroll"><div class="mi-chat-stream" id="chatStream" aria-live="polite"></div><section class="mi-workspace" id="workspace" aria-live="polite"></section></div>
+        <div class="mi-composer-area"><div class="mi-presets" aria-label="快捷输入"><button type="button" data-mi-preset="discover">查找素材</button><button type="button" data-mi-preset="report">生成月报</button><button type="button" data-mi-preset="help">能做什么</button></div><form class="mi-composer" id="chatForm"><label class="mi-visually-hidden" for="messageInput">输入市场情报需求</label><textarea id="messageInput" rows="1" maxlength="2000" placeholder="输入市场情报需求…" required></textarea><button id="sendButton" type="submit" aria-label="发送">→</button></form></div>
+      </section>
+      <section class="mi-module-content" data-mi-module-content="memory" hidden><p class="mi-eyebrow">记忆</p><h1>当前研究上下文</h1><div class="mi-context-card" id="memoryContent"></div></section>
+      <section class="mi-module-content" data-mi-module-content="knowledge" hidden><p class="mi-eyebrow">知识库</p><h1>指标与来源</h1><div class="mi-knowledge-list"><details><summary>观察值与缺失</summary><p>0 是平台报告值；缺失日期和 null 不补为 0。趋势只说明已采集观察，不代表投放效果。</p></details><details><summary>数据来源</summary><p>公共电脑负责采集、历史和指标计算；工作台只读取允许字段并在当前页面展示。</p></details><details><summary>HTML 月报</summary><p>月报按三个重点、研究对象、代表素材和继续关注组织，只纳入目标月份有有效观察的样本。</p></details></div></section>
+      <section class="mi-module-content" data-mi-module-content="skills" hidden><p class="mi-eyebrow">技能</p><h1>可用技能</h1><div class="mi-skill-grid"><button type="button" data-mi-preset="discover"><strong>查找素材</strong><span>发现已采集游戏和素材</span></button><button type="button" data-mi-preset="insight"><strong>解读素材</strong><span>查看当前素材的事实依据</span></button><button type="button" data-mi-preset="report"><strong>生成月报</strong><span>整理当前研究对象的 HTML 月报</span></button></div></section>
+      <section class="mi-module-content" data-mi-module-content="statistics" hidden><p class="mi-eyebrow">数据统计</p><h1>本次查询</h1><div class="mi-stat-grid" id="statisticsContent"></div></section>
+    </section>
+  </main>
   <p class="mi-loading" id="loading" role="status">正在验证登录状态…</p>
   <dialog id="settingsDialog" aria-labelledby="settingsTitle">
-    <div class="mi-dialog-heading"><h2 id="settingsTitle">设置</h2><button id="closeSettings" type="button" class="icon-button" aria-label="关闭设置">×</button></div>
-    <details id="connectionSettingsPanel" open class="mi-setting-panel"><summary>数据连接</summary>
-      <form id="connectionForm" class="mi-settings-form">
-        <label for="serviceAddress">公共电脑服务地址</label><input id="serviceAddress" type="url" autocomplete="off" placeholder="http://内网 IP:8787" required>
-        <label for="serviceToken">访问 Token</label><input id="serviceToken" type="password" autocomplete="off" maxlength="512" placeholder="Token">
-        <label class="mi-consent"><input id="allowHttp" type="checkbox">确认使用 HTTP 只读连接</label>
-        <p class="mi-small" id="tokenState"></p><p class="mi-error" id="connectionError" role="alert"></p>
-        <div class="mi-dialog-actions"><button id="removeConnection" type="button" class="secondary-button" hidden>移除</button><button id="saveConnection" type="submit" class="start-button">保存</button></div>
-      </form>
-    </details>
-    <details id="modelSettingsPanel" class="mi-setting-panel"><summary>模型配置</summary>
-      <form id="modelForm" class="mi-settings-form">
-        <label for="modelApiBase">API Base</label><input id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1">
-        <label for="modelName">模型名称</label><input id="modelName" type="text" autocomplete="off" maxlength="200">
-        <label for="modelApiKey">API Key</label><input id="modelApiKey" type="password" autocomplete="off" maxlength="512" placeholder="留空则沿用">
-        <label class="mi-consent"><input id="modelEnabled" type="checkbox">启用模型摘要</label>
-        <p class="mi-small" id="modelState"></p><p class="mi-error" id="modelError" role="alert"></p>
-        <div class="mi-dialog-actions"><button id="testModel" type="button" class="secondary-button">测试</button><button id="saveModel" type="submit" class="start-button">保存</button></div>
-      </form>
-    </details>
+    <div class="mi-dialog-heading"><h2 id="settingsTitle">设置</h2><button id="closeSettings" type="button" class="mi-icon-button" aria-label="关闭设置">×</button></div>
+    <details id="connectionSettingsPanel" open class="mi-setting-panel"><summary>数据连接</summary><form id="connectionForm" class="mi-settings-form"><label for="serviceAddress">公共电脑服务地址</label><input id="serviceAddress" type="url" autocomplete="off" placeholder="http://内网 IP:8787" required><label for="serviceToken">访问 Token</label><input id="serviceToken" type="password" autocomplete="off" maxlength="512" placeholder="Token"><label class="mi-consent"><input id="allowHttp" type="checkbox">确认使用 HTTP 只读连接</label><p class="mi-small" id="tokenState"></p><p class="mi-error" id="connectionError" role="alert"></p><div class="mi-dialog-actions"><button id="removeConnection" type="button" class="mi-subtle-button" hidden>移除</button><button id="saveConnection" type="submit" class="mi-primary-button">保存</button></div></form></details>
+    <details id="modelSettingsPanel" class="mi-setting-panel"><summary>模型配置</summary><form id="modelForm" class="mi-settings-form"><label for="modelApiBase">API Base</label><input id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1"><label for="modelName">模型名称</label><input id="modelName" type="text" autocomplete="off" maxlength="200"><label for="modelApiKey">API Key</label><input id="modelApiKey" type="password" autocomplete="off" maxlength="512" placeholder="留空则沿用"><label class="mi-consent"><input id="modelEnabled" type="checkbox">启用模型摘要</label><p class="mi-small" id="modelState"></p><p class="mi-error" id="modelError" role="alert"></p><div class="mi-dialog-actions"><button id="testModel" type="button" class="mi-subtle-button">测试</button><button id="saveModel" type="submit" class="mi-primary-button">保存</button></div></form></details>
   </dialog>
-  <dialog id="detailDialog" aria-labelledby="detailTitle"><button id="closeDetail" type="button" class="icon-button mi-close-detail" aria-label="关闭素材详情">×</button><section id="detailContent"></section></dialog>
+  <dialog id="detailDialog" aria-labelledby="detailTitle"><button id="closeDetail" type="button" class="mi-icon-button mi-close-detail" aria-label="关闭素材详情">×</button><section id="detailContent"></section></dialog>
   <script type="module" src="/market-intelligence.mjs"></script>
 </body>
 </html>

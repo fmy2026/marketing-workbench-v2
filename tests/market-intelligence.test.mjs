@@ -117,6 +117,8 @@ if (preview) {
     for (const url of ["http://127.0.0.1:3000", "http://169.254.169.254", "https://example.com", "http://192.168.50.2/a", "http://user:pass@192.168.50.2", "http://192.168.50.2/?token=x"]) { assert.throws(() => normalizeMiOrigin(url)); checks++; }
     let response = await ask("当前有哪些已采集游戏和素材");
     check(response.intent.kind, "discover"); check(response.discoveryPage, 1);
+    response = await ask("查看当前已采集的游戏和素材");
+    check(response.intent.kind, "discover"); check(response.discoveryPage, 1);
     const discovery = await (await request(`${root}/discover`, { body: { page: 1 } })).json();
     check(discovery.games, ["测试游戏"]); check(discovery.assets.length, 2); check(discovery.canContinueDiscovery, false);
     response = await ask("看看 2026 年 9 月测试游戏的素材");
@@ -173,8 +175,21 @@ if (preview) {
     check((await request(`${root}/connection/remove`, { body: {} })).status, 200);
     check((await ask("有哪些素材？")).needsConnection, true);
     const clientSource = await readFile(new URL("../frontend/market-intelligence.mjs", import.meta.url), "utf8");
+    const clientPage = await readFile(new URL("../frontend/market-intelligence.html", import.meta.url), "utf8");
     check(clientSource.includes('$("serviceAddress").value = config?.baseUrl || "";'), true);
     check(clientSource.includes("查看当前已采集的游戏和素材"), true); check(clientSource.includes("巨兽战场"), false);
+    check(clientPage.includes('data-mi-module="overview"'), true);
+    check(clientPage.includes('data-mi-module="conversation"'), true);
+    check(clientPage.includes('data-mi-module="memory"'), true);
+    check(clientPage.includes('data-mi-module="knowledge"'), true);
+    check(clientPage.includes('data-mi-module="skills"'), true);
+    check(clientPage.includes('data-mi-module="statistics"'), true);
+    check(clientPage.includes("输入市场情报需求…"), true);
+    check(clientPage.includes("JSON"), false);
+    check(clientSource.includes("renderMemory"), true);
+    check(clientSource.includes("renderStatistics"), true);
+    check(clientSource.includes("pendingQuestion"), true);
+    check(clientSource.includes("继续查询"), true);
     console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));
