@@ -444,47 +444,52 @@ async function handleApi(req, res, url) {
         const connection = miConnections.get(userId);
         const client = connection ? createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }) : null;
         let parsed = parseMarketIntelligenceRequest({ message: body.message, context: body.context });
+        let parseSource = "rules";
         let model;
         if (parsed.purpose === "unknown") {
           model = await marketIntelligenceModelForCurrentUser(userId);
           if (model?.parseRequest) {
-            try { parsed = applyMarketIntelligenceModelIntent({ message: body.message, parsed, intent: await model.parseRequest({ message: body.message }) }); }
-            catch { /* Rules retain the safe clarification path. */ }
+            try {
+              const assisted = applyMarketIntelligenceModelIntent({ message: body.message, parsed, intent: await model.parseRequest({ message: body.message }) });
+              if (assisted.modelAssist === "accepted") { parsed = assisted; parseSource = "model"; }
+              else parseSource = "model_fallback";
+            } catch { parseSource = "model_fallback"; }
           }
         }
+        const withParseSource = (value) => ({ ...value, parseSource });
         if (["discover", "search", "report", "page", "detail", "trend", "interpret"].includes(parsed.purpose) && !client) {
-          return sendJson(res, 200, { reply: "请先在设置中配置数据连接，再开始查询。", needsConnection: true, intent: { kind: "connection" }, context: { filters: parsed.filters } });
+          return sendJson(res, 200, withParseSource({ reply: "请先在设置中配置数据连接，再开始查询。", needsConnection: true, intent: { kind: "connection" }, context: { filters: parsed.filters } }));
         }
         if (parsed.needsCompetitor) {
-          return sendJson(res, 200, { reply: "请说明要一起查看的竞品名称；我不会自动补充竞品名单。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+          return sendJson(res, 200, withParseSource({ reply: "请说明要一起查看的竞品名称；我不会自动补充竞品名单。", intent: { kind: "clarify" }, context: { filters: parsed.filters } }));
         }
         if (parsed.purpose === "report" && !parsed.filters.games.length) {
-          return sendJson(res, 200, { reply: "请先从已发现的真实游戏名称中选择研究对象，再生成市场情报月报。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+          return sendJson(res, 200, withParseSource({ reply: "请先从已发现的真实游戏名称中选择研究对象，再生成市场情报月报。", intent: { kind: "clarify" }, context: { filters: parsed.filters } }));
         }
         if (parsed.purpose === "discover") {
-          return sendJson(res, 200, { reply: "正在读取公共电脑当前候选素材。", intent: { kind: "discover" }, discoveryPage: parsed.discoveryPage, context: { discoveryPage: parsed.discoveryPage, filters: parsed.filters } });
+          return sendJson(res, 200, withParseSource({ reply: "正在读取公共电脑当前候选素材。", intent: { kind: "discover" }, discoveryPage: parsed.discoveryPage, context: { discoveryPage: parsed.discoveryPage, filters: parsed.filters } }));
         }
         if (["detail", "trend", "interpret"].includes(parsed.purpose)) {
-          if (!parsed.assetId) return sendJson(res, 200, { reply: "请先从当前素材列表打开一条素材，再继续查看。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+          if (!parsed.assetId) return sendJson(res, 200, withParseSource({ reply: "请先从当前素材列表打开一条素材，再继续查看。", intent: { kind: "clarify" }, context: { filters: parsed.filters } }));
           const context = { selectedId: parsed.assetId, filters: parsed.filters };
-          if (parsed.purpose === "interpret") return sendJson(res, 200, { reply: "正在依据公共电脑的已核验数据整理说明。", intent: { kind: "insight", assetId: parsed.assetId }, filters: parsed.filters, context });
+          if (parsed.purpose === "interpret") return sendJson(res, 200, withParseSource({ reply: "正在依据公共电脑的已核验数据整理说明。", intent: { kind: "insight", assetId: parsed.assetId }, filters: parsed.filters, context }));
           if (parsed.purpose === "trend") {
             const trend = await client.json("/stats/trend", { asset: parsed.assetId, ...(parsed.range.from ? parsed.range : { from: parsed.filters.from, to: parsed.filters.to }) });
-            return sendJson(res, 200, { reply: "这是所选素材的公共电脑人气值日序列。", intent: { kind: "trend", assetId: parsed.assetId }, trend: projectMiTrend(trend.data), context });
+            return sendJson(res, 200, withParseSource({ reply: "这是所选素材的公共电脑人气值日序列。", intent: { kind: "trend", assetId: parsed.assetId }, trend: projectMiTrend(trend.data), context }));
           }
           const detail = await client.json(`/assets/${parsed.assetId}`);
-          return sendJson(res, 200, { reply: "已打开这条素材。", intent: { kind: "detail", assetId: parsed.assetId }, detail: projectMiDetail(detail.data, parsed.assetId), context });
+          return sendJson(res, 200, withParseSource({ reply: "已打开这条素材。", intent: { kind: "detail", assetId: parsed.assetId }, detail: projectMiDetail(detail.data, parsed.assetId), context }));
         }
         if (["search", "report", "page"].includes(parsed.purpose)) {
-          return sendJson(res, 200, {
+          return sendJson(res, 200, withParseSource({
             reply: parsed.purpose === "report" ? "已确认报告范围，正在整理已采集样本。" : "已更新查询条件。",
             intent: { kind: parsed.purpose === "report" ? "report" : "search" },
             filters: parsed.filters,
             context: { filters: parsed.filters }
-          });
+          }));
         }
         const fallback = await answerMarketIntelligence({ message: body.message, context: body.context, client });
-        return sendJson(res, 200, { ...fallback, intent: { kind: "clarify" }, modelConfigurationSuggested: parsed.purpose === "unknown" && !model });
+        return sendJson(res, 200, withParseSource({ ...fallback, intent: { kind: "clarify" }, modelConfigurationSuggested: parsed.purpose === "unknown" && !model }));
       }
       if (route === "/discover" && req.method === "POST") {
         const body = await readBody(req);

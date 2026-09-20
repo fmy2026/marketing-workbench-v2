@@ -46,6 +46,7 @@ const calls = [];
 let mode = "ok";
 let modelTestMode = "passed";
 let modelTestCalls = 0;
+let modelRuntimeMode = "invalid";
 const meta = { source: "隔离合成素材（测试）", caliber: "synthetic", timezone: "Asia/Shanghai", queried_at: "2026-09-18T10:00:00Z", updated_at: "2026-09-18T09:00:00Z", total: 2 };
 const video = process.env.MI_TEST_VIDEO_PATH ? await readFile(process.env.MI_TEST_VIDEO_PATH) : Buffer.from("synthetic-video-bytes-for-range-test");
 async function fakeFetch(input, options) {
@@ -82,8 +83,25 @@ async function fakeFetch(input, options) {
     : { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }, { date: "2026-09-16", popularity_daily: null, top10: 80 }, { date: "2026-09-17", popularity_daily: 120, top10: 100 }, { date: "2026-09-18", popularity_daily: 100, top10: 100 }], summary: { popularity_points: 3, points_returned: 4, observed_from: "2026-09-15", observed_to: "2026-09-18", refline_from: "2026-09-15", refline_to: "2026-09-18", net_change: 100 } };
   return Response.json({ ok: true, data, meta });
 }
-async function fakeModelFetch() {
+async function fakeModelFetch(_input, options = {}) {
   modelTestCalls++;
+  const request = JSON.parse(options.body || "{}");
+  const instruction = request.messages?.[0]?.content || "";
+  if (instruction.includes("{purpose,games")) {
+    if (modelRuntimeMode === "failed") throw new Error("synthetic runtime failure");
+    if (modelRuntimeMode === "accepted") return Response.json({ choices: [{ message: { content: JSON.stringify({ purpose: "search", games: [{ value: "测试游戏", evidence: "测试游戏" }], month: { value: "2026-09", evidence: "2026 年 9 月" } }) } }] });
+    return Response.json({ choices: [{ message: { content: "{\"purpose\":\"unsupported\",\"games\":[],\"month\":{}}" } }] });
+  }
+  if (instruction.includes("{text}")) return Response.json({ choices: [{ message: { content: "{\"text\":\"标签呈现了明确的创意表达方向\"}" } }] });
+  if (instruction.includes("{points")) {
+    const samples = JSON.parse(request.messages?.[1]?.content || "{}").samples || [];
+    const assetIds = samples.slice(0, 3).map((sample) => sample.id);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ points: [
+      { text: "素材呈现了清晰的创意表达方向", assetIds: [assetIds[0]] },
+      { text: "样本中的创意标签具有可复查的共性", assetIds: [assetIds[1] || assetIds[0]] },
+      { text: "观察范围支持继续追踪创意变化", assetIds: [assetIds[2] || assetIds[0]] }
+    ], followUp: "继续关注后续采集的创意变化" }) } }] });
+  }
   if (modelTestMode === "delayed") await new Promise((resolve) => setTimeout(resolve, 350));
   if (modelTestMode === "failed") return Response.json({ error: { message: "synthetic failure" } }, { status: 401 });
   return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
@@ -172,7 +190,7 @@ if (preview) {
     check((await request(`${root}/connection`, { body: { ...connection, baseUrl: "http://192.168.50.3:8787", token: "" } })).status, 400);
     for (const url of ["http://127.0.0.1:3000", "http://169.254.169.254", "https://example.com", "http://192.168.50.2/a", "http://user:pass@192.168.50.2", "http://192.168.50.2/?token=x"]) { assert.throws(() => normalizeMiOrigin(url)); checks++; }
     let response = await ask("当前有哪些已采集游戏和素材");
-    check(response.intent.kind, "discover"); check(response.discoveryPage, 1);
+    check(response.intent.kind, "discover"); check(response.discoveryPage, 1); check(response.parseSource, "rules");
     response = await ask("查看当前已采集的游戏和素材");
     check(response.intent.kind, "discover"); check(response.discoveryPage, 1);
     const discovery = await (await request(`${root}/discover`, { body: { page: 1 } })).json();
@@ -233,6 +251,20 @@ if (preview) {
     const modelTestResponse = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelSave.config.updatedAt, enabled: true } });
     check(modelTestResponse.status, 200); const modelTest = await modelTestResponse.json();
     check(modelTest.config.testStatus, "passed"); check(modelTest.config.enabled, true);
+    modelRuntimeMode = "accepted";
+    const modelParsed = await ask("请研究测试游戏在 2026 年 9 月的创意");
+    check(modelParsed.intent.kind, "search"); check(modelParsed.parseSource, "model"); check(modelParsed.filters.games, ["测试游戏"]);
+    const modelInsight = await (await request(`${root}/asset-insight`, { body: { assetId: idA, filters: { month: "2026-09" } } })).json();
+    check(modelInsight.aiStatus, "used");
+    const modelReport = await (await request(`${root}/report`, { body: { filters: { games: ["测试游戏"], month: "2026-09" } } })).json();
+    check(modelReport.aiStatus, "used");
+    modelRuntimeMode = "invalid";
+    const invalidModelParse = await ask("请研究测试游戏在 2026 年 9 月的创意");
+    check(invalidModelParse.parseSource, "model_fallback");
+    modelRuntimeMode = "failed";
+    const failedModelParse = await ask("请研究测试游戏在 2026 年 9 月的创意");
+    check(failedModelParse.parseSource, "model_fallback");
+    modelRuntimeMode = "invalid";
     const modelRetestResponse = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelTest.config.updatedAt } });
     check(modelRetestResponse.status, 200); const modelRetest = await modelRetestResponse.json(); check(modelRetest.config.enabled, true);
     const modelToggle = await (await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "https://model.example.test/v1", model_name: "test-model", enabled: false } })).json();
@@ -271,9 +303,12 @@ if (preview) {
     check(clientSource.includes("正在测试连接…"), true);
     check(clientSource.includes("正在确认状态…"), true);
     check(clientSource.includes("configuration_updated_at"), true);
+    check(clientSource.includes("已使用规则解读"), true);
+    check(clientSource.includes("已使用大模型解析"), true);
+    check(clientSource.includes("大模型解析未成功，已回退规则解读"), true);
     check(clientPage.includes('id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1" required'), true);
     check(clientPage.includes("保存并测试"), true); check(clientPage.includes('id="testModel"'), false);
-    console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
+    console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection", "rule source", "model request source", "model fallback source", "model content source"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));
     await rm(directory, { recursive: true, force: true });
