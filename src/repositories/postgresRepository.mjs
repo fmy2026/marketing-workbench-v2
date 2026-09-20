@@ -258,7 +258,8 @@ export class PostgresRepository {
     apiBase,
     credentialRef,
     enabled = false,
-    testStatus = "not_configured"
+    testStatus = "not_configured",
+    resetTestState = true
   }) {
     assertId("user_id", userId);
     assertId("agent_key", agentKey, /^[a-z][a-z0-9_]{1,63}$/);
@@ -285,25 +286,38 @@ export class PostgresRepository {
         credential_ref = EXCLUDED.credential_ref,
         enabled = EXCLUDED.enabled,
         test_status = EXCLUDED.test_status,
-        tested_at = NULL,
+        tested_at = CASE WHEN ${resetTestState === true ? "true" : "false"} THEN NULL ELSE config.tested_at END,
         updated_at = now();
     `, this.database);
     return this.getWorkbenchAgentModelConfig({ userId, agentKey });
   }
 
-  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed }) {
+  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed, enableOnPass = false, expectedUpdatedAt = "" }) {
     assertId("user_id", userId);
     assertId("agent_key", agentKey, /^[a-z][a-z0-9_]{1,63}$/);
-    await runPsql(`
+    const expected = String(expectedUpdatedAt || "").trim();
+    return queryJson(`
       UPDATE mwb.workbench_agent_model_configs
       SET test_status = ${passed === true ? "'passed'" : "'failed'"},
           tested_at = now(),
-          enabled = CASE WHEN ${passed === true ? "true" : "false"} THEN enabled ELSE false END,
+          enabled = CASE WHEN ${passed === true ? "true" : "false"} THEN ${enableOnPass === true ? "true" : "false"} ELSE false END,
           updated_at = now()
       WHERE user_id = ${sqlLiteral(userId)}
-        AND agent_key = ${sqlLiteral(agentKey)};
+        AND agent_key = ${sqlLiteral(agentKey)}${expected ? `
+        AND updated_at = ${sqlLiteral(expected)}::timestamptz` : ""}
+      RETURNING jsonb_build_object(
+        'userId', user_id,
+        'agentKey', agent_key,
+        'protocol', protocol,
+        'modelName', model_name,
+        'apiBase', api_base,
+        'credentialRef', credential_ref,
+        'enabled', enabled,
+        'testStatus', test_status,
+        'testedAt', tested_at,
+        'updatedAt', updated_at
+      )::text;
     `, this.database);
-    return this.getWorkbenchAgentModelConfig({ userId, agentKey });
   }
 
   async createWorkbenchSession({ sessionId, userId, tokenHash, expiresAt }) {

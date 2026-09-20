@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer as reservePort } from "node:net";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { access, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkbenchServer } from "../src/server/workbenchServer.mjs";
@@ -12,10 +13,14 @@ import { answerMarketIntelligence } from "../src/agents/marketIntelligenceConver
 const preview = process.argv.includes("--preview");
 const directory = await mkdtemp(join(tmpdir(), "mwb-mi-fixture-"));
 const credentialPath = join(directory, "connection.json");
+const modelCredentialPath = join(directory, "model-credentials.json");
+const previousModelCredentialPath = process.env.MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH;
+process.env.MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH = modelCredentialPath;
 const fixtureToken = "synthetic-fixture-token-".padEnd(64, "x");
 const idA = "a".repeat(32), idB = "b".repeat(32);
 const sessions = new Map();
 const modelConfigs = new Map();
+let modelRevision = 0;
 const users = ["one", "two"].map((name) => ({ user_id: `USR-MI-TEST-${name}`, login_name: `mi_${name}`, display_name: `市场情报测试 ${name}`, user_status: "active", user_role: "operator", must_change_password: false }));
 const password = "Synthetic-market-test-2026";
 for (const user of users) user.password_hash = await hashPassword(password);
@@ -27,16 +32,20 @@ const repo = {
   async insertWorkbenchAuditEvent() {}, async revokeWorkbenchSession() {},
   async getWorkbenchAgentModelConfig({ userId, agentKey }) { return modelConfigs.get(`${userId}:${agentKey}`) || null; },
   async upsertWorkbenchAgentModelConfig(value) {
-    const config = { protocol: value.protocol, modelName: value.modelName, apiBase: value.apiBase, enabled: value.enabled, testStatus: value.testStatus, testedAt: null, updatedAt: "2026-09-20T00:00:00Z" };
+    const prior = modelConfigs.get(`${value.userId}:${value.agentKey}`);
+    const config = { protocol: value.protocol, modelName: value.modelName, apiBase: value.apiBase, enabled: value.enabled, testStatus: value.testStatus, testedAt: value.resetTestState === false ? prior?.testedAt || null : null, updatedAt: `2026-09-20T00:00:${String(++modelRevision).padStart(2, "0")}Z` };
     modelConfigs.set(`${value.userId}:${value.agentKey}`, config); return config;
   },
-  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed }) {
-    const prior = modelConfigs.get(`${userId}:${agentKey}`); const config = { ...prior, testStatus: passed ? "passed" : "failed", testedAt: "2026-09-20T00:00:00Z" };
+  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed, enableOnPass, expectedUpdatedAt }) {
+    const prior = modelConfigs.get(`${userId}:${agentKey}`); if (!prior || (expectedUpdatedAt && expectedUpdatedAt !== prior.updatedAt)) return null;
+    const config = { ...prior, enabled: passed && enableOnPass === true, testStatus: passed ? "passed" : "failed", testedAt: `2026-09-20T00:00:${String(++modelRevision).padStart(2, "0")}Z`, updatedAt: `2026-09-20T00:00:${String(modelRevision).padStart(2, "0")}Z` };
     modelConfigs.set(`${userId}:${agentKey}`, config); return config;
   }
 };
 const calls = [];
 let mode = "ok";
+let modelTestMode = "passed";
+let modelTestCalls = 0;
 const meta = { source: "隔离合成素材（测试）", caliber: "synthetic", timezone: "Asia/Shanghai", queried_at: "2026-09-18T10:00:00Z", updated_at: "2026-09-18T09:00:00Z", total: 2 };
 const video = process.env.MI_TEST_VIDEO_PATH ? await readFile(process.env.MI_TEST_VIDEO_PATH) : Buffer.from("synthetic-video-bytes-for-range-test");
 async function fakeFetch(input, options) {
@@ -73,6 +82,53 @@ async function fakeFetch(input, options) {
     : { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }, { date: "2026-09-16", popularity_daily: null, top10: 80 }, { date: "2026-09-17", popularity_daily: 120, top10: 100 }, { date: "2026-09-18", popularity_daily: 100, top10: 100 }], summary: { popularity_points: 3, points_returned: 4, observed_from: "2026-09-15", observed_to: "2026-09-18", refline_from: "2026-09-15", refline_to: "2026-09-18", net_change: 100 } };
   return Response.json({ ok: true, data, meta });
 }
+async function fakeModelFetch() {
+  modelTestCalls++;
+  if (modelTestMode === "delayed") await new Promise((resolve) => setTimeout(resolve, 350));
+  if (modelTestMode === "failed") return Response.json({ error: { message: "synthetic failure" } }, { status: 401 });
+  return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
+}
+
+async function verifyModelConfigBrowserFlow(origin) {
+  const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  const browserDirectory = await mkdtemp(join(tmpdir(), "mwb-mi-model-browser-"));
+  const debugPort = 35000 + Math.floor(Math.random() * 1000);
+  let chrome;
+  let socket;
+  try {
+    await access(chromePath);
+    chrome = spawn(chromePath, ["--headless=new", `--remote-debugging-port=${debugPort}`, `--user-data-dir=${browserDirectory}`, "--no-first-run", "--no-default-browser-check", "--disable-gpu", "about:blank"], { stdio: "ignore" });
+    const deadline = Date.now() + 15_000;
+    let target;
+    while (Date.now() < deadline && !target) {
+      try { target = (await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json()).find((item) => item.type === "page"); } catch { /* Chrome is still starting. */ }
+      if (!target) await new Promise((resolve) => setTimeout(resolve, 80));
+    }
+    if (!target) throw new Error("market_intelligence_model_browser_unavailable");
+    socket = new WebSocket(target.webSocketDebuggerUrl);
+    let nextId = 1;
+    const pending = new Map();
+    socket.addEventListener("message", ({ data }) => { const message = JSON.parse(String(data)); const item = pending.get(message.id); if (!item) return; pending.delete(message.id); message.error ? item.reject(new Error(message.error.message)) : item.resolve(message.result); });
+    await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
+    const call = (method, params = {}) => new Promise((resolve, reject) => { const id = nextId++; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params })); });
+    const evaluate = async (expression) => { const result = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result?.value; };
+    const until = async (condition, label) => { const expires = Date.now() + 15_000; while (Date.now() < expires) { if (await condition()) return; await new Promise((resolve) => setTimeout(resolve, 80)); } throw new Error(`browser_wait_timeout:${label}`); };
+    await call("Page.enable"); await call("Network.enable");
+    await call("Network.setCookie", { name: WORKBENCH_SESSION_COOKIE, value: "synthetic-session-0", url: origin, httpOnly: true });
+    await call("Page.navigate", { url: `${origin}/agents/market-intelligence` });
+    await until(() => evaluate("Boolean(document.querySelector('#modelConfigButton'))"), "market_intelligence_page");
+    await evaluate("document.querySelector('#modelConfigButton').click()");
+    await until(() => evaluate("document.querySelector('#settingsDialog').open"), "model_settings");
+    await evaluate(`(() => { const fill = (selector, value) => { const input = document.querySelector(selector); input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); }; fill('#modelApiBase', 'https://model.example.test/v1'); fill('#modelName', 'test-model'); document.querySelector('#modelEnabled').checked = true; document.querySelector('#modelEnabled').dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await evaluate("document.querySelector('#saveModel').click(); document.querySelector('#saveModel').click()");
+    await until(() => evaluate("document.querySelector('#saveModel').disabled && document.querySelector('#modelState').textContent.includes('正在')"), "model_save_progress");
+    await until(() => evaluate("!document.querySelector('#saveModel').disabled && document.querySelector('#modelState').textContent.includes('模型已启用')"), "model_save_complete");
+    assert(await evaluate("document.querySelector('#modelKeyState').textContent.includes('已保存')"), "model_key_state_not_visible");
+    assert(await evaluate("document.querySelector('#modelDirty').hidden"), "model_dirty_state_not_cleared");
+  } finally {
+    socket?.close(); chrome?.kill("SIGTERM"); await rm(browserDirectory, { recursive: true, force: true });
+  }
+}
 let port = 3138;
 if (!preview) {
   const reservation = reservePort();
@@ -81,7 +137,7 @@ if (!preview) {
   await new Promise((resolve) => reservation.close(resolve));
 }
 const configuredOrigin = `http://127.0.0.1:${port}`;
-const { server } = createWorkbenchServer({ repo, env: { WORKBENCH_BIND_HOST: "127.0.0.1", WORKBENCH_PORT: String(port), WORKBENCH_PUBLIC_ORIGIN: configuredOrigin, MWBV2_MI_CONNECTION_STORE_PATH: credentialPath }, marketIntelligenceFetch: fakeFetch });
+const { server } = createWorkbenchServer({ repo, env: { WORKBENCH_BIND_HOST: "127.0.0.1", WORKBENCH_PORT: String(port), WORKBENCH_PUBLIC_ORIGIN: configuredOrigin, MWBV2_MI_CONNECTION_STORE_PATH: credentialPath }, marketIntelligenceFetch: fakeFetch, marketIntelligenceModelFetch: fakeModelFetch, modelConfigTestFetch: fakeModelFetch });
 await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 process.env.MWBV2_TEST_ORIGIN = origin;
@@ -172,6 +228,22 @@ if (preview) {
     check((await request("/api/agents/market-intelligence/model-config")).status, 200);
     const invalidModelConfig = await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "not-a-url", model_name: "test-model", enabled: false } });
     check(invalidModelConfig.status, 400); check((await invalidModelConfig.json()).error, "invalid_model_api_base");
+    const modelSave = await (await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "https://model.example.test/v1", model_name: "test-model", api_key: "synthetic-model-key", enabled: false } })).json();
+    check(modelSave.config.testStatus, "not_tested"); check(modelSave.config.credentialConfigured, true);
+    const modelTestResponse = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelSave.config.updatedAt, enabled: true } });
+    check(modelTestResponse.status, 200); const modelTest = await modelTestResponse.json();
+    check(modelTest.config.testStatus, "passed"); check(modelTest.config.enabled, true);
+    const modelToggle = await (await request("/api/agents/market-intelligence/model-config", { method: "PUT", body: { api_base: "https://model.example.test/v1", model_name: "test-model", enabled: false } })).json();
+    check(modelToggle.config.testStatus, "passed"); check(modelToggle.config.testedAt, modelTest.config.testedAt); check(modelToggle.config.enabled, false);
+    const staleTest = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelSave.config.updatedAt, enabled: true } });
+    check(staleTest.status, 409); check((await staleTest.json()).error, "model_config_changed");
+    modelTestMode = "failed";
+    const failedModelTest = await request("/api/agents/market-intelligence/model-config/test", { body: { configuration_updated_at: modelToggle.config.updatedAt, enabled: true } });
+    check(failedModelTest.status, 422); check((await failedModelTest.json()).error, "model_connection_test_failed");
+    const failedModelConfig = await (await request("/api/agents/market-intelligence/model-config")).json(); check(failedModelConfig.config.enabled, false); check(failedModelConfig.config.testStatus, "failed"); modelTestMode = "passed";
+    modelTestCalls = 0; modelTestMode = "delayed";
+    await verifyModelConfigBrowserFlow(origin);
+    check(modelTestCalls, 1); modelTestMode = "passed";
     check((await request("/agents/market-intelligence")).status, 200);
     check((await request("/agents/launch-creation")).status, 200);
     check((await request(`${root}/connection/remove`, { body: {} })).status, 200);
@@ -193,12 +265,17 @@ if (preview) {
     check(clientSource.includes("pendingQuestion"), true);
     check(clientSource.includes("继续查询"), true);
     check(clientSource.includes("invalid_model_api_base"), true);
-    check(clientSource.includes("配置已保存。请点击“测试”"), true);
+    check(clientSource.includes("正在保存配置…"), true);
+    check(clientSource.includes("正在测试连接…"), true);
+    check(clientSource.includes("正在确认状态…"), true);
+    check(clientSource.includes("configuration_updated_at"), true);
     check(clientPage.includes('id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1" required'), true);
-    check(clientPage.includes("不要填 <code>/chat/completions</code>"), true);
+    check(clientPage.includes("保存并测试"), true); check(clientPage.includes('id="testModel"'), false);
     console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));
     await rm(directory, { recursive: true, force: true });
+    if (previousModelCredentialPath === undefined) delete process.env.MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH;
+    else process.env.MWBV2_WORKBENCH_LLM_CREDENTIAL_PATH = previousModelCredentialPath;
   }
 }

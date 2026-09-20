@@ -141,7 +141,7 @@ route_id + game_code
 | Readback / evidence | `readback_id` / `artifact_id`；一条证据对应一次观察，不按对象 ID 覆盖所有历史观察 | `created_at` 是记录时间，核验状态/来源/摘要关联具体 Job；平台事实是否新鲜由相应 readonly 合同判断 |
 | Monitor cycle / attempt | cycle 主键 `cycle_id`，同 provision×cycle_no 唯一；attempt 主键 `attempt_id` 且唯一 cycle×attempt_no | 报表按 cycle 聚合调用；当前 readiness 只取当前 scope 最新 cycle 和触点，不把历史失败重复加为当前 blocker |
 | 用户 / 会话 / 用户审计 | `user_id` / `session_id` / `audit_event_id`；登录名与 owner key 大小写归一后唯一，会话 token hash 唯一 | 会话到期/撤销与用户变更审计独立；报表读取权限不能推导为账户操作权限 |
-| Agent 模型配置 | `(user_id, agent_key)`；协议固定 `openai_compatible`，启用记录只能对应测试通过状态 | 更新 API Base、模型或本地 Key 后清除测试时间并停止启用；本地 Key 的唯一事实为 gitignored `0600` 凭据库，数据库只保存不可用来换取 Key 的引用 |
+| Agent 模型配置 | `(user_id, agent_key)`；协议固定 `openai_compatible`，启用记录只能对应测试通过状态 | 更新 API Base、模型或本地 Key 后清除测试时间并停止启用；只切换启用状态保留已通过的测试时间。测试回写须绑定刚保存配置的 `updated_at`，过期结果不得覆盖新配置；本地 Key 的唯一事实为 gitignored `0600` 凭据库，数据库只保存不可用来换取 Key 的引用 |
 
 SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空值表示尚无对应执行时间，不能填成成功或零耗时。当前 View 是查询时的运营投影，没有按日分桶、币种换算或归因窗口。导出及对账须注明查询时刻与显示时区，禁止把文档更新时间当成数据截至时间。
 

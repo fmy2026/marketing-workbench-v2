@@ -64,7 +64,7 @@ import {
 import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
 import { internalErrorDiagnostic, publicErrorResponse } from "./publicError.mjs";
 
-export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env, marketIntelligenceFetch = globalThis.fetch, marketIntelligenceModelFetch = globalThis.fetch } = {}) {
+export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env, marketIntelligenceFetch = globalThis.fetch, marketIntelligenceModelFetch = globalThis.fetch, modelConfigTestFetch = globalThis.fetch } = {}) {
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
 const miConnections = createMiConnectionStore({ path: env.MWBV2_MI_CONNECTION_STORE_PATH });
@@ -616,7 +616,8 @@ async function handleApi(req, res, url) {
         apiBase: normalized.apiBase,
         credentialRef: credentialRefFor(auth.user.user_id, agentKey),
         enabled,
-        testStatus
+        testStatus,
+        resetTestState: configurationChanged
       });
       const nextCredentialConfigured = hasWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey });
       await audit({
@@ -633,18 +634,25 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && agentModelConfigTestMatch) {
     const agentKey = requireRegisteredAgent(decodeURIComponent(agentModelConfigTestMatch[1]));
     if (!getPublicAgent(agentKey).modelConfigurable) throw requestError("agent_model_not_available", 404);
+    const body = await readBody(req);
     const current = await readCurrentUserModelConfig(auth.user.user_id, agentKey);
     if (!current.config || !current.credentialConfigured) throw requestError("model_config_not_ready_for_test", 409);
+    const expectedUpdatedAt = String(body.configuration_updated_at ?? body.configurationUpdatedAt ?? "").trim();
+    if (expectedUpdatedAt && current.config.updatedAt !== expectedUpdatedAt) throw requestError("model_config_changed", 409);
     const test = await testOpenAiCompatibleModelConfig({
       apiBase: current.config.apiBase,
       modelName: current.config.modelName,
-      apiKey: getWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey })
+      apiKey: getWorkbenchLlmCredential({ userId: auth.user.user_id, agentKey }),
+      fetchFn: modelConfigTestFetch
     });
     const config = await repo.recordWorkbenchAgentModelConfigTest({
       userId: auth.user.user_id,
       agentKey,
-      passed: test.status === "passed"
+      passed: test.status === "passed",
+      enableOnPass: body.enabled === true,
+      expectedUpdatedAt
     });
+    if (!config) throw requestError("model_config_changed", 409);
     await audit({
       actorUserId: auth.user.user_id,
       subjectUserId: auth.user.user_id,
