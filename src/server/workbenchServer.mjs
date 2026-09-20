@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createMiConnectionStore, miError, normalizeMiOrigin, normalizeMiToken } from "../security/marketIntelligenceConnectionStore.mjs";
-import { createMiClient } from "../platforms/marketIntelligenceClient.mjs";
+import { createMiClient, projectMiDetail, projectMiTrend } from "../platforms/marketIntelligenceClient.mjs";
 import { answerMarketIntelligence, applyMarketIntelligenceModelIntent, parseMarketIntelligenceRequest } from "../agents/marketIntelligenceConversation.mjs";
-import { buildMarketIntelligenceReport, searchMarketIntelligence } from "../agents/marketIntelligenceReport.mjs";
+import { buildMarketIntelligenceReport, discoverMarketIntelligence, interpretMarketIntelligenceAsset, searchMarketIntelligence } from "../agents/marketIntelligenceReport.mjs";
 import { createOpenAiCompatibleMarketIntelligenceModel } from "../agents/openaiCompatibleMarketIntelligenceModel.mjs";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import {
@@ -433,21 +433,36 @@ async function handleApi(req, res, url) {
         const connection = miConnections.get(userId);
         const client = connection ? createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }) : null;
         let parsed = parseMarketIntelligenceRequest({ message: body.message, context: body.context });
+        let model;
         if (parsed.purpose === "unknown") {
-          const model = await marketIntelligenceModelForCurrentUser(userId);
+          model = await marketIntelligenceModelForCurrentUser(userId);
           if (model?.parseRequest) {
             try { parsed = applyMarketIntelligenceModelIntent({ message: body.message, parsed, intent: await model.parseRequest({ message: body.message }) }); }
             catch { /* Rules retain the safe clarification path. */ }
           }
         }
-        if (["search", "report", "page"].includes(parsed.purpose) && !client) {
+        if (["discover", "search", "report", "page", "detail", "trend", "interpret"].includes(parsed.purpose) && !client) {
           return sendJson(res, 200, { reply: "请先在设置中配置数据连接，再开始查询。", needsConnection: true, intent: { kind: "connection" }, context: { filters: parsed.filters } });
         }
         if (parsed.needsCompetitor) {
           return sendJson(res, 200, { reply: "请说明要一起查看的竞品名称；我不会自动补充竞品名单。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
         }
         if (parsed.purpose === "report" && !parsed.filters.games.length) {
-          return sendJson(res, 200, { reply: "请先说明要研究哪些游戏，例如“生成 8 月巨兽战场的市场情报月报”。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+          return sendJson(res, 200, { reply: "请先从已发现的真实游戏名称中选择研究对象，再生成市场情报月报。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+        }
+        if (parsed.purpose === "discover") {
+          return sendJson(res, 200, { reply: "正在读取公共电脑当前候选素材。", intent: { kind: "discover" }, discoveryPage: parsed.discoveryPage, context: { discoveryPage: parsed.discoveryPage, filters: parsed.filters } });
+        }
+        if (["detail", "trend", "interpret"].includes(parsed.purpose)) {
+          if (!parsed.assetId) return sendJson(res, 200, { reply: "请先从当前素材列表打开一条素材，再继续查看。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+          const context = { selectedId: parsed.assetId, filters: parsed.filters };
+          if (parsed.purpose === "interpret") return sendJson(res, 200, { reply: "正在依据公共电脑的已核验数据整理说明。", intent: { kind: "insight", assetId: parsed.assetId }, filters: parsed.filters, context });
+          if (parsed.purpose === "trend") {
+            const trend = await client.json("/stats/trend", { asset: parsed.assetId, ...(parsed.range.from ? parsed.range : { from: parsed.filters.from, to: parsed.filters.to }) });
+            return sendJson(res, 200, { reply: "这是所选素材的公共电脑人气值日序列。", intent: { kind: "trend", assetId: parsed.assetId }, trend: projectMiTrend(trend.data), context });
+          }
+          const detail = await client.json(`/assets/${parsed.assetId}`);
+          return sendJson(res, 200, { reply: "已打开这条素材。", intent: { kind: "detail", assetId: parsed.assetId }, detail: projectMiDetail(detail.data, parsed.assetId), context });
         }
         if (["search", "report", "page"].includes(parsed.purpose)) {
           return sendJson(res, 200, {
@@ -457,7 +472,14 @@ async function handleApi(req, res, url) {
             context: { filters: parsed.filters }
           });
         }
-        return sendJson(res, 200, await answerMarketIntelligence({ message: body.message, context: body.context, client }));
+        const fallback = await answerMarketIntelligence({ message: body.message, context: body.context, client });
+        return sendJson(res, 200, { ...fallback, intent: { kind: "clarify" }, modelConfigurationSuggested: parsed.purpose === "unknown" && !model });
+      }
+      if (route === "/discover" && req.method === "POST") {
+        const body = await readBody(req);
+        const connection = miConnections.get(userId);
+        if (!connection) throw miError("mi_connection_required", 409);
+        return sendJson(res, 200, await discoverMarketIntelligence({ client: createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }), page: body.page || 1 }));
       }
       if (route === "/search" && req.method === "POST") {
         const body = await readBody(req);
@@ -476,6 +498,15 @@ async function handleApi(req, res, url) {
           model: await marketIntelligenceModelForCurrentUser(userId)
         });
         return sendJson(res, 200, report);
+      }
+      if (route === "/asset-insight" && req.method === "POST") {
+        const body = await readBody(req);
+        const connection = miConnections.get(userId);
+        if (!connection) throw miError("mi_connection_required", 409);
+        return sendJson(res, 200, await interpretMarketIntelligenceAsset({
+          client: createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }), assetId: body.assetId, filters: body.filters,
+          model: await marketIntelligenceModelForCurrentUser(userId)
+        }));
       }
       const file = route.match(/^\/files\/([a-fA-F0-9]{32})$/);
       if (file && ["GET", "HEAD"].includes(req.method)) {

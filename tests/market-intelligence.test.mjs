@@ -115,7 +115,11 @@ if (preview) {
     check((await request(`${root}/files/${idA}`, { user: 1 })).status, 409);
     check((await request(`${root}/connection`, { body: { ...connection, baseUrl: "http://192.168.50.3:8787", token: "" } })).status, 400);
     for (const url of ["http://127.0.0.1:3000", "http://169.254.169.254", "https://example.com", "http://192.168.50.2/a", "http://user:pass@192.168.50.2", "http://192.168.50.2/?token=x"]) { assert.throws(() => normalizeMiOrigin(url)); checks++; }
-    let response = await ask("看看 2026 年 9 月测试游戏的素材");
+    let response = await ask("当前有哪些已采集游戏和素材");
+    check(response.intent.kind, "discover"); check(response.discoveryPage, 1);
+    const discovery = await (await request(`${root}/discover`, { body: { page: 1 } })).json();
+    check(discovery.games, ["测试游戏"]); check(discovery.assets.length, 2); check(discovery.canContinueDiscovery, false);
+    response = await ask("看看 2026 年 9 月测试游戏的素材");
     check(response.intent.kind, "search"); check(response.filters.month, "2026-09");
     const search = async (filters) => (await request(`${root}/search`, { body: { filters } })).json();
     response = await search(response.filters);
@@ -132,6 +136,10 @@ if (preview) {
     check(response.trend.points.map((p) => p.refline.top10 || null), [80, 80, 100, 100]);
     check(calls.at(-1).params.asset, idA);
     check(Boolean(calls.at(-1).params.from && calls.at(-1).params.to), true);
+    response = await ask("为什么这条素材值得关注", { ...response.context, selectedId: idA });
+    check(response.intent.kind, "insight"); check(response.intent.assetId, idA);
+    const insight = await (await request(`${root}/asset-insight`, { body: { assetId: idA, filters: response.filters } })).json();
+    check(insight.aiStatus, "not_configured"); check(insight.observation.includes("不代表投放效果"), true);
     const unsupported = await answerMarketIntelligence({ message: "最近哪些素材上升最多？", context: selection, client: { json: async () => { throw new Error("should not query"); } } });
     check(unsupported.reply.includes("暂未提供"), true);
     check((await ask("播放第三条", selection)).reply.includes("没有这条"), true);
@@ -157,7 +165,7 @@ if (preview) {
     check(miCompareIds([idA, idB]), [idA, idB]);
     assert.throws(() => miCompareIds([idA]), /mi_bad_query/); checks++;
     assert.throws(() => miCompareIds([idA, idA]), /mi_bad_query/); checks++;
-    const parsed = await answerMarketIntelligence({ message: "你能做什么？", client: null }); check(parsed.reply.includes("播放第一条"), true);
+    const parsed = await answerMarketIntelligence({ message: "你能做什么？", client: null }); check(parsed.reply.includes("真实游戏名称"), true);
     const catalog = await (await request("/api/agents")).json(); check(catalog.agents.map((a) => a.agentKey), ["launch_creation", "market_intelligence"]);
     check((await request("/api/agents/market-intelligence/model-config")).status, 200);
     check((await request("/agents/market-intelligence")).status, 200);
@@ -166,6 +174,7 @@ if (preview) {
     check((await ask("有哪些素材？")).needsConnection, true);
     const clientSource = await readFile(new URL("../frontend/market-intelligence.mjs", import.meta.url), "utf8");
     check(clientSource.includes('$("serviceAddress").value = config?.baseUrl || "";'), true);
+    check(clientSource.includes("查看当前已采集的游戏和素材"), true); check(clientSource.includes("巨兽战场"), false);
     console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, externalRequests: 0, covers: ["user isolation", "CSRF", "credential non-disclosure", "private origin", "read-only", "projection", "zero vs null", "date range", "unsupported capability", "pagination", "video range", "webm MIME", "upstream failure", "response limit", "redirect rejection"] }));
   } finally {
     server.closeAllConnections(); await new Promise((resolve) => server.close(resolve));

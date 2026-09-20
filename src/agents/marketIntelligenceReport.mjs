@@ -74,6 +74,33 @@ async function candidatesForGame(client, game, candidatePage) {
   return { assets: value.data.map(projectMiAsset), meta };
 }
 
+function discoveryPage(value) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 500) throw miError("mi_bad_query");
+  return value;
+}
+
+/** Read one bounded, unfiltered public-computer page. This is a discovery sample, never a game catalog. */
+export async function discoverMarketIntelligence({ client, page = 1 } = {}) {
+  if (!client) throw miError("mi_connection_required", 409);
+  const candidatePage = discoveryPage(page);
+  const candidate = await candidatesForGame(client, "", candidatePage);
+  const games = [];
+  for (const asset of candidate.assets) if (asset.game && !games.includes(asset.game)) games.push(asset.game);
+  const total = candidate.meta.total;
+  const complete = total === null ? candidate.assets.length < CANDIDATES_PER_GAME : candidatePage * CANDIDATES_PER_GAME >= total;
+  return {
+    type: "market_intelligence_discovery",
+    candidatePage,
+    assets: candidate.assets,
+    games,
+    loadedCandidateCount: candidate.assets.length,
+    candidateTotal: total,
+    canContinueDiscovery: !complete,
+    hasPreviousPage: candidatePage > 1,
+    meta: candidate.meta
+  };
+}
+
 async function settledMap(values, mapper, concurrency = 4) {
   const output = new Array(values.length);
   let cursor = 0;
@@ -170,6 +197,75 @@ export function deterministicReportNarrative({ filters, samples, detailFailures 
       { text: detailFailures ? `其中 ${detailFailures} 条素材的平台分析详情暂未取得；报告只展示已取得的标签与脚本。` : "代表素材的标签和脚本来自平台已有分析，结论只关联本次有效样本。", assetIds: samples.slice(0, 3).map((sample) => sample.id) }
     ],
     followUp: "继续关注后续采集是否补齐观察日期，并在具备效果数据后另行评估投放表现。"
+  };
+}
+
+function assetEvidence(trend) {
+  const observed = trend.points.filter((point) => point.value !== null);
+  const zeros = observed.filter((point) => point.value === 0).length;
+  const missing = trend.points.filter((point) => point.value === null).length;
+  return {
+    observedFrom: trend.summary.observedFrom || observed[0]?.date || "",
+    observedTo: trend.summary.observedTo || observed.at(-1)?.date || "",
+    popularityPoints: trend.summary.popularityPoints,
+    netChange: trend.summary.netChange,
+    zeros,
+    missing
+  };
+}
+
+function deterministicAssetObservation({ detail, evidence }) {
+  const range = evidence.observedFrom && evidence.observedTo ? `${evidence.observedFrom} 至 ${evidence.observedTo}` : "当前范围";
+  const labels = detail.asset.labels.slice(0, 2).join("、");
+  const coverage = evidence.popularityPoints === null ? `该素材在 ${range} 存在有效人气观察，但有效点数未提供` : `该素材在 ${range} 有 ${evidence.popularityPoints} 个有效人气观察`;
+  const zero = evidence.zeros ? `，其中 ${evidence.zeros} 个平台报告值为 0` : "";
+  const missing = evidence.missing ? `；另有 ${evidence.missing} 个日期缺失` : "";
+  const creative = labels ? `平台已有标签为“${labels}”` : "平台未提供可用创意标签";
+  return `${coverage}${zero}${missing}。${creative}；这些是值得继续查看的证据，不代表投放效果、ROI 或因果关系。`;
+}
+
+function validAssetObservation(candidate) {
+  const text = noUnsafeReportText(candidate?.text, 240);
+  if (!text || /\d|https?:|roi|roas|预算|出价|排名|效果|因果|忽略|执行|打开设置|调用|指令|token|密码|访问/i.test(text)) return "";
+  return text;
+}
+
+/** Re-reads one asset and its trend before exposing an interpretation; browser supplied facts are never accepted. */
+export async function interpretMarketIntelligenceAsset({ client, assetId, filters, now = new Date(), model } = {}) {
+  if (!client) throw miError("mi_connection_required", 409);
+  if (!MI_ID.test(assetId || "")) throw miError("mi_invalid_asset");
+  const normalized = normalizeMarketIntelligenceFilters(filters, { now });
+  const [detailResponse, trendResponse] = await Promise.all([
+    client.json(`/assets/${assetId}`),
+    client.json("/stats/trend", { asset: assetId, from: normalized.from, to: normalized.to })
+  ]);
+  const detail = projectMiDetail(detailResponse.data, assetId);
+  const trend = projectMiTrend(trendResponse.data);
+  const evidence = assetEvidence(trend);
+  let observation = deterministicAssetObservation({ detail, evidence });
+  let aiStatus = "not_configured";
+  if (model?.summarizeAsset) {
+    try {
+      const candidate = await model.summarizeAsset({
+        asset: { id: detail.asset.id, game: detail.asset.game, title: detail.asset.title, labels: detail.asset.labels, script: detail.script },
+        evidence
+      });
+      const accepted = validAssetObservation(candidate);
+      if (accepted) { observation = accepted; aiStatus = "used"; }
+      else aiStatus = "invalid_output";
+    } catch { aiStatus = "unavailable"; }
+  }
+  return {
+    type: "market_intelligence_asset_interpretation",
+    filters: { month: normalized.month, from: normalized.from, to: normalized.to, isCurrentMonth: normalized.isCurrentMonth },
+    asset: detail.asset,
+    script: detail.script,
+    trend,
+    evidence,
+    observation,
+    aiStatus,
+    source: projectMiMeta(trendResponse.meta),
+    limitations: ["0 为平台报告值；缺失日期未补零。", "本说明不评价投放效果、ROI、排名或因果关系。"]
   };
 }
 

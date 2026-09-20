@@ -2,7 +2,7 @@ import { MI_ID, projectMiAsset, projectMiDetail, projectMiMeta, projectMiTrend }
 import { miError } from "../security/marketIntelligenceConnectionStore.mjs";
 import { normalizeMarketIntelligenceFilters } from "./marketIntelligenceReport.mjs";
 
-const HELP = "可以问我“有哪些素材”“播放第一条”“看看这条素材最近 7 天的趋势”。也可以输入“游戏：游戏名”筛选素材。";
+const HELP = "可以先询问当前已采集的游戏和素材，再从页面展示的真实游戏名称中选择研究对象。";
 const UNSUPPORTED = "公共数据服务暂未提供排名、聚合统计、跨素材对比或视频内容理解。我可以查询素材、播放视频、查看单条人气值趋势和平台已有分析。";
 const numeral = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 
@@ -29,17 +29,29 @@ export function parseMarketIntelligenceRequest({ message, context = {}, now = ne
   if (typeof message !== "string" || !message.trim() || message.trim().length > 2000) throw miError("mi_invalid_message");
   const text = message.trim();
   const prior = context?.filters || {};
-  const assetId = (text.match(/[a-fA-F0-9]{32}/) || [""])[0];
+  const selection = contextOf(context);
+  const suppliedId = (text.match(/[a-fA-F0-9]{32}/) || [""])[0];
+  const ordinal = text.match(/第\s*(\d+|[一二三四五六七八九十])\s*[条个]/);
+  const ordinalIndex = ordinal ? Number(numeral[ordinal[1]] || ordinal[1]) - 1 : -1;
+  const assetId = suppliedId || (ordinalIndex >= 0 ? selection.ids[ordinalIndex] || "" : /这条|这个|它|当前|选中/.test(text) ? selection.selectedId : "");
   const returnToSearch = /返回素材|查看素材|素材列表/.test(text);
-  const purpose = assetId && /打开|播放|详情|趋势|人气/.test(text) ? "detail" : /月报|市场情报.*报告|报告.*市场情报|管理层/.test(text) ? "report" : /下一页|上一页|继续查询|继续找/.test(text) ? "page" : /素材|视频|查找|查看|看看|竞品/.test(text) ? "search" : "unknown";
   const games = parseGames(text);
+  const wantsTrend = /趋势|人气|曲线|走势/.test(text);
+  const wantsInterpret = /为什么值得|值得关注|解读|怎么看|有什么特点/.test(text);
+  const wantsDetail = /播放|打开|详情|脚本|分析|标签|看看这|查看这|看这/.test(text);
+  const wantsDiscovery = !games.length && /有哪些.*(?:游戏|素材)|什么(?:游戏|素材)|(?:当前|已采集|公共电脑).*(?:游戏|素材)|(?:游戏|素材).*(?:有哪些|有什么)/.test(text);
+  const continuesDiscovery = /继续发现|发现下一页|更多游戏/.test(text);
+  const prohibited = /排名|排行|对比|比较|覆盖率|分布|占比|热门|爆款|涨幅|跌幅|上升.*素材|下降.*素材|素材.*(上升|下降)|哪[些个].*(上升|下降|最好)|最高|最低|最多|最少|roi|roas|转化|消耗|曝光|点击|识别视频|分析视频|解读视频|转写|逐镜头|OCR|ASR/i.test(text);
+  const purpose = prohibited ? "unsupported" : continuesDiscovery || wantsDiscovery ? "discover" : assetId && wantsTrend ? "trend" : assetId && wantsInterpret ? "interpret" : assetId && wantsDetail ? "detail" : /月报|市场情报.*报告|报告.*市场情报|管理层/.test(text) ? "report" : /下一页|上一页|继续查询|继续找/.test(text) ? "page" : /素材|视频|查找|查看|看看|竞品/.test(text) ? "search" : "unknown";
   const filters = normalizeMarketIntelligenceFilters({
     games: games.length ? games : prior.games,
     month: parseMonth(text, now) || prior.month,
     page: /下一页/.test(text) ? Number(prior.page || 1) + 1 : /上一页/.test(text) ? Math.max(1, Number(prior.page || 1) - 1) : returnToSearch ? Number(prior.page || 1) : 1,
     candidatePage: /继续查询|继续找/.test(text) ? Number(prior.candidatePage || 1) + 1 : Number(prior.candidatePage || 1)
   }, { now });
-  return { purpose, filters, explicitGames: games.length > 0, needsCompetitor: /竞品/.test(text) && games.length < 2 };
+  const range = dateRange(text, now);
+  const priorDiscoveryPage = Number.isSafeInteger(context?.discoveryPage) && context.discoveryPage > 0 ? context.discoveryPage : 1;
+  return { purpose, filters, range, assetId, discoveryPage: continuesDiscovery ? priorDiscoveryPage + 1 : 1, explicitGames: games.length > 0, needsCompetitor: /竞品/.test(text) && games.length < 2 };
 }
 
 /** Accept only model slots backed by exact text supplied by the user. */

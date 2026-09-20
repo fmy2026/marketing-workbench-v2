@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildMarketIntelligenceReport, searchMarketIntelligence } from "../src/agents/marketIntelligenceReport.mjs";
+import { buildMarketIntelligenceReport, discoverMarketIntelligence, interpretMarketIntelligenceAsset, searchMarketIntelligence } from "../src/agents/marketIntelligenceReport.mjs";
 import { applyMarketIntelligenceModelIntent, parseMarketIntelligenceRequest } from "../src/agents/marketIntelligenceConversation.mjs";
 import { createOpenAiCompatibleMarketIntelligenceModel } from "../src/agents/openaiCompatibleMarketIntelligenceModel.mjs";
 
@@ -12,8 +12,8 @@ const client = {
   async json(path, params = {}) {
     calls.push({ path, params });
     if (path === "/assets") {
-      const ids = all[params.game] || [];
-      return { ok: true, data: ids.map((assetId, index) => ({ id: assetId, title: `${params.game} 素材 ${index + 1}`, game_name: params.game, creative_labels: { 标签: `形式 ${index + 1}` } })), meta: { source: "合成公共电脑", caliber: "synthetic", total: 60 } };
+      const ids = params.game ? all[params.game] || [] : [alpha[0], beta[0], beta[1]];
+      return { ok: true, data: ids.map((assetId, index) => ({ id: assetId, title: `${params.game || (assetId.startsWith("a") ? "甲游戏" : "乙游戏")} 素材 ${index + 1}`, game_name: params.game || (assetId.startsWith("a") ? "甲游戏" : "乙游戏"), creative_labels: { 标签: `形式 ${index + 1}` } })), meta: { source: "合成公共电脑", caliber: "synthetic", total: params.game ? 60 : 83 } };
     }
     if (path === "/stats/trend") {
       if (params.asset === all.空游戏[0]) return { ok: true, data: { points: [{ date: "2026-07-31", popularity_daily: 8 }], summary: {} }, meta: {} };
@@ -33,6 +33,8 @@ const client = {
 let checks = 0;
 const check = (actual, expected) => { assert.deepEqual(actual, expected); checks++; };
 const filters = { games: ["甲游戏", "乙游戏"], month: "2026-08", page: 1, candidatePage: 1 };
+const discovery = await discoverMarketIntelligence({ client, page: 1 });
+check(discovery.games, ["甲游戏", "乙游戏"]); check(discovery.loadedCandidateCount, 3); check(discovery.canContinueDiscovery, true);
 const search = await searchMarketIntelligence({ client, filters, now: new Date("2026-09-20T00:00:00Z") });
 check(search.pageSize, 8); check(search.assets.length, 8); check(search.canContinueSearch, true);
 check(search.resultCount, 34); // two null-only candidates are excluded; zero remains a valid observed value.
@@ -48,19 +50,25 @@ check(report.samples.some((sample) => sample.monthEvidence.points.some((point) =
 check(report.samples.every((sample) => sample.monthEvidence.observedFrom.startsWith("2026-08")), true);
 check(report.samples.slice(0, 6).map((sample) => sample.game), ["甲游戏", "乙游戏", "甲游戏", "乙游戏", "甲游戏", "乙游戏"]);
 check(JSON.stringify(report.narrative).includes("打开设置"), false);
+const deterministicInsight = await interpretMarketIntelligenceAsset({ client, assetId: alpha[0], filters: { month: "2026-08" }, now: new Date("2026-09-20T00:00:00Z") });
+check(deterministicInsight.aiStatus, "not_configured"); check(deterministicInsight.observation.includes("不代表投放效果"), true);
+const rejectedInsight = await interpretMarketIntelligenceAsset({ client, assetId: beta[0], filters: { month: "2026-08" }, now: new Date("2026-09-20T00:00:00Z"), model: { async summarizeAsset() { return { text: "ROI 表现很好" }; } } });
+check(rejectedInsight.aiStatus, "invalid_output"); check(rejectedInsight.observation.includes("不代表投放效果"), true);
 await assert.rejects(buildMarketIntelligenceReport({ client, filters: { games: ["空游戏"], month: "2026-08" }, now: new Date("2026-09-20T00:00:00Z") }), /mi_report_no_valid_samples/); checks++;
 check(calls.some((call) => call.path === "/stats/trend" && call.params.from === "2026-08-01" && call.params.to === "2026-08-31"), true);
-const initial = parseMarketIntelligenceRequest({ message: "请研究 巨兽战场 在 2026 年 8 月的创意", now: new Date("2026-09-20T00:00:00Z") });
+const initial = parseMarketIntelligenceRequest({ message: "请研究 请求测试游戏 在 2026 年 8 月的创意", now: new Date("2026-09-20T00:00:00Z") });
 check(initial.purpose, "unknown");
-const assisted = applyMarketIntelligenceModelIntent({ message: "请研究 巨兽战场 在 2026 年 8 月的创意", parsed: initial, intent: { purpose: "report", games: [{ value: "巨兽战场", evidence: "巨兽战场" }], month: { value: "2026-08", evidence: "2026 年 8 月" } }, now: new Date("2026-09-20T00:00:00Z") });
-check(assisted.filters.games, ["巨兽战场"]); check(assisted.filters.month, "2026-08"); check(assisted.purpose, "report");
-const rejected = applyMarketIntelligenceModelIntent({ message: "请研究 巨兽战场", parsed: initial, intent: { purpose: "report", games: [{ value: "虚构游戏", evidence: "虚构游戏" }], month: { value: "2026-08", evidence: "8 月" } }, now: new Date("2026-09-20T00:00:00Z") });
+const assisted = applyMarketIntelligenceModelIntent({ message: "请研究 请求测试游戏 在 2026 年 8 月的创意", parsed: initial, intent: { purpose: "report", games: [{ value: "请求测试游戏", evidence: "请求测试游戏" }], month: { value: "2026-08", evidence: "2026 年 8 月" } }, now: new Date("2026-09-20T00:00:00Z") });
+check(assisted.filters.games, ["请求测试游戏"]); check(assisted.filters.month, "2026-08"); check(assisted.purpose, "report");
+const rejected = applyMarketIntelligenceModelIntent({ message: "请研究 请求测试游戏", parsed: initial, intent: { purpose: "report", games: [{ value: "虚构游戏", evidence: "虚构游戏" }], month: { value: "2026-08", evidence: "8 月" } }, now: new Date("2026-09-20T00:00:00Z") });
 check(rejected.filters.games, initial.filters.games);
 const model = createOpenAiCompatibleMarketIntelligenceModel({ apiBase: "https://model.example/v1", modelName: "synthetic", apiKey: "synthetic-key", fetchFn: async (_url, options) => {
   const body = JSON.parse(options.body); check(body.response_format.type, "json_object");
-  return Response.json({ choices: [{ message: { content: JSON.stringify({ purpose: "search", games: [{ value: "巨兽战场", evidence: "巨兽战场" }], month: { value: "2026-08", evidence: "8 月" } }) } }] });
+  const value = body.messages[0].content.includes("{text}") ? { text: "标签呈现了清晰的角色成长主题" } : { purpose: "search", games: [{ value: "请求测试游戏", evidence: "请求测试游戏" }], month: { value: "2026-08", evidence: "8 月" } };
+  return Response.json({ choices: [{ message: { content: JSON.stringify(value) } }] });
 } });
-const parsedByModel = await model.parseRequest({ message: "查看巨兽战场 8 月素材" }); check(parsedByModel.games[0].value, "巨兽战场");
+const parsedByModel = await model.parseRequest({ message: "查看请求测试游戏 8 月素材" }); check(parsedByModel.games[0].value, "请求测试游戏");
+const summarizedAsset = await model.summarizeAsset({ asset: { id: alpha[0], game: "甲游戏", title: "样例", labels: [], script: "" }, evidence: {} }); check(summarizedAsset.text, "标签呈现了清晰的角色成长主题");
 const timeoutModel = createOpenAiCompatibleMarketIntelligenceModel({ apiBase: "https://model.example/v1", modelName: "synthetic", apiKey: "synthetic-key", timeoutMs: 1, fetchFn: async (_url, options) => new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted")))) });
-await assert.rejects(timeoutModel.parseRequest({ message: "查看巨兽战场" })); checks++;
+await assert.rejects(timeoutModel.parseRequest({ message: "查看请求测试游戏" })); checks++;
 console.log(JSON.stringify({ status: "passed", checks, fixtureOnly: true, covers: ["zero-valid", "null-excluded", "cross-month-excluded", "sample-limit", "round-robin", "partial-script-untrusted", "invalid-model-output", "incomplete-candidates"] }));

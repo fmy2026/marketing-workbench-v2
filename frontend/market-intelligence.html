@@ -16,13 +16,13 @@
   <main class="mi-main" id="miMain" hidden><section class="mi-workspace" id="workspace" aria-live="polite"></section></main>
   <form class="mi-composer" id="chatForm">
     <label class="mi-visually-hidden" for="messageInput">输入问题</label>
-    <textarea id="messageInput" rows="1" maxlength="2000" placeholder="例如：看看 8 月巨兽战场的素材" required></textarea>
+    <textarea id="messageInput" rows="1" maxlength="2000" placeholder="查看当前已采集的游戏和素材" required></textarea>
     <button id="sendButton" class="start-button" type="submit">发送</button>
   </form>
   <p class="mi-loading" id="loading" role="status">正在验证登录状态…</p>
   <dialog id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="mi-dialog-heading"><h2 id="settingsTitle">设置</h2><button id="closeSettings" type="button" class="icon-button" aria-label="关闭设置">×</button></div>
-    <details open class="mi-setting-panel"><summary>数据连接</summary>
+    <details id="connectionSettingsPanel" open class="mi-setting-panel"><summary>数据连接</summary>
       <form id="connectionForm" class="mi-settings-form">
         <label for="serviceAddress">公共电脑服务地址</label><input id="serviceAddress" type="url" autocomplete="off" placeholder="http://内网 IP:8787" required>
         <label for="serviceToken">访问 Token</label><input id="serviceToken" type="password" autocomplete="off" maxlength="512" placeholder="Token">
@@ -31,7 +31,7 @@
         <div class="mi-dialog-actions"><button id="removeConnection" type="button" class="secondary-button" hidden>移除</button><button id="saveConnection" type="submit" class="start-button">保存</button></div>
       </form>
     </details>
-    <details class="mi-setting-panel"><summary>模型配置</summary>
+    <details id="modelSettingsPanel" class="mi-setting-panel"><summary>模型配置</summary>
       <form id="modelForm" class="mi-settings-form">
         <label for="modelApiBase">API Base</label><input id="modelApiBase" type="url" autocomplete="off" placeholder="https://…/v1">
         <label for="modelName">模型名称</label><input id="modelName" type="text" autocomplete="off" maxlength="200">
