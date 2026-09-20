@@ -54,9 +54,9 @@ const AGENTS = Object.freeze([
   Object.freeze({
     agentKey: "market_intelligence",
     displayName: "市场情报",
-    description: "查询公共素材、观看视频与查看人气趋势，用真实数据核对市场信息。",
+    description: "查询公共素材、观看视频、核验观察范围，并基于已采集样本生成 HTML 月报。",
     status: "available",
-    modelConfigurable: false,
+    modelConfigurable: true,
     modules: [Object.freeze({ key: "conversation", label: "对话" })],
     conversationPresets: {},
     capabilitySummary: { readOnly: true }
@@ -103,8 +103,8 @@ export function getPublicAgent(agentKey) {
   if (!agent || agent.status !== "available") return null;
   if (agent.agentKey === "market_intelligence") return {
     ...publicAgent(agent),
-    positioning: "查询公共素材的只读助手，使用常用自然语言规则。",
-    supportedScope: "素材列表、平台已有分析、视频播放和单条人气值日趋势。"
+    positioning: "查询公共素材的只读助手，基于已采集样本整理带证据的月报。",
+    supportedScope: "素材网格、平台已有分析、视频播放、单条人气值日趋势和 HTML 月报。"
   };
   return {
     ...publicAgent(agent),

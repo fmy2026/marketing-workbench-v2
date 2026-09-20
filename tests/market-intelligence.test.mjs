@@ -15,6 +15,7 @@ const credentialPath = join(directory, "connection.json");
 const fixtureToken = "synthetic-fixture-token-".padEnd(64, "x");
 const idA = "a".repeat(32), idB = "b".repeat(32);
 const sessions = new Map();
+const modelConfigs = new Map();
 const users = ["one", "two"].map((name) => ({ user_id: `USR-MI-TEST-${name}`, login_name: `mi_${name}`, display_name: `市场情报测试 ${name}`, user_status: "active", user_role: "operator", must_change_password: false }));
 const password = "Synthetic-market-test-2026";
 for (const user of users) user.password_hash = await hashPassword(password);
@@ -23,7 +24,16 @@ const repo = {
   async getActiveWorkbenchSession(hash) { return sessions.get(hash); }, async touchWorkbenchSession() {},
   async countRecentFailedLogins() { return 0; }, async getWorkbenchUserByLogin(name) { return users.find((u) => u.login_name === name); },
   async createWorkbenchSession(value) { sessions.set(value.tokenHash, { user: users.find((u) => u.user_id === value.userId), session: { session_id: value.sessionId } }); },
-  async insertWorkbenchAuditEvent() {}, async revokeWorkbenchSession() {}
+  async insertWorkbenchAuditEvent() {}, async revokeWorkbenchSession() {},
+  async getWorkbenchAgentModelConfig({ userId, agentKey }) { return modelConfigs.get(`${userId}:${agentKey}`) || null; },
+  async upsertWorkbenchAgentModelConfig(value) {
+    const config = { protocol: value.protocol, modelName: value.modelName, apiBase: value.apiBase, enabled: value.enabled, testStatus: value.testStatus, testedAt: null, updatedAt: "2026-09-20T00:00:00Z" };
+    modelConfigs.set(`${value.userId}:${value.agentKey}`, config); return config;
+  },
+  async recordWorkbenchAgentModelConfigTest({ userId, agentKey, passed }) {
+    const prior = modelConfigs.get(`${userId}:${agentKey}`); const config = { ...prior, testStatus: passed ? "passed" : "failed", testedAt: "2026-09-20T00:00:00Z" };
+    modelConfigs.set(`${userId}:${agentKey}`, config); return config;
+  }
 };
 const calls = [];
 let mode = "ok";
@@ -58,7 +68,9 @@ async function fakeFetch(input, options) {
     { id: idB, title: "合成样例 · 策略搭配", game_name: "测试游戏" }
   ];
   else if (url.pathname.includes("/assets/")) data = { asset: { id: url.pathname.split("/").at(-1), title: "合成样例 · 城堡挑战", game_name: "测试游戏", creative_labels: { 创意策略: { 营销卖点: "角色成长" } }, script_analysis: { 视频内容: "这是隔离测试用的合成分析文字。", hook: "展示挑战目标" } }, files: [{ path: "/private/do-not-expose" }], raw_payload: "should-never-be-projected" };
-  else data = { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }, { date: "2026-09-16", popularity_daily: null, top10: 80 }, { date: "2026-09-17", popularity_daily: 120, top10: 100 }, { date: "2026-09-18", popularity_daily: 100, top10: 100 }], summary: { popularity_points: 3, points_returned: 4, observed_from: "2026-09-15", observed_to: "2026-09-18", refline_from: "2026-09-15", refline_to: "2026-09-18", net_change: 100 } };
+  else data = url.searchParams.get("from")?.startsWith("2026-08")
+    ? { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }], summary: { popularity_points: 1, points_returned: 1, observed_from: "2026-09-15", observed_to: "2026-09-15" } }
+    : { points: [{ date: "2026-09-15", popularity_daily: 0, top10: 80 }, { date: "2026-09-16", popularity_daily: null, top10: 80 }, { date: "2026-09-17", popularity_daily: 120, top10: 100 }, { date: "2026-09-18", popularity_daily: 100, top10: 100 }], summary: { popularity_points: 3, points_returned: 4, observed_from: "2026-09-15", observed_to: "2026-09-18", refline_from: "2026-09-15", refline_to: "2026-09-18", net_change: 100 } };
   return Response.json({ ok: true, data, meta });
 }
 let port = 3138;
@@ -103,36 +115,40 @@ if (preview) {
     check((await request(`${root}/files/${idA}`, { user: 1 })).status, 409);
     check((await request(`${root}/connection`, { body: { ...connection, baseUrl: "http://192.168.50.3:8787", token: "" } })).status, 400);
     for (const url of ["http://127.0.0.1:3000", "http://169.254.169.254", "https://example.com", "http://192.168.50.2/a", "http://user:pass@192.168.50.2", "http://192.168.50.2/?token=x"]) { assert.throws(() => normalizeMiOrigin(url)); checks++; }
-    let response = await ask("有哪些素材？");
-    check(response.assets.length, 2); check(response.meta.total, 2);
+    let response = await ask("看看 2026 年 9 月测试游戏的素材");
+    check(response.intent.kind, "search"); check(response.filters.month, "2026-09");
+    const search = async (filters) => (await request(`${root}/search`, { body: { filters } })).json();
+    response = await search(response.filters);
+    check(response.assets.length, 2); check(response.resultCount, 2);
     check(JSON.stringify(response).includes("should-never"), false);
-    const selection = response.context;
+    const selection = { ids: [idA, idB], filters: response.filters };
     response = await ask("播放第一条", selection);
     check(response.detail.asset.id, idA);
     check(JSON.stringify(response).includes("/private/"), false);
     check(response.detail.asset.labels, ["营销卖点：角色成长"]);
-    response = await ask("看看这条素材最近 7 天的趋势", response.context);
+    response = await ask(`看看素材 ${idA} 最近 7 天的人气趋势`, response.context);
     check(response.trend.points.map((p) => p.value), [0, null, 120, 100]);
     check(response.trend.summary.popularityPoints, 3); check(response.trend.summary.observedFrom, "2026-09-15");
     check(response.trend.points.map((p) => p.refline.top10 || null), [80, 80, 100, 100]);
     check(calls.at(-1).params.asset, idA);
     check(Boolean(calls.at(-1).params.from && calls.at(-1).params.to), true);
-    const count = calls.length;
-    check((await ask("最近哪些素材上升最多？", selection)).reply.includes("暂未提供"), true);
-    check(calls.length, count);
+    const unsupported = await answerMarketIntelligence({ message: "最近哪些素材上升最多？", context: selection, client: { json: async () => { throw new Error("should not query"); } } });
+    check(unsupported.reply.includes("暂未提供"), true);
     check((await ask("播放第三条", selection)).reply.includes("没有这条"), true);
-    await ask("最近有哪些素材？"); check(calls.at(-1).params.game, undefined);
-    await ask("测试游戏有哪些素材？"); check(calls.at(-1).params.game, "测试游戏");
-    response = await ask("下一页", selection); check(response.assets.length, 0); check(response.context.page, 2);
+    response = await ask("下一页", selection); check(response.intent.kind, "search"); check(response.filters.page, 2);
+    const report = await (await request(`${root}/report`, { body: { filters: { games: ["测试游戏"], month: "2026-09" } } })).json();
+    check(report.sampleCount, 2); check(report.samples.some((sample) => sample.monthEvidence.points.some((point) => point.value === 0)), true);
+    check(report.narrative.points.length, 3);
+    check((await request(`${root}/report`, { body: { filters: { games: ["测试游戏"], month: "2026-08" } } })).status, 422);
     const range = await request(`${root}/files/${idA}`, { headers: { range: "bytes=0-9" } });
     check(range.status, 206); check((await range.arrayBuffer()).byteLength, 10); check(range.headers.get("content-range"), `bytes 0-9/${video.length}`);
     const head = await request(`${root}/files/${idB}`, { method: "HEAD" }); check(head.headers.get("content-type"), "video/webm"); check(await head.text(), "");
     check((await request(`${root}/files/${idA}`, { headers: { range: "bytes=0-1,4-8" } })).status, 416);
     check((await request(`${root}/files/${idA}`, { headers: { range: "bytes=99999999-" } })).status, 416);
     mode = "wrong-mime"; check((await request(`${root}/files/${idA}`)).status, 502);
-    mode = "offline"; check((await ask("有哪些素材？")).error, "mi_connection_failed");
-    mode = "bad-json"; check((await ask("有哪些素材？")).error, "mi_invalid_response");
-    mode = "large"; check((await ask("有哪些素材？")).error, "mi_invalid_response"); mode = "ok";
+    mode = "offline"; check((await request(`${root}/search`, { body: { filters: { games: ["测试游戏"], month: "2026-09" } } })).status, 502);
+    mode = "bad-json"; check((await request(`${root}/search`, { body: { filters: { games: ["测试游戏"], month: "2026-09" } } })).status, 502);
+    mode = "large"; check((await request(`${root}/search`, { body: { filters: { games: ["测试游戏"], month: "2026-09" } } })).status, 502); mode = "ok";
     const redirectClient = createMiClient({ ...connection, fetchImpl: async () => new Response(null, { status: 302, headers: { location: "http://outside.test" } }) });
     await assert.rejects(redirectClient.json("/health"), /mi_service_error/); checks++;
     assert.throws(() => projectMiTrend({ points: [{ date: "2026-09-18", popularity_daily: "0" }] }), /mi_invalid_response/); checks++;
@@ -143,7 +159,7 @@ if (preview) {
     assert.throws(() => miCompareIds([idA, idA]), /mi_bad_query/); checks++;
     const parsed = await answerMarketIntelligence({ message: "你能做什么？", client: null }); check(parsed.reply.includes("播放第一条"), true);
     const catalog = await (await request("/api/agents")).json(); check(catalog.agents.map((a) => a.agentKey), ["launch_creation", "market_intelligence"]);
-    check((await request("/api/agents/market-intelligence/model-config")).status, 404);
+    check((await request("/api/agents/market-intelligence/model-config")).status, 200);
     check((await request("/agents/market-intelligence")).status, 200);
     check((await request("/agents/launch-creation")).status, 200);
     check((await request(`${root}/connection/remove`, { body: {} })).status, 200);

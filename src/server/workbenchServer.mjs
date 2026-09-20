@@ -7,7 +7,9 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createMiConnectionStore, miError, normalizeMiOrigin, normalizeMiToken } from "../security/marketIntelligenceConnectionStore.mjs";
 import { createMiClient } from "../platforms/marketIntelligenceClient.mjs";
-import { answerMarketIntelligence } from "../agents/marketIntelligenceConversation.mjs";
+import { answerMarketIntelligence, applyMarketIntelligenceModelIntent, parseMarketIntelligenceRequest } from "../agents/marketIntelligenceConversation.mjs";
+import { buildMarketIntelligenceReport, searchMarketIntelligence } from "../agents/marketIntelligenceReport.mjs";
+import { createOpenAiCompatibleMarketIntelligenceModel } from "../agents/openaiCompatibleMarketIntelligenceModel.mjs";
 import { PostgresRepository } from "../repositories/postgresRepository.mjs";
 import {
   getPublicAgent,
@@ -62,7 +64,7 @@ import {
 import { resolveWorkbenchNetworkPolicy } from "../security/workbenchNetworkPolicy.mjs";
 import { internalErrorDiagnostic, publicErrorResponse } from "./publicError.mjs";
 
-export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env, marketIntelligenceFetch = globalThis.fetch } = {}) {
+export function createWorkbenchServer({ repo = new PostgresRepository(), env = process.env, marketIntelligenceFetch = globalThis.fetch, marketIntelligenceModelFetch = globalThis.fetch } = {}) {
 const rootDir = normalize(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 const frontendDir = join(rootDir, "frontend");
 const miConnections = createMiConnectionStore({ path: env.MWBV2_MI_CONNECTION_STORE_PATH });
@@ -163,6 +165,18 @@ async function resolverForCurrentUser(userId, agentKey = "launch_creation") {
     model: current.config.modelName,
     apiBase: current.config.apiBase,
     adapters: { openai_compatible: createOpenAiCompatibleIntentAdapter({ apiKey: getWorkbenchLlmCredential({ userId, agentKey }) }) }
+  });
+}
+
+async function marketIntelligenceModelForCurrentUser(userId) {
+  const agentKey = "market_intelligence";
+  const current = await readCurrentUserModelConfig(userId, agentKey);
+  if (current.publicConfig.enabled !== true || current.publicConfig.testStatus !== "passed") return undefined;
+  return createOpenAiCompatibleMarketIntelligenceModel({
+    apiBase: current.config.apiBase,
+    modelName: current.config.modelName,
+    apiKey: getWorkbenchLlmCredential({ userId, agentKey }),
+    fetchFn: marketIntelligenceModelFetch
   });
 }
 
@@ -398,7 +412,8 @@ async function handleApi(req, res, url) {
 
   if (auth.user.must_change_password === true) throw requestError("password_change_required", 403);
 
-  if (pathname.startsWith("/api/agents/market_intelligence/")) {
+  // Generic model-config routes must stay reachable for market intelligence.
+  if (pathname.startsWith("/api/agents/market_intelligence/") && !pathname.startsWith("/api/agents/market_intelligence/model-config")) {
     try {
       const route = pathname.slice("/api/agents/market_intelligence".length);
       const userId = auth.user.user_id;
@@ -417,7 +432,50 @@ async function handleApi(req, res, url) {
         const body = await readBody(req);
         const connection = miConnections.get(userId);
         const client = connection ? createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }) : null;
+        let parsed = parseMarketIntelligenceRequest({ message: body.message, context: body.context });
+        if (parsed.purpose === "unknown") {
+          const model = await marketIntelligenceModelForCurrentUser(userId);
+          if (model?.parseRequest) {
+            try { parsed = applyMarketIntelligenceModelIntent({ message: body.message, parsed, intent: await model.parseRequest({ message: body.message }) }); }
+            catch { /* Rules retain the safe clarification path. */ }
+          }
+        }
+        if (["search", "report", "page"].includes(parsed.purpose) && !client) {
+          return sendJson(res, 200, { reply: "请先在设置中配置数据连接，再开始查询。", needsConnection: true, intent: { kind: "connection" }, context: { filters: parsed.filters } });
+        }
+        if (parsed.needsCompetitor) {
+          return sendJson(res, 200, { reply: "请说明要一起查看的竞品名称；我不会自动补充竞品名单。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+        }
+        if (parsed.purpose === "report" && !parsed.filters.games.length) {
+          return sendJson(res, 200, { reply: "请先说明要研究哪些游戏，例如“生成 8 月巨兽战场的市场情报月报”。", intent: { kind: "clarify" }, context: { filters: parsed.filters } });
+        }
+        if (["search", "report", "page"].includes(parsed.purpose)) {
+          return sendJson(res, 200, {
+            reply: parsed.purpose === "report" ? "已确认报告范围，正在整理已采集样本。" : "已更新查询条件。",
+            intent: { kind: parsed.purpose === "report" ? "report" : "search" },
+            filters: parsed.filters,
+            context: { filters: parsed.filters }
+          });
+        }
         return sendJson(res, 200, await answerMarketIntelligence({ message: body.message, context: body.context, client }));
+      }
+      if (route === "/search" && req.method === "POST") {
+        const body = await readBody(req);
+        const connection = miConnections.get(userId);
+        if (!connection) throw miError("mi_connection_required", 409);
+        const result = await searchMarketIntelligence({ client: createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }), filters: body.filters });
+        return sendJson(res, 200, result);
+      }
+      if (route === "/report" && req.method === "POST") {
+        const body = await readBody(req);
+        const connection = miConnections.get(userId);
+        if (!connection) throw miError("mi_connection_required", 409);
+        const report = await buildMarketIntelligenceReport({
+          client: createMiClient({ ...connection, fetchImpl: marketIntelligenceFetch }),
+          filters: body.filters,
+          model: await marketIntelligenceModelForCurrentUser(userId)
+        });
+        return sendJson(res, 200, report);
       }
       const file = route.match(/^\/files\/([a-fA-F0-9]{32})$/);
       if (file && ["GET", "HEAD"].includes(req.method)) {

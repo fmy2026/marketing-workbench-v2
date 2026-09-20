@@ -1,9 +1,63 @@
 import { MI_ID, projectMiAsset, projectMiDetail, projectMiMeta, projectMiTrend } from "../platforms/marketIntelligenceClient.mjs";
 import { miError } from "../security/marketIntelligenceConnectionStore.mjs";
+import { normalizeMarketIntelligenceFilters } from "./marketIntelligenceReport.mjs";
 
 const HELP = "可以问我“有哪些素材”“播放第一条”“看看这条素材最近 7 天的趋势”。也可以输入“游戏：游戏名”筛选素材。";
 const UNSUPPORTED = "公共数据服务暂未提供排名、聚合统计、跨素材对比或视频内容理解。我可以查询素材、播放视频、查看单条人气值趋势和平台已有分析。";
 const numeral = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+
+function parseMonth(text, now = new Date()) {
+  const match = String(text || "").match(/(20\d{2})\s*年\s*(1[0-2]|0?[1-9])\s*月|\b(20\d{2})-(0[1-9]|1[0-2])\b/);
+  const loose = !match ? String(text || "").match(/(?:^|\D)(1[0-2]|0?[1-9])\s*月/) : null;
+  if (!match && !loose) return "";
+  const year = match ? (match[1] || match[3]) : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric" }).format(now);
+  const month = match ? (match[2] || match[4]) : loose[1];
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function parseGames(text) {
+  const explicit = text.match(/(?:游戏|研究对象)\s*[：:]\s*([^，。；\n]+)/);
+  const quoted = [...text.matchAll(/[“「"]([^”」"]{1,100})[”」"]/g)].map((match) => match[1]);
+  const natural = text.match(/(?:看看|查看|查找|找|分析|整理|生成|帮我看看)\s*([^，。；\n]{1,100}?)(?:的)?(?:素材|月报|市场情报|报告)/);
+  const raw = explicit ? explicit[1].split(/[、，,和与]/) : quoted.length ? quoted : natural ? natural[1].split(/[、，,和与]/) : [];
+  return raw.map((item) => item.replace(/^\s*(?:(?:20\d{2}\s*年)?\s*\d{1,2}\s*月|最近|本月|上月)\s*/, "").replace(/[（(]\s*竞品\s*[）)]/g, "").replace(/(?:最近)?(?:有哪些|有什么)?$/, "").trim())
+    .filter((item) => item && !/^(竞品|素材|市场情报|月报|报告|哪些|有什么)$/.test(item)).slice(0, 5);
+}
+
+/** Parse only research objects, month and purpose. Query execution remains in the report/query service. */
+export function parseMarketIntelligenceRequest({ message, context = {}, now = new Date() } = {}) {
+  if (typeof message !== "string" || !message.trim() || message.trim().length > 2000) throw miError("mi_invalid_message");
+  const text = message.trim();
+  const prior = context?.filters || {};
+  const assetId = (text.match(/[a-fA-F0-9]{32}/) || [""])[0];
+  const returnToSearch = /返回素材|查看素材|素材列表/.test(text);
+  const purpose = assetId && /打开|播放|详情|趋势|人气/.test(text) ? "detail" : /月报|市场情报.*报告|报告.*市场情报|管理层/.test(text) ? "report" : /下一页|上一页|继续查询|继续找/.test(text) ? "page" : /素材|视频|查找|查看|看看|竞品/.test(text) ? "search" : "unknown";
+  const games = parseGames(text);
+  const filters = normalizeMarketIntelligenceFilters({
+    games: games.length ? games : prior.games,
+    month: parseMonth(text, now) || prior.month,
+    page: /下一页/.test(text) ? Number(prior.page || 1) + 1 : /上一页/.test(text) ? Math.max(1, Number(prior.page || 1) - 1) : returnToSearch ? Number(prior.page || 1) : 1,
+    candidatePage: /继续查询|继续找/.test(text) ? Number(prior.candidatePage || 1) + 1 : Number(prior.candidatePage || 1)
+  }, { now });
+  return { purpose, filters, explicitGames: games.length > 0, needsCompetitor: /竞品/.test(text) && games.length < 2 };
+}
+
+/** Accept only model slots backed by exact text supplied by the user. */
+export function applyMarketIntelligenceModelIntent({ message, parsed, intent, now = new Date() } = {}) {
+  if (!parsed || parsed.purpose !== "unknown" || !intent || !["search", "report"].includes(intent.purpose)) return parsed;
+  const text = String(message || "");
+  const games = [];
+  for (const item of Array.isArray(intent.games) ? intent.games.slice(0, 5) : []) {
+    const value = typeof item?.value === "string" ? item.value.trim() : "";
+    const evidence = typeof item?.evidence === "string" ? item.evidence.trim() : "";
+    if (value && evidence && text.includes(evidence) && evidence.includes(value) && !games.includes(value)) games.push(value);
+  }
+  const monthValue = typeof intent.month?.value === "string" ? intent.month.value : "";
+  const monthEvidence = typeof intent.month?.evidence === "string" ? intent.month.evidence : "";
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(monthValue) && monthEvidence && text.includes(monthEvidence) ? monthValue : parsed.filters.month;
+  const filters = normalizeMarketIntelligenceFilters({ ...parsed.filters, games: games.length ? games : parsed.filters.games, month }, { now });
+  return { ...parsed, purpose: intent.purpose, filters, explicitGames: games.length > 0 || parsed.explicitGames, needsCompetitor: /竞品/.test(text) && (games.length || parsed.filters.games.length) < 2, modelAssist: "accepted" };
+}
 function contextOf(value) {
   return { ids: Array.isArray(value?.ids) ? value.ids.filter((id) => typeof id === "string" && MI_ID.test(id)).slice(0, 10) : [],
     selectedId: MI_ID.test(value?.selectedId || "") ? value.selectedId : "",

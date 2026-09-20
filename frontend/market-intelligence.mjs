@@ -1,192 +1,104 @@
 const $ = (id) => document.getElementById(id);
 const ROOT = "/api/agents/market_intelligence";
-let context = {};
-let busy = false;
-let config = { configured: false, baseUrl: "" };
+const MODEL_ROOT = "/api/agents/market-intelligence/model-config";
+const state = { connection: { configured: false, baseUrl: "" }, model: null, filters: null, query: "", result: null, report: null, busy: false };
 const errors = {
-  mi_invalid_address: "请输入公共电脑的内网 IPv4 服务地址，例如 http://内网IP:8787。",
-  mi_invalid_token: "请填写有效的访问 Token。更换服务地址时需重新录入。",
-  mi_credentials_rejected: "公共电脑拒绝了此 Token，请在数据连接中更新。",
-  mi_connection_failed: "暂时无法连接公共电脑，请检查地址、网络和服务是否运行。",
-  mi_connection_required: "请先配置数据连接。",
-  mi_http_confirmation_required: "请确认此连接用于只读验证及 HTTP 的传输方式。",
-  mi_invalid_response: "公共电脑返回的数据格式不符合约定，本次未生成结果。",
-  mi_not_found: "未找到这条素材，请重新查询列表。",
-  mi_bad_query: "公共电脑未接受此查询条件，请简化条件后再试。",
-  mi_file_not_ready: "视频尚未就绪或文件缺失，请联系公共电脑维护者。",
-  mi_invalid_video: "服务返回了不支持的视频格式。",
-  mi_range_invalid: "视频分段读取失败，请重新打开视频。",
-  mi_rate_limited: "查询过于频繁，请稍后再试。",
-  mi_service_unavailable: "公共电脑数据服务暂时不可用。",
-  mi_date_range_required: "请提供两个有效日期，例如 2026-09-01 到 2026-09-18，或使用“最近 7 天”。",
-  mi_connection_store_unavailable: "连接配置暂时无法保存或读取，请联系工作台维护者。",
-  mi_invalid_message: "请输入不超过 2000 字的问题。",
-  mi_access_denied: "此凭证无权读取请求的数据。"
+  mi_invalid_address: "请输入公共电脑的内网 IPv4 服务地址。", mi_invalid_token: "请填写有效的访问 Token。",
+  mi_credentials_rejected: "公共电脑拒绝了此 Token。", mi_connection_failed: "暂时无法连接公共电脑。",
+  mi_connection_required: "请先在设置中配置数据连接。", mi_http_confirmation_required: "请确认 HTTP 只读连接。",
+  mi_invalid_response: "公共电脑返回的数据格式不符合约定。", mi_bad_query: "查询条件未被接受。",
+  mi_file_not_ready: "视频尚未就绪或文件缺失。", mi_invalid_video: "服务返回了不支持的视频格式。",
+  mi_range_invalid: "视频分段读取失败。", mi_rate_limited: "查询过于频繁，请稍后再试。",
+  mi_service_unavailable: "公共电脑数据服务暂时不可用。", mi_month_required: "请选择有效月份。",
+  mi_research_objects_required: "请先说明要研究哪些游戏。", mi_report_no_valid_samples: "该月份没有可纳入报告的有效样本。",
+  mi_query_failed: "本次候选素材都未能完成趋势核验。", model_config_test_required: "请先测试通过模型配置。",
+  model_connection_test_failed: "模型测试未通过。", model_config_not_ready_for_test: "请先保存模型连接。"
 };
-const errorMessage = (error) => errors[error.code] || "本次请求未成功，请稍后重试。";
-function el(tag, className = "", text = "") {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  node.textContent = text;
-  return node;
-}
-async function api(path, body) {
-  const response = await fetch(`${ROOT}${path}`, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+const errorMessage = (error) => errors[error?.code] || "本次请求未成功，请稍后再试。";
+function el(tag, className = "", text = "") { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; return node; }
+function button(text, className = "secondary-button") { const node = el("button", className, text); node.type = "button"; return node; }
+async function api(path, { body, method = body === undefined ? "GET" : "POST", root = ROOT } = {}) {
+  const response = await fetch(`${root}${path}`, { method, headers: body === undefined ? {} : { "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   if (response.status === 401) { location.assign("/agents"); throw { code: "authentication_required" }; }
-  let value;
-  try { value = await response.json(); } catch { throw { code: "mi_invalid_response" }; }
-  if (!response.ok) throw { code: value.error };
+  let value; try { value = await response.json(); } catch { throw { code: "mi_invalid_response" }; }
+  if (!response.ok) throw { code: value.error || "mi_service_error" };
   return value;
 }
-function updateConnection(value) {
-  config = value;
-  $("connectionState").textContent = value.configured ? "公共电脑只读数据 · 常用自然语言查询 · 对话仅保留在当前页面" : "尚未连接公共电脑 · 在右上角“数据连接”录入后开始验证";
-  $("tokenState").textContent = value.configured ? "Token 已配置；留空沿用，保存后不会回显。" : "尚未配置 Token";
-  $("removeConnection").hidden = !value.configured;
+function setBusy(value) { state.busy = value; $("sendButton").disabled = value; $("messageInput").disabled = value; $("settingsButton").disabled = value; }
+function setQuestion(text) { state.query = String(text || "").slice(0, 2000); }
+function workspaceBase() { const wrap = document.createDocumentFragment(); if (state.query) { const question = el("section", "mi-question"); question.append(el("p", "", state.query), el("span", "mi-avatar", "我")); wrap.append(question); } return wrap; }
+function gamesValue(value) { return String(value || "").split(/[、,，]/).map((part) => part.trim()).filter(Boolean).slice(0, 5); }
+function sourceLine(meta) { return [meta?.source, meta?.caliber, meta?.updatedAt && `全库更新 ${meta.updatedAt}`].filter(Boolean).join(" · "); }
+function renderStatus(text) { const wrap = workspaceBase(); wrap.append(el("p", "mi-empty", text)); $("workspace").replaceChildren(wrap); }
+function renderSearch(result) {
+  state.result = result; state.report = null; state.filters = result.filters;
+  const wrap = workspaceBase();
+  const head = el("section", "mi-result-head"); head.append(el("span", "mi-mark", "情"), el("h2", "", result.resultCount ? `已找到 ${result.resultCount} 条素材` : "没有找到有效素材"), el("span", "mi-small", `${result.filters.month}${result.filters.isCurrentMonth ? ` · 截至 ${result.filters.to}` : ""}`)); wrap.append(head);
+  const filters = el("form", "mi-filters"); const games = document.createElement("input"); games.value = result.filters.games.join("、"); games.placeholder = "研究对象，多个用顿号分隔"; games.setAttribute("aria-label", "研究对象");
+  const month = document.createElement("input"); month.type = "month"; month.value = result.filters.month; month.setAttribute("aria-label", "观察月份");
+  const apply = button("查询", "secondary-button"); apply.type = "submit"; const note = el("span", "mi-filter-note", `已加载 ${result.loadedCandidateCount} 条候选`); filters.append(games, month, apply, note);
+  filters.addEventListener("submit", (event) => { event.preventDefault(); loadSearch({ games: gamesValue(games.value), month: month.value, page: 1, candidatePage: 1 }); }); wrap.append(filters);
+  if (result.assets.length) { const grid = el("section", "mi-grid"); result.assets.forEach((asset) => grid.append(assetCard(asset))); wrap.append(grid); }
+  else wrap.append(el("p", "mi-empty", "已核验的候选素材中没有目标月份的有效观察。可换一个月份或继续查询。"));
+  const pager = el("div", "mi-pagination"); const previous = button("上一页"); previous.disabled = !result.hasPreviousPage; previous.addEventListener("click", () => loadSearch({ ...result.filters, page: result.filters.page - 1 }));
+  const right = el("div", ""); const next = button("下一页"); next.disabled = !result.hasNextPage; next.addEventListener("click", () => loadSearch({ ...result.filters, page: result.filters.page + 1 })); right.append(next);
+  if (result.canContinueSearch) { const more = button("继续查询"); more.addEventListener("click", () => loadSearch({ ...result.filters, page: 1, candidatePage: result.filters.candidatePage + 1 })); right.append(more); }
+  pager.append(previous, el("span", "", `第 ${result.filters.page} 页`), right); wrap.append(pager);
+  if (result.failedTrendCount) wrap.append(el("p", "mi-status", `${result.failedTrendCount} 条候选未完成趋势核验，未计入结果。`));
+  if (sourceLine(result.meta)) wrap.append(el("p", "mi-status", sourceLine(result.meta)));
+  $("workspace").replaceChildren(wrap);
 }
-function openConnection() {
-  $("serviceAddress").value = config.baseUrl;
-  $("serviceToken").value = "";
-  $("allowHttp").checked = false;
-  $("connectionError").textContent = "";
-  $("connectionDialog").showModal();
-}
-function message(role, text) {
-  $("welcome").hidden = true;
-  const node = el("article", `mi-message is-${role}`);
-  node.append(el("p", "", text));
-  $("messages").append(node);
-  return node;
-}
-function button(text, prompt, state) {
-  const node = el("button", "mi-small-button", text);
-  node.type = "button";
-  node.addEventListener("click", () => submit(prompt, state));
-  return node;
-}
-function source(node, result) {
-  const meta = result.meta;
-  if (!meta) return;
-  node.append(el("p", "mi-source", [meta.source, meta.caliber, meta.updatedAt && `数据更新 ${meta.updatedAt}`, meta.queriedAt && `查询 ${meta.queriedAt}`].filter(Boolean).join(" · ")));
+function assetCard(asset) {
+  const card = el("button", "mi-card"); card.type = "button"; card.setAttribute("aria-label", `打开素材：${asset.title}`);
+  const placeholder = el("div", "mi-placeholder"); placeholder.append(el("span", "", asset.game || "素材"), el("strong", "", asset.title));
+  const body = el("div", "mi-card-body"); body.append(el("div", "mi-card-game", asset.game || "未提供游戏"), el("h3", "mi-card-title", asset.title)); const tags = el("div", "mi-tags"); asset.labels.slice(0, 2).forEach((label) => tags.append(el("span", "mi-tag", label))); body.append(tags); card.append(placeholder, body);
+  card.addEventListener("click", () => openDetail(asset)); return card;
 }
 function chart(points) {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 680 200"); svg.classList.add("mi-chart"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "素材每日人气值，空缺处断开；完整数值见下方表格");
-  const values = points.filter((point) => point.value !== null).map((point) => point.value);
-  if (!values.length) return el("p", "mi-small", "这个范围内暂无有效人气值。可以查看其他日期范围。");
-  const referenceValues = points.flatMap((point) => Object.values(point.refline || {}));
-  const max = Math.max(...values, ...referenceValues, 1);
-  function shape(tag, attrs, text) { const node = document.createElementNS(svg.namespaceURI, tag); for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v); if (text) node.textContent = text; svg.append(node); return node; }
-  shape("line", { x1: 45, x2: 658, y1: 168, y2: 168, stroke: "#dce6e0" });
-  shape("text", { x: 5, y: 22 }, String(max)); shape("text", { x: 25, y: 170 }, "0");
-  const first = Date.parse(points[0].date), last = Date.parse(points.at(-1).date);
-  let segment = [], previous = null;
-  const flush = () => { if (segment.length > 1) shape("polyline", { points: segment.join(" "), class: "mi-chart-line" }); segment = []; };
-  for (const point of points) {
-    const day = Date.parse(point.date);
-    if (point.value === null || (previous !== null && day - previous > 86400000)) flush();
-    if (point.value !== null) {
-      const x = last === first ? 350 : 45 + (day - first) / (last - first) * 613, y = 168 - point.value / max * 145;
-      segment.push(`${x},${y}`);
-      const dot = shape("circle", { cx: x, cy: y, r: 2.5, fill: "#608c77" });
-      const title = document.createElementNS(svg.namespaceURI, "title"); title.textContent = `${point.date}：${point.value}`; dot.append(title);
-    }
-    previous = day;
-  }
-  flush();
-  const refStyles = { top1: "#a95a5a", top5: "#ba8b45", top10: "#597ea8", top50: "#8a759f" };
-  for (const [key, color] of Object.entries(refStyles)) {
-    const line = points.filter((point) => Number.isSafeInteger(point.refline?.[key])).map((point) => {
-      const day = Date.parse(point.date), x = last === first ? 350 : 45 + (day - first) / (last - first) * 613;
-      return `${x},${168 - point.refline[key] / max * 145}`;
-    });
-    if (line.length > 1) shape("polyline", { points: line.join(" "), fill: "none", stroke: color, "stroke-dasharray": "4 3" });
-  }
-  shape("text", { x: 45, y: 193 }, points[0].date); shape("text", { x: 658, y: 193, "text-anchor": "end" }, points.at(-1).date);
-  return svg;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 680 190"); svg.classList.add("mi-chart"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "每日人气值曲线；缺失日期断开");
+  const values = points.filter((point) => point.value !== null).map((point) => point.value); if (!values.length) return el("p", "mi-small", "这个范围内暂无有效人气值。"); const max = Math.max(...values, ...points.flatMap((point) => Object.values(point.refline || {})), 1); const first = Date.parse(points[0].date), last = Date.parse(points.at(-1).date);
+  const shape = (tag, attributes, text = "") => { const node = document.createElementNS(svg.namespaceURI, tag); Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, value)); node.textContent = text; svg.append(node); return node; };
+  shape("line", { x1:45, x2:658, y1:160, y2:160, stroke:"#dce6e0" }); shape("text", { x:5, y:20, fill:"#81908a", "font-size":11 }, String(max));
+  let segment = [], previous = null; const flush = () => { if (segment.length > 1) shape("polyline", { points:segment.join(" "), fill:"none", stroke:"#598049", "stroke-width":2 }); segment = []; };
+  for (const point of points) { const day = Date.parse(point.date); if (point.value === null || (previous !== null && day - previous > 86400000)) flush(); if (point.value !== null) { const x = first === last ? 350 : 45 + (day - first) / (last - first) * 613, y = 160 - point.value / max * 135; segment.push(`${x},${y}`); shape("circle", { cx:x, cy:y, r:2.5, fill:"#598049" }); } previous = day; } flush();
+  shape("text", { x:45, y:184, fill:"#81908a", "font-size":10 }, points[0].date); shape("text", { x:658, y:184, fill:"#81908a", "font-size":10, "text-anchor":"end" }, points.at(-1).date); return svg;
 }
-function render(node, result) {
-  node.replaceChildren(el("p", "", result.reply));
-  if (result.needsConnection) {
-    const connect = el("button", "mi-small-button", "配置数据连接"); connect.type = "button";
-    connect.addEventListener("click", openConnection); node.append(connect);
-  }
-  if (result.assets) {
-    const list = el("div", "mi-asset-list");
-    result.assets.forEach((asset, index) => {
-      const card = el("div", "mi-asset"), info = el("div");
-      info.append(el("strong", "", `${index + 1}. ${asset.title}`), el("small", "", [asset.game, asset.id.slice(0, 12)].filter(Boolean).join(" · ")));
-      card.append(info, button("打开", `打开素材 ${asset.id}`, result.context)); list.append(card);
-    });
-    node.append(list);
-    const pages = el("div", "mi-pagination");
-    if (result.context.page > 1) pages.append(button("上一页", "上一页", result.context));
-    if (result.assets.length && (result.meta.total === null || result.context.page * 5 < result.meta.total)) pages.append(button("下一页", "下一页", result.context));
-    node.append(pages);
-  }
-  if (result.detail) {
-    const { asset, script } = result.detail;
-    node.append(el("h3", "mi-detail-title", asset.title));
-    const player = el("video"); player.controls = true; player.preload = "metadata"; player.playsInline = true; player.src = `${ROOT}/files/${asset.id}`;
-    const hint = el("p", "mi-error");
-    player.addEventListener("error", () => { hint.textContent = "视频暂时无法播放。请检查连接、文件状态，或尝试支持此视频格式的浏览器。"; });
-    node.append(player, hint, button("查看人气趋势", "看看这条素材的趋势", { ...result.context, selectedId: asset.id }));
-    const tags = el("div", "mi-tags"); asset.labels.forEach((label) => tags.append(el("span", "mi-tag", label))); node.append(tags);
-    if (!asset.labels.length) node.append(el("p", "mi-source", "暂无可展示的平台标签。"));
-    const analysis = el("details", "mi-analysis"); analysis.append(el("summary", "", "平台已有脚本分析"), el("p", "", script || "暂无可展示的平台脚本分析。")); node.append(analysis);
-    node.append(el("p", "mi-source", `素材 ${asset.id}`));
-  }
-  if (result.trend) {
-    const points = result.trend.points;
-    node.append(chart(points));
-    const summary = result.trend.summary || {};
-    node.append(el("p", "mi-source", [
-      summary.observedFrom && summary.observedTo ? `有效观察 ${summary.observedFrom} 至 ${summary.observedTo}` : "有效观察范围未提供",
-      summary.reflineFrom && summary.reflineTo ? `参考线覆盖 ${summary.reflineFrom} 至 ${summary.reflineTo}` : "参考线覆盖未提供",
-      summary.popularityPoints === null ? "有效人气点数未提供" : `有效人气点 ${summary.popularityPoints}`,
-      summary.pointsReturned === null ? "返回行数未提供" : `返回行 ${summary.pointsReturned}`,
-      summary.netChange === null ? "净变化未提供" : `净变化 ${summary.netChange}`
-    ].join(" · ")));
-    const detail = el("details", "mi-analysis"); detail.append(el("summary", "", "查看逐日数值"));
-    const wrap = el("div", "mi-table-wrap"), table = el("table"), head = el("thead"), tr = el("tr");
-    tr.append(el("th", "", "日期"), el("th", "", "日人气值")); head.append(tr); table.append(head);
-    const body = el("tbody"); points.forEach((point) => { const row = el("tr"); row.append(el("td", "", point.date), el("td", "", point.value === null ? "缺失" : String(point.value))); body.append(row); });
-    table.append(body); wrap.append(table); detail.append(wrap); node.append(detail, el("p", "mi-source", `素材 ${result.assetId} · 0 为平台报告值，缺失值不补零；虚线为平台百分位参考线的日展开`));
-  }
-  source(node, result);
+async function openDetail(asset) {
+  try {
+    const detailResponse = await api("/conversation", { body: { message: `打开素材 ${asset.id}`, context: { selectedId: asset.id, ids: [asset.id], filters: state.filters } } });
+    const detail = detailResponse.detail; if (!detail) throw { code: "mi_invalid_response" };
+    const node = el("section", "mi-detail"); node.append(el("h2", "", detail.asset.title), el("p", "", detail.asset.game || "未提供游戏")); const player = document.createElement("video"); player.controls = true; player.preload = "none"; player.src = `${ROOT}/files/${detail.asset.id}`; player.setAttribute("aria-label", detail.asset.title); node.append(player);
+    const tags = el("div", "mi-tags"); detail.asset.labels.forEach((label) => tags.append(el("span", "mi-tag", label))); node.append(tags);
+    const trendButton = button("查看人气趋势"); trendButton.addEventListener("click", async () => { trendButton.disabled = true; try { const trendResponse = await api("/conversation", { body: { message: `看看素材 ${asset.id} 的人气趋势`, context: { selectedId: asset.id, ids: [asset.id], filters: state.filters } } }); if (!trendResponse.trend) throw { code: "mi_invalid_response" }; node.append(chart(trendResponse.trend.points), el("p", "mi-small", trendText(trendResponse.trend.summary))); } catch (error) { node.append(el("p", "mi-error", errorMessage(error))); } finally { trendButton.remove(); } }); node.append(trendButton);
+    const evidence = document.createElement("details"); evidence.append(el("summary", "", "来源与详细依据"), el("p", "", detail.script || "未提供平台脚本分析。")); node.append(evidence); $("detailContent").replaceChildren(node); $("detailDialog").showModal();
+  } catch (error) { renderStatus(errorMessage(error)); }
 }
-async function submit(text, state = context) {
-  if (busy || !String(text).trim()) return;
-  busy = true; $("sendButton").disabled = true; $("messageInput").disabled = true; $("connectionButton").disabled = true;
-  message("user", text);
-  const reply = message("agent", "正在查询…"); reply.scrollIntoView({ block: "nearest" });
-  try { const result = await api("/conversation", { message: text, context: state }); context = result.context || context; render(reply, result); }
-  catch (error) { reply.replaceChildren(el("p", "", errorMessage(error))); }
-  finally { busy = false; $("sendButton").disabled = false; $("messageInput").disabled = false; $("connectionButton").disabled = false; $("messageInput").focus({ preventScroll: true }); }
+function trendText(summary = {}) { return [summary.observedFrom && summary.observedTo ? `有效观察 ${summary.observedFrom} 至 ${summary.observedTo}` : "有效观察范围未提供", summary.popularityPoints === null ? "有效点数未提供" : `有效点 ${summary.popularityPoints}`, "0 为平台报告值，缺失未补零"].join(" · "); }
+async function loadSearch(filters) { setBusy(true); try { const result = await api("/search", { body: { filters } }); renderSearch(result); } catch (error) { renderStatus(errorMessage(error)); } finally { setBusy(false); } }
+function reportFacts(report) { return `${report.filters.month}${report.filters.isCurrentMonth ? ` · 截至 ${report.filters.to}` : ""} · ${report.sampleCount} 条已采集样本`; }
+function reportPaper(report, { download = false } = {}) {
+  const paper = el("article", "mi-paper"); const top = el("div", "mi-paper-top"); top.append(el("span", "", "市场情报"), el("span", "", download ? "离线 HTML" : reportFacts(report))); paper.append(top, el("h1", "", `${report.filters.month} 市场情报`), el("p", "mi-subtitle", `${report.filters.games.join("、")} · ${reportFacts(report)}`));
+  paper.append(el("h2", "", "三个重点")); const observations = el("section", "mi-observations"); report.narrative.points.forEach((point, index) => { const item = el("div", "mi-observation"); item.append(el("b", "", String(index + 1).padStart(2, "0")), el("div", "", point.text)); observations.append(item); }); observations.dataset.summary = JSON.stringify(report.narrative.points.map((point) => point.text)); paper.append(observations);
+  paper.append(el("h2", "", "研究对象")); const table = el("table", "mi-report-table"), head = document.createElement("thead"), row = document.createElement("tr"); ["对象", "样本", "有效观察范围"].forEach((value) => row.append(el("th", "", value))); head.append(row); table.append(head); const body = document.createElement("tbody"); report.filters.games.forEach((game) => { const samples = report.samples.filter((sample) => sample.game === game); const dates = samples.flatMap((sample) => [sample.monthEvidence.observedFrom, sample.monthEvidence.observedTo]).filter(Boolean).sort(); const tr = document.createElement("tr"); tr.append(el("td", "", game), el("td", "", String(samples.length)), el("td", "", dates.length ? `${dates[0]} 至 ${dates.at(-1)}` : "未提供")); body.append(tr); }); table.append(body); paper.append(table);
+  paper.append(el("h2", "", "代表素材")); const cases = el("section", "mi-case-grid"); report.samples.slice(0, 4).forEach((sample) => { const item = el("article", "mi-case"); item.append(el("h3", "", sample.title), el("p", "", `${sample.game} · ${sample.monthEvidence.observedFrom} 至 ${sample.monthEvidence.observedTo}`), el("p", "", sample.labels.slice(0, 2).join(" · ") || "未提供创意标签")); cases.append(item); }); paper.append(cases);
+  paper.append(el("h2", "", "继续关注"), el("p", "", report.narrative.followUp)); const footer = el("footer", "mi-paper-footer", `${report.sampleSelection} ${report.limitations.join(" ")} ${sourceLine(report.source)}`); paper.append(footer); return paper;
 }
-$("chatForm").addEventListener("submit", (event) => { event.preventDefault(); const text = $("messageInput").value.trim(); if (!busy && text) { $("messageInput").value = ""; submit(text); } });
+function renderReport(report) {
+  state.report = report; state.filters = { ...report.filters, page: state.filters?.page || 1, candidatePage: state.filters?.candidatePage || 1 }; const wrap = workspaceBase(); const layout = el("section", "mi-report"); const toolbar = el("div", "mi-report-toolbar"); const left = el("span", "mi-small", report.aiStatus === "used" ? "AI 摘要已结合样本证据" : report.aiStatus === "not_configured" ? "AI 摘要暂不可用" : "AI 摘要暂不可用，已保留事实摘要"); const actions = el("div", ""); const back = button("返回素材"); const edit = button("编辑摘要"); const download = button("下载 HTML", "start-button"); actions.append(back, edit, download); toolbar.append(left, actions); layout.append(toolbar);
+  const paper = reportPaper(report); layout.append(paper); wrap.append(layout); $("workspace").replaceChildren(wrap);
+  back.addEventListener("click", () => loadSearch(state.filters)); edit.addEventListener("click", () => openSummaryEditor(report, paper)); download.addEventListener("click", () => downloadReport(report));
+}
+function openSummaryEditor(report, paper) { const current = report.narrative.points.map((point) => point.text).join("\n"); const editor = document.createElement("textarea"); editor.className = "mi-summary-editor"; editor.value = current; const save = button("保存", "start-button"); const cancel = button("取消"); const controls = el("p", ""); controls.append(cancel, save); paper.querySelector(".mi-observations").replaceWith(editor); editor.after(controls); cancel.addEventListener("click", () => renderReport(report)); save.addEventListener("click", () => { const lines = editor.value.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 3); if (!lines.length) return; report.narrative.points = lines.map((text, index) => ({ text, assetIds: report.narrative.points[index]?.assetIds || [] })); renderReport(report); }); }
+function downloadReport(report) { const documentCopy = document.implementation.createHTMLDocument(`${report.filters.month} 市场情报`); const style = documentCopy.createElement("style"); style.textContent = "body{margin:0;background:#f7f8f4;color:#243b30;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.mi-paper{max-width:850px;margin:40px auto;background:#fff;border:1px solid #dfe6d7;padding:45px 52px;box-sizing:border-box}.mi-paper-top{font-size:9px;letter-spacing:1.8px;color:#8a9b7b;display:flex;justify-content:space-between}.mi-paper h1{font-size:31px;font-weight:500;margin:24px 0 10px}.mi-subtitle{font-size:11px;line-height:1.9;color:#819176;border-bottom:1px solid #e2e9dd;padding-bottom:23px}.mi-paper h2{font-size:15px;margin:25px 0 14px}.mi-observation{display:flex;gap:12px;font-size:12px;line-height:1.9;color:#627953}.mi-observation b{color:#a2b18e}.mi-report-table{width:100%;border-collapse:collapse;font-size:11px;color:#6a8255}.mi-report-table th,.mi-report-table td{padding:10px 8px;text-align:left;border-bottom:1px solid #e8eddf}.mi-report-table th{font-weight:400;color:#90a17f}.mi-case-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.mi-case{border:1px solid #e3eadc;border-radius:7px;padding:13px}.mi-case h3{font-size:12px;margin:0 0 7px}.mi-case p{font-size:10px;line-height:1.8;color:#72846b;margin:0}.mi-paper-footer{border-top:1px solid #e2e9dd;margin-top:28px;padding-top:13px;font-size:10px;line-height:1.8;color:#94a283}@media(max-width:600px){.mi-paper{margin:0;border:0;padding:28px 22px}.mi-case-grid{grid-template-columns:1fr}}"; documentCopy.head.append(style); documentCopy.body.append(documentCopy.importNode(reportPaper(report, { download: true }), true)); const blob = new Blob([`<!doctype html>${documentCopy.documentElement.outerHTML}`], { type:"text/html;charset=utf-8" }); const url = URL.createObjectURL(blob), link = document.createElement("a"); link.href = url; link.download = `${report.filters.month}-市场情报.html`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+async function loadReport(filters) { setBusy(true); try { const report = await api("/report", { body: { filters } }); renderReport(report); } catch (error) { renderStatus(errorMessage(error)); } finally { setBusy(false); } }
+function updateConnection(config) { state.connection = config; $("tokenState").textContent = config.configured ? "Token 已配置；保存后不会回显。" : "尚未配置 Token"; $("removeConnection").hidden = !config.configured; }
+function updateModel(config) { state.model = config; $("modelApiBase").value = config?.apiBase || ""; $("modelName").value = config?.modelName || ""; $("modelEnabled").checked = config?.enabled === true; $("modelState").textContent = config?.credentialConfigured ? `测试状态：${config.testStatus === "passed" ? "已通过" : "未通过或未测试"}` : "尚未配置 API Key"; }
+async function refreshSettings() { updateConnection(await api("/connection")); const value = await api("", { root: MODEL_ROOT }); updateModel(value.config); }
+$("chatForm").addEventListener("submit", async (event) => { event.preventDefault(); const text = $("messageInput").value.trim(); if (!text || state.busy) return; $("messageInput").value = ""; setQuestion(text); setBusy(true); try { const response = await api("/conversation", { body: { message:text, context:{ filters:state.filters || {} } } }); if (response.needsConnection) { renderStatus(response.reply); $("settingsDialog").showModal(); } else if (response.intent?.kind === "search") await loadSearch(response.filters); else if (response.intent?.kind === "report") await loadReport(response.filters); else renderStatus(response.reply || "请重新说明要查询的素材或报告范围。"); } catch (error) { renderStatus(errorMessage(error)); } finally { setBusy(false); $("messageInput").focus(); } });
 $("messageInput").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); $("chatForm").requestSubmit(); } });
-document.querySelectorAll("[data-prompt]").forEach((node) => node.addEventListener("click", () => submit(node.dataset.prompt)));
-$("connectionButton").addEventListener("click", openConnection);
-$("closeConnection").addEventListener("click", () => $("connectionDialog").close());
-$("connectionDialog").addEventListener("close", () => { $("serviceToken").value = ""; });
-$("connectionForm").addEventListener("submit", async (event) => {
-  event.preventDefault(); $("connectionError").textContent = ""; $("saveConnection").disabled = true; $("saveConnection").textContent = "正在测试…";
-  const body = { baseUrl: $("serviceAddress").value.trim(), token: $("serviceToken").value, allowHttp: $("allowHttp").checked }; $("serviceToken").value = "";
-  try { updateConnection(await api("/connection", body)); context = {}; $("messages").replaceChildren(); $("welcome").hidden = false; $("connectionDialog").close(); }
-  catch (error) { $("connectionError").textContent = errorMessage(error); }
-  finally { body.token = ""; $("saveConnection").disabled = false; $("saveConnection").textContent = "保存并测试连接"; }
-});
-$("removeConnection").addEventListener("click", async () => {
-  try { updateConnection(await api("/connection/remove", {})); context = {}; $("messages").replaceChildren(); $("welcome").hidden = false; $("connectionDialog").close(); }
-  catch (error) { $("connectionError").textContent = errorMessage(error); }
-});
-try {
-  const response = await fetch("/api/auth/me");
-  if (!response.ok) location.replace("/agents");
-  else {
-    const session = await response.json();
-    if (session.user?.mustChangePassword) location.replace("/agents");
-    else { $("miMain").hidden = false; $("loading").hidden = true; updateConnection(await api("/connection")); }
-  }
-} catch { $("loading").hidden = false; $("loading").textContent = "暂时无法连接工作台，请刷新后重试。"; }
+$("settingsButton").addEventListener("click", async () => { try { await refreshSettings(); $("settingsDialog").showModal(); } catch (error) { renderStatus(errorMessage(error)); } }); $("closeSettings").addEventListener("click", () => $("settingsDialog").close()); $("settingsDialog").addEventListener("close", () => { $("serviceToken").value = ""; $("modelApiKey").value = ""; }); $("closeDetail").addEventListener("click", () => $("detailDialog").close());
+$("connectionForm").addEventListener("submit", async (event) => { event.preventDefault(); $("connectionError").textContent = ""; try { const config = await api("/connection", { body:{ baseUrl:$("serviceAddress").value.trim(), token:$("serviceToken").value, allowHttp:$("allowHttp").checked } }); $("serviceToken").value = ""; updateConnection(config); $("settingsDialog").close(); } catch (error) { $("connectionError").textContent = errorMessage(error); } });
+$("removeConnection").addEventListener("click", async () => { try { updateConnection(await api("/connection/remove", { body:{} })); } catch (error) { $("connectionError").textContent = errorMessage(error); } });
+$("modelForm").addEventListener("submit", async (event) => { event.preventDefault(); $("modelError").textContent = ""; try { const value = await api("", { root:MODEL_ROOT, method:"PUT", body:{ api_base:$("modelApiBase").value.trim(), model_name:$("modelName").value.trim(), api_key:$("modelApiKey").value, enabled:$("modelEnabled").checked } }); $("modelApiKey").value = ""; updateModel(value.config); } catch (error) { $("modelError").textContent = errorMessage(error); } });
+$("testModel").addEventListener("click", async () => { $("modelError").textContent = ""; try { const value = await api("/test", { root:MODEL_ROOT, body:{} }); updateModel(value.config); } catch (error) { $("modelError").textContent = errorMessage(error); } });
+try { const auth = await fetch("/api/auth/me"); if (!auth.ok) location.assign("/agents"); else { const session = await auth.json(); if (session.user?.mustChangePassword) location.assign("/agents"); else { $("miMain").hidden = false; $("loading").hidden = true; await refreshSettings(); renderStatus(state.connection.configured ? "输入一个问题开始查询素材，或直接提出市场情报月报需求。" : "请先在设置中配置数据连接。" ); } } } catch { $("loading").textContent = "暂时无法连接工作台，请刷新后重试。"; }
