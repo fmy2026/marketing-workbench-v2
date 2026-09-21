@@ -1,0 +1,81 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921",
+  "task_ref": "tasks/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T06:55:51Z",
+  "updated_at": "2026-09-21T06:59:56Z",
+  "base_revision": "b34fb5ec975b2c8fee14cf215c9c676a9e74706c",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.css"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "frontend/market-intelligence.css",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921.json",
+    "evidence/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921/**"
+  ],
+  "forbidden_actions": [
+    "HTML、JavaScript、服务端、接口、数据、部署、凭据、外部平台写入、其他 Agent 样式或布局颜色文案修改"
+  ],
+  "stop_conditions": [
+    "需要改动布局、颜色、文案、月报排版、前端逻辑或任何非市场情报样式"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"Compare the approved market-intelligence selectors with the final typography declarations in frontend/styles.css."},
+    {"acceptance_id":"AC-02","command":"Inspect the responsive and collapsed-sidebar selectors; render desktop and narrow viewport screenshots when the local workbench is available."},
+    {"acceptance_id":"AC-03","command":"git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA."}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Compare the approved market-intelligence selectors with the final typography declarations in frontend/styles.css.",
+      "verified_at": "2026-09-21T06:59:25Z",
+      "summary": "14 个选择器静态核对通过；批准范围内的字号、字重和行高均已对齐。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Inspect the responsive and collapsed-sidebar selectors; render desktop and narrow viewport screenshots when the local workbench is available.",
+      "verified_at": "2026-09-21T06:59:25Z",
+      "summary": "窄屏标题和侧栏折叠选择器均保留；隔离浏览器市场情报回归 129 项通过，未访问外部服务。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA.",
+      "verified_at": "2026-09-21T06:59:25Z",
+      "summary": "静态、启动检查和隔离浏览器回归已通过；关闭与远端 SHA 核验在终态完成。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-ALIGNMENT-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"not_needed","reason":"仅对已批准的视觉层级做 CSS 对齐，不改变方案选择。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"not_needed","reason":"不改变 Agent 流程、模块关系、公开入口或实现定位。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "市场情报字体层级已按投放执行基准完成最小 CSS 对齐。",
+    "side_effects": "仅调整市场情报 CSS、项目协调文件与验收证据；未改动布局、颜色、文案、HTML、JavaScript、接口或业务逻辑。",
+    "remaining_risks": ["桌面自动化连接不可用，未生成交互截图；隔离浏览器回归和静态响应式核对均已通过。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T06:59:56Z"
+}
