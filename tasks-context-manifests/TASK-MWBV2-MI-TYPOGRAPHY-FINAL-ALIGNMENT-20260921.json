@@ -1,0 +1,84 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921",
+  "task_ref": "tasks/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T07:24:21Z",
+  "updated_at": "2026-09-21T07:29:00Z",
+  "base_revision": "b4a8976ce9134d5393eb46d72b282b6ed4d94826",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "frontend/index.html",
+    "frontend/styles.css",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.css",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "frontend/market-intelligence.css",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.json",
+    "evidence/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921/**"
+  ],
+  "forbidden_actions": [
+    "HTML、JavaScript、服务端、接口、数据、凭据、外部平台写入、投放执行样式、颜色、月报内容或业务逻辑修改"
+  ],
+  "stop_conditions": [
+    "需要修改范围外文件、布局、颜色、业务逻辑、接口、数据或凭据",
+    "发布或根地址核验失败"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"Compare final market-intelligence CSS declarations for the conversation title, user menu and sidebar navigation with frontend/styles.css launch workspace declarations."},
+    {"acceptance_id":"AC-02","command":"Use the existing isolated browser regression and static selector checks to verify market message, status, preset, input, narrow-screen and collapsed-sidebar rules."},
+    {"acceptance_id":"AC-03","command":"node tests/market-intelligence.test.mjs; npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; npm run check:project -- --phase start/before-close/after-close; git diff --check."}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Compare final market-intelligence CSS declarations for the conversation title, user menu and sidebar navigation with frontend/styles.css launch workspace declarations.",
+      "verified_at": "2026-09-21T07:28:35Z",
+      "summary": "桌面标题为 16px/1.3/0，1024px 及以下为 15px；用户菜单为 13px/400，侧栏导航为 13px/normal，与投放执行对应规则一致。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Use the existing isolated browser regression and static selector checks to verify market message, status, preset, input, narrow-screen and collapsed-sidebar rules.",
+      "verified_at": "2026-09-21T07:28:35Z",
+      "summary": "消息、状态、快捷按钮和输入框规则保持原有已对齐值；窄屏和侧栏折叠规则未改动。隔离浏览器回归 129 项通过。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "node tests/market-intelligence.test.mjs; npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; npm run check:project -- --phase start/before-close/after-close; git diff --check.",
+      "verified_at": "2026-09-21T07:28:35Z",
+      "summary": "760b017 release 已加载到公司共享服务；实际 CSS 响应与 release 逐字一致且禁用缓存。任务关闭和远端 SHA 核验在终态完成。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"not_needed","reason":"仅收敛已批准的市场情报文案排版，不改变方案选择或 Agent 职责。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"not_needed","reason":"不改变 Agent 流程、模块关系、公开入口或实现定位。"},
+    {"ref":"deploy/README.md","status":"not_needed","reason":"按既有发布流程执行，不改变部署入口或操作规则。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "市场情报的剩余文案排版差异已按投放执行规则收敛，并已发布到公司共享服务。",
+    "side_effects": "仅修改市场情报 CSS 与任务证据；服务短暂重载。未改动 HTML、JavaScript、接口、数据、凭据、颜色、月报或业务逻辑。",
+    "remaining_risks": ["Codex 内置浏览器连接不可用，隔离未登录会话被重定向；实际服务 CSS 响应、固定 release 和现有浏览器回归已完成核验。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T07:29:00Z"
+}
