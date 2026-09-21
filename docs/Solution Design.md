@@ -21,7 +21,7 @@
 
 公共电脑在 2026-09-18 的人气值核查回复仅作历史参考：`0` 应表述为“平台报告值为 0”，不能推断投放效果或业务真实零值。工作台须使用 `popularity_points`、`observed_from`、`observed_to`、`points_returned` 等经过公共服务确认的字段，分别展示查询、有效观察及参考线覆盖范围；不得将全库更新时间表述为素材新鲜度。参考线是平台百分位基准，区间末值减初值仅为净变化，不表示连续上升。工作台现已严格投影上述字段并校验比较请求的素材数量；公共电脑接口交付与真实双机验证仍须独立完成。
 
-关联工作台 Task 从 `TASK-MWBV2-AGENT-RESPONSIBILITY-20260920` 开始顺序推进；`TASK-MWBV2-MI-SEARCH-REPORT-20260920` 完成查找素材与已采集样本 HTML 月报。素材比较、全量月度覆盖、报告历史、自动月报和投放策略仍作为后续独立 Task 验收。
+关联工作台 Task 从 `TASK-MWBV2-AGENT-RESPONSIBILITY-20260920` 开始顺序推进；`TASK-MWBV2-MI-SEARCH-REPORT-20260920` 已完成查找素材与已采集样本 HTML 月报的代码及模拟验证，真实联调未完成，任务按 cancelled 关闭；验收缺口以其 [Context Manifest](../tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json) 为准。素材比较、全量月度覆盖、报告历史、自动月报和投放策略仍作为后续独立 Task 验收。
 
 ## 已完成：市场情报最简只读对话（2026-09-18）
 

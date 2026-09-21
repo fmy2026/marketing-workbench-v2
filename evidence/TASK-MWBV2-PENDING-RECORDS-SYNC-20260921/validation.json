@@ -1,0 +1,85 @@
+{
+  "verified_at": "2026-09-21T06:23:54.501Z",
+  "historical_files_unchanged": [
+    {
+      "path": "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json",
+      "baseline_fingerprint": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+      "content_sha256": "da723f3d09a6e0e316ca18cd237b75d6fa94ec9f6a2e07f474d28016a0fda2cb"
+    },
+    {
+      "path": "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png",
+      "baseline_fingerprint": "sha256:775eaca2bd071d07d67e4afbf57e696c2ce264b724a447c3a75cd0b9164c3111",
+      "content_sha256": "a82f462812e12e88a1b5da521e1593dc7a3447cfe39d09201f41144488585350"
+    },
+    {
+      "path": "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png",
+      "baseline_fingerprint": "sha256:f7502c73bc3a39c4494b0a8619fca7ccb3c91479adde44119b17ea082b4a51a6",
+      "content_sha256": "2b2dcff52c8869d782b517dd33b730af5bb3ef1d40ca5476c3a04cd6b185d471"
+    },
+    {
+      "path": "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png",
+      "baseline_fingerprint": "sha256:885390509066664faa0b20b66033ae720fb57b6fb604c7906fd6be352ae59827",
+      "content_sha256": "9e6b1c78257cb0f13939d5ddc79f920415f022ef54921e1f66d0018c5b59f1ce"
+    },
+    {
+      "path": "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md",
+      "baseline_fingerprint": "sha256:955c89dab2a4e1bfabe14d50c12c75bc45484847a2906d102c5b010741f24df9",
+      "content_sha256": "060e690680b5681a7b029e9c659b16f32f043c17ce242d9a68be8c57836384a4"
+    },
+    {
+      "path": "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json",
+      "baseline_fingerprint": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+      "content_sha256": "94dc82abaf01bd83fb2405a8e43159dfae6758addaea2c43575803ae6ceb463e"
+    },
+    {
+      "path": "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+      "baseline_fingerprint": "sha256:b90a26a23ce782254720820da72e1e316d295346af885ad1554d6ebdeb661415",
+      "content_sha256": "4c229b565771a9a59b519f0dfa9b248ce7e24e677b6f45f6af793a7fba1d31e1"
+    },
+    {
+      "path": "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md",
+      "baseline_fingerprint": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+      "content_sha256": "6c36eb37ecc4bab99f6552a1c7d05dc07747cb4a80ef89235556b0fce437029d"
+    },
+    {
+      "path": "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md",
+      "baseline_fingerprint": "sha256:5d4a4782ac49c962e618a9738e664a57886b3e3f70fdb79c1a80eed7fcfc7f0f",
+      "content_sha256": "7b803d20e4006c41afc08dd0072c78548b01e1508ffaa71f5d7808bc73468373"
+    }
+  ],
+  "historical_statuses": {
+    "company_release": "completed",
+    "mi_search_report": "cancelled",
+    "mi_real_integration_ac07": "not_run"
+  },
+  "manual_review": "Reviewed both historical Task/Manifest pairs, text evidence and all three PNGs. Screenshots visibly use synthetic samples; no credential values observed. These are historical records, not new live acceptance.",
+  "template_matches_base": true,
+  "guardrails_unchanged": true,
+  "git_diff_check": "passed",
+  "validation_note": "Initial comparison incorrectly treated the checker fingerprint (content plus Git index) as a raw content hash. Corrected to compare captureBaseline fingerprints; all nine match.",
+  "start_check": {
+    "status": "passed",
+    "phase": "start",
+    "task_id": "TASK-MWBV2-PENDING-RECORDS-SYNC-20260921",
+    "task_status": "active",
+    "changed_files": [
+      "docs/Solution Design.md",
+      "project.state.json",
+      "tasks-context-manifests/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.json",
+      "tasks/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.md"
+    ],
+    "domains": [
+      "control"
+    ],
+    "acceptance_count": 2,
+    "structure": {
+      "archive_entry_count": 13,
+      "live_module_count": 186,
+      "task_manifest_pair_count": 290,
+      "migration_file_count": 100,
+      "qiankun_api_doc_ref": "docs/qiankun-api-docs-20260911.md"
+    },
+    "database_access": false,
+    "platform_access": false
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-PENDING-RECORDS-SYNC-20260921",
+  "task_ref": "tasks/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T06:23:01.606Z",
+  "updated_at": "2026-09-21T06:24:07.377Z",
+  "base_revision": "66a0b1e25f20a96f5346487da333286b9170e38a",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png": "sha256:775eaca2bd071d07d67e4afbf57e696c2ce264b724a447c3a75cd0b9164c3111",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png": "sha256:f7502c73bc3a39c4494b0a8619fca7ccb3c91479adde44119b17ea082b4a51a6",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png": "sha256:885390509066664faa0b20b66033ae720fb57b6fb604c7906fd6be352ae59827",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md": "sha256:955c89dab2a4e1bfabe14d50c12c75bc45484847a2906d102c5b010741f24df9",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json": "sha256:b90a26a23ce782254720820da72e1e316d295346af885ad1554d6ebdeb661415",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md": "sha256:5d4a4782ac49c962e618a9738e664a57886b3e3f70fdb79c1a80eed7fcfc7f0f",
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": [
+    "control"
+  ],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.json",
+    "docs/Solution Design.md"
+  ],
+  "reference_only": [
+    {
+      "ref": "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md",
+      "reason": "本次补交的历史材料，仅核对内容与既有结果，不作为运行真值或重新启用。"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json",
+      "reason": "仅核对历史终态与验收缺口，保持原样。"
+    },
+    {
+      "ref": "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md",
+      "reason": "本次补交的历史材料，仅核对内容与既有结果，不作为运行真值或重新启用。"
+    },
+    {
+      "ref": "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+      "reason": "仅核对历史终态与验收缺口，保持原样。"
+    }
+  ],
+  "allowed_writes": [
+    "tasks/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.json",
+    "project.state.json",
+    "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/**",
+    "docs/Solution Design.md",
+    "tasks/_templates/task.md",
+    "tasks/_templates/_task-templates.md",
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md"
+  ],
+  "forbidden_actions": [
+    "应用、数据库、平台、运行部署和凭据修改；补造历史证据；强推"
+  ],
+  "stop_conditions": [
+    "未知并发改动、敏感内容、合同校验失败或远端分歧"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "SHA-256 compare against captured baseline; review historical statuses and all three screenshots"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "Compare restored template with HEAD; inspect scoped diff; git diff --check; npm run check:project -- --phase start/before-close/after-close"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "SHA-256 compare against captured baseline; review historical statuses and all three screenshots",
+      "status": "passed",
+      "verified_at": "2026-09-21T06:23:54.501Z",
+      "summary": "九个历史文件指纹完全一致，历史状态及 AC-07 缺口保留；文本和合成截图已人工审阅。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/validation.json"
+      ]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "Compare restored template with HEAD; inspect scoped diff; git diff --check; npm run check:project -- --phase start/before-close/after-close",
+      "status": "passed",
+      "verified_at": "2026-09-21T06:23:54.501Z",
+      "summary": "模板与基线原文件一致；方案仅澄清验收边界；guardrails 未改变，start 和 git diff --check 通过。",
+      "evidence_refs": [
+        "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/validation.json",
+        "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/before-close.json"
+      ]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "updated",
+      "reason": "将市场情报完成范围限定为代码及模拟验证，并引用历史 Manifest 的真实联调缺口。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "补齐遗留历史材料并恢复标准模板路径；市场情报的未完成真实联调如实保留。",
+    "side_effects": "仅仓库任务合同、证据和一处文档说明；无部署、数据库或平台操作。",
+    "remaining_risks": [
+      "历史市场情报 AC-07 真实联调仍未运行；本次补交不改变该事实。"
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T06:24:07.377Z"
+}

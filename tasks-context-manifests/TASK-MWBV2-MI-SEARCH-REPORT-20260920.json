@@ -1,0 +1,115 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MI-SEARCH-REPORT-20260920",
+  "task_ref": "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md",
+  "status": "cancelled",
+  "created_at": "2026-09-20T06:59:58Z",
+  "updated_at": "2026-09-21T02:01:16Z",
+  "base_revision": "5e7705dc449dca985428a8d7706f5d69003e6e79",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+    "project.state.json": "sha256:736357e0e491c9df2c22b6f89c48c98a0352181bb357b5c4336baa0b3eec0892",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": ["control", "workflow", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/agents/marketIntelligenceConversation.mjs",
+    "src/platforms/marketIntelligenceClient.mjs",
+    "src/server/workbenchServer.mjs",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.mjs",
+    "frontend/market-intelligence.css",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/openaiCompatibleModelConfigTest.mjs",
+    "src/security/workbenchAgentModelCredentialStore.mjs"
+  ],
+  "reference_only": [
+    {
+      "ref": "/Users/hys/Desktop/市场情报-简洁场景版/01-查找素材.html",
+      "reason": "用户确认的视觉基准，不是运行时真值或实现依赖。"
+    },
+    {
+      "ref": "/Users/hys/Desktop/市场情报-简洁场景版/05-生成月报.html",
+      "reason": "用户确认的视觉基准，不是运行时真值或实现依赖。"
+    }
+  ],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/**",
+    "src/agents/agentRegistry.mjs",
+    "src/agents/marketIntelligenceConversation.mjs",
+    "src/agents/marketIntelligenceReport.mjs",
+    "src/agents/openaiCompatibleMarketIntelligenceModel.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "src/platforms/marketIntelligenceClient.mjs",
+    "src/server/workbenchServer.mjs",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.mjs",
+    "frontend/market-intelligence.css",
+    "tests/market-intelligence.test.mjs",
+    "tests/market-intelligence-report.test.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "docs/.问题排查/公共电脑-市场情报查询不到数据-排查请求-20260920.md"
+  ],
+  "forbidden_actions": [
+    "公共电脑采集、数据库迁移、市场情报数据持久化或任何投放平台写入",
+    "将 Token、模型凭证、原始响应、完整外部地址或原始对话写入项目、报告或证据",
+    "实现跨素材比较、ROI、投放建议、自动报告或长期记忆"
+  ],
+  "stop_conditions": [
+    "月份归属、分页或素材字段不能由真实公共电脑合同核验时，停止相关完成声明并保留缺口",
+    "需要新的公共电脑接口、模型凭证或任何外部写入授权时，不在本任务擅自执行",
+    "实现范围扩大到比较、持久化情报或投放策略时，暂停并形成独立方案"
+  ],
+  "open_gaps": [
+    "共享工作台已发布 cfa86d165d8fc6b97c1b3937fc987be725847a4c，但尚无获授权的真实公共电脑连接与已启用模型配置可供本 Task 复核；真实查询、MP4/WebM、模型和月报导出仍待登录用户联调。"
+  ],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"npm run test:market-intelligence && browser layout verification using authenticated local workbench"},
+    {"acceptance_id":"AC-02","command":"npm run test:market-intelligence && real read-only public-computer list/page/video evidence"},
+    {"acceptance_id":"AC-03","command":"node tests/market-intelligence-report.test.mjs"},
+    {"acceptance_id":"AC-04","command":"node tests/market-intelligence-report.test.mjs && npm run test:agent-model-config"},
+    {"acceptance_id":"AC-05","command":"node tests/market-intelligence-report.test.mjs && offline downloaded HTML verification"},
+    {"acceptance_id":"AC-06","command":"npm run test:agent-hub && npm run test:workbench-conversation && npm run test:market-intelligence"},
+    {"acceptance_id":"AC-07","command":"authenticated real query, MP4/WebM playback, configured model and HTML export evidence"}
+  ],
+  "validation_results": [
+    {"acceptance_id":"AC-01","status":"passed","command":"隔离 Chrome 已登录页面验证；npm run test:workbench-client-pages","verified_at":"2026-09-20T08:27:00Z","summary":"市场情报已实际渲染与投放执行一致的顶部栏、六模块侧栏和底部自然语言输入；候选发现、详情视频与月报操作可完成，390×844 窄屏为两列网格。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]},
+    {"acceptance_id":"AC-02","status":"passed","command":"node tests/market-intelligence.test.mjs；隔离 Chrome 候选发现流","verified_at":"2026-09-20T17:26:51Z","summary":"合成带凭证只读服务覆盖候选发现、快捷语句的发现优先级、真实响应名称投影、查询、分页、单素材重新读取、视频代理、MP4/WebM、连接隔离及来源状态，共 129 项。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]},
+    {"acceptance_id":"AC-03","status":"passed","command":"node tests/market-intelligence-report.test.mjs","verified_at":"2026-09-20T07:57:44Z","summary":"0、null、跨月、样本上限、轮流选样、候选未遍历完成、候选游戏去重和无样本路径均由合成合同覆盖。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]},
+    {"acceptance_id":"AC-04","status":"passed","command":"node tests/market-intelligence.test.mjs && npm run test:agent-model-config","verified_at":"2026-09-20T17:26:51Z","summary":"模型槽位证据、超时、非法输出、单素材模型观察和恶意素材脚本均回退；规则、模型采用和模型回退来源标识一致，配置保存、同版本测试、启用/停用、失败停用、并发版本拒绝和无头浏览器实际点击均通过。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]},
+    {"acceptance_id":"AC-05","status":"passed","command":"无头 Chrome 导出验证与离线 HTML 安全扫描","verified_at":"2026-09-20T07:20:25Z","summary":"人工编辑摘要与下载一致；合成导出文件扫描未发现脚本、外部 URL、凭证、session 或内部路径。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md","evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png"]},
+    {"acceptance_id":"AC-06","status":"passed","command":"npm run test:agent-model-config && npm run test:workbench-client-pages && npm run test:workbench-conversation","verified_at":"2026-09-20T17:26:51Z","summary":"模型配置、既有工作台页面与投放执行对话回归均通过；市场情报来源话术没有改变共享 Agent 壳层或投放执行流程。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]},
+    {"acceptance_id":"AC-07","status":"not_run","command":"获授权工作台用户进行真实公共电脑查询、MP4/WebM、已启用模型与 HTML 导出","verified_at":"2026-09-20T17:26:51Z","summary":"共享地址已切换到 f2f40066c3cb9e66a4530239a1fecc8d5eab5be7 并返回 HTTP 200，发布脚本已包含来源标识；本 Task 没有读取用户连接或模型凭据，真实跨机证据尚不可用。","evidence_refs":["evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md"]}
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"记录已采集样本月报的批准设计和后续范围。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"更新市场情报的查询、月报、模型和权限边界。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"记录候选核验、样本选取、模型投影和 HTML 导出合同。"},
+    {"ref":"deploy/README.md","status":"updated","reason":"更新设置入口、提问示例和模型配置说明。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已完成代码与模拟验证；获授权的真实公共电脑连接和已启用模型配置尚不可用，AC-07 保持未运行。用户批准优先处理追加视频流程清晰化。",
+    "side_effects": "无平台写入；已发布的只读市场情报页面保持可用。",
+    "remaining_risks": ["真实公共电脑查询、MP4/WebM、已启用模型与 HTML 导出仍需获授权用户联调。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T02:01:16Z"
+}

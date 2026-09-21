@@ -1,0 +1,28 @@
+{
+  "verified_at": "2026-09-21T06:24:08.139Z",
+  "status": "passed",
+  "phase": "after-close",
+  "task_id": "TASK-MWBV2-PENDING-RECORDS-SYNC-20260921",
+  "task_status": "completed",
+  "changed_files": [
+    "docs/Solution Design.md",
+    "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/before-close.json",
+    "evidence/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921/validation.json",
+    "project.state.json",
+    "tasks-context-manifests/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.json",
+    "tasks/TASK-MWBV2-PENDING-RECORDS-SYNC-20260921.md"
+  ],
+  "domains": [
+    "control"
+  ],
+  "acceptance_count": 2,
+  "structure": {
+    "archive_entry_count": 13,
+    "live_module_count": 186,
+    "task_manifest_pair_count": 290,
+    "migration_file_count": 100,
+    "qiankun_api_doc_ref": "docs/qiankun-api-docs-20260911.md"
+  },
+  "database_access": false,
+  "platform_access": false
+}
