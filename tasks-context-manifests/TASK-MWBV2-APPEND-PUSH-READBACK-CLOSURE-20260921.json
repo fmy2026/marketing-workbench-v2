@@ -4,7 +4,7 @@
   "task_ref": "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
   "status": "active",
   "created_at": "2026-09-21T02:39:14Z",
-  "updated_at": "2026-09-21T02:39:14Z",
+  "updated_at": "2026-09-21T02:54:22Z",
   "base_revision": "89ca2989899a877fbda0a4b47d780d6109b7e701",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md": "sha256:2ac15df6828bda260ebd676626214d286a2180650d73e318e469ce1128e6442c",
@@ -53,6 +53,8 @@
     "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
     "tasks-context-manifests/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.json",
     "evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/**",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.json",
+    "evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/**",
     "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
     "src/agents/conversationIntentResolver.mjs",
     "src/workflows/launchWorkflow.mjs",
@@ -80,7 +82,7 @@
     "无法保持确认、Plan、动作和只读证据精确绑定，或无法安全证明状态投影一致时不发布完成声明"
   ],
   "open_gaps": [
-    "真实追加不属于本 Task 验收；发布后需由账户本人对原 Case 发起只读恢复。"
+    "账户本人尚未在原 Case 执行“检查推送结果”的只读恢复；完成后应验证出现追加确认卡。真实追加不属于本 Task 验收。"
   ],
   "validation_plan": [
     {"acceptance_id":"AC-01","command":"npm run test:project-video-append"},
@@ -88,7 +90,40 @@
     {"acceptance_id":"AC-03","command":"npm run test:project-video-append && npm run test:workbench-progress"},
     {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && company workbench HTTP status check"}
   ],
-  "validation_results": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:project-video-append",
+      "verified_at": "2026-09-21T02:54:22Z",
+      "summary": "覆盖首次未可见、后续可见、原 Plan 收口、一次推送和不生成自动追加。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:project-video-append",
+      "verified_at": "2026-09-21T02:54:22Z",
+      "summary": "覆盖查询失败零核验计数、延迟可见、安全 evidence/readback 与较旧观察不覆盖较新状态。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-client-pages",
+      "verified_at": "2026-09-21T02:54:22Z",
+      "summary": "验证 Gate、命令、按钮、节点进度与工作台客户端投影使用同一只读恢复语义。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "not_run",
+      "command": "npm run workbench:release && npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root> && account-owner readonly recovery",
+      "verified_at": "2026-09-21T02:54:22Z",
+      "summary": "发布和公司工作台 HTTP 200 已验证；原 Case 的账户本人只读恢复尚未执行，Task 保持 active。",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
+    }
+  ],
   "documentation_updates": [
     {"ref":"docs/Solution Design.md","status":"updated","reason":"记录推送后延迟可见的原 Plan 只读收口与不重发边界。"},
     {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"记录追加素材推送的只读回查分支、节点和恢复提示。"},
