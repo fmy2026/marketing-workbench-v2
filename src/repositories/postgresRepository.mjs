@@ -4754,6 +4754,65 @@ export class PostgresRepository {
     return result || { consumed: false, jobUpdated: false, allSucceeded: false, readbackVerified: false };
   }
 
+  // Reserve one readonly round before leaving the database transaction.  A
+  // browser tab may disappear at any time, so a short expiry only prevents
+  // concurrent duplicate probes; it never grants a second platform write.
+  async claimProjectVideoMaterialPushReadbackRound({ jobId, planId, planHash, attemptIndex } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    if (!/^sha256:[a-f0-9]{64}$/i.test(String(planHash || ""))) throw new Error("project_video_material_push_plan_hash_invalid");
+    if (!Number.isInteger(Number(attemptIndex)) || Number(attemptIndex) < 0 || Number(attemptIndex) > 6) {
+      throw new Error("project_video_material_push_readback_attempt_invalid");
+    }
+    const result = await queryJson(`
+      WITH scope_lock AS (
+        SELECT pg_advisory_xact_lock(hashtextextended(${sqlLiteral(jobId)}, 0)) AS locked
+      ), target AS (
+        SELECT plan.plan_id
+        FROM mwb.launch_execution_plans plan
+        JOIN mwb.launch_jobs job ON job.job_id = plan.job_id
+        JOIN mwb.workflow_cases workflow_case ON workflow_case.case_id = job.case_id
+        CROSS JOIN scope_lock
+        WHERE plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_hash = ${sqlLiteral(planHash)}
+          AND plan.plan_status = 'consumed'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_material_push'
+          AND workflow_case.lifecycle_status = 'active'
+          AND job.job_id = (
+            SELECT latest_job.job_id FROM mwb.launch_jobs latest_job
+            WHERE latest_job.case_id = workflow_case.case_id
+            ORDER BY latest_job.updated_at DESC, latest_job.created_at DESC, latest_job.job_id DESC LIMIT 1
+          )
+          AND plan.plan_id = (
+            SELECT latest_plan.plan_id FROM mwb.launch_execution_plans latest_plan
+            WHERE latest_plan.job_id = job.job_id
+            ORDER BY latest_plan.plan_version DESC, latest_plan.updated_at DESC, latest_plan.plan_id DESC LIMIT 1
+          )
+          AND coalesce(plan.metadata->>'confirmed_execution_outcome', '') <> 'readback_verified'
+        FOR UPDATE OF plan, job, workflow_case
+      ), claimed AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET metadata = plan.metadata || jsonb_build_object(
+              'material_push_readback', coalesce(plan.metadata->'material_push_readback', '{}'::jsonb) || jsonb_build_object(
+                'claim_attempt_index', ${Number(attemptIndex)},
+                'claim_expires_at', (now() + interval '20 seconds')::text
+              )
+            ),
+            updated_at = now()
+        FROM target
+        WHERE plan.plan_id = target.plan_id
+          AND (
+            coalesce((plan.metadata->'material_push_readback'->>'claim_attempt_index')::integer, -1) <> ${Number(attemptIndex)}
+            OR coalesce((plan.metadata->'material_push_readback'->>'claim_expires_at')::timestamptz, '-infinity'::timestamptz) < now()
+          )
+        RETURNING plan.plan_id
+      )
+      SELECT jsonb_build_object('claimed', EXISTS (SELECT 1 FROM claimed))::text;
+    `, this.database);
+    return result || { claimed: false };
+  }
+
   // A material-push confirmation is consumed after its single platform call,
   // but its authoritative visibility can arrive later.  This method records
   // each later readonly observation against that exact consumed Plan without
@@ -4766,6 +4825,12 @@ export class PostgresRepository {
     }
     const observedAt = String(observation.fieldDiffSummary?.observed_at || "").trim();
     if (!Number.isFinite(Date.parse(observedAt))) throw new Error("project_video_material_push_observation_time_invalid");
+    const observationPlanHash = String(observation.fieldDiffSummary?.plan_hash || "").trim();
+    const observationBatchCount = Number(observation.fieldDiffSummary?.batch_count);
+    const observationAttemptIndex = Number(observation.fieldDiffSummary?.readback_schedule?.attempt_index);
+    if (!/^sha256:[a-f0-9]{64}$/i.test(observationPlanHash) || !Number.isInteger(observationBatchCount) || observationBatchCount < 1 || !Number.isInteger(observationAttemptIndex) || observationAttemptIndex < 0) {
+      throw new Error("project_video_material_push_observation_binding_invalid");
+    }
     if (!evidence?.artifactId || !evidence?.contentHash || !evidence?.artifactType || !evidence?.title || !evidence?.summary || !evidence?.storageRef || !evidence?.sourceRef) {
       throw new Error("project_video_material_push_evidence_invalid");
     }
@@ -4786,6 +4851,8 @@ export class PostgresRepository {
             values_row.diagnostic_level, values_row.output_summary, values_row.evidence_refs,
             now(), CASE WHEN values_row.status IN ('passed', 'repairable', 'needs_confirmation', 'blocked', 'locked', 'failed') THEN now() ELSE NULL END
           FROM target
+          CROSS JOIN observation_row
+          CROSS JOIN evidence_row
           CROSS JOIN (VALUES ${nodeRuns.map((node) => `(
             ${sqlLiteral(`${jobId}-${node.order}`)}, ${sqlLiteral(node.nodeKey)}, ${sqlLiteral(node.nodeName)},
             ${sqlLiteral(node.phase)}, ${sqlLiteral(node.status)}, ${sqlLiteral(node.summary)},
@@ -4805,18 +4872,35 @@ export class PostgresRepository {
       : `, nodes AS (SELECT node_key FROM mwb.launch_node_runs WHERE false)`;
     const result = await queryJson(`
       WITH target AS (
-        SELECT job.job_id, job.case_id, plan.plan_id
+        SELECT job.job_id, job.case_id, job.advertiser_id, plan.plan_id, plan.plan_hash,
+          jsonb_array_length(coalesce(plan.metadata->'push_batches', '[]'::jsonb)) AS expected_batch_count
         FROM mwb.launch_jobs job
         JOIN mwb.launch_execution_plans plan ON plan.job_id = job.job_id
         WHERE job.job_id = ${sqlLiteral(jobId)}
           AND plan.plan_id = ${sqlLiteral(planId)}
           AND plan.plan_status IN ('executing', 'consumed')
+          AND plan.plan_hash = ${sqlLiteral(observationPlanHash)}
+          AND job.advertiser_id = ${sqlLiteral(observation.objectId)}
           AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_material_push'
           AND EXISTS (
             SELECT 1 FROM mwb.launch_confirmations confirmation
             WHERE confirmation.job_id = plan.job_id
               AND confirmation.plan_id = plan.plan_id
               AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+          AND plan.plan_id = (
+            SELECT latest.plan_id
+            FROM mwb.launch_execution_plans latest
+            WHERE latest.job_id = job.job_id
+            ORDER BY latest.plan_version DESC, latest.updated_at DESC, latest.plan_id DESC
+            LIMIT 1
+          )
+          AND job.job_id = (
+            SELECT latest_job.job_id
+            FROM mwb.launch_jobs latest_job
+            WHERE latest_job.case_id = job.case_id
+            ORDER BY latest_job.updated_at DESC, latest_job.created_at DESC, latest_job.job_id DESC
+            LIMIT 1
           )
         FOR UPDATE OF job, plan
       ), terminal_actions AS (
@@ -4836,20 +4920,23 @@ export class PostgresRepository {
           ${sqlJson({ ...(observation.fieldDiffSummary || {}), plan_id: planId })},
           ${sqlLiteral(observation.evidenceRef)}, now()
         FROM target
-        WHERE (SELECT total = succeeded AND total > 0 FROM terminal_actions)
+        WHERE target.expected_batch_count = ${observationBatchCount}
+          AND (SELECT total = succeeded AND total = target.expected_batch_count AND total > 0 FROM terminal_actions)
           AND NOT EXISTS (
             SELECT 1
             FROM mwb.readback_records newer
             WHERE newer.job_id = target.job_id
               AND newer.object_type = 'oc_project_video_material_push'
               AND coalesce(newer.field_diff_summary->>'plan_id', '') = ${sqlLiteral(planId)}
-              AND coalesce(newer.field_diff_summary->>'observed_at', '') > ${sqlLiteral(observedAt)}
+              AND (
+                coalesce((newer.field_diff_summary->'readback_schedule'->>'attempt_index')::integer, -1) > ${observationAttemptIndex}
+                OR (
+                  coalesce((newer.field_diff_summary->'readback_schedule'->>'attempt_index')::integer, -1) = ${observationAttemptIndex}
+                  AND coalesce(newer.field_diff_summary->>'observed_at', '') >= ${sqlLiteral(observedAt)}
+                )
+              )
           )
-        ON CONFLICT (readback_id) DO UPDATE SET
-          readback_status = EXCLUDED.readback_status,
-          field_diff_summary = EXCLUDED.field_diff_summary,
-          evidence_ref = EXCLUDED.evidence_ref,
-          created_at = EXCLUDED.created_at
+        ON CONFLICT (readback_id) DO NOTHING
         RETURNING readback_id
       ), evidence_row AS (
         INSERT INTO mwb.evidence_artifacts (
@@ -4863,16 +4950,7 @@ export class PostgresRepository {
           ${sqlLiteral(evidence.sourceUsage || "runtime_truth")}, now()
         FROM target
         WHERE EXISTS (SELECT 1 FROM observation_row)
-        ON CONFLICT (artifact_id) DO UPDATE SET
-          job_id = EXCLUDED.job_id,
-          artifact_type = EXCLUDED.artifact_type,
-          title = EXCLUDED.title,
-          summary = EXCLUDED.summary,
-          content_hash = EXCLUDED.content_hash,
-          storage_ref = EXCLUDED.storage_ref,
-          source_ref = EXCLUDED.source_ref,
-          source_usage = EXCLUDED.source_usage,
-          created_at = EXCLUDED.created_at
+        ON CONFLICT (artifact_id) DO NOTHING
         RETURNING artifact_id
       )
       ${nodeStatement}, plan_finalized AS (
@@ -4884,7 +4962,8 @@ export class PostgresRepository {
               'root_blocker_codes', ${verified ? "'[]'::jsonb" : sqlJson([blocker || "project_video_material_push_readback_unresolved"])},
               'retry_allowed', false,
               'platform_action_count', (SELECT total FROM terminal_actions),
-              'latest_readback_id', ${sqlLiteral(observation.readbackId)}
+              'latest_readback_id', ${sqlLiteral(observation.readbackId)},
+              'material_push_readback', ${sqlJson(observation.fieldDiffSummary?.readback_schedule || {})}
             ),
             updated_at = now()
         FROM target
@@ -4895,7 +4974,7 @@ export class PostgresRepository {
       ), job_finalized AS (
         UPDATE mwb.launch_jobs job
         SET job_status = ${verified ? "'running'" : "'blocked'"},
-            current_node = '4',
+            current_node = ${verified ? "'5'" : "'4'"},
             updated_at = now()
         FROM target
         WHERE job.job_id = target.job_id
@@ -4907,7 +4986,7 @@ export class PostgresRepository {
         'evidenceRecorded', EXISTS (SELECT 1 FROM evidence_row),
         'nodesUpdated', (SELECT count(*) FROM nodes),
         'jobUpdated', EXISTS (SELECT 1 FROM job_finalized),
-        'readbackVerified', ${verified ? "EXISTS (SELECT 1 FROM observation_row)" : "false"},
+        'readbackVerified', ${verified ? "EXISTS (SELECT 1 FROM plan_finalized)" : "false"},
         'blocker', ${sqlLiteral(verified ? "" : blocker || "project_video_material_push_readback_unresolved")}
       )::text;
     `, this.database);

@@ -91,6 +91,8 @@ export async function handleWorkbenchCommand({
   message = "",
   expectedPlanId = "",
   expectedPlanHash = "",
+  readbackMode = "",
+  readbackAttemptIndex = null,
   currentUser = null,
   resolver,
   projectStatePath,
@@ -160,7 +162,19 @@ export async function handleWorkbenchCommand({
     });
   }
   if (interaction.effect === "run_project_video_material_push_readback") {
-    const nextView = await runProjectVideoMaterialPushReadbackFn(repo, jobId, { projectStatePath, qiankunOwnerKey });
+    const readback = view?.materialPushReadback || {};
+    if ((expectedPlanId && clean(expectedPlanId) !== clean(readback.planId)) ||
+      (expectedPlanHash && clean(expectedPlanHash) !== clean(readback.planHash))) {
+      return response({ view, interaction: { ...interaction, effect: "readonly_recovery_stale", message: "当前推送回查上下文已更新；未执行查询，请刷新后按当前状态继续。" } });
+    }
+    const nextView = await runProjectVideoMaterialPushReadbackFn(repo, jobId, {
+      projectStatePath,
+      qiankunOwnerKey,
+      expectedPlanId,
+      expectedPlanHash,
+      readbackMode,
+      readbackAttemptIndex
+    });
     const appendConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
       nextView?.confirmationPreview?.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND;
     return response({
@@ -170,7 +184,11 @@ export async function handleWorkbenchCommand({
         confirmationPreview: nextView?.confirmationPreview || null,
         message: appendConfirmation
           ? "素材推送已通过权威只读回查；当前 Job 已生成追加视频确认卡。"
-          : "素材推送仍未通过权威只读回查；不会重复推送，请按当前卡点处理。"
+          : nextView?.materialPushReadback?.automaticAllowed
+            ? `素材推送已受理，已核验 ${nextView.materialPushReadback.verifiedCount}/${nextView.materialPushReadback.requestedCount}；正在按计划继续只读检查，不会重复推送。`
+            : nextView?.caseGate?.rootBlockerCodes?.[0] === "project_video_material_push_readback_query_failed"
+              ? "素材推送已受理，但本次只读查询未完成；请处理凭据或网络后检查推送结果，不会重复推送。"
+              : "素材推送尚未确认全部视频；自动检查窗口已结束，不会重复推送，请检查推送结果。"
       }
     });
   }
@@ -531,6 +549,8 @@ export async function handleWorkbenchCommand({
   const resourcePlatformWriteCalled = isResourcePrepare &&
     Array.isArray(executed.outputSummary?.actionResults) &&
     executed.outputSummary.actionResults.some((item) => item?.platformWriteCalled === true);
+  const materialPushPlatformWriteCalled = confirmationPreview.planKind === PLAN_KIND_PROJECT_VIDEO_MATERIAL_PUSH &&
+    executed.executionGrant?.materialPushCalled === true;
   let nextView = isMonitorBootstrap || isResourcePrepare
     ? await getJobViewFn(repo, jobId, { projectStatePath })
     : executed;
@@ -579,6 +599,10 @@ export async function handleWorkbenchCommand({
                 ? presentation
                   ? `受控资源动作已调用平台，但权威只读回查未确认；不会重发该平台动作。${presentation.nextActionLabel}`
                   : "受控资源动作已调用平台，但权威只读回查未确认；不会重发，请重新只读核验。"
+                : materialPushPlatformWriteCalled
+                ? presentation
+                  ? `素材推送已调用平台，但权威只读回查未确认；不会重复推送。${presentation.nextActionLabel}`
+                  : "素材推送已调用平台，但权威只读回查未确认；不会重复推送，请检查推送结果。"
                 : presentation
                 ? `未执行受控动作：${presentation.title}。${presentation.nextActionLabel}`
                 : "受控动作未完成权威回查；不会重发，请重新只读核验。";

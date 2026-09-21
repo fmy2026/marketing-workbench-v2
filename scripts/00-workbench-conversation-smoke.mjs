@@ -64,6 +64,20 @@ assert(resolvedFrozenSubmission.jobId === "JOB-SUBMISSION-OLD", "confirmation_su
 assert(resolvedFrozenSubmission.planId === "PLAN-SUBMISSION-OLD", "confirmation_submission_plan_id_must_not_drift");
 assert(resolvedFrozenSubmission.planHash === `sha256:${"a".repeat(64)}`, "confirmation_submission_plan_hash_must_not_drift");
 assert(resolvedFrozenSubmission.message === "确认创建", "confirmation_submission_phrase_must_not_drift");
+const resolvedFrozenPushReadback = resolveJobCommandSubmission({
+  job: { jobId: "JOB-SUBMISSION-NEW" },
+  message: "检查推送结果",
+  submission: {
+    jobId: "JOB-PUSH-READBACK",
+    planId: "PLAN-PUSH-READBACK",
+    planHash: `sha256:${"c".repeat(64)}`,
+    message: "检查推送结果",
+    readbackMode: "auto",
+    readbackAttemptIndex: 3
+  }
+});
+assert(resolvedFrozenPushReadback.jobId === "JOB-PUSH-READBACK" && resolvedFrozenPushReadback.planId === "PLAN-PUSH-READBACK" && resolvedFrozenPushReadback.planHash === `sha256:${"c".repeat(64)}`, "push_readback_submission_must_keep_frozen_binding");
+assert(resolvedFrozenPushReadback.readbackMode === "auto" && resolvedFrozenPushReadback.readbackAttemptIndex === 3, "push_readback_submission_must_keep_scheduled_round");
 assert(freezeConfirmationSubmission({ job: { jobId: "JOB-MISSING" }, preview: { planId: "PLAN-MISSING" } }) === null, "incomplete_confirmation_submission_must_block");
 
 assert(

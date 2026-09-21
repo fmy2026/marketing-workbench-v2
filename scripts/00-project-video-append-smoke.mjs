@@ -3,6 +3,7 @@ import {
   buildProjectVideoAppendPlan,
   buildProjectVideoAppendWireBody,
   PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY,
+  PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS,
   buildProjectVideoMaterialPushPlan,
   executeProjectVideoAppendOnce,
   executeProjectVideoMaterialPushOnce,
@@ -19,7 +20,7 @@ import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/pl
 import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
 import { operationContract } from "../src/workflows/launchOperationContracts.mjs";
-import { finalizeProjectVideoAppendReadbackObservation, presentRootBlocker, projectVideoMaterialPushReadbackNodeRuns, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
+import { buildLaunchJobView, finalizeProjectVideoAppendReadbackObservation, presentRootBlocker, projectVideoMaterialPushReadbackNodeRuns, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
 import { PostgresRepository } from "../tests/support/repository.mjs";
 
 function assert(value, message) { if (!value) throw new Error(message); }
@@ -123,6 +124,29 @@ const failedPushReadback = await observeProjectVideoMaterialPushReadback({
   readonlyClient: { async get() { return { status: "blocked", httpStatus: 503, apiCode: "", responseHash: "sha256:query-failed", summary: {} }; } }
 });
 assert(failedPushReadback.blocker === "project_video_material_push_readback_query_failed" && failedPushReadback.verifiedCount === 0 && failedPushReadback.readback.fieldDiffSummary.query_failed === true, "material_push_query_failure_must_not_count_as_verified");
+assert(failedPushReadback.readbackSchedule.automatic_allowed === false, "query_failed_push_readback_must_stop_automatic_schedule");
+const scheduledPushReadbackBundle = {
+  job: { job_id: "JOB-PUSH-SCHEDULE", advertiser_id: request.advertiser_id, source_usage: "test_run" },
+  executionPlan: {
+    plan_id: "PLAN-PUSH-SCHEDULE", plan_hash: `sha256:${"a".repeat(64)}`, plan_kind: "project_video_material_push", plan_status: "consumed",
+    metadata: { push_batches: [{ batch_index: 1, origin_resource_ids: ["video-C"], source_video_ids: [opaqueVideoId] }] }
+  }
+};
+const scheduledAt = "2026-09-21T02:30:00.000Z";
+const scheduledThirtySeconds = await observeProjectVideoMaterialPushReadback({
+  bundle: scheduledPushReadbackBundle,
+  acceptedAt: scheduledAt,
+  attemptIndex: 3,
+  readonlyClient: { async get() { return { status: "passed", responseHash: "sha256:scheduled-30", summary: { visibleVideoIds: [] } }; } }
+});
+assert(scheduledThirtySeconds.readbackSchedule.attempt_offset_ms === 30_000 && scheduledThirtySeconds.readbackSchedule.next_attempt_index === 4 && scheduledThirtySeconds.readbackSchedule.automatic_allowed === true, "material_push_schedule_must_continue_at_30_seconds");
+const scheduledFinalRound = await observeProjectVideoMaterialPushReadback({
+  bundle: scheduledPushReadbackBundle,
+  acceptedAt: scheduledAt,
+  attemptIndex: 6,
+  readonlyClient: { async get() { return { status: "passed", responseHash: "sha256:scheduled-180", summary: { visibleVideoIds: [] } }; } }
+});
+assert(PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS.join(",") === "0,10000,20000,30000,60000,120000,180000" && scheduledFinalRound.readbackSchedule.attempt_offset_ms === 180_000 && scheduledFinalRound.readbackSchedule.automatic_allowed === false, "material_push_schedule_must_end_at_180_seconds");
 const opaqueVideoTransport = videoMaterialBatchBindTransportPayload({ sourceAdvertiserId: "2234567890123456", targetAdvertiserId: request.advertiser_id, videoIds: [opaqueVideoId] });
 assert(typeof opaqueVideoTransport.video_ids[0] === "string" && opaqueVideoTransport.video_ids[0] === opaqueVideoId, "target_push_transport_must_keep_opaque_video_id_string");
 const caseVariant = opaqueVideoId.replace("v020", "V020");
@@ -552,7 +576,11 @@ async function createPushClosureFixture(suffix) {
     plannedActions: [{ action_type: "oc_project_video_material_push", status: "ready", maximum_platform_calls: 1 }],
     blockerCodes: [],
     sourceUsage: "test_run",
-    metadata: { plan_kind: "project_video_material_push", execution_scope: { binding_mode: "single_confirmation_plan" } }
+    metadata: {
+      plan_kind: "project_video_material_push",
+      execution_scope: { binding_mode: "single_confirmation_plan" },
+      push_batches: [{ batch_index: 1, source_video_ids: [opaqueVideoId] }]
+    }
   });
   const confirmationId = `CONFIRM-TEST-PUSH-CLOSURE-${suffix}`;
   const confirmation = await repository.claimLaunchExecutionPlanConfirmation({
@@ -581,7 +609,7 @@ async function createPushClosureFixture(suffix) {
     attemptNo: 1,
     idempotencyKey: `test-push-closure:${suffix}`
   });
-  return { jobId, planId };
+  return { jobId, planId, planHash };
 }
 const verifiedClosure = await createPushClosureFixture("VERIFIED");
 await repository.upsertReadbackRecord({
@@ -617,7 +645,15 @@ const delayedFirstObservation = {
     readbackId: `READBACK-${delayedClosure.jobId}-FIRST`,
     objectId: testScope.advertiserId,
     readbackStatus: "not_found_or_mismatch",
-    fieldDiffSummary: { requested_count: 1, verified_count: 0, unresolved_count: 1, query_failed: false, blocker: "project_video_material_push_readback_unresolved", observed_at: "2026-09-21T02:40:00.000Z", response_persisted: false },
+    fieldDiffSummary: {
+      plan_id: delayedClosure.planId,
+      plan_hash: delayedClosure.planHash,
+      batch_count: 1,
+      requested_count: 1, verified_count: 0, unresolved_count: 1, query_failed: false,
+      blocker: "project_video_material_push_readback_unresolved", observed_at: "2026-09-21T02:40:00.000Z",
+      readback_schedule: { attempt_index: 0, next_attempt_index: 1, automatic_allowed: true },
+      response_persisted: false
+    },
     evidenceRef: `EV-${delayedClosure.jobId}-FIRST`
   },
   evidence: {
@@ -634,6 +670,9 @@ const delayedFirst = await repository.reconcileConfirmedProjectVideoMaterialPush
 assert(delayedFirst.observationRecorded === true && delayedFirst.evidenceRecorded === true && delayedFirst.readbackVerified === false, "delayed_push_first_observation_must_be_atomically_recorded");
 const delayedBlockedBundle = await repository.getLaunchJobBundle(delayedClosure.jobId);
 assert(delayedBlockedBundle?.job?.job_status === "blocked" && delayedBlockedBundle?.nodes?.find((node) => node.node_key === "account_resource_prepare")?.status === "blocked", "delayed_push_must_stop_at_target_account_readback");
+const claimedDelayedRound = await repository.claimProjectVideoMaterialPushReadbackRound({ ...delayedClosure, attemptIndex: 1 });
+const duplicateDelayedRound = await repository.claimProjectVideoMaterialPushReadbackRound({ ...delayedClosure, attemptIndex: 1 });
+assert(claimedDelayedRound.claimed === true && duplicateDelayedRound.claimed === false, "delayed_push_round_must_be_claimed_once");
 const delayedSecondObservation = {
   ...delayedFirstObservation,
   status: "passed",
@@ -644,7 +683,15 @@ const delayedSecondObservation = {
     ...delayedFirstObservation.readback,
     readbackId: `READBACK-${delayedClosure.jobId}-SECOND`,
     readbackStatus: "readback_verified",
-    fieldDiffSummary: { requested_count: 1, verified_count: 1, unresolved_count: 0, query_failed: false, blocker: "", observed_at: "2026-09-21T02:41:00.000Z", response_persisted: false },
+    fieldDiffSummary: {
+      plan_id: delayedClosure.planId,
+      plan_hash: delayedClosure.planHash,
+      batch_count: 1,
+      requested_count: 1, verified_count: 1, unresolved_count: 0, query_failed: false,
+      blocker: "", observed_at: "2026-09-21T02:41:00.000Z",
+      readback_schedule: { attempt_index: 1, next_attempt_index: 2, automatic_allowed: false },
+      response_persisted: false
+    },
     evidenceRef: `EV-${delayedClosure.jobId}-SECOND`
   },
   evidence: {
@@ -663,6 +710,8 @@ assert(delayedSecond.observationRecorded === true && delayedSecond.readbackVerif
 const delayedRecoveredBundle = await repository.getLaunchJobBundle(delayedClosure.jobId);
 assert(delayedRecoveredBundle?.job?.job_status === "running" && delayedRecoveredBundle?.executionPlan?.plan_status === "consumed" && delayedRecoveredBundle?.executionPlan?.metadata?.confirmed_execution_outcome === "readback_verified", "delayed_push_recovery_must_not_reopen_or_reexecute_plan");
 assert((delayedRecoveredBundle?.nodes || []).find((node) => node.node_key === "account_resource_prepare")?.status === "passed", "delayed_push_recovery_must_update_node_projection");
+const delayedPushView = buildLaunchJobView(delayedRecoveredBundle, {}, {}, null, null);
+assert(delayedPushView.progress.completedCount === 4 && delayedPushView.phases.flatMap((phase) => phase.nodes).find((node) => node.id === "readback_closer")?.status === "waiting", "material_push_readback_must_not_complete_project_append_node");
 const staleDelayedObservation = {
   ...delayedFirstObservation,
   readback: {
@@ -684,6 +733,7 @@ const staleDelayed = await repository.reconcileConfirmedProjectVideoMaterialPush
 });
 assert(staleDelayed.observationRecorded === false && staleDelayed.readbackVerified === false, "stale_push_readback_must_not_replace_newer_observation");
 assert((await repository.getLaunchJobBundle(delayedClosure.jobId))?.job?.job_status === "running", "stale_push_readback_must_not_overwrite_recovered_job");
+assert((await repository.getLaunchJobBundle(delayedClosure.jobId))?.nodes?.find((node) => node.node_key === "account_resource_prepare")?.status === "passed", "stale_push_readback_must_not_overwrite_nodes");
 const appendReadbackCaseId = "CASE-TEST-APPEND-READBACK";
 const appendReadbackJobId = "JOB-TEST-APPEND-READBACK";
 const appendReadbackPlanId = "PLAN-TEST-APPEND-READBACK";

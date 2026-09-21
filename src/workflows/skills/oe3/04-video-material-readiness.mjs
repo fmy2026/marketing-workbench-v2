@@ -535,6 +535,34 @@ function videoQueryFor(item, advertiserId) {
   };
 }
 
+// Deliberately small shared primitive for consumers that already own a
+// frozen OceanEngine video_id set.  It performs no persistence and does not
+// infer a material code, cover, or resource contract.
+export async function probeFrozenTargetVideoIds({
+  client = createOceanEngineReadonlyClient(), advertiserId = "", videoIds = [], label = "frozen_target_video_ids"
+} = {}) {
+  const ids = [...new Set((videoIds || []).map(clean).filter(Boolean))];
+  if (!clean(advertiserId) || !ids.length || ids.length > 50) {
+    throw new Error("frozen_target_video_ids_invalid");
+  }
+  return client.get({
+    label,
+    endpoint: "file/video/get",
+    query: {
+      advertiser_id: clean(advertiserId),
+      filtering: JSON.stringify({ video_ids: ids }),
+      page: "1",
+      page_size: "100"
+    },
+    requestFieldManifest: ["advertiser_id", "filtering", "page", "page_size"],
+    summarize: (payload) => ({
+      visibleVideoIds: (Array.isArray(payload?.data?.list) ? payload.data.list : [])
+        .map((item) => clean(item?.video_id || item?.videoId || item?.id))
+        .filter(Boolean)
+    })
+  });
+}
+
 function coverQueryFor(item, advertiserId) {
   return {
     advertiser_id: advertiserId,

@@ -852,6 +852,8 @@ async function handleApi(req, res, url) {
       message: body.message || body.user_intent || body.userIntent || "",
       expectedPlanId: body.expected_plan_id || body.expectedPlanId || "",
       expectedPlanHash: body.expected_plan_hash || body.expectedPlanHash || "",
+      readbackMode: body.readback_mode || body.readbackMode || "",
+      readbackAttemptIndex: body.readback_attempt_index ?? body.readbackAttemptIndex,
       currentUser: auth.user,
       resolver: await resolverForCurrentUser(auth.user.user_id)
     }));

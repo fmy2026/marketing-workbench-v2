@@ -5,6 +5,7 @@ import { credentialReady, getOceanEngineCredentialSummary, readOceanEngineEnv } 
 import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
 import { filenameMatchesMaterialCode } from "./materialCodeMatcher.mjs";
 import { videoMaterialBatchBindTransportPayload } from "./oceanengineVideoMaterialExecutor.mjs";
+import { probeFrozenTargetVideoIds } from "../workflows/skills/oe3/04-video-material-readiness.mjs";
 import { buildLosslessJsonWireBody } from "../workflows/skills/oe3/05-std-project-create-wire-body.mjs";
 import { STD_PROJECT_40100_REDELIVERY_POLICY, stdProjectRateLimitRedeliverySchedule } from "./oceanengineStdProjectCreateExecutor.mjs";
 
@@ -14,6 +15,8 @@ export const PROJECT_VIDEO_MATERIAL_PUSH_ACTION = "oc_project_video_material_pus
 export const PROJECT_VIDEO_MATERIAL_PUSH_ENDPOINT = "/open_api/2/file/material/bind/";
 export const PROJECT_VIDEO_APPEND_MAX_ITEMS = 100;
 export const PROJECT_VIDEO_MATERIAL_PUSH_BATCH_SIZE = 50;
+export const PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS = Object.freeze([0, 10_000, 20_000, 30_000, 60_000, 120_000, 180_000]);
+export const PROJECT_VIDEO_MATERIAL_PUSH_READBACK_SCHEDULE_VERSION = "project_video_material_push_v1_0_10_20_30_60_120_180";
 export const PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY = Object.freeze({
   endpoint: PROJECT_VIDEO_APPEND_ENDPOINT,
   api_code: "40100",
@@ -738,7 +741,38 @@ function pushReadbackIds(bundle = {}) {
   return batches.flatMap((batch) => pushBatchVideoIds(batch));
 }
 
-function safePushReadbackEvidence({ bundle, idSuffix, status, blocker, requestedCount, verifiedCount, responseHashes = [], diagnostics = [] } = {}) {
+function validIso(value = "") {
+  return Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : "";
+}
+
+function pushReadbackSchedule({ plan = {}, observedAt = "", attemptIndex = 0, acceptedAt = "" } = {}) {
+  const prior = plan.metadata?.material_push_readback || {};
+  const windowStartedAt = validIso(prior.window_started_at) || validIso(acceptedAt) || validIso(observedAt);
+  const index = Number.isInteger(Number(attemptIndex)) && Number(attemptIndex) >= 0
+    ? Number(attemptIndex)
+    : 0;
+  const currentOffsetMs = PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS[index] ?? PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS.at(-1);
+  const nextAttemptIndex = index + 1 < PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS.length ? index + 1 : null;
+  const nextAttemptAt = nextAttemptIndex === null || !windowStartedAt
+    ? ""
+    : new Date(Date.parse(windowStartedAt) + PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS[nextAttemptIndex]).toISOString();
+  const windowEndsAt = windowStartedAt
+    ? new Date(Date.parse(windowStartedAt) + PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS.at(-1)).toISOString()
+    : "";
+  return {
+    version: PROJECT_VIDEO_MATERIAL_PUSH_READBACK_SCHEDULE_VERSION,
+    window_started_at: windowStartedAt,
+    window_ends_at: windowEndsAt,
+    attempt_index: index,
+    attempt_offset_ms: currentOffsetMs,
+    next_attempt_index: nextAttemptIndex,
+    next_attempt_at: nextAttemptAt,
+    automatic_allowed: nextAttemptIndex !== null,
+    schedule_offsets_ms: PROJECT_VIDEO_MATERIAL_PUSH_READBACK_DELAYS_MS
+  };
+}
+
+function safePushReadbackEvidence({ bundle, idSuffix, status, blocker, requestedCount, verifiedCount, responseHashes = [], diagnostics = [], schedule = {} } = {}) {
   const responseHash = responseHashes.length ? hash(canonical(responseHashes)) : "";
   const sampledDiagnostics = diagnostics.map((item) => ({
     batch_index: Number(item.batchIndex || 0),
@@ -757,6 +791,7 @@ function safePushReadbackEvidence({ bundle, idSuffix, status, blocker, requested
       `verified_count=${verifiedCount}`,
       `unresolved_count=${Math.max(0, requestedCount - verifiedCount)}`,
       `blocker=${blocker || "none"}`,
+      `attempt_index=${Number(schedule.attempt_index || 0)}`,
       `response_hash_present=${Boolean(responseHash)}`,
       "response_body_stored=false"
     ].join("; "),
@@ -779,7 +814,7 @@ function safePushReadbackEvidence({ bundle, idSuffix, status, blocker, requested
 // This is intentionally a narrow, side-effect-free probe.  Material bind
 // preserves the frozen video ID, so checking those IDs is both cheaper and
 // safer than re-inferring identity from the whole target inventory.
-export async function observeProjectVideoMaterialPushReadback({ bundle, readonlyClient = createOceanEngineReadonlyClient() } = {}) {
+export async function observeProjectVideoMaterialPushReadback({ bundle, readonlyClient = createOceanEngineReadonlyClient(), attemptIndex = 0, acceptedAt = "" } = {}) {
   const observedAt = new Date().toISOString();
   const idSuffix = `${Date.now()}-${randomBytes(4).toString("hex").toUpperCase()}`;
   const plan = bundle?.executionPlan || {};
@@ -795,19 +830,11 @@ export async function observeProjectVideoMaterialPushReadback({ bundle, readonly
   }
   const probes = await Promise.all(batches.map(async (batch, index) => {
     const videoIds = pushBatchVideoIds(batch);
-    const result = await readonlyClient.get({
-      label: `project_video_material_push_readback_${index + 1}`,
-      endpoint: "file/video/get",
-      query: {
-        advertiser_id: advertiserId,
-        filtering: JSON.stringify({ video_ids: videoIds }),
-        page: "1",
-        page_size: "100"
-      },
-      requestFieldManifest: ["advertiser_id", "filtering", "page", "page_size"],
-      summarize: (payload) => ({
-        visibleVideoIds: videoItems(payload).map(videoId).filter(Boolean)
-      })
+    const result = await probeFrozenTargetVideoIds({
+      client: readonlyClient,
+      advertiserId,
+      videoIds,
+      label: `project_video_material_push_readback_${index + 1}`
     });
     return { batchIndex: Number(batch.batch_index || batch.batchIndex || index + 1), expectedIds: videoIds, result };
   }));
@@ -824,13 +851,15 @@ export async function observeProjectVideoMaterialPushReadback({ bundle, readonly
   // A failed query is unknown, never partial verification.
   const verifiedCount = queryFailed ? 0 : expectedIds.length - unresolvedVideoIds.length;
   const responseHashes = probes.map(({ result }) => clean(result.responseHash)).filter(Boolean);
-  const diagnostics = failedProbes.map(({ batchIndex, result }) => ({
+  const diagnostics = probes.map(({ batchIndex, result }) => ({
     batchIndex,
     clientStatus: result.status,
     httpStatus: result.httpStatus,
     apiCode: result.apiCode,
     responseHash: result.responseHash
   }));
+  const schedule = pushReadbackSchedule({ plan, observedAt, attemptIndex, acceptedAt });
+  schedule.automatic_allowed = status === "blocked" && !queryFailed && schedule.next_attempt_index !== null;
   const evidence = safePushReadbackEvidence({
     bundle,
     idSuffix,
@@ -839,7 +868,8 @@ export async function observeProjectVideoMaterialPushReadback({ bundle, readonly
     requestedCount: expectedIds.length,
     verifiedCount,
     responseHashes,
-    diagnostics
+    diagnostics,
+    schedule
   });
   return {
     status,
@@ -855,6 +885,8 @@ export async function observeProjectVideoMaterialPushReadback({ bundle, readonly
       fieldDiffSummary: {
         plan_id: clean(plan.plan_id),
         plan_hash: clean(plan.plan_hash),
+        batch_count: batches.length,
+        expected_video_ids_hash: hash(canonical(expectedIds)),
         requested_count: expectedIds.length,
         verified_count: verifiedCount,
         unresolved_count: expectedIds.length - verifiedCount,
@@ -862,12 +894,15 @@ export async function observeProjectVideoMaterialPushReadback({ bundle, readonly
         failed_batch_count: failedProbes.length,
         blocker,
         observed_at: observedAt,
+        readback_schedule: schedule,
+        diagnostics,
         response_persisted: false
       },
       evidenceRef: evidence.artifactId
     },
     evidence,
-    diagnostics
+    diagnostics,
+    readbackSchedule: schedule
   };
 }
 
@@ -886,11 +921,12 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
     ...(batches.length >= 1 && batches.length <= 2 ? [] : ["project_video_material_push_batches_invalid"])
   ];
   if (blockers.length) return { status: "blocked_before_material_push", writeCalled: false, blockers };
+  const executed = [];
   for (const batch of batches) {
     const actionId = `${actionIdPrefix}-${batch.batch_index || batch.batchIndex}`;
     const claim = await repo.claimPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION, idempotencyKey: `append-push:${plan.plan_hash || ""}:${batch.batch_index || batch.batchIndex}` });
     if (!claim.claimed) return { status: "already_consumed", writeCalled: false, blockers: ["project_video_material_push_action_already_recorded"] };
-    let responseHash = ""; let httpStatus = null; let apiCode = ""; let errorCategory = ""; let passed = false;
+    let responseHash = ""; let httpStatus = null; let apiCode = ""; let errorCategory = ""; let passed = false; let responseAcceptedAtIso = "";
     try {
       const payload = materialPushPayload({ materialAccountId, advertiserId, sourceVideoIds: batch.source_video_ids || batch.sourceVideoIds || [] });
       const response = await fetchWithDeadline(fetchImpl, `https://api.oceanengine.com${PROJECT_VIDEO_MATERIAL_PUSH_ENDPOINT}`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", "Access-Token": credentialEnv.OCEANENGINE_ACCESS_TOKEN }, body: JSON.stringify(payload) }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
@@ -898,13 +934,18 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
       let parsed = {}; try { parsed = JSON.parse(text); } catch { errorCategory = "platform_response_not_json"; }
       apiCode = clean(parsed.code ?? parsed.err_no ?? parsed.error_code);
       const failedIds = new Set((parsed?.data?.fail_list || parsed?.fail_list || []).map((item) => clean(item.video_id || item.videoId)).filter(Boolean));
-      passed = response.ok && (apiCode === "0" || apiCode === "") && !(batch.source_video_ids || batch.sourceVideoIds || []).some((id) => failedIds.has(clean(id)));
+      passed = response.ok && apiCode === "0" && !(batch.source_video_ids || batch.sourceVideoIds || []).some((id) => failedIds.has(clean(id)));
+      if (passed) responseAcceptedAtIso = new Date().toISOString();
       if (!passed && !errorCategory) errorCategory = "platform_rejected";
     } catch (error) { errorCategory = error?.name === "PlatformDeadlineError" ? "platform_timeout" : "platform_transport_failed"; }
     await repo.finishPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION, idempotencyKey: `append-push:${plan.plan_hash || ""}:${batch.batch_index || batch.batchIndex}`, actionStatus: passed ? "succeeded" : "failed_or_unconfirmed", metadata: { platform_write_called: true, platform_response_confirmed: passed, error_category: passed ? "" : errorCategory, batch_index: batch.batch_index || batch.batchIndex, payload_persisted: false, response_persisted: false }, responseHash, httpStatus, apiCode });
     if (!passed) return { status: "failed_or_unconfirmed", writeCalled: true, blockers: [errorCategory || "platform_rejected"], stoppedAfterBatch: batch.batch_index || batch.batchIndex };
+    executed.push({ responseAcceptedAtIso });
   }
-  const observation = await observeProjectVideoMaterialPushReadback({ bundle, readonlyClient });
+  const acceptedAt = executed.length
+    ? executed.map((item) => item.responseAcceptedAtIso).filter(Boolean).sort().at(-1)
+    : "";
+  const observation = await observeProjectVideoMaterialPushReadback({ bundle, readonlyClient, attemptIndex: 0, acceptedAt });
   return observation.status === "passed"
     ? { status: "readback_verified", writeCalled: true, pushedCount: observation.requestedCount, projectId, readbackObservation: observation }
     : { status: "failed_or_unconfirmed", writeCalled: true, blockers: [observation.blocker], readbackObservation: observation };

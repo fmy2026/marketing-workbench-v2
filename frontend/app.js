@@ -33,6 +33,9 @@ import {
   let draftCaseId = "";
   let draftCaseKey = "";
   let activeConfirmationSubmission = null;
+  let materialPushReadbackTimer = null;
+  let materialPushReadbackTimerKey = "";
+  let materialPushReadbackReply = null;
   let rootHome = false;
   let currentUser = null;
   let agentProfile = null;
@@ -586,9 +589,14 @@ import {
   }
 
   function setJobView(nextJob) {
+    const previousJobId = job?.jobId || "";
     job = nextJob || null;
+    if (previousJobId !== (job?.jobId || "") || !job?.materialPushReadback?.automaticAllowed) {
+      materialPushReadbackReply = null;
+    }
     if (job && startupFeedback?.status === "starting") startupFeedback = null;
     jobRevision += 1;
+    scheduleMaterialPushReadback();
   }
 
   function renderProjectRecommendations(stream) {
@@ -1433,7 +1441,7 @@ import {
     window.history.replaceState({}, "", workbenchCaseUrl(caseId));
   }
 
-  async function submitJobCommand(text, submission = null, { recordUser = true } = {}) {
+  async function submitJobCommand(text, submission = null, { recordUser = true, replyNode = null } = {}) {
     const ownsBusy = !busy;
     if (ownsBusy) setBusy(true);
     const command = resolveJobCommandSubmission({
@@ -1444,7 +1452,7 @@ import {
     });
     if (!command.jobId) throw new Error("job_command_context_missing");
     if (recordUser) message("user", command.message);
-    const reply = message("agent", "正在处理…");
+    const reply = replyNode || message("agent", "正在处理…");
     let result;
     try {
       result = await withProgressPolling(() => api(`/api/launch/jobs/${encodeURIComponent(command.jobId)}/command`, {
@@ -1452,7 +1460,9 @@ import {
         body: JSON.stringify({
           message: command.message,
           expected_plan_id: command.planId,
-          expected_plan_hash: command.planHash
+          expected_plan_hash: command.planHash,
+          readback_mode: command.readbackMode,
+          readback_attempt_index: command.readbackAttemptIndex
         })
       }));
     } catch (error) {
@@ -1473,6 +1483,38 @@ import {
       : "已使用规则解析。";
     replaceMessage(reply, `${parsed}${result.interaction?.message || "已处理当前请求。"}`);
     renderAll();
+  }
+
+  function scheduleMaterialPushReadback() {
+    if (materialPushReadbackTimer) window.clearTimeout(materialPushReadbackTimer);
+    materialPushReadbackTimer = null;
+    materialPushReadbackTimerKey = "";
+    const state = job?.materialPushReadback;
+    if (viewOnly || !state?.automaticAllowed || !state.planId || !state.planHash || !state.nextAttemptAt || !Number.isInteger(state.nextAttemptIndex)) return;
+    const jobId = job.jobId;
+    const delay = Math.max(0, Date.parse(state.nextAttemptAt) - Date.now());
+    const key = `${jobId}:${state.planId}:${state.nextAttemptIndex}`;
+    materialPushReadbackTimerKey = key;
+    materialPushReadbackTimer = window.setTimeout(async () => {
+      if (materialPushReadbackTimerKey !== key || job?.jobId !== jobId) return;
+      if (busy) {
+        materialPushReadbackTimer = window.setTimeout(scheduleMaterialPushReadback, 1200);
+        return;
+      }
+      if (!materialPushReadbackReply) materialPushReadbackReply = message("agent", "素材推送已受理，正在按计划检查目标账户视频…");
+      try {
+        await submitJobCommand("检查推送结果", {
+          jobId,
+          planId: state.planId,
+          planHash: state.planHash,
+          message: "检查推送结果",
+          readbackMode: "auto",
+          readbackAttemptIndex: state.nextAttemptIndex
+        }, { recordUser: false, replyNode: materialPushReadbackReply });
+      } catch {
+        if (materialPushReadbackReply) replaceMessage(materialPushReadbackReply, "自动检查暂未完成；已保留当前状态，可稍后检查推送结果。不会重复推送。");
+      }
+    }, delay);
   }
 
   function showLogin() {

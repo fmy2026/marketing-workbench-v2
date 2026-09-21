@@ -1129,7 +1129,7 @@ function persistedCreateSucceeded(bundle = {}) {
 }
 
 function projectCreatedNodeStatus(nodeKey, row = {}, bundle = {}) {
-  if (nodeKey === "readback_closer" && bundle.readback?.readback_status === "readback_verified") {
+  if (nodeKey === "readback_closer" && bundle.readback?.object_type === "oc_project_video_append" && bundle.readback?.readback_status === "readback_verified") {
     return {
       ...row,
       status: "passed",
@@ -1176,6 +1176,26 @@ function projectCreatedNodeStatus(nodeKey, row = {}, bundle = {}) {
     };
   }
   return row;
+}
+
+function materialPushReadbackView(bundle = {}) {
+  const plan = bundle.executionPlan || {};
+  const schedule = plan.metadata?.material_push_readback || {};
+  const isPush = clean(plan.plan_kind || plan.metadata?.plan_kind) === "project_video_material_push";
+  const awaiting = isPush && clean(plan.plan_status) === "consumed" && clean(plan.metadata?.confirmed_execution_outcome) !== "readback_verified";
+  if (!awaiting) return null;
+  return {
+    planId: clean(plan.plan_id),
+    planHash: clean(plan.plan_hash),
+    attemptIndex: Number(schedule.attempt_index || 0),
+    nextAttemptIndex: Number.isInteger(Number(schedule.next_attempt_index)) ? Number(schedule.next_attempt_index) : null,
+    nextAttemptAt: clean(schedule.next_attempt_at),
+    windowEndsAt: clean(schedule.window_ends_at),
+    automaticAllowed: schedule.automatic_allowed === true,
+    requestedCount: Number(bundle.readback?.field_diff_summary?.requested_count || 0),
+    verifiedCount: Number(bundle.readback?.field_diff_summary?.verified_count || 0),
+    blocker: clean(plan.metadata?.confirmed_execution_blocker)
+  };
 }
 
 export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailability = {}, awemeReadiness = null, caseSummary = null, presentation = {}) {
@@ -1322,6 +1342,7 @@ export function buildLaunchJobView(bundle, runtimeChecks = {}, executionAvailabi
       authorizationMode: executionAvailability.authorizationMode || "none",
       reasonCode: executionAvailability.reasonCode || ""
     },
+    materialPushReadback: materialPushReadbackView(bundle),
     progress,
     primaryAction,
     confirmationPreview,
@@ -2219,9 +2240,38 @@ export async function runProjectVideoMaterialPushReadback(repo, jobId, options =
     error.statusCode = 409;
     throw error;
   }
+  if (options.expectedPlanId && clean(options.expectedPlanId) !== clean(plan.plan_id) ||
+    options.expectedPlanHash && clean(options.expectedPlanHash) !== clean(plan.plan_hash)) {
+    return getJobView(repo, jobId, options);
+  }
+  const schedule = plan.metadata?.material_push_readback || {};
+  const requestedAttempt = Number(options.readbackAttemptIndex);
+  const attemptIndex = Number.isInteger(requestedAttempt) && requestedAttempt >= 0
+    ? requestedAttempt
+    : Number.isInteger(Number(schedule.next_attempt_index))
+      ? Number(schedule.next_attempt_index)
+      : 0;
+  if (clean(options.readbackMode) === "auto") {
+    const nextAt = Date.parse(schedule.next_attempt_at || "");
+    if (schedule.automatic_allowed !== true || attemptIndex !== Number(schedule.next_attempt_index) ||
+      !Number.isFinite(nextAt) || Date.now() + 500 < nextAt) {
+      return getJobView(repo, jobId, options);
+    }
+  }
+  if (typeof repo.claimProjectVideoMaterialPushReadbackRound === "function") {
+    const claim = await repo.claimProjectVideoMaterialPushReadbackRound({
+      jobId,
+      planId: plan.plan_id,
+      planHash: plan.plan_hash,
+      attemptIndex
+    });
+    if (claim?.claimed !== true) return getJobView(repo, jobId, options);
+  }
   const observation = await observeProjectVideoMaterialPushReadback({
     bundle,
-    readonlyClient: options.oceanEngineClient
+    readonlyClient: options.oceanEngineClient,
+    attemptIndex,
+    acceptedAt: clean(schedule.window_started_at)
   });
   if (typeof repo.reconcileConfirmedProjectVideoMaterialPushReadback !== "function") {
     throw new Error("project_video_material_push_readback_repository_unavailable");
