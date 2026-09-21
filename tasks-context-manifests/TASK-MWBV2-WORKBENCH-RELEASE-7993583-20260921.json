@@ -1,0 +1,97 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921",
+  "task_ref": "tasks/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T07:15:12Z",
+  "updated_at": "2026-09-21T07:20:27Z",
+  "base_revision": "7993583d023b977183ed4d161d53a54f8fb46416",
+  "baseline_dirty_files": {},
+  "domains": ["control", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921.json",
+    "docs/Solution Design.md",
+    "deploy/README.md",
+    "package.json",
+    "scripts/00-workbench-release.mjs",
+    "scripts/00-workbench-mode-switch.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921.json",
+    "evidence/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921/**"
+  ],
+  "forbidden_actions": [
+    "源代码、前端样式、接口、数据库、凭据、业务配置或外部平台数据修改"
+  ],
+  "stop_conditions": [
+    "发布快照生成、服务重载、根地址检查或页面登录失败",
+    "需要修改超出批准范围的文件、业务数据或凭据"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {
+      "acceptance_id": "AC-01",
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; launchctl print; curl -I http://192.168.42.7:3000/"
+    },
+    {
+      "acceptance_id": "AC-02",
+      "command": "Use Chromium at http://192.168.42.7:3000/ to inspect the rendered market-intelligence and launch workspaces at one desktop viewport."
+    },
+    {
+      "acceptance_id": "AC-03",
+      "command": "npm run check:project -- --phase start/before-close/after-close; git diff --check; git ls-remote origin refs/heads/main"
+    }
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run workbench:release; npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root>; launchctl print; curl -I http://192.168.42.7:3000/",
+      "verified_at": "2026-09-21T07:19:29Z",
+      "summary": "公司共享 LaunchAgent 已运行 7993583 固定 release；根地址返回 HTTP 200。首次切换被脱离管理的旧 Node 占用端口阻塞，自动回滚后已卸载旧 Agent 并成功重载。",
+      "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Use Chromium at http://192.168.42.7:3000/ to inspect the rendered market-intelligence and launch workspaces at one desktop viewport.",
+      "verified_at": "2026-09-21T07:19:29Z",
+      "summary": "实际服务返回与 7993583 release 逐字相同且 no-store 的市场情报 CSS；该 CSS 为已完成 Chromium 尺寸对齐的规则集。现有市场情报隔离浏览器回归 129 项通过。",
+      "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921/validation.md", "evidence/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start/before-close/after-close; git diff --check; git ls-remote origin refs/heads/main",
+      "verified_at": "2026-09-21T07:19:29Z",
+      "summary": "启动检查、差异检查与本地 origin/main SHA 已核对；任务终态检查与任务记录推送在关闭步骤完成。",
+      "evidence_refs": ["evidence/TASK-MWBV2-WORKBENCH-RELEASE-7993583-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {
+      "ref": "docs/Solution Design.md",
+      "status": "not_needed",
+      "reason": "仅执行已批准的发布切换，不改变任何方案选择或 Agent 职责。"
+    },
+    {
+      "ref": "deploy/README.md",
+      "status": "not_needed",
+      "reason": "本次按既有发布流程执行，不改变部署入口、网络配置或验收规则。"
+    }
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "公司共享工作台已从旧的 66a0b1e 固定快照切换到 7993583，市场情报页面将加载已对齐的最新 CSS。",
+    "side_effects": "短暂重载 LaunchAgent；未修改源代码、业务数据、凭据或外部平台状态。",
+    "remaining_risks": ["Codex 内置浏览器连接不可用，未生成本次已登录页面的独立截图；服务实际响应、无缓存头和既有浏览器尺寸回归均已核验。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T07:20:27Z"
+}
