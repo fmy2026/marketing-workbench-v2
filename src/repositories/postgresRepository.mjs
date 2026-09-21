@@ -4218,7 +4218,19 @@ export class PostgresRepository {
       throw new Error("confirmed_create_prewrite_evidence_refs_invalid");
     }
     const result = await queryJson(`
-      WITH finalized AS (
+      WITH target AS MATERIALIZED (
+        SELECT plan.plan_id, plan.job_id
+        FROM mwb.launch_execution_plans plan
+        JOIN mwb.launch_confirmations confirmation
+          ON confirmation.job_id = plan.job_id
+         AND confirmation.plan_id = plan.plan_id
+        WHERE plan.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status = 'executing'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
+          AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+        FOR UPDATE OF plan, confirmation
+      ), finalized AS (
         UPDATE mwb.launch_execution_plans plan
         SET plan_status = 'consumed',
             metadata = plan.metadata || jsonb_build_object(
@@ -4229,17 +4241,9 @@ export class PostgresRepository {
               'retry_allowed', false
             ),
             updated_at = now()
-        WHERE plan.job_id = ${sqlLiteral(jobId)}
-          AND plan.plan_id = ${sqlLiteral(planId)}
-          AND plan.plan_status = 'executing'
-          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'
-          AND EXISTS (
-            SELECT 1
-            FROM mwb.launch_confirmations confirmation
-            WHERE confirmation.job_id = plan.job_id
-              AND confirmation.plan_id = plan.plan_id
-              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
-          )
+        FROM target
+        WHERE plan.job_id = target.job_id
+          AND plan.plan_id = target.plan_id
           AND NOT EXISTS (
             SELECT 1
             FROM mwb.platform_actions action
@@ -4255,6 +4259,12 @@ export class PostgresRepository {
             SELECT 1
             FROM mwb.created_objects object_row
             WHERE object_row.job_id = plan.job_id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.launch_execution_cycles cycle
+            WHERE cycle.job_id = plan.job_id
+              AND cycle.cycle_status = 'running'
           )
         RETURNING plan.plan_id
       ), job_finalized AS (
@@ -5928,15 +5938,33 @@ export class PostgresRepository {
     assertId("confirmation_id", confirmation.confirmationId);
     assertId("action_id", action.actionId);
     assertId("job_id", action.jobId);
+    if (requireExistingConfirmation && !confirmation.planId) {
+      throw new Error("plan_bound_create_action_plan_id_required");
+    }
+    if (requireExistingConfirmation) assertId("plan_id", confirmation.planId);
+    const confirmationPlanJoin = requireExistingConfirmation
+      ? `
+        JOIN mwb.launch_execution_plans plan
+          ON plan.plan_id = confirmation.plan_id
+         AND plan.job_id = confirmation.job_id`
+      : "";
+    const confirmationPlanConditions = requireExistingConfirmation
+      ? `
+          AND plan.plan_status = 'executing'
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'std_project_create'`
+      : "";
+    const confirmationLock = requireExistingConfirmation
+      ? "FOR UPDATE OF confirmation, plan"
+      : "FOR UPDATE OF confirmation";
     const result = await queryJson(`
       WITH existing_confirmation AS (
-        SELECT confirmation_id
-        FROM mwb.launch_confirmations
-        WHERE confirmation_id = ${sqlLiteral(confirmation.confirmationId)}
-          AND job_id = ${sqlLiteral(confirmation.jobId)}
-          AND plan_id IS NOT DISTINCT FROM ${confirmation.planId ? sqlLiteral(confirmation.planId) : "NULL"}
-          AND confirmation_status IN ('confirmed_for_execution_plan', 'confirmed_for_single_create')
-        FOR UPDATE
+        SELECT confirmation.confirmation_id
+        FROM mwb.launch_confirmations confirmation${confirmationPlanJoin}
+        WHERE confirmation.confirmation_id = ${sqlLiteral(confirmation.confirmationId)}
+          AND confirmation.job_id = ${sqlLiteral(confirmation.jobId)}
+          AND confirmation.plan_id IS NOT DISTINCT FROM ${confirmation.planId ? sqlLiteral(confirmation.planId) : "NULL"}
+          AND confirmation.confirmation_status IN ('confirmed_for_execution_plan', 'confirmed_for_single_create')${confirmationPlanConditions}
+        ${confirmationLock}
       ),
       inserted_confirmation AS (
         INSERT INTO mwb.launch_confirmations (

@@ -519,6 +519,71 @@ try {
   const zeroActionClosedNodes = zeroActionClosedView.phases.flatMap((phase) => phase.nodes || []);
   assert(zeroActionClosedNodes.find((node) => node.id === "std_project_create_executor")?.status === "blocked", "confirmed_zero_action_create_node_not_blocked");
   assert(zeroActionClosedNodes.find((node) => node.id === "readback_closer")?.status === "locked", "confirmed_zero_action_readback_node_not_locked");
+  const lateCreateClaim = await repo.claimStdProjectCreateAction({
+    confirmation: {
+      confirmationId: planConfirmationId(zeroActionPlan.plan.planId),
+      jobId: zeroActionJobId,
+      draftId: "",
+      objectType: "std_project",
+      objectName: zeroActionBundle.draft?.project_name || "",
+      payloadHash: "",
+      confirmationStatus: "confirmed_for_execution_plan",
+      confirmVariable: "test_only",
+      confirmedBy: "test_fake_transport",
+      planId: zeroActionPlan.plan.planId,
+      metadata: { plan_hash: zeroActionPlan.plan.planHash, test_only: true }
+    },
+    action: {
+      actionId: `ACTION-${zeroActionJobId}-LATE-CREATE`,
+      jobId: zeroActionJobId,
+      confirmationId: planConfirmationId(zeroActionPlan.plan.planId),
+      planId: zeroActionPlan.plan.planId,
+      actionType: "oceanengine_std_project_create",
+      endpoint: "test:late-create-after-consume",
+      method: "POST",
+      attemptNo: 1,
+      requestHash: "",
+      idempotencyKey: `TEST-LATE-${zeroActionJobId}`
+    },
+    requireExistingConfirmation: true
+  });
+  assert(lateCreateClaim.claimed === false, "consumed_plan_allowed_late_create_claim");
+
+  const runningCycleGuardJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-running-cycle-guard:${new Date().toISOString()}`, cleanupJobIds);
+  await runJob(repo, runningCycleGuardJobId, { mode: "dry_run", allowReadonlyDependency: true });
+  const runningCycleGuardPlan = await compileAndSaveExecutionPlan({ repo, jobId: runningCycleGuardJobId });
+  const runningCycleGuardBundle = await repo.getLaunchJobBundle(runningCycleGuardJobId);
+  const runningCycleGuardConfirmation = await repo.claimLaunchExecutionPlanConfirmation({
+    confirmationId: planConfirmationId(runningCycleGuardPlan.plan.planId),
+    jobId: runningCycleGuardJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: runningCycleGuardBundle.draft?.project_name || "",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: runningCycleGuardPlan.plan.planId,
+    metadata: { plan_hash: runningCycleGuardPlan.plan.planHash, test_only: true }
+  });
+  assert(runningCycleGuardConfirmation.claimed === true, "running_cycle_guard_confirmation_not_claimed");
+  const runningCycle = await repo.startLaunchExecutionCycle({
+    jobId: runningCycleGuardJobId,
+    mode: "execute_once",
+    planId: runningCycleGuardPlan.plan.planId
+  });
+  const runningCycleFinalization = await repo.finalizeConfirmedCreatePlanBeforeAction({
+    jobId: runningCycleGuardJobId,
+    planId: runningCycleGuardPlan.plan.planId,
+    blockerCode: "confirmed_create_execution_failed_before_action"
+  });
+  assert(runningCycleFinalization.finalized === false, "running_execution_cycle_allowed_zero_action_finalization");
+  await repo.finishLaunchExecutionCycle({
+    jobId: runningCycleGuardJobId,
+    cycleNo: Number(runningCycle.cycleNo),
+    status: "failed",
+    summary: { test_only: true, reason: "running_cycle_guard_complete" }
+  });
 
   const actionGuardJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-action-guard:${new Date().toISOString()}`, cleanupJobIds);
   await runJob(repo, actionGuardJobId, { mode: "dry_run", allowReadonlyDependency: true });
