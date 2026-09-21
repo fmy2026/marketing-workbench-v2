@@ -192,6 +192,9 @@ assert(readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlock
 const prewriteTransportGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["readonly_transport_failed"] });
 assert(prewriteTransportGuidance?.message.includes("当前阻断仍待处理"), "prewrite_transport_failure_must_keep_specific_blocker_guidance");
 assert(prewriteTransportGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "prewrite_transport_failure_must_offer_readonly_recovery");
+const confirmedCreateInterruptionGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["confirmed_create_execution_failed_before_action"] });
+assert(confirmedCreateInterruptionGuidance?.message.includes("旧 Plan 已消费且不会重放"), "confirmed_create_interruption_guidance_missing");
+assert(confirmedCreateInterruptionGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "confirmed_create_interruption_recovery_missing");
 const emptyVideoPlanGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["video_bind_plan_empty"] });
 assert(emptyVideoPlanGuidance?.message.includes("旧资源 Plan"), "empty_video_plan_guidance_missing");
 assert(emptyVideoPlanGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "empty_video_plan_recovery_missing");
@@ -255,6 +258,8 @@ const [htmlSource, clientSource, styleSource, workflowSource] = await Promise.al
 ]);
 assert(workflowSource.includes("duplicate_readonly_rate_limited"), "duplicate_rate_limit_root_blocker_copy_missing");
 assert(workflowSource.includes("平台查重暂时限流"), "duplicate_rate_limit_root_blocker_title_missing");
+assert(workflowSource.includes("confirmed_create_execution_failed_before_action"), "confirmed_create_interruption_root_blocker_copy_missing");
+assert(workflowSource.includes("创建执行在平台动作前中断"), "confirmed_create_interruption_root_blocker_title_missing");
 assert(!htmlSource.includes('id="caseGate"'), "duplicate_case_gate_panel_still_present");
 assert(!clientSource.includes("renderCaseGate"), "duplicate_case_gate_renderer_still_present");
 assert(!styleSource.includes(".case-gate"), "duplicate_case_gate_styles_still_present");

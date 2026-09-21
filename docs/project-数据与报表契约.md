@@ -3,8 +3,8 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-13 CST |
-| 校验基线 | 静态核验 Task `TASK-MWBV2-WORKBENCH-PROGRESS-EXECUTION-OBSERVABILITY-20260913`；Postgres 39 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `091`，最新为 `091_workbench_progress_execution_observability.sql` |
+| 最后更新时间 | 2026-09-21 CST |
+| 校验基线 | 静态核验 Task `TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921`；Postgres 39 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `099`，最新为 `099_confirmed_create_cycle_failure_closure.sql` |
 | 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
 | 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
 | 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
@@ -51,7 +51,7 @@ workflow_case_summary + v_monitor_readiness + 专项 readiness / monitor View
 |  | `account_resources`、`dmp_package_member_account_states` | 账户资源、DMP 成员×账户状态；Node 04 在 `event-chain-readonly` 前只用当前账户、App 与唯一受控实例候选同步动态账户绑定、模板引用/hash；前提不完整时不落合同。JSZC fresh Job 的 `gameplay/list` 结果仅保存为唯一 `micro_app_instance.metadata.guide_video_readiness`：是否 required、候选数、ID 是否存在、response hash、evidence ref、Job/实例绑定与时间；不保存原始响应。品牌只保存目标账户 fresh 回查：非空唯一完整匹配保存完整品牌/行业；接口成功且实际列表为空时，`brand_info_official` 保存 `source=live_target_account_empty_brand_list`、当前 Job、`brand_list_count=0`、响应 hash、查询时间和证据引用，资源用 `not_required/not_required` 表达整组省略。查询失败、歧义、非空未匹配或行业不完整均阻断。当前必需视频集的每条 ID 只可来自其物料户资源 `metadata.oceanengine_video_mapping.status=verified` 的实际 ID，并按 `source_asset_id` 唯一关联目标账户视频资源；显式封面只能来自该 target 行的 current-Job visible/readback 证据，默认封面必须显式记录为允许省略。追加 Plan 不复制资源行：只在既有 Plan metadata 中冻结待追加条目的视频、适用封面和当前 Job 引导视频合同摘要/hash；歧义、未验证、封面或引导视频证据缺失均阻断，且不保存原始请求或响应。 | Node 04 readonly / 已确认资源回查 | Node 04–05、Case summary |
 |  | `qiankun_option_relations` | 乾坤父子选项关系 | 只读同步 | Node 02 诊断 |
 | L3 Case（1） | `workflow_cases` | 一个 route×game×advertiser 的持续闭环，`case_id`；保存 `owner_user_id`、`created_by_user_id` 与 `maximum_create_attempts`（普通 Case 默认 3，获批替代 Case 固定 1）；同一 scope 最多一个 active `runtime_truth` Case。建档只消费已校验 `LaunchRequest v1` 的 route、game、账户字段，不保存原始自然语言、原始 JSON 或页面草稿 | Case / Job 入口、受控替代事务 | Case summary、UI、API、CLI |
-| L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×Skill×attempt | runner / Skill runner | Job View、Case summary、诊断 |
+| L4 运行（8） | `launch_jobs`、`launch_node_runs`、`launch_skill_runs` | Case 下单次运行、Job×Node、Job×执行轮次×Skill×attempt；同一轮重复记录更新原行，后续轮次保留独立行 | runner / Skill runner | Job View、Case summary、诊断 |
 |  | `launch_drafts`、`project_name_reservations` | Job Draft、Job×名称预留 | Node 05 | Create Plan、查重、创建执行 |
 |  | `dmp_package_push_plans` | Job×DMP 成员推送计划 | Node 04 | 已确认资源执行 |
 |  | `monitor_provision_runs`、`monitor_provision_attempts` | monitor provision cycle、cycle×attempt | Node 02 monitor 子链 | monitor 专项 View、诊断 |
@@ -122,7 +122,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在任何 create action 前以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。migration `090` 将该 Job 后发且未确认的 Plan 标为 `stale`，并使 View 优先选择已确认的零动作停止 Plan，禁止新 Plan 遮盖 recovery Gate。它仅在无 create action、无对象且次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
+`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在平台 action、delivery 与创建对象均不存在时以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。migration `090` 将该 Job 后发且未确认的 Plan 标为 `stale`，migration `099` 将零动作条件收紧为整个 Job 无平台 action、delivery 与创建对象，并使 View 优先选择已确认的零动作停止 Plan，禁止新 Plan 遮盖 recovery Gate。它仅在上述条件、次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
 
 ## 5. 核心键、时间与去重
 
@@ -151,7 +151,7 @@ SQL `timestamptz` 表示绝对时间；`started_at / finished_at` 可空，空�
 
 | View | 唯一行标识 / 选取方式 | 来源与时间边界 |
 | --- | --- | --- |
-| `workflow_case_summary` | `case_id`；最新 Job 按 updated_at、created_at、job_id 倒序；普通 Plan 按版本倒序，但已确认、零动作 `blocked_before_create` Plan 优先；动作/回查按 Case 合同聚合 | Case 当前投影；过程记录按 Job/Skill/Attempt 回溯；不把多 Job 统计成多 Case |
+| `workflow_case_summary` | `case_id`；最新 Job 按 updated_at、created_at、job_id 倒序；普通 Plan 按版本倒序，但已确认、无 action／delivery／对象的 `blocked_before_create` Plan 优先；动作/回查按 Case 合同聚合 | Case 当前投影；过程记录按 Job/执行轮次/Skill/Attempt 回溯；不把多 Job 统计成多 Case |
 | `v_monitor_readiness` | route×game×advertiser；cycle 按 cycle_no、updated_at、cycle_id 倒序，触点按 updated_at、touchpoint_id 倒序 | 当前 scope 就绪投影；来源记录时间保留，不能替代 fresh 平台回查 |
 | `v_monitor_provision_status_report` | `cycle_id`，attempt 先按 cycle 聚合再关联 | 每个 cycle 的运行审计；历史 cycle 不等于当前 Gate |
 | `v_monitor_provision_blocker_report` | 每个 scope 最多一个 actionable blocker；来自当前 readiness，关联其 cycle | 有 blocker 才有行；不是全部历史错误的明细表 |
@@ -211,7 +211,7 @@ migration `092_project_video_append.sql` 为 `mwb.workflow_cases` 增加 `operat
 psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -c "SELECT current_database(), to_regnamespace('mwb') IS NOT NULL AS mwb_schema_exists;"
 ```
 
-[建库文件](../db/001_create_database.sql) 在维护库 `postgres` 执行，后续获批 migration 在目标业务库执行。当前没有统一自动 migration runner；由批准 Task 明确目标库、具体文件、应用前提及回查，用 `psql -X -v ON_ERROR_STOP=1 -d` 指定库并用 `-f` 指定单个文件。历史上 `015_add_project_name_reservations.sql` 与 `015_p04_video_material_local_assets.sql` 共用编号，二者均保留且不得重命名；后续 migration 必须使用未占用编号。历史文件含种子和专项修正，不能把编号清单当作可直接重跑的初始化脚本，也不能仅凭文档基线推断在线库已应用哪些迁移。
+[建库文件](../db/001_create_database.sql) 在维护库 `postgres` 执行，后续获批 migration 在目标业务库执行。当前没有统一自动 migration runner；由批准 Task 明确目标库、具体文件、应用前提及回查，用 `psql -X -v ON_ERROR_STOP=1 -d` 指定库并用 `-f` 指定单个文件。涉及已确认创建状态时，先确认目标 Job 没有运行中 cycle，并按 Task 的 action、delivery、对象条件只读核验；migration 不得将 Plan 重置为 ready 或生成新的 confirmation。历史上 `015_add_project_name_reservations.sql` 与 `015_p04_video_material_local_assets.sql` 共用编号，二者均保留且不得重命名；后续 migration 必须使用未占用编号。历史文件含种子和专项修正，不能把编号清单当作可直接重跑的初始化脚本，也不能仅凭文档基线推断在线库已应用哪些迁移。
 
 ### 备份与定时执行
 

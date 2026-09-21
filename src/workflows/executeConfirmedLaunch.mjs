@@ -228,6 +228,7 @@ export async function executeConfirmedLaunch({
   const singleVariableExperiment = planMetadata.single_variable_experiment || {};
   const rateLimitRedelivery = planMetadata.execution_scope?.rate_limit_redelivery || {};
   const maximumDeliveryCalls = Number(rateLimitRedelivery.maximum_delivery_calls || 1);
+  let confirmedStdProjectCreateClaimed = false;
   try {
     if ((latestBundleBeforeCreate.executionPlan?.plan_kind || latestBundleBeforeCreate.executionPlan?.metadata?.plan_kind) === "project_video_material_push") {
       const confirmationClaim = await repo.claimLaunchExecutionPlanConfirmation({
@@ -390,6 +391,7 @@ export async function executeConfirmedLaunch({
         assertNoSensitiveLeak(result.executionGrant);
         return result;
       }
+      confirmedStdProjectCreateClaimed = true;
       latestBundleBeforeCreate = await repo.getLaunchJobBundle(jobId);
     }
     const runResult = await runJobFn(repo, jobId, {
@@ -461,6 +463,42 @@ export async function executeConfirmedLaunch({
     };
     assertNoSensitiveLeak(result.executionGrant);
     return result;
+  } catch (error) {
+    const isClaimedStdProjectCreate = confirmedStdProjectCreateClaimed === true &&
+      currentPlanKind === "std_project_create" &&
+      Boolean(currentPlanId);
+    if (isClaimedStdProjectCreate && typeof repo.finalizeConfirmedCreatePlanBeforeAction === "function") {
+      try {
+        const finalized = await repo.finalizeConfirmedCreatePlanBeforeAction({
+          jobId,
+          planId: currentPlanId,
+          blockerCode: "confirmed_create_execution_failed_before_action",
+          evidenceRefs: ["execution:unexpected_failure"]
+        });
+        if (finalized.finalized === true) {
+          const view = await getJobViewFn(repo, jobId, { projectStatePath });
+          const result = {
+            ...view,
+            executionGrant: {
+              status: "blocked",
+              grantSource,
+              executionGrantId,
+              createCalled: false,
+              maximumActions: 1,
+              maximumDeliveryCalls,
+              retryAllowed: false,
+              blockers: ["confirmed_create_execution_failed_before_action"]
+            }
+          };
+          assertNoSensitiveLeak(result.executionGrant);
+          return result;
+        }
+      } catch {
+        // Preserve the original failure if zero-action finalization cannot be
+        // proven.  A later readback or manual review must decide the outcome.
+      }
+    }
+    throw error;
   } finally {
     if (secondScopeCheck.scopeSummary?.authorizationMode !== "workbench_plan_bound") {
       await revokeWriteScope(projectStatePath);

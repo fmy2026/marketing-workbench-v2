@@ -972,6 +972,11 @@ export function presentRootBlocker(code = "", { originResourceId = "", candidate
       reason: "已确认资源 Plan 在平台响应未明确时停止；旧 Plan 已消费且禁止重试。",
       nextActionLabel: "输入“重新只读准备”创建 fresh Job，只读核验后再决定新的 Plan。"
     },
+    confirmed_create_execution_failed_before_action: {
+      title: "创建执行在平台动作前中断",
+      reason: "确认后的本地执行未完成，但没有记录平台 action、投递或创建对象；旧 Plan 已消费且不会重放。",
+      nextActionLabel: "输入“重新只读准备”创建 fresh Job，重新核验后生成新的确认卡。"
+    },
     qiankun_account_identity_changed_since_plan: {
       title: "账户监测身份已更新",
       reason: "乾坤最新账户身份与冻结 Plan 不一致；旧 Plan 已失效，未调用创建接口。",

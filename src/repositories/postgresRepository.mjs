@@ -4244,8 +4244,17 @@ export class PostgresRepository {
             SELECT 1
             FROM mwb.platform_actions action
             WHERE action.job_id = plan.job_id
-              AND action.plan_id = plan.plan_id
-              AND action.action_type = 'oceanengine_std_project_create'
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.platform_action_deliveries delivery
+            JOIN mwb.platform_actions action ON action.action_id = delivery.action_id
+            WHERE action.job_id = plan.job_id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.created_objects object_row
+            WHERE object_row.job_id = plan.job_id
           )
         RETURNING plan.plan_id
       ), job_finalized AS (
@@ -4256,13 +4265,45 @@ export class PostgresRepository {
         WHERE job.job_id = ${sqlLiteral(jobId)}
           AND EXISTS (SELECT 1 FROM finalized)
         RETURNING job.job_id
+      ), nodes_finalized AS (
+        UPDATE mwb.launch_node_runs node
+        SET status = CASE node.node_key
+              WHEN 'std_project_create_executor' THEN 'blocked'
+              WHEN 'readback_closer' THEN 'locked'
+              ELSE node.status
+            END,
+            summary = CASE node.node_key
+              WHEN 'std_project_create_executor' THEN '确认创建在任何平台动作前停止；旧确认已消费，只能重新只读准备。'
+              WHEN 'readback_closer' THEN '创建未发起，等待重新只读准备形成新的确认链。'
+              ELSE node.summary
+            END,
+            diagnostic_level = CASE node.node_key
+              WHEN 'std_project_create_executor' THEN 'error'
+              WHEN 'readback_closer' THEN 'pending'
+              ELSE node.diagnostic_level
+            END,
+            output_summary = CASE node.node_key
+              WHEN 'std_project_create_executor' THEN node.output_summary || jsonb_build_object(
+                'createNodeStatus', 'blocked_before_create',
+                'createCalled', false,
+                'retryAllowed', false,
+                'blockers', jsonb_build_array(${sqlLiteral(blockerCode)})
+              )
+              ELSE node.output_summary
+            END,
+            finished_at = now()
+        WHERE node.job_id = ${sqlLiteral(jobId)}
+          AND node.node_key IN ('std_project_create_executor', 'readback_closer')
+          AND EXISTS (SELECT 1 FROM finalized)
+        RETURNING node.node_key
       )
       SELECT jsonb_build_object(
         'finalized', EXISTS (SELECT 1 FROM finalized),
-        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized)
+        'jobFinalized', EXISTS (SELECT 1 FROM job_finalized),
+        'nodesFinalized', (SELECT count(*) FROM nodes_finalized)
       )::text;
     `, this.database);
-    return result || { finalized: false, jobFinalized: false };
+    return result || { finalized: false, jobFinalized: false, nodesFinalized: 0 };
   }
 
   async markConfirmedStdProjectCreatePlanWaitingReadback({ jobId, planId } = {}) {

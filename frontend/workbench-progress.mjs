@@ -89,6 +89,12 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
       placeholder: "稍后输入“重新只读准备”或“查看状态”…"
     };
   }
+  if (blocker === "confirmed_create_execution_failed_before_action") {
+    return {
+      message: "当前阻断：确认后的本地执行在平台动作前中断，旧 Plan 已消费且不会重放。请输入“重新只读准备”生成新的确认链。",
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "brand_info_not_ready") {
     return {
       message: "当前阻断：目标账户品牌/行业尚未满足当前创建前合同。请输入“重新只读准备”重新核验；不会自动确认或创建项目。",

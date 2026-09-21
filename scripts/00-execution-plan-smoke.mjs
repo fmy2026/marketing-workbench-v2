@@ -1,4 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { PostgresRepository } from "../tests/support/repository.mjs";
+import { testSql } from "../tests/support/database.mjs";
 import { createJob, getJobView, runJob } from "../src/workflows/launchWorkflow.mjs";
 import { createSyntheticOe3ReadonlyTransport, writeSyntheticOceanEngineEnv } from "../tests/support/platform.mjs";
 import {
@@ -91,6 +93,61 @@ await writeSyntheticOceanEngineEnv(process.env.OCEANENGINE_ENV_PATH);
 globalThis.fetch = syntheticReadonlyFetch;
 
 try {
+  const testDatabase = process.env.MWBV2_TEST_DATABASE;
+  testSql(testDatabase, `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint constraint_row
+        WHERE constraint_row.conrelid = 'mwb.launch_skill_runs'::regclass
+          AND constraint_row.conname = 'launch_skill_runs_unique_attempt'
+      ) THEN
+        ALTER TABLE mwb.launch_skill_runs
+          ADD CONSTRAINT launch_skill_runs_unique_attempt
+          UNIQUE (job_id, skill_key, attempt_no);
+      END IF;
+    END;
+    $$;
+  `);
+  const cycleJobId = await makeTestJob(repo, `smoke:execution-cycle-constraint:${new Date().toISOString()}`, cleanupJobIds);
+  const cycleRun = {
+    jobId: cycleJobId,
+    nodeKey: "launch_intake",
+    skillKey: "intake-normalize",
+    attemptNo: 1,
+    status: "passed",
+    sourceUsage: "test_run"
+  };
+  await repo.upsertLaunchSkillRun({ ...cycleRun, skillRunId: `SKILL-${cycleJobId}-CYCLE-1`, executionCycle: 1 });
+  let legacyCycleConstraintBlocked = false;
+  try {
+    await repo.upsertLaunchSkillRun({ ...cycleRun, skillRunId: `SKILL-${cycleJobId}-CYCLE-2`, executionCycle: 2 });
+  } catch {
+    legacyCycleConstraintBlocked = true;
+  }
+  assert(legacyCycleConstraintBlocked, "legacy_skill_run_constraint_not_reproduced");
+  const migrationSql = await readFile(new URL("../db/099_confirmed_create_cycle_failure_closure.sql", import.meta.url), "utf8");
+  testSql(testDatabase, migrationSql);
+  testSql(testDatabase, migrationSql);
+  const skillRunConstraints = testSql(testDatabase, `
+    SELECT constraint_row.conname
+    FROM pg_constraint constraint_row
+    WHERE constraint_row.conrelid = 'mwb.launch_skill_runs'::regclass
+      AND constraint_row.contype = 'u'
+    ORDER BY constraint_row.conname;
+  `).trim().split("\n").filter(Boolean);
+  assert(skillRunConstraints.includes("launch_skill_runs_job_cycle_skill_attempt_unique"), "execution_cycle_skill_run_constraint_missing");
+  assert(!skillRunConstraints.includes("launch_skill_runs_unique_attempt"), "legacy_skill_run_constraint_not_removed");
+  await repo.upsertLaunchSkillRun({ ...cycleRun, skillRunId: `SKILL-${cycleJobId}-CYCLE-2`, executionCycle: 2 });
+  await repo.upsertLaunchSkillRun({ ...cycleRun, skillRunId: `SKILL-${cycleJobId}-CYCLE-2-RETRY`, executionCycle: 2 });
+  const cycleRunCount = Number(testSql(testDatabase, `
+    SELECT count(*)
+    FROM mwb.launch_skill_runs
+    WHERE job_id = '${cycleJobId}';
+  `).trim());
+  assert(cycleRunCount === 2, "execution_cycle_skill_run_idempotency_wrong");
+
   const filterEventDiff = evaluateSingleVariableLedgerDiff({
     baselineBundle: ledgerBundle({
       jobId: "JOB-BASELINE-FILTER-EVENT",
@@ -432,6 +489,18 @@ try {
     metadata: { plan_hash: zeroActionPlan.plan.planHash, test_only: true }
   });
   assert(repeatedZeroActionClaim.claimed === false && repeatedZeroActionClaim.alreadyConfirmed === true, "same_plan_confirmation_replay_not_rejected");
+  await runJob(repo, zeroActionJobId, {
+    mode: "execute_once",
+    allowReadonlyDependency: true,
+    allowNetworkWrite: false,
+    expectedPlanId: zeroActionPlan.plan.planId,
+    expectedPlanHash: zeroActionPlan.plan.planHash,
+    confirmedPlanExecution: true
+  });
+  const zeroActionCycleBundle = await repo.getLaunchJobBundle(zeroActionJobId);
+  const zeroActionAuditCounts = await repo.getLaunchJobAuditCounts(zeroActionJobId);
+  assert(zeroActionCycleBundle.executionCycles?.some((cycle) => cycle.run_mode === "execute_once" && cycle.cycle_status === "completed"), "confirmed_second_execution_cycle_not_recorded");
+  assert(Number(zeroActionAuditCounts.platformActions || 0) === 0, "isolated_second_cycle_must_not_call_platform");
   const zeroActionFinalized = await repo.finalizeConfirmedCreatePlanBeforeAction({
     jobId: zeroActionJobId,
     planId: zeroActionPlan.plan.planId,
@@ -446,6 +515,85 @@ try {
     zeroActionClosedBundle.executionPlan?.metadata?.confirmed_execution_evidence_refs?.[0] === `EV-${zeroActionJobId}-PREWRITE-OBSERVATION`,
     "confirmed_zero_action_evidence_not_frozen"
   );
+  const zeroActionClosedView = await getJobView(repo, zeroActionJobId);
+  const zeroActionClosedNodes = zeroActionClosedView.phases.flatMap((phase) => phase.nodes || []);
+  assert(zeroActionClosedNodes.find((node) => node.id === "std_project_create_executor")?.status === "blocked", "confirmed_zero_action_create_node_not_blocked");
+  assert(zeroActionClosedNodes.find((node) => node.id === "readback_closer")?.status === "locked", "confirmed_zero_action_readback_node_not_locked");
+
+  const actionGuardJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-action-guard:${new Date().toISOString()}`, cleanupJobIds);
+  await runJob(repo, actionGuardJobId, { mode: "dry_run", allowReadonlyDependency: true });
+  const actionGuardPlan = await compileAndSaveExecutionPlan({ repo, jobId: actionGuardJobId });
+  const actionGuardBundle = await repo.getLaunchJobBundle(actionGuardJobId);
+  const actionGuardConfirmationId = planConfirmationId(actionGuardPlan.plan.planId);
+  const actionGuardClaim = await repo.claimLaunchExecutionPlanConfirmation({
+    confirmationId: actionGuardConfirmationId,
+    jobId: actionGuardJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: actionGuardBundle.draft?.project_name || "",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: actionGuardPlan.plan.planId,
+    metadata: { plan_hash: actionGuardPlan.plan.planHash, test_only: true }
+  });
+  assert(actionGuardClaim.claimed === true, "action_guard_confirmation_not_claimed");
+  await repo.upsertPlatformAction({
+    actionId: `ACTION-${actionGuardJobId}-CREATE`,
+    jobId: actionGuardJobId,
+    confirmationId: actionGuardConfirmationId,
+    planId: actionGuardPlan.plan.planId,
+    actionType: "oceanengine_std_project_create",
+    endpoint: "test:isolated-create-guard",
+    method: "POST",
+    actionStatus: "started",
+    attemptNo: 1
+  });
+  const actionGuardFinalization = await repo.finalizeConfirmedCreatePlanBeforeAction({
+    jobId: actionGuardJobId,
+    planId: actionGuardPlan.plan.planId,
+    blockerCode: "confirmed_create_execution_failed_before_action"
+  });
+  assert(actionGuardFinalization.finalized === false, "platform_action_must_prevent_zero_action_finalization");
+
+  const objectGuardJobId = await makeTestJob(repo, `smoke:confirmed-prewrite-object-guard:${new Date().toISOString()}`, cleanupJobIds);
+  await runJob(repo, objectGuardJobId, { mode: "dry_run", allowReadonlyDependency: true });
+  const objectGuardPlan = await compileAndSaveExecutionPlan({ repo, jobId: objectGuardJobId });
+  const objectGuardBundle = await repo.getLaunchJobBundle(objectGuardJobId);
+  const objectGuardConfirmationId = planConfirmationId(objectGuardPlan.plan.planId);
+  const objectGuardClaim = await repo.claimLaunchExecutionPlanConfirmation({
+    confirmationId: objectGuardConfirmationId,
+    jobId: objectGuardJobId,
+    draftId: "",
+    objectType: "std_project",
+    objectName: objectGuardBundle.draft?.project_name || "",
+    payloadHash: "",
+    confirmationStatus: "confirmed_for_execution_plan",
+    confirmVariable: "test_only",
+    confirmedBy: "test_fake_transport",
+    planId: objectGuardPlan.plan.planId,
+    metadata: { plan_hash: objectGuardPlan.plan.planHash, test_only: true }
+  });
+  assert(objectGuardClaim.claimed === true, "object_guard_confirmation_not_claimed");
+  await repo.upsertCreatedObject({
+    createdObjectId: `OBJECT-${objectGuardJobId}-CREATE`,
+    jobId: objectGuardJobId,
+    confirmationId: objectGuardConfirmationId,
+    objectType: "std_project",
+    objectId: `TEST-${objectGuardJobId}`,
+    objectName: objectGuardBundle.draft?.project_name || "TEST_OBJECT",
+    objectStatus: "created",
+    readbackStatus: "pending",
+    evidenceRef: "",
+    metadata: { test_only: true }
+  });
+  const objectGuardFinalization = await repo.finalizeConfirmedCreatePlanBeforeAction({
+    jobId: objectGuardJobId,
+    planId: objectGuardPlan.plan.planId,
+    blockerCode: "confirmed_create_execution_failed_before_action"
+  });
+  assert(objectGuardFinalization.finalized === false, "created_object_must_prevent_zero_action_finalization");
   let successorPlanBlocked = false;
   try {
     await compileAndSaveExecutionPlan({ repo, jobId: zeroActionJobId, planVersion: 2 });
@@ -539,9 +687,16 @@ try {
     confirmedPlanImmutable,
     readyPlanDraftBound: true,
     confirmedZeroActionPlanFinalized: true,
+    confirmedCreateCycleExecutedWithoutPlatformWrite: true,
+    unsafeCreateStateCannotUseZeroActionRecovery: true,
     confirmedCreateJobRecoveryLocked: true,
     confirmedCreateJobAllCompilersLocked: true,
     confirmedPlanReplayRecoveryProjected: true,
+    executionCycleConstraint: {
+      legacyConstraintBlocked: true,
+      migrationIdempotent: true,
+      crossCycleRows: cycleRunCount
+    },
     leafBlockerProjection: {
       rootBlockerCodes: leafBlockerPlan.metadata.root_blocker_codes,
       structuralBlockerRetained: leafBlockerPlan.blockerCodes.includes("draft_not_ready_for_std_project_create")

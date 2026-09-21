@@ -382,6 +382,92 @@ try {
   assert(prewriteResult.executionGrant?.createCalled === false, "prewrite_finalization_must_not_create");
   assert(JSON.stringify(prewriteResult.executionGrant?.blockers) === JSON.stringify(["readonly_transport_failed"]), "prewrite_finalization_must_preserve_concrete_blocker");
 
+  let interruptedCreateConfirmation = null;
+  let interruptedCreateFinalizations = 0;
+  let interruptedCreateRuns = 0;
+  const interruptedCreateRepo = {
+    ...createRepo,
+    async getLaunchJobBundle() { return { ...createBundle, executionConfirmation: interruptedCreateConfirmation }; },
+    async getLaunchConfirmationForPlan() { return interruptedCreateConfirmation; },
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (interruptedCreateConfirmation) return { claimed: false, alreadyConfirmed: true };
+      interruptedCreateConfirmation = {
+        confirmation_id: input.confirmationId,
+        plan_id: input.planId,
+        confirmation_status: input.confirmationStatus
+      };
+      return { claimed: true, confirmationId: input.confirmationId };
+    },
+    async finalizeConfirmedCreatePlanBeforeAction(input) {
+      interruptedCreateFinalizations += 1;
+      assert(input.blockerCode === "confirmed_create_execution_failed_before_action", "unexpected_create_interruption_blocker");
+      return { finalized: true, jobFinalized: true, nodesFinalized: 2 };
+    }
+  };
+  const interruptedCreate = await executeConfirmedLaunch({
+    repo: interruptedCreateRepo,
+    jobId,
+    grantSource: "workbench_conversation",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    expectedPlanId: createPlanId,
+    expectedPlanHash: createPlanHash,
+    projectStatePath: statePath,
+    getJobViewFn: async () => ({ jobId, caseGate: { currentGate: "resolve_case_blocker" }, phases: [] }),
+    runJobFn: async () => {
+      interruptedCreateRuns += 1;
+      throw new Error("simulated_post_claim_local_failure");
+    }
+  });
+  assert(interruptedCreateRuns === 1, "post_claim_failure_did_not_enter_execute_once");
+  assert(interruptedCreateFinalizations === 1, "post_claim_zero_action_failure_not_finalized");
+  assert(interruptedCreate.executionGrant?.status === "blocked", "post_claim_zero_action_failure_not_reported_blocked");
+  assert(interruptedCreate.executionGrant?.createCalled === false, "post_claim_zero_action_failure_must_not_create");
+  assert(interruptedCreate.executionGrant?.blockers?.[0] === "confirmed_create_execution_failed_before_action", "post_claim_zero_action_blocker_missing");
+  const repeatedInterruptedCreate = await executeConfirmedLaunch({
+    repo: interruptedCreateRepo,
+    jobId,
+    grantSource: "workbench_conversation",
+    executionIntent: EXECUTION_GRANT_INTENT,
+    expectedPlanId: createPlanId,
+    expectedPlanHash: createPlanHash,
+    projectStatePath: statePath,
+    getJobViewFn: async () => ({ jobId, caseGate: { currentGate: "resolve_case_blocker" }, phases: [] }),
+    runJobFn: async () => { throw new Error("must_not_replay_confirmed_create"); }
+  });
+  assert(repeatedInterruptedCreate.executionGrant?.blockers?.[0] === "execution_plan_confirmation_already_recorded", "interrupted_create_confirmation_replayed");
+  assert(interruptedCreateFinalizations === 1, "repeated_interrupted_create_refinalized_plan");
+
+  let failedFinalizationConfirmation = null;
+  const failedFinalizationRepo = {
+    ...createRepo,
+    async getLaunchJobBundle() { return { ...createBundle, executionConfirmation: failedFinalizationConfirmation }; },
+    async getLaunchConfirmationForPlan() { return failedFinalizationConfirmation; },
+    async claimLaunchExecutionPlanConfirmation(input) {
+      if (failedFinalizationConfirmation) return { claimed: false, alreadyConfirmed: true };
+      failedFinalizationConfirmation = { confirmation_id: input.confirmationId, plan_id: input.planId, confirmation_status: input.confirmationStatus };
+      return { claimed: true, confirmationId: input.confirmationId };
+    },
+    async finalizeConfirmedCreatePlanBeforeAction() {
+      throw new Error("simulated_zero_action_finalization_unavailable");
+    }
+  };
+  let failedFinalizationPreservedOriginalError = false;
+  try {
+    await executeConfirmedLaunch({
+      repo: failedFinalizationRepo,
+      jobId,
+      grantSource: "workbench_conversation",
+      executionIntent: EXECUTION_GRANT_INTENT,
+      expectedPlanId: createPlanId,
+      expectedPlanHash: createPlanHash,
+      projectStatePath: statePath,
+      runJobFn: async () => { throw new Error("simulated_post_claim_local_failure"); }
+    });
+  } catch (error) {
+    failedFinalizationPreservedOriginalError = error.message === "simulated_post_claim_local_failure";
+  }
+  assert(failedFinalizationPreservedOriginalError, "zero_action_finalization_failure_must_not_report_recovered");
+
   console.log(JSON.stringify({
     status: "passed",
     authorizationMode: authorization.authorizationMode,
@@ -391,6 +477,8 @@ try {
     createConfirmationWinnerCount: 1,
     createExecutorCalls,
     confirmedZeroActionPrewriteFinalized: true,
+    confirmedCreatePostClaimFailureFinalized: true,
+    unprovenZeroActionFailureRemainsClosed: true,
     realPlatformWriteCalled: false
   }, null, 2));
 } finally {
