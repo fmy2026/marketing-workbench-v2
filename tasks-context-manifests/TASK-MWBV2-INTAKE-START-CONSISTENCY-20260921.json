@@ -1,0 +1,118 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921",
+  "task_ref": "tasks/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T03:51:15Z",
+  "updated_at": "2026-09-21T03:55:35Z",
+  "base_revision": "2976b397655430c622daafaf611fdf54e62d7b23",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png": "sha256:775eaca2bd071d07d67e4afbf57e696c2ce264b724a447c3a75cd0b9164c3111",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png": "sha256:f7502c73bc3a39c4494b0a8619fca7ccb3c91479adde44119b17ea082b4a51a6",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png": "sha256:885390509066664faa0b20b66033ae720fb57b6fb604c7906fd6be352ae59827",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md": "sha256:955c89dab2a4e1bfabe14d50c12c75bc45484847a2906d102c5b010741f24df9",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json": "sha256:b90a26a23ce782254720820da72e1e316d295346af885ad1554d6ebdeb661415",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md": "sha256:5d4a4782ac49c962e618a9738e664a57886b3e3f70fdb79c1a80eed7fcfc7f0f",
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": ["control", "workflow", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/agents/launchAgent.mjs",
+    "frontend/app.js",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md",
+    "src/agents/conversationIntentResolver.mjs",
+    "frontend/app.js",
+    "scripts/00-launch-request-smoke.mjs",
+    "scripts/00-llm-explicit-intake-progress-smoke.mjs",
+    "scripts/00-workbench-client-pages-smoke.mjs",
+    "tasks/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.json",
+    "evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/**"
+  ],
+  "forbidden_actions": ["真实平台写入、确认、重试或凭据输出", "修改数据库、Gate、Node、Plan 或账户归属"],
+  "stop_conditions": ["修复需要扩大到禁止范围", "任何验收未通过或发布版本未核验"],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:launch-request && npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-02", "command": "npm run test:llm-explicit-intake-progress && npm run test:launch-request"},
+    {"acceptance_id": "AC-03", "command": "npm run test:launch-request && npm run test:workbench-client-pages"},
+    {"acceptance_id": "AC-04", "command": "npm run test:workbench-client-pages && npm run test:workbench-auth-http"},
+    {"acceptance_id": "AC-05", "command": "npm run test:workbench-cross-user-http && npm run check:project -- --phase before-close"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:launch-request && npm run test:workbench-client-pages",
+      "verified_at": "2026-09-21T03:54:58Z",
+      "summary": "模型回退后的首轮草稿在第二轮补路线后形成完整规则请求，未再次调用模型；浏览器显示唯一且可点击的启动卡。",
+      "evidence_refs": ["evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:llm-explicit-intake-progress && npm run test:launch-request",
+      "verified_at": "2026-09-21T03:54:58Z",
+      "summary": "模型成功与各类安全回退分类保持受控，完整规则请求不会被回退诊断额外阻断。",
+      "evidence_refs": ["evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:launch-request && npm run test:workbench-client-pages",
+      "verified_at": "2026-09-21T03:54:58Z",
+      "summary": "缺项、冲突、非法游戏、事项切换、输入编辑与 JSON 校验仍使启动卡失效或不出现。",
+      "evidence_refs": ["evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:workbench-client-pages && npm run test:workbench-auth-http && npm run check:runtime-consistency",
+      "verified_at": "2026-09-21T03:54:58Z",
+      "summary": "隔离浏览器验证同一快照只提交一次；运行一致性检查记录零确认、零创建动作、零对象和零真实回查。",
+      "evidence_refs": ["evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "npm run test:workbench-cross-user-http && npm run test:workbench-conversation && npm run check:project -- --phase before-close",
+      "verified_at": "2026-09-21T03:54:58Z",
+      "summary": "追加、会话、跨用户隔离与项目合同回归通过；发布验证将在提交与固定版本切换后完成。",
+      "evidence_refs": ["evidence/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录已批准的 Intake 合并与唯一启动判定。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "明确模型调用时机和启动卡唯一依据。"},
+    {"ref": "deploy/README.md", "status": "updated", "reason": "修正模型回退后的用户操作说明。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "完成多轮 Intake 合并、统一启动判定和回归覆盖，修复服务端可启动而前端无启动按钮的问题。",
+    "side_effects": "仅修改工作台 Intake 与文档；所有验证在隔离环境完成，未产生真实平台写入。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T03:55:35Z"
+}

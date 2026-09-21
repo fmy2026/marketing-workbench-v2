@@ -535,9 +535,8 @@ import {
   function canStartCurrentDraft() {
     const fields = requiredFields();
     const hasIssues = intakeIssues.length > 0;
-    const modelAssistFailed = intakeModelAssist?.attempted === true && intakeModelAssist?.outcome !== "accepted";
     return !job && intakeCanStart && Boolean(validatedIntakeRequest) && fields.length > 0 &&
-      missingFields().length === 0 && !hasIssues && !modelAssistFailed;
+      missingFields().length === 0 && !hasIssues;
   }
 
   function intakeSummary() {

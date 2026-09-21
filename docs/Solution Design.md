@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 文档状态 | 当前有效；方案方法与有效决策索引 |
-| 最后更新时间 | 2026-09-16 CST |
+| 最后更新时间 | 2026-09-21 CST |
 | 校验基线 | 当前有效决策、逻辑图与数据契约；Schema 版本只查数据契约；静态核验 Task `TASK-MWBV2-WORKBENCH-ACCESS-MODE-SWITCH-20260913` |
 | 重新校验条件 | 方案方法或已批准关键选择发生变化时 |
 
@@ -46,8 +46,8 @@
 | 数字员工广场与 Agent 壳层 | 登录后先进入 Agent 广场；可用 Agent 通过服务端公开注册表声明，工作区仅以模块和地址承载既有 Workflow。壳层不计算 Gate、不选择 Plan、不持有账户动态事实；历史 Case/Job 链接统一迁至 Agent 工作区，旧根路径链接重定向兼容。投放执行以真实的 7 Node、8 类资源和 3 类 Plan 承接受控执行；市场情报独立承载数据连接、素材查看和趋势，不继承投放执行能力；投放策略保留为不可进入的前端预告卡。 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-SHELL-20260910.md)、[本次批准 Task](../tasks/TASK-MWBV2-AGENT-HUB-MULTI-MODULE-PREVIEW-20260913.md)、[当前逻辑图](project-现在的逻辑图.md) |
 | 每用户 Agent 模型配置 | 模型配置按 `user_id × agent_key` 隔离；Postgres 仅保存协议、模型、无凭据 API Base、不可逆本地凭据引用、启用和脱敏测试状态，API Key 仅保存于 gitignored 的本机 `0600` 原子凭据库。更新配置即失效，只有无业务数据的固定 Schema 测试通过后可启用；管理员不能读取或代改他人配置 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-MODEL-CONFIG-20260910.md)、[数据契约](project-数据与报表契约.md) |
 | LLM 仅作受限意图解析 | 只有本人已测试、已启用的配置才能解析未被规则准确识别的输入；精确确认、取消、状态、继续与 readonly 恢复始终由确定性解析优先处理。模型输入不含 Case、Job、Gate、Plan 或账户运行状态，输出只能是 allowlist intent、置信度和三项 Intake 槽位；超时、非 JSON、低置信或非法输出均回退规则解析。模型不能决定 Gate、Plan、确认、权限或任何平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-LLM-INTENT-RESOLVER-20260910.md)、[当前逻辑图](project-现在的逻辑图.md) |
-| LLM 显式 Intake 与用户语言进度 | 规则完整识别三项 Intake 时直接使用规则；仅部分识别且模型已启用时，模型只能凭输入中可验证的证据补空槽位，规则值不可被覆盖，缺项不得从默认值、历史或账户推断。DeepSeek `api.deepseek.com` 的固定 Schema 测试和槽位请求均关闭 thinking；成功仅显示采用的槽位名，失败只显示超时、供应商拒绝、非 JSON、意图/置信度或槽位/证据等受控分类并回退规则。模型输出不直接作为对话答案；预设不改变 Workflow、Gate、Plan 或平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-DEEPSEEK-SLOT-ASSIST-DIAGNOSTICS-20260914.md)、[当前逻辑图](project-现在的逻辑图.md) |
-| 统一 LaunchRequest 与澄清 | 首屏先接收受控事项咨询或临时槽位，不预选事项、不显示流程；新建项目补齐路线、游戏、账户后生成 v1。追加视频只收集本人账户、已验证项目和视频标识码，服务端以 Postgres 已回查项目记录派生路线/游戏后生成完整 v2；无匹配、越权、未验证或冲突均停止，不回退平台列表。JSON 严格校验且绝不调用模型；自然语言以规则优先、模型仅凭明示证据补空槽位。已明确追加、账户和项目但尚缺视频时，用户可直接粘贴视频标识码列表，支持逗号、顿号、分号、空白和换行；纯数字无标签输入仍要求标注字段。草稿仅在页面内存与 Intake 响应中存在，事项切换会清除旧事项字段；Case 与 Job 只消费同一已冻结请求，用户身份、账户归属、Plan、确认、单次执行和回查不从请求中取得授权 | [本次批准 Task](../tasks/TASK-MWBV2-APPEND-VIDEO-INPUT-20260914.md)、[当前逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
+| LLM 显式 Intake 与用户语言进度 | 当前轮规则解析与规范化草稿合并后完整时直接使用规则，不调用模型；仍缺项且模型已启用时，模型只能凭当前输入中可验证的证据补空槽位，规则值不可被覆盖，缺项不得从默认值、历史或账户推断。DeepSeek `api.deepseek.com` 的固定 Schema 测试和槽位请求均关闭 thinking；成功仅显示采用的槽位名，失败只显示超时、供应商拒绝、非 JSON、意图/置信度或槽位/证据等受控分类并回退规则。模型诊断不改变服务端已校验的完整请求；模型输出不直接作为对话答案，预设不改变 Workflow、Gate、Plan 或平台动作 | [本次批准 Task](../tasks/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.md)、[当前逻辑图](project-现在的逻辑图.md) |
+| 统一 LaunchRequest 与澄清 | 首屏先接收受控事项咨询或临时槽位，不预选事项、不显示流程；新建项目补齐路线、游戏、账户后生成 v1。追加视频只收集本人账户、已验证项目和视频标识码，服务端以 Postgres 已回查项目记录派生路线/游戏后生成完整 v2；无匹配、越权、未验证或冲突均停止，不回退平台列表。JSON 严格校验且绝不调用模型；自然语言以规则优先、模型仅凭当前输入明示证据补空槽位。完整 Intake 的唯一启动依据是服务端 `can_start` 与已校验请求快照；模型回退仅解释解析过程，不能额外否决启动。已明确追加、账户和项目但尚缺视频时，用户可直接粘贴视频标识码列表，支持逗号、顿号、分号、空白和换行；纯数字无标签输入仍要求标注字段。草稿仅在页面内存与 Intake 响应中存在，事项切换会清除旧事项字段；Case 与 Job 只消费同一已冻结请求，用户身份、账户归属、Plan、确认、单次执行和回查不从请求中取得授权 | [本次批准 Task](../tasks/TASK-MWBV2-INTAKE-START-CONSISTENCY-20260921.md)、[当前逻辑图](project-现在的逻辑图.md)、[数据契约](project-数据与报表契约.md) |
 | Agent 只读模块 | 记忆只投影本人 Case、最新 Job、规范化槽位、状态和受控证据引用，不保存聊天原文；知识库和技能仅展示注册表与 7 Node 的公开能力说明。数据统计默认本人，管理员须显式切换“全部用户”才读取全量只读报表，且不获得代操作权限 | [本次批准 Task](../tasks/TASK-MWBV2-AGENT-READONLY-MODULES-20260910.md)、[数据契约](project-数据与报表契约.md) |
 | Case 与单一 Gate | Case 管持续目标、Job 管一次运行；消费者统一读 summary，避免历史 blocker 冒充当前阻断 | [Case Gate 任务](../tasks/TASK-MWBV2-CASE-GATE-TRUTH-UI-ACCOUNT-CONTRACT-20260831.md)、[数据契约](project-数据与报表契约.md) |
 | 用户与账户归属 | 本人执行/确认，管理员管理用户及只读报表；账户发现前验证唯一 owner | [账户隔离任务](../tasks/TASK-MWBV2-LAN-USER-ACCOUNT-ISOLATION-20260907.md) |

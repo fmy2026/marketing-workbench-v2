@@ -137,6 +137,30 @@ try {
   await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('你想新建项目')"), "partial_game_reply");
   assert(!await present(".conversation-start-card"), "partial_natural_start_visible");
 
+  await evaluate(`(() => {
+    const originalFetch = window.fetch;
+    window.__intakeOriginalFetch = originalFetch;
+    window.fetch = async (...args) => {
+      const request = String(args[0]);
+      const options = args[1] || {};
+      const response = await originalFetch(...args);
+      const body = options.body ? JSON.parse(options.body) : null;
+      if (request !== "/api/launch/intake" || options.method !== "POST" || body?.user_intent !== "路线：oceanengine_3_byte_mini_game") return response;
+      const intake = await response.clone().json();
+      return new Response(JSON.stringify({ ...intake, parse_source: "rules_fallback", model_assist: { attempted: true, outcome: "intent_confidence_rejected", accepted_slots: [] } }), { status: response.status, headers: { "content-type": "application/json" } });
+    };
+  })()`);
+  await fill("#chatInput", "新建项目，游戏 JSZC，账户 1871922999999999");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#chatStream').textContent.includes('推广路线')"), "model_fallback_partial_reply");
+  await fill("#chatInput", "路线：oceanengine_3_byte_mini_game");
+  await evaluate("document.querySelector('#chatForm').requestSubmit()");
+  await until(() => present(".conversation-start-card"), "model_fallback_merged_ready");
+  assert(!await evaluate("document.querySelector('.conversation-start-card .start-button').disabled"), "model_fallback_merged_start_disabled");
+  assert((await evaluate("document.querySelector('#agentStatus').textContent")) === "待启动", "model_fallback_merged_status_not_pending_start");
+  assert((await evaluate("document.querySelector('#configTip').textContent")).includes("回退规则解析"), "model_fallback_parse_label_missing");
+  await evaluate("window.fetch = window.__intakeOriginalFetch");
+
   await fill("#chatInput", "新建项目，路线 oceanengine_3_byte_mini_game，账户 1871922999999999");
   await evaluate("document.querySelector('#chatForm').requestSubmit()");
   await until(() => present(".conversation-start-card"), "natural_ready");

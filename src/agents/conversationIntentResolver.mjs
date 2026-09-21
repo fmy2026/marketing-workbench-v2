@@ -40,7 +40,7 @@ export const CONVERSATION_INTENTS = Object.freeze([
 const INTENT_SET = new Set(CONVERSATION_INTENTS);
 const MIN_CONFIDENCE = 0.8;
 const MAX_MESSAGE_LENGTH = 1000;
-const INTAKE_HELP_REPLY = "当前支持 OE3 字节小游戏、JSZC 的新建项目，以及为已有项目追加视频。可直接说“新建项目，游戏 JSZC，账户 1234567890123456”，或“给项目 1234567890123456 追加视频，账户 1234567890123456，视频标识码：video-A”。";
+const INTAKE_HELP_REPLY = "当前支持 OE3 字节小游戏、JSZC 的新建项目，以及为已有项目追加视频。可直接说“新建项目，路线 oceanengine_3_byte_mini_game，游戏 JSZC，账户 1234567890123456”，或“给项目 1234567890123456 追加视频，账户 1234567890123456，视频标识码：video-A”。";
 const VIDEO_IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]{2,128}$/;
 const VIDEO_IDENTIFIER_SEPARATOR = /[\s,，、;；]+/;
 const NEXT_INTAKE_FIELD_LABEL = /(?:账户|账号|广告账户|advertiser(?:_id)?|项目|project(?:_id)?|路线|游戏)\s*[:：]/i;
@@ -560,15 +560,24 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
     return normalized;
   }
   const prior = switchingOperation ? createLaunchRequestDraft() : createLaunchRequestDraft({ ...priorDraft, operation: "create_std_project" });
-  const resolved = await resolveExplicitLaunchIntake({ message: userIntent, resolver });
-  const issueCodes = resolved.issues || [];
-  const invalidGame = Boolean(resolved.game_code && resolved.game_code !== "JSZC");
-  let next = { ...prior };
-  if (issueCodes.includes("operation_not_supported")) {
-    next = createLaunchRequestDraft();
-  } else {
-    for (const field of LAUNCH_INTAKE_FIELDS) if (resolved[field] && !(field === "game_code" && invalidGame)) next[field] = resolved[field];
-    if (issueCodes.includes("multiple_advertiser_ids")) next.advertiser_id = "";
+  const mergeCreateDraft = (resolved) => {
+    const issueCodes = resolved.issues || [];
+    const invalidGame = Boolean(resolved.game_code && resolved.game_code !== "JSZC");
+    let next = { ...prior };
+    if (issueCodes.includes("operation_not_supported")) {
+      next = createLaunchRequestDraft();
+    } else {
+      for (const field of LAUNCH_INTAKE_FIELDS) if (resolved[field] && !(field === "game_code" && invalidGame)) next[field] = resolved[field];
+      if (issueCodes.includes("multiple_advertiser_ids")) next.advertiser_id = "";
+    }
+    return { next, issueCodes, invalidGame };
+  };
+  let resolved = await resolveExplicitLaunchIntake({ message: userIntent });
+  let { next, issueCodes, invalidGame } = mergeCreateDraft(resolved);
+  const hasRuleIssue = issueCodes.length > 0 || invalidGame;
+  if (selectedOperation && !hasRuleIssue && intakeMissing(next).length > 0 && resolver) {
+    resolved = await resolveExplicitLaunchIntake({ message: userIntent, resolver });
+    ({ next, issueCodes, invalidGame } = mergeCreateDraft(resolved));
   }
   if (!selectedOperation) {
     next.operation = "";
@@ -576,7 +585,10 @@ export async function resolveLaunchRequestIntake({ userIntent, request, draft, r
   }
   const normalized = buildIntakeResponse({
     draft: next, reply: "", parseSource: resolved.parseSource, source: "natural_language",
-    slotSources: resolved.slotSources,
+    slotSources: Object.fromEntries(LAUNCH_INTAKE_FIELDS.map((field) => [
+      field,
+      !next[field] ? "missing" : resolved.slotSources?.[field] === "llm" ? "llm" : "rules"
+    ])),
     modelAssist: resolved.modelAssist,
     issues: [
       ...issueCodes.map(launchRequestIssue),

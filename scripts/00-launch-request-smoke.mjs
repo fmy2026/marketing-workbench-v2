@@ -43,6 +43,30 @@ const corrected = await resolveLaunchRequestIntake({
 });
 assert(JSON.stringify(corrected.request) === JSON.stringify(request), "partial_correction_not_merged");
 
+let multiTurnModelCalls = 0;
+const rejectedModel = {
+  async resolve() {
+    multiTurnModelCalls += 1;
+    return { intent: "intake_update", confidence: 0.1, slots: {} };
+  }
+};
+const screenshotFirstTurn = await resolveLaunchRequestIntake({
+  userIntent: "新建项目，游戏 JSZC，账户 1871922999999999",
+  draft: {},
+  resolver: rejectedModel
+});
+assert(screenshotFirstTurn.can_start === false && screenshotFirstTurn.missing_fields.join(",") === "route_id", "screenshot_first_turn_not_partial");
+assert(screenshotFirstTurn.model_assist?.outcome === "intent_confidence_rejected" && multiTurnModelCalls === 1, "screenshot_first_turn_model_fallback_missing");
+const screenshotSecondTurn = await resolveLaunchRequestIntake({
+  userIntent: "路线：oceanengine_3_byte_mini_game",
+  draft: screenshotFirstTurn.draft,
+  resolver: rejectedModel
+});
+assert(JSON.stringify(screenshotSecondTurn.request) === JSON.stringify(request), "screenshot_second_turn_not_merged_into_request");
+assert(screenshotSecondTurn.can_start === true && multiTurnModelCalls === 1, "complete_merged_draft_called_model");
+assert(screenshotSecondTurn.model_assist?.attempted === false && screenshotSecondTurn.parse_source === "rules", "complete_merged_draft_not_rules_only");
+assert(screenshotSecondTurn.reply.includes("可启动流程"), "complete_merged_draft_reply_missing");
+
 const help = await resolveLaunchRequestIntake({ userIntent: "你能做什么", draft: partial.draft, resolver: { resolve: async () => { throw new Error("help_called_model"); } } });
 assert(help.request === null && help.can_start === false && help.draft.operation === "" && help.reply.includes("追加视频"), "help_response_not_bounded");
 const invalidGame = await resolveLaunchRequestIntake({ userIntent: "游戏：OTHER", draft: partial.draft });
@@ -138,6 +162,6 @@ try {
 console.log(JSON.stringify({
   status: "passed",
   structuredModelCalls: modelCalls,
-  syntheticCases: ["structured", "natural", "partial-correction", "multiple-account", "unsupported-operation"],
+  syntheticCases: ["structured", "natural", "partial-correction", "model-fallback-then-merged-completion", "multiple-account", "unsupported-operation"],
   realPlatformWrites: 0
 }, null, 2));
