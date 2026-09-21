@@ -180,6 +180,16 @@ assert(ambiguousAppendGuidance?.message.includes("多个来源"), "append_ambigu
 assert(ambiguousAppendGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "append_ambiguous_source_recovery_missing");
 const projectMaterialGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["project_material_readonly_failed"] });
 assert(projectMaterialGuidance?.message.includes("项目素材"), "append_project_material_guidance_missing");
+const appendServerGuidance = readonlyRecoveryGuidance({
+  operation: "append_project_videos",
+  currentGate: "resolve_case_blocker",
+  rootBlockerCodes: ["video_inventory_readonly_failed"],
+  rootBlocker: {
+    title: "视频库存只读核验未完成",
+    nextActionLabel: "检查服务或凭据后输入“重新只读准备”；不会推送或追加视频。"
+  }
+});
+assert(appendServerGuidance?.message === "当前阻断：视频库存只读核验未完成。检查服务或凭据后输入“重新只读准备”；不会推送或追加视频。", "append_guidance_must_use_server_blocker_copy");
 const invalidPushVideoIdGuidance = readonlyRecoveryGuidance({ currentGate: "resolve_case_blocker", rootBlockerCodes: ["source_video_id_invalid_for_material_push"] });
 assert(invalidPushVideoIdGuidance?.message.includes("素材推送计划生成失败") && invalidPushVideoIdGuidance.message.includes("无需修改视频标识码"), "material_push_video_id_guidance_missing");
 assert(invalidPushVideoIdGuidance?.placeholder === "输入“重新只读准备”或“查看状态”…", "material_push_video_id_recovery_missing");
@@ -238,6 +248,10 @@ assert(htmlSource.includes('id="progressText"'), "bottom_progress_text_removed")
 assert(htmlSource.includes('id="progressRefreshButton"'), "bottom_progress_refresh_removed");
 assert(clientSource.includes("refreshProgressFromButton"), "manual_progress_refresh_not_bound");
 assert(clientSource.includes("withProgressPolling"), "command_progress_polling_missing");
+assert(clientSource.includes("const view = await withProgressPolling"), "readonly_run_must_capture_final_view");
+assert(clientSource.includes("if (view?.jobId)"), "readonly_run_must_apply_final_job_view");
+assert(clientSource.includes("正在核验指定视频、目标账户与项目素材；不会推送或追加视频。"), "append_readonly_start_copy_missing");
+assert(clientSource.includes("replaceMessage(readonlyReply, operationalMessage()"), "append_readonly_final_message_must_replace_start_copy");
 assert(clientSource.includes("latestCaseJobId(caseView)"), "case_latest_job_switch_missing");
 assert(clientSource.includes("progressNarrative?.message"), "deterministic_progress_narrative_not_rendered");
 assert(!clientSource.includes("当前 Gate：${gate.currentGate}"), "raw_gate_must_not_be_primary_conversation_copy");

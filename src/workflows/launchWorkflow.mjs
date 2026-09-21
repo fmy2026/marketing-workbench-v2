@@ -820,12 +820,60 @@ export function presentRootBlocker(code = "", { originResourceId = "", candidate
       nextActionLabel: "确认唯一视频来源后输入“重新只读准备”；不会猜测、推送或追加视频。"
     };
   }
+  if (code === "video_inventory_readonly_failed") {
+    return {
+      code,
+      title: "视频库存只读核验未完成",
+      reason: "指定视频的库存查询未获得可用结果，系统未将其当作视频缺失或来源不唯一。",
+      nextActionLabel: "检查服务或凭据后输入“重新只读准备”；不会推送或追加视频。"
+    };
+  }
+  if (code === "video_inventory_page_bound_invalid") {
+    return {
+      code,
+      title: "视频库存分页结果异常",
+      reason: "库存查询已返回，但分页范围不符合受控只读合同，系统未继续匹配视频。",
+      nextActionLabel: "服务修复后输入“重新只读准备”；不会推送或追加视频。"
+    };
+  }
+  if (code === "video_inventory_page_failed") {
+    return {
+      code,
+      title: "视频库存后续页未核验完成",
+      reason: "库存的后续分页查询未获得可用结果，系统未以不完整列表判断视频状态。",
+      nextActionLabel: "检查服务或凭据后输入“重新只读准备”；不会推送或追加视频。"
+    };
+  }
   if (code === "project_material_readonly_failed") {
     return {
       code,
       title: "项目素材暂无法核验",
       reason: "目标项目的素材列表未获得可用只读结果，系统未生成追加计划。",
       nextActionLabel: "输入“重新只读准备”重新核验；不会推送或追加视频。"
+    };
+  }
+  if (code === "project_material_page_bound_invalid") {
+    return {
+      code,
+      title: "项目素材分页结果异常",
+      reason: "目标项目素材查询已返回，但分页范围不符合受控只读合同，系统未生成追加计划。",
+      nextActionLabel: "服务修复后输入“重新只读准备”；不会推送或追加视频。"
+    };
+  }
+  if (code === "project_material_page_failed") {
+    return {
+      code,
+      title: "项目素材后续页未核验完成",
+      reason: "目标项目素材的后续分页查询未获得可用结果，系统未以不完整列表生成追加计划。",
+      nextActionLabel: "检查服务或凭据后输入“重新只读准备”；不会推送或追加视频。"
+    };
+  }
+  if (code === "project_material_target_unconfirmed") {
+    return {
+      code,
+      title: "目标项目素材归属未确认",
+      reason: "素材查询没有确认目标项目身份，系统未生成追加计划。",
+      nextActionLabel: "检查项目配置后输入“重新只读准备”；不会推送或追加视频。"
     };
   }
   if (code === "append_video_cover_current_job_contract_missing") {
@@ -1966,7 +2014,8 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     ...(appendWire && appendWire.status !== "passed" ? (appendWire.blockers || ["project_video_append_wire_body_invalid"]) : [])
   ].map((value) => String(value || "").trim()).filter(Boolean))];
   const primaryBlocker = blockers[0] || "";
-  const videoIdentificationBlocked = /^(qiankun_video_|video_inventory_|video_origin_mapping_)/.test(primaryBlocker);
+  const sourceInventoryBlocked = prepared.readonlyChecks?.source_inventory?.status === "blocked";
+  const videoIdentificationBlocked = sourceInventoryBlocked || /^(qiankun_video_|video_origin_mapping_)/.test(primaryBlocker);
   const plan = {
     planId,
     jobId: bundle.job.job_id,
@@ -2073,14 +2122,14 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     nodeStatus({
       nodeKey: "game_launch_pack",
       status: videoIdentificationBlocked ? "blocked" : "passed",
-      summary: videoIdentificationBlocked ? "指定视频来源未能唯一核验。" : "指定视频已完成唯一核验。",
+      summary: videoIdentificationBlocked ? "物料户指定视频只读核验未完成。" : "指定视频已完成唯一核验。",
       outputSummary: { readonlyChecks: prepared.readonlyChecks || {} }
     }),
     nodeStatus({
       nodeKey: "account_resource_prepare",
       status: blockers.length && !videoIdentificationBlocked ? "blocked" : blockers.length ? "waiting" : "passed",
       summary: blockers.length && !videoIdentificationBlocked
-        ? "目标账户或项目素材只读核验未完成。"
+        ? "目标账户视频库存或项目素材只读核验未完成。"
         : blockers.length
           ? "等待指定视频来源唯一后继续核验视频可用性。"
           : "视频可用性已核验。",

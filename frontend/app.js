@@ -1259,13 +1259,22 @@ import {
   }
 
   async function runWorkflow(jobId, { diagnosticStage = "" } = {}) {
-    return withProgressPolling(async () => {
-      await api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
+    const view = await withProgressPolling(async () => {
+      return api(`/api/launch/jobs/${encodeURIComponent(jobId)}/run`, {
         method: "POST",
         body: JSON.stringify({ mode: "dry_run" }),
         diagnosticStage
       });
     });
+    if (view?.jobId) {
+      setJobView(view);
+      if (view.caseId && view.caseId !== draftCaseId) {
+        draftCaseId = view.caseId;
+        setActiveCaseUrl(view.caseId);
+      }
+      renderAll();
+    }
+    return view;
   }
 
   function createCaseKey() {
@@ -1358,8 +1367,9 @@ import {
       startupStage = "启动 readonly";
       renderAll();
       await refreshProgress();
-      message("agent", "已建立 Case 与 fresh Job，开始执行 readonly workflow。");
+      const readonlyReply = message("agent", "正在核验指定视频、目标账户与项目素材；不会推送或追加视频。");
       await runWorkflow(job.jobId, { diagnosticStage: "start_workflow_run_readonly" });
+      replaceMessage(readonlyReply, operationalMessage() || "只读核验已完成，请查看当前进度。");
     } catch (error) {
       const validationError = isLaunchRequestValidationError(error);
       startupFeedback = {

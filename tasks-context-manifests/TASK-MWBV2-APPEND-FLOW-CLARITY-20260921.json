@@ -1,0 +1,86 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-APPEND-FLOW-CLARITY-20260921",
+  "task_ref": "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
+  "status": "active",
+  "created_at": "2026-09-21T02:01:16Z",
+  "updated_at": "2026-09-21T02:01:16Z",
+  "base_revision": "f2f40066c3cb9e66a4530239a1fecc8d5eab5be7",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png": "sha256:775eaca2bd071d07d67e4afbf57e696c2ce264b724a447c3a75cd0b9164c3111",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png": "sha256:f7502c73bc3a39c4494b0a8619fca7ccb3c91479adde44119b17ea082b4a51a6",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png": "sha256:885390509066664faa0b20b66033ae720fb57b6fb604c7906fd6be352ae59827",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md": "sha256:955c89dab2a4e1bfabe14d50c12c75bc45484847a2906d102c5b010741f24df9",
+    "project.state.json": "sha256:b5b43a5e4ea864c558d7beb45e576c2c8b667bc38b07d93cf69b77feb1c4ecf6",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json": "sha256:d5bbdb03023858591aeffdb5371dbd0f1ef5b2d95bf2033c472776635c66d8c3",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md": "sha256:5d4a4782ac49c962e618a9738e664a57886b3e3f70fdb79c1a80eed7fcfc7f0f",
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": ["control", "workflow", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/launchOperationContracts.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.json",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json",
+    "evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/**",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md"
+  ],
+  "forbidden_actions": [
+    "OAuth token 刷新、数据库迁移或任何未确认的平台写入",
+    "将 token、secret、完整 URL、原始请求、原始响应或原始用户对话写入项目或证据",
+    "修改 7 Node 注册表、Plan/confirmation/action grant 合同或非追加业务流程"
+  ],
+  "stop_conditions": [
+    "需要 OAuth、Schema、平台写入或非追加流程变更时停止并建立独立方案",
+    "无法证明服务端投影与工作台展示一致时不发布完成声明"
+  ],
+  "open_gaps": [
+    "真实追加不属于本 Task 验收；由账户本人在发布后对既有 Case 发起只读恢复。"
+  ],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"npm run test:project-video-append"},
+    {"acceptance_id":"AC-02","command":"npm run test:project-video-append && npm run test:workbench-progress"},
+    {"acceptance_id":"AC-03","command":"npm run test:project-video-append && npm run test:workbench-client-pages"},
+    {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && company workbench HTTP status check"}
+  ],
+  "validation_results": [],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"记录本次追加视频只读失败提示与恢复展示的批准边界。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"记录追加 Node、Gate、对话与只读诊断投影的一致性。"},
+    {"ref":"deploy/README.md","status":"updated","reason":"记录本次前端与工作流发布后的必要重载和检查。"}
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

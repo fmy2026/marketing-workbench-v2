@@ -18,7 +18,7 @@ import { exactMaterialCodePattern, filenameMatchesMaterialCode } from "../src/pl
 import { launchRequestFingerprint, validateLaunchRequest } from "../src/agents/launchRequest.mjs";
 import { resolveLaunchRequestIntake } from "../src/agents/conversationIntentResolver.mjs";
 import { operationContract } from "../src/workflows/launchOperationContracts.mjs";
-import { finalizeProjectVideoAppendReadbackObservation, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
+import { finalizeProjectVideoAppendReadbackObservation, presentRootBlocker, WORKFLOW_NODES } from "../src/workflows/launchWorkflow.mjs";
 import { PostgresRepository } from "../tests/support/repository.mjs";
 
 function assert(value, message) { if (!value) throw new Error(message); }
@@ -332,6 +332,27 @@ const failedProjectRead = await readProjectVideoIds({
   client: { async get() { return { status: "blocked", responseHash: "sha256:blocked", summary: {} }; } }
 });
 assert(failedProjectRead.status === "blocked" && failedProjectRead.blocker === "project_material_readonly_failed", "project_material_failure_not_classified");
+assert(failedProjectRead.diagnostic?.stage === "project_materials" && failedProjectRead.diagnostic?.page === 1, "project_material_failure_diagnostic_missing");
+const invalidProjectPage = await readProjectVideoIds({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  client: { async get() { return { status: "passed", responseHash: "sha256:invalid-page", summary: { projectIdPresent: true, totalPage: 0 } }; } }
+});
+assert(invalidProjectPage.blocker === "project_material_page_bound_invalid" && invalidProjectPage.diagnostic?.failure_type === "page_bounds", "project_material_page_bounds_must_not_be_query_failure");
+let projectPageCall = 0;
+const failedProjectLaterPage = await readProjectVideoIds({
+  advertiserId: request.advertiser_id,
+  projectId: request.project_id,
+  client: {
+    async get() {
+      projectPageCall += 1;
+      return projectPageCall === 1
+        ? { status: "passed", responseHash: "sha256:project-first", summary: { projectIdPresent: true, totalPage: 2, videoIds: [] } }
+        : { status: "transport_failed", responseHash: "sha256:project-second", httpStatus: null, apiCode: "", summary: {} };
+    }
+  }
+});
+assert(failedProjectLaterPage.blocker === "project_material_page_failed" && failedProjectLaterPage.diagnostic?.page === 2 && failedProjectLaterPage.diagnostic?.client_status === "transport_failed", "project_material_later_page_failure_not_retained");
 const inventory = await scanOceanEngineVideoInventory({
   advertiserId: request.advertiser_id,
   originResourceIds: ["video-zero", "video-unique", "video-ambiguous"],
@@ -354,6 +375,37 @@ const inventory = await scanOceanEngineVideoInventory({
 });
 assert(inventory.status === "blocked" && inventory.blocker === "video_origin_mapping_ambiguous", "video_inventory_ambiguity_not_blocked");
 assert(inventory.items.map((item) => item.candidateCount).join(",") === "0,1,2", "video_inventory_candidate_counts_invalid");
+const failedInventory = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["video-A"],
+  diagnosticStage: "source_inventory",
+  client: { async get() { return { status: "credential_required", responseHash: "", httpStatus: null, apiCode: "", credential: { blockers: ["access_token_expired_refresh_required"] }, summary: {} }; } }
+});
+assert(failedInventory.blocker === "video_inventory_readonly_failed", "inventory_query_failure_must_not_become_page_bounds");
+assert(failedInventory.diagnostic?.stage === "source_inventory" && failedInventory.diagnostic?.credential_blockers?.[0] === "access_token_expired_refresh_required", "inventory_safe_credential_diagnostic_missing");
+const invalidInventoryPage = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["video-A"],
+  client: { async get() { return { status: "passed", responseHash: "sha256:inventory-invalid-page", summary: { totalPage: 0, items: [] } }; } }
+});
+assert(invalidInventoryPage.blocker === "video_inventory_page_bound_invalid" && invalidInventoryPage.diagnostic?.failure_type === "page_bounds", "inventory_page_bounds_must_not_be_query_failure");
+let inventoryPageCall = 0;
+const failedInventoryLaterPage = await scanOceanEngineVideoInventory({
+  advertiserId: request.advertiser_id,
+  originResourceIds: ["video-A"],
+  diagnosticStage: "target_inventory",
+  client: {
+    async get() {
+      inventoryPageCall += 1;
+      return inventoryPageCall === 1
+        ? { status: "passed", responseHash: "sha256:inventory-first", summary: { totalPage: 2, items: [] } }
+        : { status: "transport_failed", responseHash: "sha256:inventory-second", httpStatus: null, apiCode: "", summary: {} };
+    }
+  }
+});
+assert(failedInventoryLaterPage.blocker === "video_inventory_page_failed" && failedInventoryLaterPage.diagnostic?.stage === "target_inventory" && failedInventoryLaterPage.diagnostic?.page === 2, "inventory_later_page_failure_not_retained");
+assert(presentRootBlocker("video_inventory_readonly_failed").title === "视频库存只读核验未完成", "inventory_readonly_blocker_copy_missing");
+assert(presentRootBlocker("project_material_page_bound_invalid").title === "项目素材分页结果异常", "project_page_bounds_blocker_copy_missing");
 assert(exactMaterialCodePattern("4iLE-2")?.flags === "", "material_code_pattern_must_be_case_sensitive");
 assert(filenameMatchesMaterialCode("4iLE-2.mp4", "4iLE-2"), "exact_case_material_code_not_matched");
 assert(!filenameMatchesMaterialCode("4ile-2.mp4", "4iLE-2"), "lowercase_material_code_must_not_match");

@@ -92,6 +92,25 @@ function videoItems(payload = {}) {
 
 function videoId(item = {}) { return clean(item.video_id || item.videoId || item.id); }
 
+// Only persist a safe projection of a readonly failure.  In particular, this
+// intentionally excludes the request URL, payload and platform response.
+function readonlyDiagnostic(result = {}, { stage, page, failureType } = {}) {
+  const httpStatus = Number(result?.httpStatus);
+  const credentialBlockers = Array.isArray(result?.credential?.blockers)
+    ? result.credential.blockers.map(clean).filter(Boolean)
+    : [];
+  return {
+    stage: clean(stage),
+    page: Number.isInteger(page) && page > 0 ? page : 0,
+    failure_type: clean(failureType),
+    client_status: clean(result?.status) || "unknown",
+    http_status: Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599 ? httpStatus : null,
+    api_code: clean(result?.apiCode),
+    credential_blockers: [...new Set(credentialBlockers)],
+    response_hash: clean(result?.responseHash)
+  };
+}
+
 function projectSnapshotHash(videoIds = []) {
   return hash(canonical([...new Set(videoIds.map(clean).filter(Boolean))].sort()));
 }
@@ -136,7 +155,9 @@ export function buildProjectVideoAppendWireBody({ advertiserId, projectId, appen
   };
 }
 
-export async function scanOceanEngineVideoInventory({ client = createOceanEngineReadonlyClient(), advertiserId, originResourceIds = [] } = {}) {
+export async function scanOceanEngineVideoInventory({
+  client = createOceanEngineReadonlyClient(), advertiserId, originResourceIds = [], diagnosticStage = "video_inventory"
+} = {}) {
   const account = longId("advertiser_id", advertiserId);
   const originIds = [...new Set(originResourceIds.map(clean).filter(Boolean))];
   const wanted = new Map(originIds.map((originResourceId) => [originResourceId, []]));
@@ -160,15 +181,38 @@ export async function scanOceanEngineVideoInventory({ client = createOceanEngine
     })
   });
   const first = await fetchPage(1);
+  if (first.status !== "passed") {
+    return {
+      status: "blocked",
+      blocker: "video_inventory_readonly_failed",
+      items: [],
+      responseHash: first.responseHash || "",
+      diagnostic: readonlyDiagnostic(first, { stage: diagnosticStage, page: 1, failureType: "readonly_query" })
+    };
+  }
   const totalPage = Number(first.summary?.totalPage || 0);
-  if (first.status !== "passed" || !Number.isInteger(totalPage) || totalPage < 1 || totalPage > 100) {
-    return { status: "blocked", blocker: "video_inventory_page_bound_invalid", items: [], responseHash: first.responseHash || "" };
+  if (!Number.isInteger(totalPage) || totalPage < 1 || totalPage > 100) {
+    return {
+      status: "blocked",
+      blocker: "video_inventory_page_bound_invalid",
+      items: [],
+      responseHash: first.responseHash || "",
+      diagnostic: readonlyDiagnostic(first, { stage: diagnosticStage, page: 1, failureType: "page_bounds" })
+    };
   }
   findMatches(first.summary?.items || []);
   const hashes = [first.responseHash || ""];
   for (let page = 2; page <= totalPage; page += 1) {
     const result = await fetchPage(page);
-    if (result.status !== "passed") return { status: "blocked", blocker: "video_inventory_page_failed", items: [], responseHash: hash(hashes) };
+    if (result.status !== "passed") {
+      return {
+        status: "blocked",
+        blocker: "video_inventory_page_failed",
+        items: [],
+        responseHash: hash(canonical([...hashes, result.responseHash || ""])),
+        diagnostic: readonlyDiagnostic(result, { stage: diagnosticStage, page, failureType: "readonly_query" })
+      };
+    }
     findMatches(result.summary?.items || []);
     hashes.push(result.responseHash || "");
   }
@@ -205,15 +249,47 @@ export async function readProjectVideoIds({ client = createOceanEngineReadonlyCl
     })
   });
   const first = await fetchPage(1);
+  if (first.status !== "passed") {
+    return {
+      status: "blocked",
+      videoIds: [],
+      blocker: "project_material_readonly_failed",
+      responseHash: first.responseHash || "",
+      diagnostic: readonlyDiagnostic(first, { stage: "project_materials", page: 1, failureType: "readonly_query" })
+    };
+  }
   const pages = Number(first.summary?.totalPage || 0);
-  if (first.status !== "passed" || !Number.isInteger(pages) || pages < 1 || pages > 100 || !first.summary?.projectIdPresent) {
-    return { status: "blocked", videoIds: [], blocker: "project_material_readonly_failed", responseHash: first.responseHash || "" };
+  if (!Number.isInteger(pages) || pages < 1 || pages > 100) {
+    return {
+      status: "blocked",
+      videoIds: [],
+      blocker: "project_material_page_bound_invalid",
+      responseHash: first.responseHash || "",
+      diagnostic: readonlyDiagnostic(first, { stage: "project_materials", page: 1, failureType: "page_bounds" })
+    };
+  }
+  if (!first.summary?.projectIdPresent) {
+    return {
+      status: "blocked",
+      videoIds: [],
+      blocker: "project_material_target_unconfirmed",
+      responseHash: first.responseHash || "",
+      diagnostic: readonlyDiagnostic(first, { stage: "project_materials", page: 1, failureType: "project_identity" })
+    };
   }
   const ids = [...(first.summary?.videoIds || [])];
   const responseHashes = [first.responseHash || ""];
   for (let page = 2; page <= pages; page += 1) {
     const response = await fetchPage(page);
-    if (response.status !== "passed") return { status: "blocked", videoIds: [], blocker: "project_material_readonly_failed", responseHash: hash(canonical(responseHashes)) };
+    if (response.status !== "passed") {
+      return {
+        status: "blocked",
+        videoIds: [],
+        blocker: "project_material_page_failed",
+        responseHash: hash(canonical([...responseHashes, response.responseHash || ""])),
+        diagnostic: readonlyDiagnostic(response, { stage: "project_materials", page, failureType: "readonly_query" })
+      };
+    }
     ids.push(...(response.summary?.videoIds || []));
     responseHashes.push(response.responseHash || "");
   }
@@ -240,8 +316,8 @@ export async function prepareProjectVideoAppendReadonly({
     return { status: "blocked", blockerCodes: [qiankun?.status !== "passed" ? "qiankun_video_lookup_failed" : "qiankun_video_not_found"], items: [], missingOriginResourceIds: missing };
   }
   const [source, target, project] = await Promise.all([
-    scanOceanEngineVideoInventory({ client: oceanEngineClient, advertiserId: materialAccountId, originResourceIds: ids }),
-    scanOceanEngineVideoInventory({ client: oceanEngineClient, advertiserId, originResourceIds: ids }),
+    scanOceanEngineVideoInventory({ client: oceanEngineClient, advertiserId: materialAccountId, originResourceIds: ids, diagnosticStage: "source_inventory" }),
+    scanOceanEngineVideoInventory({ client: oceanEngineClient, advertiserId, originResourceIds: ids, diagnosticStage: "target_inventory" }),
     readProjectVideoIds({ client: oceanEngineClient, advertiserId, projectId })
   ]);
   const readonlyChecks = {
@@ -249,19 +325,22 @@ export async function prepareProjectVideoAppendReadonly({
       status: source.status,
       blocker: source.blocker || "",
       items: (source.items || []).map((item) => ({ originResourceId: item.originResourceId, candidateCount: Number(item.candidateCount || 0) })),
-      responseHash: source.responseHash || ""
+      responseHash: source.responseHash || "",
+      diagnostic: source.diagnostic || null
     },
     target_inventory: {
       status: target.status,
       blocker: target.blocker || "",
       items: (target.items || []).map((item) => ({ originResourceId: item.originResourceId, candidateCount: Number(item.candidateCount || 0) })),
-      responseHash: target.responseHash || ""
+      responseHash: target.responseHash || "",
+      diagnostic: target.diagnostic || null
     },
     project_materials: {
       status: project.status,
       blocker: project.blocker || "",
       itemCount: (project.videoIds || []).length,
-      responseHash: project.responseHash || ""
+      responseHash: project.responseHash || "",
+      diagnostic: project.diagnostic || null
     }
   };
   if (source.status !== "passed" || target.status !== "passed" || project.status !== "passed") {

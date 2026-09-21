@@ -18,6 +18,14 @@ export function readonlyRecoveryGuidance(caseGate = {}) {
   const gate = String(caseGate?.currentGate || "").trim();
   const blocker = String(caseGate?.rootBlockerCodes?.[0] || "").trim();
   if (gate !== "resolve_case_blocker") return null;
+  if (caseGate?.operation === "append_project_videos" && blocker) {
+    const title = String(caseGate?.rootBlocker?.title || "追加视频只读核验未完成").trim();
+    const nextAction = String(caseGate?.rootBlocker?.nextActionLabel || "输入“重新只读准备”重新核验；不会推送或追加视频。").trim();
+    return {
+      message: `当前阻断：${title}。${nextAction}`,
+      placeholder: "输入“重新只读准备”或“查看状态”…"
+    };
+  }
   if (blocker === "video_bind_plan_empty") {
     return {
       message: "当前阻断：旧资源 Plan 没有冻结可执行的视频绑定批次。请输入“重新只读准备”重新核验；不会重放旧 Plan 或创建项目。",
