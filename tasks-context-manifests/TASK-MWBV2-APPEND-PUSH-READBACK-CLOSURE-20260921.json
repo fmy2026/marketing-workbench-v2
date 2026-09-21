@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921",
   "task_ref": "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-21T02:39:14Z",
-  "updated_at": "2026-09-21T02:54:22Z",
+  "updated_at": "2026-09-21T03:30:38Z",
   "base_revision": "89ca2989899a877fbda0a4b47d780d6109b7e701",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md": "sha256:2ac15df6828bda260ebd676626214d286a2180650d73e318e469ce1128e6442c",
@@ -49,7 +49,8 @@
     "frontend/workbench-progress.mjs",
     "scripts/00-project-video-append-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
-    "scripts/00-workbench-conversation-smoke.mjs"
+    "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/04-video-material-executor-smoke.mjs"
   ],
   "reference_only": [],
   "allowed_writes": [
@@ -75,6 +76,7 @@
     "scripts/00-project-video-append-smoke.mjs",
     "scripts/00-workbench-progress-smoke.mjs",
     "scripts/00-workbench-conversation-smoke.mjs",
+    "scripts/04-video-material-executor-smoke.mjs",
     "docs/Solution Design.md",
     "docs/project-现在的逻辑图.md",
     "docs/project-数据与报表契约.md",
@@ -89,46 +91,44 @@
     "需要 OAuth、Schema 迁移、第二次平台推送、真实追加或非追加流程变更时停止并另行取得批准",
     "无法保持确认、Plan、动作和只读证据精确绑定，或无法安全证明状态投影一致时不发布完成声明"
   ],
-  "open_gaps": [
-    "账户本人尚未在原 Case 执行“检查推送结果”的只读恢复；完成后应验证出现追加确认卡。真实追加不属于本 Task 验收。"
-  ],
+  "open_gaps": [],
   "validation_plan": [
     {"acceptance_id":"AC-01","command":"npm run test:project-video-append"},
     {"acceptance_id":"AC-02","command":"npm run test:project-video-append"},
-    {"acceptance_id":"AC-03","command":"npm run test:project-video-append && npm run test:workbench-progress"},
-    {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && company workbench HTTP status check"}
+    {"acceptance_id":"AC-03","command":"npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-client-pages && npm run test:video-material-executor"},
+    {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root> && direct HTTP status check"}
   ],
   "validation_results": [
     {
       "acceptance_id": "AC-01",
       "status": "passed",
       "command": "npm run test:project-video-append",
-      "verified_at": "2026-09-21T02:54:22Z",
-      "summary": "覆盖首次未可见、后续可见、原 Plan 收口、一次推送和不生成自动追加。",
+      "verified_at": "2026-09-21T03:29:25Z",
+      "summary": "覆盖首次未可见、30 秒继续、180 秒末轮、后续可见、原 Plan 收口、一次推送和不生成自动追加。",
       "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
     },
     {
       "acceptance_id": "AC-02",
       "status": "passed",
       "command": "npm run test:project-video-append",
-      "verified_at": "2026-09-21T02:54:22Z",
-      "summary": "覆盖查询失败零核验计数、延迟可见、安全 evidence/readback 与较旧观察不覆盖较新状态。",
+      "verified_at": "2026-09-21T03:29:25Z",
+      "summary": "覆盖查询失败零核验计数、延迟可见、安全 evidence/readback、冻结绑定、单轮领取与较旧观察不覆盖较新状态。",
       "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
     },
     {
       "acceptance_id": "AC-03",
       "status": "passed",
-      "command": "npm run test:workbench-progress && npm run test:workbench-client-pages",
-      "verified_at": "2026-09-21T02:54:22Z",
-      "summary": "验证 Gate、命令、按钮、节点进度与工作台客户端投影使用同一只读恢复语义。",
+      "command": "npm run test:workbench-conversation && npm run test:workbench-progress && npm run test:workbench-client-pages && npm run test:video-material-executor",
+      "verified_at": "2026-09-21T03:29:25Z",
+      "summary": "验证冻结轮次命令、Gate、按钮、节点进度、工作台客户端投影与共享视频就绪能力使用同一 Plan-bound 合同。",
       "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
     },
     {
       "acceptance_id": "AC-04",
-      "status": "not_run",
-      "command": "npm run workbench:release && npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root <release_root> && account-owner readonly recovery",
-      "verified_at": "2026-09-21T02:54:22Z",
-      "summary": "发布和公司工作台 HTTP 200 已验证；原 Case 的账户本人只读恢复尚未执行，Task 保持 active。",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start && npm run workbench:release && npm run workbench:mode -- --mode company --host 192.168.42.7 --release-root /Users/hys/Projects/marketing-workbench-v2/.local/releases/7b3e04ace9da16a2dcc122b52d0e502552c9e592 && direct HTTP status check",
+      "verified_at": "2026-09-21T03:29:25Z",
+      "summary": "版本已推送并以公司模式发布；直接 HTTP 健康检查为 200。原 Case 已在 Postgres 核验为 project_video_append_completed，历史推送与追加各仅一次；未发起新的平台动作。",
       "evidence_refs": ["evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/validation.md"]
     }
   ],
@@ -139,6 +139,16 @@
     {"ref":"deploy/README.md","status":"updated","reason":"记录本次工作台发布后的健康检查与原 Case 只读恢复验证。"}
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "追加素材推送在首次未可见时会在页面存活期间按三分钟有界窗口继续精确只读回查；通过后才生成追加确认卡，未通过不会重复推送。",
+    "side_effects": "已发布公司工作台 release 7b3e04ace9da16a2dcc122b52d0e502552c9e592；未执行 OAuth、Schema 迁移或新的平台写入。",
+    "remaining_risks": [
+      "自动分轮仅在页面存活期间运行；窗口结束后保留明确的人工单轮只读检查入口。"
+    ],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-4F96097AC17067DE9E",
+      "postgres:mwb.platform_actions:JOB-MWBV2-20260921014636-53C175"
+    ]
+  },
+  "closed_at": "2026-09-21T03:30:38Z"
 }

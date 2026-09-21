@@ -178,6 +178,45 @@ function makeRepo(options = {}) {
   };
 }
 
+function applyPlanBoundVideoScope(targetBundle, resourceContractHash) {
+  const scope = {
+    binding_mode: "single_confirmation_plan",
+    target_job_id: targetBundle.job.job_id,
+    target_advertiser_id: targetBundle.job.advertiser_id,
+    target_plan_id: targetBundle.executionPlan.plan_id,
+    target_plan_hash: targetBundle.executionPlan.plan_hash,
+    allowed_actions: ["ensure_resource:video_asset"],
+    maximum_actions: 1,
+    maximum_platform_calls: 1,
+    retry_allowed: false,
+    action_grants: {
+      "ensure_resource:video_asset": {
+        maximum_platform_calls: 1,
+        resource_contract_hash: resourceContractHash,
+        official_contract: {
+          source_ref: "official-doc:test-only",
+          endpoint: "/open_api/2/file/material/bind/",
+          method: "POST"
+        }
+      }
+    },
+    official_contract: {
+      source_ref: "official-doc:test-only",
+      endpoint: "/open_api/2/file/material/bind/",
+      method: "POST"
+    }
+  };
+  targetBundle.executionPlan.planned_actions[0].resource_contract_hash = resourceContractHash;
+  targetBundle.executionPlan.metadata = { execution_scope: scope };
+  targetBundle.executionConfirmation = {
+    job_id: targetBundle.job.job_id,
+    plan_id: targetBundle.executionPlan.plan_id,
+    confirmation_status: "confirmed_for_execution_plan",
+    metadata: { plan_hash: targetBundle.executionPlan.plan_hash, retry_allowed: false }
+  };
+  return scope;
+}
+
 const requestPlan = buildVideoMaterialBindRequestPlan({ sourceAdvertiserId, targetAdvertiserId, videoId, sourceAssetId });
 assert(requestPlan.requestFieldManifest.fieldNames.join(",") === "advertiser_id,target_advertiser_ids,video_ids", "video_bind_field_manifest_wrong");
 assert(requestPlan.requestHash.startsWith("sha256:"), "video_bind_request_hash_missing");
@@ -338,41 +377,16 @@ assert(explicitCoverPolling.attempts[0].items[0].coverMode === "explicit_cover_v
 const dir = await mkdtemp(path.join(os.tmpdir(), "mwbv2-video-executor-"));
 try {
   const statePath = path.join(dir, "state.json");
-  const scopedBundle = bundle();
+  const repo = makeRepo();
+  const scopedBundle = await repo.getLaunchJobBundle();
   const scopedContractHash = buildVideoMaterialPreparePlan({ bundle: scopedBundle }).bindBatchRequestHash;
-  scopedBundle.executionPlan.planned_actions[0].resource_contract_hash = scopedContractHash;
+  const scopedExecutionScope = applyPlanBoundVideoScope(scopedBundle, scopedContractHash);
   await writeFile(statePath, JSON.stringify({
     guardrails: {
       platform_write_allowed: true,
-      platform_write_scope: {
-        target_job_id: jobId,
-        target_advertiser_id: targetAdvertiserId,
-        target_plan_id: `PLAN-${jobId}-V1`,
-        target_plan_hash: "sha256:plan",
-        allowed_actions: ["ensure_resource:video_asset"],
-        maximum_actions: 1,
-        maximum_platform_calls: 1,
-        retry_allowed: false,
-        action_grants: {
-          "ensure_resource:video_asset": {
-            maximum_platform_calls: 1,
-            resource_contract_hash: scopedContractHash,
-            official_contract: {
-              source_ref: "official-doc:test-only",
-              endpoint: "/open_api/2/file/material/bind/",
-              method: "POST"
-            }
-          }
-        },
-        official_contract: {
-          source_ref: "official-doc:test-only",
-          endpoint: "/open_api/2/file/material/bind/",
-          method: "POST"
-        }
-      }
+      platform_write_scope: scopedExecutionScope
     }
   }));
-  const repo = makeRepo();
   const scope = await validateVideoMaterialWriteScope({ repo, bundle: scopedBundle, projectStatePath: statePath });
   assert(scope.status === "passed", "video_scope_should_pass");
 
@@ -398,6 +412,8 @@ try {
   assert(repo.actions.some((item) => item.actionStatus === "failed_or_unconfirmed"), "video_fail_list_action_not_failed");
 
   const successRepo = makeRepo();
+  const successBundle = await successRepo.getLaunchJobBundle();
+  applyPlanBoundVideoScope(successBundle, buildVideoMaterialPreparePlan({ bundle: successBundle }).bindBatchRequestHash);
   const success = await bindVideoMaterialToTargetOnce({
     repo: successRepo,
     jobId,
@@ -423,35 +439,11 @@ try {
   const batchRepo = makeRepo({ twoVideos: true });
   const batchBundle = await batchRepo.getLaunchJobBundle();
   const batchContractHash = buildVideoMaterialPreparePlan({ bundle: batchBundle }).bindBatchRequestHash;
+  const batchExecutionScope = applyPlanBoundVideoScope(batchBundle, batchContractHash);
   await writeFile(batchStatePath, JSON.stringify({
     guardrails: {
       platform_write_allowed: true,
-      platform_write_scope: {
-        target_job_id: jobId,
-        target_advertiser_id: targetAdvertiserId,
-        target_plan_id: `PLAN-${jobId}-V1`,
-        target_plan_hash: "sha256:plan",
-        allowed_actions: ["ensure_resource:video_asset"],
-        maximum_actions: 1,
-        maximum_platform_calls: 1,
-        retry_allowed: false,
-        action_grants: {
-          "ensure_resource:video_asset": {
-            maximum_platform_calls: 1,
-            resource_contract_hash: batchContractHash,
-            official_contract: {
-              source_ref: "official-doc:test-only",
-              endpoint: "/open_api/2/file/material/bind/",
-              method: "POST"
-            }
-          }
-        },
-        official_contract: {
-          source_ref: "official-doc:test-only",
-          endpoint: "/open_api/2/file/material/bind/",
-          method: "POST"
-        }
-      }
+      platform_write_scope: batchExecutionScope
     }
   }));
   let bindCalled = false;
