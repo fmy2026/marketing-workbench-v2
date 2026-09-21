@@ -1,0 +1,60 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921",
+  "task_ref": "tasks/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T07:05:30Z",
+  "updated_at": "2026-09-21T07:10:21Z",
+  "base_revision": "9058abf900b33b16f77c570a7ed1df8542dbc870",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow"],
+  "read_order": ["AGENTS.md", "project.state.json", "tasks/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921.md", "tasks-context-manifests/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921.json", "docs/Solution Design.md", "docs/project-现在的逻辑图.md", "frontend/index.html", "frontend/styles.css", "frontend/market-intelligence.html", "frontend/market-intelligence.css"],
+  "reference_only": [],
+  "allowed_writes": ["frontend/market-intelligence.css", "project.state.json", "tasks/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921.md", "tasks-context-manifests/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921.json", "evidence/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921/**"],
+  "forbidden_actions": ["HTML、JavaScript、服务端、接口、数据、凭据、外部平台写入、投放执行样式、颜色体系、月报内容或业务逻辑修改"],
+  "stop_conditions": ["需要改变 HTML、JavaScript、接口、数据、颜色体系、月报内容或业务逻辑"],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"Use Chromium computed styles and bounding rects to compare the approved market-intelligence shell selectors with launch workspace selectors at a desktop viewport."},
+    {"acceptance_id":"AC-02","command":"Use Chromium computed styles and bounding rects at a 560px viewport; verify the market sidebar is hidden and input bounds remain within the viewport."},
+    {"acceptance_id":"AC-03","command":"node tests/market-intelligence.test.mjs; git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA."}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Use Chromium computed styles and bounding rects to compare the approved market-intelligence shell selectors with launch workspace selectors at a desktop viewport.",
+      "verified_at": "2026-09-21T07:09:55Z",
+      "summary": "1280×800 下两页顶栏、侧栏、标题起点和输入区边界一致；市场情报输入文字与发送图标均为 16px。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Use Chromium computed styles and bounding rects at a 560px viewport; verify the market sidebar is hidden and input bounds remain within the viewport.",
+      "verified_at": "2026-09-21T07:09:55Z",
+      "summary": "560×700 下市场情报侧栏隐藏，市场情报与投放执行输入区域均未溢出视口。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "node tests/market-intelligence.test.mjs; git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA.",
+      "verified_at": "2026-09-21T07:09:55Z",
+      "summary": "隔离市场情报浏览器回归 129 项、静态检查与启动检查通过；关闭和远端 SHA 核验在终态完成。",
+      "evidence_refs": ["evidence/TASK-MWBV2-MI-SHELL-VISUAL-ALIGNMENT-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"not_needed","reason":"仅对已批准的视觉壳层做 CSS 对齐，不改变方案选择。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"not_needed","reason":"不改变 Agent 流程、模块关系、公开入口或实现定位。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "市场情报视觉壳层已按投放执行公共工作区尺寸和定位规则完成 CSS 对齐。",
+    "side_effects": "仅修改市场情报 CSS、项目协调文件与验收证据；未改动 HTML、JavaScript、接口、数据、颜色体系、月报内容或业务逻辑。",
+    "remaining_risks": [],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T07:10:21Z"
+}
