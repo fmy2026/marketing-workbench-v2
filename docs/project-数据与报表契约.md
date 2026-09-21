@@ -2,18 +2,14 @@
 
 | 元信息 | 值 |
 | --- | --- |
-| 文档状态 | 当前有效；唯一数据库说明文档，含数据契约与数据库运维 |
-| 最后更新时间 | 2026-09-21 CST |
-| 校验基线 | 静态核验 Task `TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921`；Postgres 39 张基础表、7 个 View、`workflow_case_summary` 24 列；`db/*.sql` 编号至 `099`，最新为 `099_confirmed_create_cycle_failure_closure.sql` |
-| 适用范围 | v2 数据结构、字段约定、来源、读写责任、报表口径，以及数据库连接、迁移与备份 |
-| 权威来源 | `db/*.sql`、Postgres `mwb`、`src/repositories/postgresRepository.mjs`、节点合同与当前 Task/Manifest |
-| 重新校验条件 | 表/列/约束/View、持久化来源、报表消费逻辑、数据库连接/迁移/备份脚本或定时配置变化时 |
+| 文档性质与状态 | 当前有效；数据、报表和外部数据合同 |
+| 用途与范围 | 定义数据来源、字段、读写责任、统计口径及数据库运维；不描述页面流程或部署步骤 |
+| 权威依据 | Schema、Postgres `mwb`、数据访问实现与当前代码合同 |
+| 最后更新 | 2026-09-21 CST |
+| 核验范围 | 静态核对当前 Schema、仓储与市场情报数据适配；不进行在线数据对账、备份或恢复演练 |
+| 更新条件 | 表、列、约束、View、持久化来源、报表消费、外部字段合同或数据库运维变化时更新 |
 
-> 更新时间只证明本文件最后一次静态校验时间；动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres。报表/View 只读，不是业务真值写入源。
-
-本文集中维护当前数据库说明，其他当前文档只引用对应章节。SQL/Schema/代码仍承担实现职责，历史任务与 Git 记录只供追溯，不是另一份当前合同。
-
-连接、字段与运维说明按当前 SQL、仓储及部署实现静态核对，不声明重新做过在线数据对账或备份/恢复演练。`db/*.sql` 是不可拆除的 Schema 演进历史，文件数不等于当前表数；精确基线见上表。`.archive/` 中的隔离内容不是数据库写入者、migration 或 runtime 依赖，不能据此改变下述 38 表、7 View 与 24 列合同。
+> 动态账户、Case、Job、Plan、资源与平台动作状态必须实时查询 Postgres；报表/View 不写业务真值。本文件集中维护数据合同，流程查[逻辑图](project-现在的逻辑图.md)，部署操作查[部署说明](../deploy/README.md)，阅读入口见[文档导航](README.md)。历史任务和 Git 记录只供追溯。
 
 ## 1. 六层数据流
 
@@ -122,7 +118,7 @@ route_id + game_code
 | 当前动作（3） | `blocker_codes`、`current_gate`、`suggested_next_action` | 对外唯一可行动结论 |
 | 摘要与取证（6） | `latest_node_states`、`resource_readiness`、`monitor_resolved`、`action_readback_state`、`structural_blocker_codes`、`root_blocker_codes` | 诊断摘要与 blocker 取证边界 |
 
-`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在平台 action、delivery 与创建对象均不存在时以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。migration `090` 将该 Job 后发且未确认的 Plan 标为 `stale`，migration `099` 将零动作条件收紧为整个 Job 无平台 action、delivery 与创建对象，并使 View 优先选择已确认的零动作停止 Plan，禁止新 Plan 遮盖 recovery Gate。收口事务锁定 Plan 与 confirmation，额外要求没有运行中 execution cycle；创建 action 认领在该锁下重验 Plan 为 `executing`，防止已消费 Plan 产生迟到 action。它仅在上述条件、次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §5](project-现在的逻辑图.md#5-当前-case-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
+`root_blocker_codes` 是零或一个可行动 blocker；`structural_blocker_codes` 是完整结构性诊断集合。两者均不构成授权。已确认的 `monitor_bootstrap` Plan 在平台写入前失败时，summary 优先投影其 `confirmed_execution_blocker`，不得被通用 `monitor_plan_required` 覆盖。已确认的 `std_project_create` Plan 若在平台 action、delivery 与创建对象均不存在时以 `blocked_before_create` 停止，也优先投影具体 blocker；存储的是通用 readiness 包装原因时，View 从同一最新 Job 的 blocked Skill 中选择具体原因。migration `090` 将该 Job 后发且未确认的 Plan 标为 `stale`，migration `099` 将零动作条件收紧为整个 Job 无平台 action、delivery 与创建对象，并使 View 优先选择已确认的零动作停止 Plan，禁止新 Plan 遮盖 recovery Gate。收口事务锁定 Plan 与 confirmation，额外要求没有运行中 execution cycle；创建 action 认领在该锁下重验 Plan 为 `executing`，防止已消费 Plan 产生迟到 action。它仅在上述条件、次数未耗尽时给出 `create_fresh_readonly_recovery`，恢复仍由既有 Case 锁和 Plan/confirmation 合同约束。字段来源与过滤由 SQL View 定义，Gate 优先级和消费行为统一查 [当前逻辑图 §6](project-现在的逻辑图.md#6-投放执行-agentcase-gate-与工作台)，本文件不再维护第二张 Gate 规则表。
 
 ## 5. 核心键、时间与去重
 
@@ -237,19 +233,29 @@ npm run db:backup
 
 ## 市场情报外部只读合同
 
-公共电脑是市场素材和视频的事实所有者。工作台不复制到 mwb，不新增表/View；数据在一次请求内做允许字段投影后供当前页面使用，不保存原始响应或对话。平台哈希素材 ID 为 32 位十六进制不透明字符串，按原值关联列表、详情、趋势和视频。用户连接凭证的存储与录入查[部署说明](../deploy/README.md#市场情报数据连接)。
+公共电脑是市场素材和视频的事实所有者。工作台不复制到 `mwb`，不新增表或 View；一次请求仅投影允许字段，且不保存原始响应或对话。素材 ID 是 32 位十六进制不透明字符串，用于关联列表、详情、趋势和视频。连接录入与凭据存储查[部署说明](../deploy/README.md#市场情报数据连接)。
 
-市场情报页面的研究对象、月份、当前选中素材、短对话和月报草稿只保存在浏览器当前页面内存。六模块中的“记忆”和“数据统计”只读取这些页面状态与当前服务响应，刷新后必须清空；它们不得写入 mwb，也不得把当前候选数量表述为全库数量或排名。
+### 页面内存
+
+研究对象、月份、当前素材、短对话和月报草稿只存在浏览器页面内存；“记忆”和“数据统计”只投影该状态与当前服务响应，刷新即清空。它们不得写入 `mwb`，也不得把候选数量表述为全库数量或排名。
+
+### 接口与投影
 
 公共服务 `/api/v1` 合同：`GET /health` 验证连接；`GET /assets` 返回 data 数组与 meta.total；`GET /assets/{id}` 返回 data.asset、sources、files、metrics；`GET /stats/trend?asset={id}&from=&to=` 返回 data.points 和 summary；`GET/HEAD /files/{id}` 返回 MP4/WebM，支持单段 Range。文件路径、未列明字段、任意来源 URL 和原始载荷不下发浏览器。列表投影仅含稳定 ID、可用名称/游戏、平台标签和更新时间；详情只投影允许的标签和平台脚本文本；当前没有可安全投影的封面字段时，页面使用标题占位，不能伪造封面。未知字段不猜测。
 
-日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 表示平台报告值为零，null 为缺失，二者都不能推断投放效果。日期为 YYYY-MM-DD、时区 Asia/Shanghai，观察日期与 meta 的采集更新时间、查询时间分开。`summary` 只读取 `popularity_points`、`points_returned`、`observed_from`、`observed_to`、`refline_from`、`refline_to` 和 `net_change`；缺少字段明确显示未提供，不猜测旧字段名。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。`top1/top5/top10/top50` 是平台百分位参考线的日展开，周参考线不与日值相加。首版不计算排名、标签分布、质量汇总或跨素材对比；meta.total 是服务端全查询范围总数，不能以当前页条数代替。
+### 趋势与统计口径
+
+日趋势只接收唯一日期、非负整数或 null 的 popularity_daily；0 是平台报告值，null 是缺失，均不推断投放效果。日期使用 YYYY-MM-DD 和 Asia/Shanghai；观察日期、采集更新时间与查询时间分开。`summary` 只读取 `popularity_points`、`points_returned`、`observed_from`、`observed_to`、`refline_from`、`refline_to` 和 `net_change`。图表对 null 和日期缺口断线，不补零；人气值不是消耗、曝光、转化或 ROI。`top1/top5/top10/top50` 是参考线，不能与日值相加。首版不计算排名、标签汇总、质量汇总或跨素材对比；`meta.total` 是服务端查询范围总数，不能替代当前页数量。
+
+### 候选与月报
 
 候选发现接口只接收 `page=1..500`，以未指定游戏的 `GET /assets` 读取最多 40 条稳定投影素材；它返回当前候选中的去重非空游戏名称、卡片、候选页、候选数量、上游素材总数和是否可继续发现。游戏名称必须来自该次响应；没有公共服务全量游戏目录时，页面必须标记为当前已读取候选，`meta.total` 也只能表示上游素材总数。工作台结构化查询只接收规范化的 `games[0..5]`、`month=YYYY-MM`、`page` 和 `candidatePage`；默认月份为上海上一个完整自然月，当月上限为当前上海日期。公共服务尚未确认按月筛选时，工作台对每个研究对象在一个 `candidatePage` 中最多请求 40 条候选，再以趋势请求的 `[from,to]` 检查是否至少有一个非 null 人气观察。返回的素材网格固定每页 8 条；`resultCount` 是本次已加载候选中的合格数，`loadedCandidateCount` 与每对象 `queryComplete` 必须同时返回。上游 `meta.total` 只有在候选页遍历完时才可表述为完成，不能称作目标月份总数。
 
 月报请求只接收相同规范化筛选，服务端重新查询并核验素材 ID，浏览器传回的标签、脚本、数值或证据一律不可信。每份报告最多 30 条有效样本，按研究对象轮流选择；素材仅在目标月份至少有一个非 null 人气观察时纳入，0 有效、缺失不补零，采集时间不能替代观察日期。报告事实包括服务端计算的样本数、对象、观察范围和来源；模型只能接收脱敏标签、脚本和这些事实，输出必须关联已纳入素材 ID，且不得生成数字、URL、ROI、预算或平台动作。模型未配置、超时、非法输出或无效证据时，报告仍返回确定性事实摘要并标记 AI 摘要不可用。报告、摘要编辑和下载只存在当前页面内存；导出文件内嵌样式与可取得的安全素材表示，不含视频、凭证、内部资源地址或可执行用户输入。
 
-单素材证据解读接口只接收素材 ID 和规范化月份筛选；服务端重新取得详情及对应趋势，投影观察范围、有效点数、零值数量、缺失数量、上游净变化、标签和脚本。无模型时返回确定性事实说明；已测试启用的模型只能改写已投影的脱敏证据，返回单条不含数字、效果、ROI、排名、因果、URL 或操作指令的观察。模型不可用或输出不合格时保留确定性说明并标记状态；浏览器传入的脚本、数值、标签和结论一律不可信。对话响应另返回本次 `parseSource`：`rules` 表示规则完成需求理解，`model` 表示模型意图经用户原文证据校验后被采用，`model_fallback` 表示模型调用失败或意图未通过校验并已回退规则。素材解读和月报继续使用各自的 `aiStatus` 表示内容是否实际采用模型；前端必须合并两种状态生成来源话术，不能把模型仅解析需求表述为模型生成了查询事实或报告正文。
+### 解读与模型输入
+
+单素材解读只接收素材 ID 和规范化月份；服务端重新读取详情和趋势，投影观察范围、有效点、零值、缺失、净变化、标签和脚本。浏览器传入的标签、脚本、数值和结论不可信。已测试启用的模型只能改写已投影的脱敏证据；模型不可用或输出不合格时保留确定性说明。对话的 `parseSource` 表示需求解析来源，素材解读和月报的 `aiStatus` 表示内容是否采用模型，前端不得混淆两者。
 
 公共电脑完成合同交付后，可增加 `GET /stats/compare`：只接受 2–5 条稳定素材 ID 及日期范围，服务端以同游戏、同来源、同单位和 day 粒度计算共同有效观察期与净变化。共同有效日期不足两天、首值为 0 或存在中间缺失都必须显式返回限制；工作台不自行排名或计算百分比。
 

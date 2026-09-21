@@ -1,0 +1,118 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921",
+  "task_ref": "tasks/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921.md",
+  "status": "completed",
+  "created_at": "2026-09-21T06:41:40Z",
+  "updated_at": "2026-09-21T06:47:09Z",
+  "base_revision": "b2f423173ec14cee58bef7576568e3374d786e4b",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "data", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "package.json",
+    "tests/suites.json",
+    "src/agents/agentRegistry.mjs",
+    "src/server/workbenchServer.mjs",
+    "src/agents/marketIntelligenceConversation.mjs",
+    "src/agents/marketIntelligenceReport.mjs",
+    "src/platforms/marketIntelligenceClient.mjs",
+    "src/security/marketIntelligenceConnectionStore.mjs",
+    "frontend/market-intelligence.html",
+    "frontend/market-intelligence.mjs"
+  ],
+  "reference_only": [
+    {"ref":"docs/Agent项目从零开发-人机协作经验图谱.md","reason":"作为新增 Agent 的方法参考，不定义当前运行规则。"},
+    {"ref":"tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md","reason":"仅核对历史验收边界与真实联调缺口。"},
+    {"ref":"tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json","reason":"仅核对历史终态和 AC-07 未运行事实。"}
+  ],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921.json",
+    "evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/**",
+    "docs/README.md",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md"
+  ],
+  "forbidden_actions": [
+    "应用、测试清单、数据库、部署、凭据、平台写入或历史任务材料修改"
+  ],
+  "stop_conditions": [
+    "需要超出文档整理范围的实现变更，或当前事实无法由指定权威文件核对"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"Review docs/README.md navigation, inbound links from four current documents, and the ownership matrix evidence."},
+    {"acceptance_id":"AC-02","command":"Review market-intelligence sections against current code and the ownership matrix; validate relative links and headings."},
+    {"acceptance_id":"AC-03","command":"Review metadata tables and compare changed prose against assigned document responsibilities."},
+    {"acceptance_id":"AC-04","command":"rg and static checks against package.json, tests/suites.json, code paths, and historical MI Manifest."},
+    {"acceptance_id":"AC-05","command":"git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA."}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "Review docs/README.md navigation, inbound links from four current documents, and the ownership matrix evidence.",
+      "verified_at": "2026-09-21T06:46:35Z",
+      "summary": "导航覆盖公共基础、三个 Agent、新增 Agent 与历史证据；四份既有当前文档均回链导航。",
+      "evidence_refs": ["evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/ownership-matrix.md", "evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "Review market-intelligence sections against current code and the ownership matrix; validate relative links and headings.",
+      "verified_at": "2026-09-21T06:46:35Z",
+      "summary": "市场情报的选择、流程、数据和操作分别归属方案、逻辑图、数据契约与部署说明，并以具体章节交叉引用。",
+      "evidence_refs": ["evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/ownership-matrix.md", "evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "Review metadata tables and compare changed prose against assigned document responsibilities.",
+      "verified_at": "2026-09-21T06:46:35Z",
+      "summary": "导航、方案、逻辑图、数据契约和部署说明均使用完整且职责明确的元信息表。",
+      "evidence_refs": ["evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "rg and static checks against package.json, tests/suites.json, code paths, and historical MI Manifest.",
+      "verified_at": "2026-09-21T06:46:35Z",
+      "summary": "200 个本地链接与标题对应，部署说明 8 个 npm 命令存在；月报测试入口缺口及历史 AC-07 未运行事实只保存在本任务证据。",
+      "evidence_refs": ["evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/ownership-matrix.md", "evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "git diff --check; npm run check:project -- --phase start/before-close/after-close; git push origin main and compare SHA.",
+      "verified_at": "2026-09-21T06:46:35Z",
+      "summary": "git diff --check 和 start 检查已通过；关闭和远端核验将在本 Task 终态证据中记录。",
+      "evidence_refs": ["evidence/TASK-MWBV2-DOCS-ARCHITECTURE-ALIGNMENT-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref":"docs/README.md","status":"updated","reason":"新增只导航、不定义规则的当前文档入口。"},
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"收束市场情报方案说明并记录文档架构整理选择。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"集中当前模块关系、实现定位和市场情报运行流程。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"集中市场情报数据合同并修正失效章节链接。"},
+    {"ref":"deploy/README.md","status":"updated","reason":"集中市场情报连接、模型配置和真实联调操作。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "新增当前文档导航，完成市场情报相关表述去重和五份当前文档元信息整理。",
+    "side_effects": "仅修改文档、任务合同与验收证据；未修改代码、测试清单、数据库、部署或凭据。",
+    "remaining_risks": ["市场情报真实公共电脑联调和月报测试入口整理仍需后续独立 Task。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T06:47:09Z"
+}
