@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921",
   "task_ref": "tasks/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921.md",
-  "status": "active",
+  "status": "completed",
   "created_at": "2026-09-21T04:08:55Z",
-  "updated_at": "2026-09-21T04:08:55Z",
+  "updated_at": "2026-09-21T04:33:00Z",
   "base_revision": "a1da48030d873a0ab37e1045c22a7218e1d737f4",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
@@ -75,11 +75,65 @@
     {"acceptance_id": "AC-02", "command": "npm run test:execution-plan && npm run test:single-confirmation-orchestrator"},
     {"acceptance_id": "AC-03", "command": "npm run test:execution-plan && npm run test:workbench-progress"},
     {"acceptance_id": "AC-04", "command": "npm run test:workbench-progress && npm run test:workbench-auth-http && npm run test:workbench-client-pages && npm run test:workbench-cross-user-http"},
-    {"acceptance_id": "AC-05", "command": "npm run db:migrate:check && npm run check:project -- --phase before-close"}
+    {"acceptance_id": "AC-05", "command": "psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/099_confirmed_create_cycle_failure_closure.sql && npm run check:project -- --phase before-close"}
   ],
-  "validation_results": [],
-  "documentation_updates": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:execution-plan",
+      "verified_at": "2026-09-21T04:31:56Z",
+      "summary": "隔离库复现遗留三字段约束阻断；migration 可重复应用，跨 cycle 可记录且同 cycle 保持幂等。",
+      "evidence_refs": ["evidence/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:execution-plan && npm run test:single-confirmation-orchestrator && npm run test:workbench-runtime-policy",
+      "verified_at": "2026-09-21T04:31:56Z",
+      "summary": "确认后零动作异常安全消费旧 Plan；运行中 cycle、已有 action、delivery、对象、收口失败与重复确认均保持关闭。",
+      "evidence_refs": ["evidence/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "npm run test:execution-plan && npm run test:workbench-progress",
+      "verified_at": "2026-09-21T04:31:56Z",
+      "summary": "隔离环境实际运行只读准备、确认和第二执行轮；冻结 Plan 单次消费，迟到 action 认领和后续 Plan 均被拒绝。",
+      "evidence_refs": ["evidence/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run test:workbench-progress && npm run test:workbench-conversation && npm run test:workbench-auth-http && npm run test:workbench-client-pages && npm run test:workbench-cross-user-http",
+      "verified_at": "2026-09-21T04:31:56Z",
+      "summary": "服务端投影、HTTP、浏览器页面、对话和跨用户隔离均显示唯一 blocker 与只读恢复入口，不重放旧确认。",
+      "evidence_refs": ["evidence/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-05",
+      "status": "passed",
+      "command": "psql -X -v ON_ERROR_STOP=1 -d marketing_workbench_v2 -f db/099_confirmed_create_cycle_failure_closure.sql && direct Postgres Case verification && company mode HTTP health check",
+      "verified_at": "2026-09-21T04:31:56Z",
+      "summary": "生产 migration 已重复应用并核验唯一约束；指定 Case 在严格零动作条件下收口为既有恢复 Gate；固定版本 be8b41e 已推送、发布并由直连 HTTP 200 核验。",
+      "evidence_refs": ["evidence/TASK-MWBV2-CREATE-CYCLE-FAILURE-CLOSURE-20260921/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录跨执行轮次失败收口、Plan 锁与迟到 action 关闭边界。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "说明零动作收口的 cycle 条件、节点终态和恢复路径。"},
+    {"ref": "docs/project-数据与报表契约.md", "status": "updated", "reason": "记录四字段 Skill 唯一性、收口锁和生产迁移回查。"},
+    {"ref": "deploy/README.md", "status": "updated", "reason": "说明 migration 应用、固定版本发布与重载要求。"}
+  ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "修复遗留 Skill 唯一约束导致的确认创建第二执行轮失败，并将确认后的零动作本地异常安全收口为既有 fresh readonly recovery。",
+    "side_effects": "migration 仅调整数据库约束和 View；目标 Case 只进行了本地 Plan/Job/Node 状态收口。没有本任务发起的平台 action、delivery 或对象创建。",
+    "remaining_risks": [],
+    "business_evidence_refs": [
+      "postgres:mwb.workflow_case_summary:CASE-MWBV2-262285EB4DFA3DB3CB",
+      "postgres:mwb.launch_execution_plans:PLAN-JOB-MWBV2-20260921035959-D0A4EB-V1"
+    ]
+  },
+  "closed_at": "2026-09-21T04:33:00Z"
 }
