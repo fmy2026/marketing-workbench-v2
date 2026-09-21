@@ -837,11 +837,12 @@ import {
       container.hidden = false;
     } else {
       const readonlyRecovery = readonlyRecoveryGuidance(job?.caseGate);
-      if (job?.isLatestCaseJob && !viewOnly && readonlyRecovery?.placeholder?.includes("重新只读准备")) {
-        const recoveryButton = el("button", "conversation-preset", "重新只读准备");
+      const recoveryCommand = readonlyRecovery?.command || (readonlyRecovery?.placeholder?.includes("重新只读准备") ? "重新只读准备" : "");
+      if (job?.isLatestCaseJob && !viewOnly && recoveryCommand) {
+        const recoveryButton = el("button", "conversation-preset", readonlyRecovery.buttonLabel || recoveryCommand);
         recoveryButton.type = "button";
         recoveryButton.disabled = disabled;
-        recoveryButton.addEventListener("click", () => submitJobCommand("重新只读准备"));
+        recoveryButton.addEventListener("click", () => submitJobCommand(recoveryCommand));
         container.append(recoveryButton);
         container.hidden = false;
       }

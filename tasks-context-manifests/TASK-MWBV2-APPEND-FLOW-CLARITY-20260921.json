@@ -2,9 +2,9 @@
   "schema_version": "2026-09-08.task-context-manifest-v2",
   "task_id": "TASK-MWBV2-APPEND-FLOW-CLARITY-20260921",
   "task_ref": "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
-  "status": "active",
+  "status": "cancelled",
   "created_at": "2026-09-21T02:01:16Z",
-  "updated_at": "2026-09-21T02:01:16Z",
+  "updated_at": "2026-09-21T02:39:14Z",
   "base_revision": "f2f40066c3cb9e66a4530239a1fecc8d5eab5be7",
   "baseline_dirty_files": {
     "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
@@ -74,13 +74,54 @@
     {"acceptance_id":"AC-03","command":"npm run test:project-video-append && npm run test:workbench-client-pages"},
     {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && company workbench HTTP status check"}
   ],
-  "validation_results": [],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "not_run",
+      "command": "Cancelled before repeatable acceptance evidence was recorded.",
+      "verified_at": "2026-09-21T02:39:14Z",
+      "summary": "The delivered diagnostic change was not a complete delayed-visibility recovery closure; this acceptance is transferred to TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "not_run",
+      "command": "Cancelled before repeatable acceptance evidence was recorded.",
+      "verified_at": "2026-09-21T02:39:14Z",
+      "summary": "A real push/readback path exposed a remaining status and message divergence; this acceptance is transferred to the replacement Task.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "not_run",
+      "command": "Cancelled before repeatable acceptance evidence was recorded.",
+      "verified_at": "2026-09-21T02:39:14Z",
+      "summary": "The old recovery entry recompiles readiness instead of closing a consumed push Plan; this acceptance is transferred to the replacement Task.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "not_run",
+      "command": "Cancelled before final deployment and owner recovery acceptance was recorded.",
+      "verified_at": "2026-09-21T02:39:14Z",
+      "summary": "The company workbench had been released, but the required owner recovery acceptance is not complete and is transferred to the replacement Task.",
+      "evidence_refs": ["evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md"]
+    }
+  ],
   "documentation_updates": [
     {"ref":"docs/Solution Design.md","status":"updated","reason":"记录本次追加视频只读失败提示与恢复展示的批准边界。"},
     {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"记录追加 Node、Gate、对话与只读诊断投影的一致性。"},
     {"ref":"deploy/README.md","status":"updated","reason":"记录本次前端与工作流发布后的必要重载和检查。"}
   ],
   "temporary_authorizations": [],
-  "result": null,
-  "closed_at": null
+  "result": {
+    "summary": "Cancelled by approved replacement Task TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921; released diagnostic improvements remain, while the delayed material-push readback closure is explicitly unfinished.",
+    "side_effects": "No platform write, OAuth change, database migration, or real video append was performed during cancellation.",
+    "remaining_risks": [
+      "A successful material push can remain blocked after an immediate negative readback until the replacement Task provides a durable read-only recovery path.",
+      "The original Case remains a runtime Postgres fact and must be recovered only after the replacement release."
+    ],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-21T02:39:14Z"
 }

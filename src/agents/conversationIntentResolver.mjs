@@ -225,7 +225,7 @@ export function deterministicIntent({ message = "" } = {}) {
   if (["继续", "继续执行", "下一步", "继续流程", "开始执行"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "continue_workflow", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
-  if (command === "重新只读准备") {
+  if (["重新只读准备", "检查推送结果"].includes(command)) {
     return { schemaVersion: CONVERSATION_INTENT_SCHEMA_VERSION, intent: "request_readonly_recovery", confidence: 1, slots: {}, source: "deterministic", issues: [] };
   }
   if (command === "重新准备追加") {

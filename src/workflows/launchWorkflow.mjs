@@ -7,6 +7,7 @@ import {
   PROJECT_VIDEO_APPEND_ACTION,
   PROJECT_VIDEO_APPEND_40100_REDELIVERY_POLICY,
   PROJECT_VIDEO_MATERIAL_PUSH_ACTION,
+  observeProjectVideoMaterialPushReadback,
   readProjectVideoIds,
   validateProjectVideoAppendReadback
 } from "../platforms/oceanengineProjectVideoAppendExecutor.mjs";
@@ -61,6 +62,7 @@ const TERMINAL_STATUSES = new Set(["passed", "repairable", "needs_confirmation",
 
 const PUBLIC_FORBIDDEN_KEY = /(touchpoint_url|landing_url|mini_program_url|raw_payload|raw_response|token|secret|auth_code|cookie)/i;
 const PUBLIC_FORBIDDEN_VALUE = /(tf-api\.3k\.com|callback\/click|sslocal:\/\/|Bearer\s+[A-Za-z0-9._-]{20,})/i;
+const clean = (value) => String(value ?? "").trim();
 
 function publicView(value) {
   if (Array.isArray(value)) return value.map((item) => publicView(item));
@@ -1030,6 +1032,16 @@ export function presentRootBlocker(code = "", { originResourceId = "", candidate
       reason: "执行器在调用平台前异常停止，旧 Plan 已消费，系统没有推送素材。",
       nextActionLabel: "请输入“重新只读准备”重新核验并生成新的确认卡。"
     },
+    project_video_material_push_readback_unresolved: {
+      title: "素材推送等待只读确认",
+      reason: "素材推送已被平台受理，但最近一次只读回查尚未确认全部冻结视频可见。系统不会重复推送。",
+      nextActionLabel: "输入“检查推送结果”或“重新只读准备”只读回查原推送。"
+    },
+    project_video_material_push_readback_query_failed: {
+      title: "素材推送回查未完成",
+      reason: "素材推送已被平台受理，但目标账户视频只读查询未完成，不能判断视频是否可见。系统不会重复推送。",
+      nextActionLabel: "检查凭据或网络后输入“检查推送结果”；只会回查原推送。"
+    },
     jszc_success_profile: {
       title: "创建字段形态合同未通过",
       reason: "草稿已生成，但其字段形态与当前 JSZC 成功合同尚未一致。",
@@ -1926,6 +1938,15 @@ async function resolveCreateAttemptNoForRun(repo, bundle, options = {}) {
 }
 
 async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
+  const previousPlan = typeof repo.getLatestLaunchExecutionPlan === "function"
+    ? await repo.getLatestLaunchExecutionPlan(bundle.job.job_id)
+    : null;
+  const previousPushAwaitingReadback = clean(previousPlan?.plan_kind || previousPlan?.metadata?.plan_kind) === "project_video_material_push" &&
+    clean(previousPlan?.plan_status) === "consumed" &&
+    clean(previousPlan?.metadata?.confirmed_execution_outcome) !== "readback_verified";
+  if (previousPushAwaitingReadback) {
+    return runProjectVideoMaterialPushReadback(repo, bundle.job.job_id, options);
+  }
   const sourceAccount = bundle.defaults?.raw_defaults?.material_source_account?.advertiser_id || "";
   const prepared = sourceAccount
     ? await prepareProjectVideoAppendReadonly({
@@ -1938,7 +1959,6 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
       qiankunClient: options.qiankunClient
     })
     : { status: "blocked", blockerCodes: ["material_source_account_missing"], items: [] };
-  const previousPlan = typeof repo.getLatestLaunchExecutionPlan === "function" ? await repo.getLatestLaunchExecutionPlan(bundle.job.job_id) : null;
   const planVersion = Math.max(1, Number(previousPlan?.plan_version || previousPlan?.planVersion || 0) + 1);
   const planId = `PLAN-${bundle.job.job_id}-APPEND-V${planVersion}`;
   const effectivePlan = prepared.effectivePlan || prepared.plan || {};
@@ -2145,6 +2165,77 @@ async function runProjectVideoAppendReadonly(repo, bundle, options = {}) {
     currentNode: blockers.length ? (videoIdentificationBlocked ? "3" : "4") : "5"
   });
   return getJobView(repo, bundle.job.job_id, options);
+}
+
+export function projectVideoMaterialPushReadbackNodeRuns({ observation = {} } = {}) {
+  const verified = observation.status === "passed";
+  const evidenceRef = observation.evidence?.artifactId || observation.readback?.evidenceRef || "";
+  const summary = {
+    requestedCount: Number(observation.requestedCount || 0),
+    verifiedCount: Number(observation.verifiedCount || 0),
+    unresolvedCount: Number(observation.unresolvedCount || 0),
+    blocker: observation.blocker || "",
+    queryFailed: observation.readback?.fieldDiffSummary?.query_failed === true,
+    responsePersisted: false
+  };
+  return [
+    nodeStatus({ nodeKey: "launch_intake", status: "passed", summary: "追加请求已冻结。" }),
+    nodeStatus({ nodeKey: "creation_context", status: "passed", summary: "目标账户与项目已进入只读核验。" }),
+    nodeStatus({ nodeKey: "game_launch_pack", status: "passed", summary: "指定视频已完成唯一核验。" }),
+    nodeStatus({
+      nodeKey: "account_resource_prepare",
+      status: verified ? "passed" : "blocked",
+      summary: verified
+        ? "素材推送已通过目标账户权威只读回查。"
+        : "素材推送已被平台受理，但目标账户只读回查尚未确认全部视频。",
+      diagnosticLevel: verified ? "info" : "warning",
+      outputSummary: { materialPushReadback: summary },
+      evidenceRefs: [evidenceRef].filter(Boolean)
+    }),
+    nodeStatus({
+      nodeKey: "std_project_draft_builder",
+      status: "waiting",
+      summary: verified ? "正在重新核验项目已有视频并准备追加计划。" : "等待“检查推送结果”；不会重新推送。"
+    }),
+    nodeStatus({
+      nodeKey: "std_project_create_executor",
+      status: "waiting",
+      summary: "等待素材推送回查通过后，再由本人确认追加。"
+    }),
+    nodeStatus({ nodeKey: "readback_closer", status: "waiting", summary: "等待项目视频追加后的结果回查。" })
+  ];
+}
+
+export async function runProjectVideoMaterialPushReadback(repo, jobId, options = {}) {
+  const bundle = await repo.getLaunchJobBundle(jobId);
+  if (!bundle) {
+    const error = new Error("job_not_found");
+    error.statusCode = 404;
+    throw error;
+  }
+  const plan = bundle.executionPlan || {};
+  if (clean(plan.plan_kind || plan.metadata?.plan_kind) !== "project_video_material_push" || clean(plan.plan_status) !== "consumed") {
+    const error = new Error("project_video_material_push_readback_context_invalid");
+    error.statusCode = 409;
+    throw error;
+  }
+  const observation = await observeProjectVideoMaterialPushReadback({
+    bundle,
+    readonlyClient: options.oceanEngineClient
+  });
+  if (typeof repo.reconcileConfirmedProjectVideoMaterialPushReadback !== "function") {
+    throw new Error("project_video_material_push_readback_repository_unavailable");
+  }
+  const persisted = await repo.reconcileConfirmedProjectVideoMaterialPushReadback({
+    jobId,
+    planId: plan.plan_id,
+    observation: observation.readback,
+    evidence: observation.evidence,
+    nodeRuns: projectVideoMaterialPushReadbackNodeRuns({ observation })
+  });
+  if (persisted.readbackVerified !== true) return getJobView(repo, jobId, options);
+  const refreshed = await repo.getLaunchJobBundle(jobId);
+  return runProjectVideoAppendReadonly(repo, refreshed, options);
 }
 
 function appendExecutionNode({ appendAction = null, plan = {}, verified = false, evidenceRef = "" } = {}) {

@@ -1,0 +1,101 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921",
+  "task_ref": "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
+  "status": "active",
+  "created_at": "2026-09-21T02:39:14Z",
+  "updated_at": "2026-09-21T02:39:14Z",
+  "base_revision": "89ca2989899a877fbda0a4b47d780d6109b7e701",
+  "baseline_dirty_files": {
+    "evidence/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921/cancellation.md": "sha256:2ac15df6828bda260ebd676626214d286a2180650d73e318e469ce1128e6442c",
+    "evidence/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920/validation.json": "sha256:215e5122220628b1a90a416a3fc7503cfaa441d59ec11bd52a354e8034622544",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-report-desktop.png": "sha256:775eaca2bd071d07d67e4afbf57e696c2ce264b724a447c3a75cd0b9164c3111",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-desktop.png": "sha256:f7502c73bc3a39c4494b0a8619fca7ccb3c91479adde44119b17ea082b4a51a6",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/mi-search-mobile.png": "sha256:885390509066664faa0b20b66033ae720fb57b6fb604c7906fd6be352ae59827",
+    "evidence/TASK-MWBV2-MI-SEARCH-REPORT-20260920/validation.md": "sha256:955c89dab2a4e1bfabe14d50c12c75bc45484847a2906d102c5b010741f24df9",
+    "project.state.json": "sha256:778c53294438523290642460d8f38fd7e07d6615adcf119fc9d5a575616dffe0",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.json": "sha256:cb9b2ac42deaabd51296557ba5fc43ebf99b1e998c83ea246b6f1030a080a70a",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.json": "sha256:1b53d493e229221c08782982da0b0f485cb6682804e58abaadf5b72865b07052",
+    "tasks-context-manifests/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.json": "sha256:643bf7f4f70372f3d14543778d7058f18112c0db346c246226cfda5a9012ce89",
+    "tasks-context-manifests/TASK-MWBV2-MI-SEARCH-REPORT-20260920.json": "sha256:b90a26a23ce782254720820da72e1e316d295346af885ad1554d6ebdeb661415",
+    "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md": "sha256:487a930b05ebe7eee04fbe1ccaf232be0724ddb69378f74b1f7ccb66f3be71cb",
+    "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md": "sha256:6cf6a5beeeada6b31b53e6df6ef9cf14e316fe47018b570524224724db9eae0a",
+    "tasks/TASK-MWBV2-MI-SEARCH-REPORT-20260920.md": "sha256:5d4a4782ac49c962e618a9738e664a57886b3e3f70fdb79c1a80eed7fcfc7f0f",
+    "tasks/_templates/_task-templates.md": "sha256:668d7b5a6ed2d68b89cbe6890c0521352d6ab77e35929af3e3956a94152550fb",
+    "tasks/_templates/task.md": "sha256:1653e7d68a33dc18aced25f2a645e5c27a7c37fdca2dc800384a5f4efb060f3f"
+  },
+  "domains": ["control", "workflow", "data", "deploy"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/launchOperationContracts.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
+    "tasks-context-manifests/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.json",
+    "evidence/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921/**",
+    "src/platforms/oceanengineProjectVideoAppendExecutor.mjs",
+    "src/agents/conversationIntentResolver.mjs",
+    "src/workflows/launchWorkflow.mjs",
+    "src/workflows/launchOperationContracts.mjs",
+    "src/workflows/gateActionPolicy.mjs",
+    "src/workflows/workbenchConversation.mjs",
+    "src/workflows/executeConfirmedLaunch.mjs",
+    "src/repositories/postgresRepository.mjs",
+    "frontend/app.js",
+    "frontend/workbench-progress.mjs",
+    "scripts/00-project-video-append-smoke.mjs",
+    "scripts/00-workbench-progress-smoke.mjs",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "docs/project-数据与报表契约.md",
+    "deploy/README.md"
+  ],
+  "forbidden_actions": [
+    "OAuth 刷新、数据库迁移、第二次素材推送、真实项目视频追加或任何未经本人确认的平台写入",
+    "将 token、secret、完整 URL、原始请求、原始响应或用户原始对话写入项目或证据",
+    "修改 7 Node 注册表、非追加业务流程或全局错误机制"
+  ],
+  "stop_conditions": [
+    "需要 OAuth、Schema 迁移、第二次平台推送、真实追加或非追加流程变更时停止并另行取得批准",
+    "无法保持确认、Plan、动作和只读证据精确绑定，或无法安全证明状态投影一致时不发布完成声明"
+  ],
+  "open_gaps": [
+    "真实追加不属于本 Task 验收；发布后需由账户本人对原 Case 发起只读恢复。"
+  ],
+  "validation_plan": [
+    {"acceptance_id":"AC-01","command":"npm run test:project-video-append"},
+    {"acceptance_id":"AC-02","command":"npm run test:project-video-append"},
+    {"acceptance_id":"AC-03","command":"npm run test:project-video-append && npm run test:workbench-progress"},
+    {"acceptance_id":"AC-04","command":"npm run check:project -- --phase before-close && npm run workbench:release && company workbench HTTP status check"}
+  ],
+  "validation_results": [],
+  "documentation_updates": [
+    {"ref":"docs/Solution Design.md","status":"updated","reason":"记录推送后延迟可见的原 Plan 只读收口与不重发边界。"},
+    {"ref":"docs/project-现在的逻辑图.md","status":"updated","reason":"记录追加素材推送的只读回查分支、节点和恢复提示。"},
+    {"ref":"docs/project-数据与报表契约.md","status":"updated","reason":"记录追加素材推送 readback 与证据的安全持久化责任。"},
+    {"ref":"deploy/README.md","status":"updated","reason":"记录本次工作台发布后的健康检查与原 Case 只读恢复验证。"}
+  ],
+  "temporary_authorizations": [],
+  "result": null,
+  "closed_at": null
+}

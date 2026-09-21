@@ -263,6 +263,13 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
     };
   }
   if (intent.intent === "request_readonly_recovery") {
+    if (blocker === "project_video_material_push_readback_unresolved" || blocker === "project_video_material_push_readback_query_failed") {
+      return {
+        ...base,
+        effect: "run_project_video_material_push_readback",
+        message: "将只读检查已确认推送的冻结视频是否已出现在目标账户；不会再次推送、确认或追加。"
+      };
+    }
     if (currentGate === "manual_review_after_attempt_limit" && blocker === "std_project_create_attempt_limit_reached") {
       return {
         ...base,
@@ -333,6 +340,13 @@ export function evaluateGateAction({ intent = {}, message = "", caseSummary = nu
       return { ...base, effect: "manual_confirmation_required", message: "当前 Plan 需要受控授权，但该动作暂不支持在工作台对话中执行。" };
     }
     if (currentGate === "resolve_case_blocker") {
+      if (blocker === "project_video_material_push_readback_unresolved" || blocker === "project_video_material_push_readback_query_failed") {
+        return {
+          ...base,
+          effect: "run_project_video_material_push_readback",
+          message: "素材推送已被平台受理，但最近一次回查尚未确认全部视频。下一步：检查推送结果；不会重复推送。"
+        };
+      }
       const progress = presentWorkflowProgress({ caseGate: progressCaseGate, confirmationPreview, isLatestCaseJob });
       const hint = terminalMonitorReadonlyHint({ caseSummary, isLatestCaseJob }) || readonlyRecoveryHint({ caseSummary, isLatestCaseJob });
       return { ...base, effect: "blocker", message: `${progress.message}${hint ? ` ${hint}` : ""}` };

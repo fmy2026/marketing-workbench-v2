@@ -11,6 +11,7 @@ import {
   presentRootBlocker,
   reconcileMonitorAndPersistPlan,
   runJob,
+  runProjectVideoMaterialPushReadback,
   runProjectVideoAppendReadback,
   runWorkbenchInitialReadonly
 } from "./launchWorkflow.mjs";
@@ -100,6 +101,7 @@ export async function handleWorkbenchCommand({
   createCorrectiveAttemptJobFn = createCorrectiveAttemptJob,
   createReadonlyRecoveryJobFn = createReadonlyRecoveryJob,
   runJobFn = runJob,
+  runProjectVideoMaterialPushReadbackFn = runProjectVideoMaterialPushReadback,
   runProjectVideoAppendReadbackFn = runProjectVideoAppendReadback,
   runWorkbenchInitialReadonlyFn = runWorkbenchInitialReadonly,
   executeConfirmedMonitorBootstrapFn = executeConfirmedMonitorBootstrap,
@@ -154,6 +156,21 @@ export async function handleWorkbenchCommand({
       interaction: {
         ...interaction,
         message: intent.intent === "request_readonly_recovery" ? "已重新完成当前 Job 的只读准备。" : "只读就绪检查已完成。"
+      }
+    });
+  }
+  if (interaction.effect === "run_project_video_material_push_readback") {
+    const nextView = await runProjectVideoMaterialPushReadbackFn(repo, jobId, { projectStatePath, qiankunOwnerKey });
+    const appendConfirmation = nextView?.caseGate?.currentGate === "await_job_write_authorization" &&
+      nextView?.confirmationPreview?.planKind === PLAN_KIND_PROJECT_VIDEO_APPEND;
+    return response({
+      view: nextView,
+      interaction: {
+        ...interaction,
+        confirmationPreview: nextView?.confirmationPreview || null,
+        message: appendConfirmation
+          ? "素材推送已通过权威只读回查；当前 Job 已生成追加视频确认卡。"
+          : "素材推送仍未通过权威只读回查；不会重复推送，请按当前卡点处理。"
       }
     });
   }

@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-21T02:01:16Z",
+  "updated_at": "2026-09-21T02:39:14Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,11 +10,11 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": {
-    "id": "TASK-MWBV2-APPEND-FLOW-CLARITY-20260921",
-    "task_ref": "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
-    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.json"
+    "id": "TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921",
+    "task_ref": "tasks/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.md",
+    "context_manifest_ref": "tasks-context-manifests/TASK-MWBV2-APPEND-PUSH-READBACK-CLOSURE-20260921.json"
   },
-  "last_closed_task_ref": "tasks/TASK-MWBV2-COMPANY-WIFI-RELEASE-20260920.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-APPEND-FLOW-CLARITY-20260921.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {

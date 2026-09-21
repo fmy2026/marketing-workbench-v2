@@ -7,6 +7,8 @@ import {
   PROGRESS_REFRESH_INTERVAL_MS
 } from "../frontend/workbench-progress.mjs";
 import { presentWorkflowProgress } from "../src/workflows/workbenchProgressNarrative.mjs";
+import { deterministicIntent } from "../src/agents/conversationIntentResolver.mjs";
+import { evaluateGateAction } from "../src/workflows/gateActionPolicy.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -26,6 +28,24 @@ const credentialGate = {
   rootBlockerCodes: ["credential_required"],
   rootBlocker: { title: "平台只读凭据不可用" }
 };
+const pushReadbackGate = {
+  current_gate: "resolve_case_blocker",
+  root_blocker_codes: ["project_video_material_push_readback_unresolved"]
+};
+assert(deterministicIntent({ message: "检查推送结果" }).intent === "request_readonly_recovery", "push_readback_command_must_remain_readonly_intent");
+const pushReadbackAction = evaluateGateAction({
+  intent: deterministicIntent({ message: "检查推送结果" }),
+  caseSummary: pushReadbackGate,
+  caseGate: { currentGate: pushReadbackGate.current_gate, rootBlockerCodes: pushReadbackGate.root_blocker_codes },
+  isLatestCaseJob: true
+});
+assert(pushReadbackAction.effect === "run_project_video_material_push_readback" && pushReadbackAction.message.includes("不会再次推送"), "push_readback_gate_must_not_recompile_or_repush");
+const pushReadbackGuidance = readonlyRecoveryGuidance({
+  operation: "append_project_videos",
+  currentGate: "resolve_case_blocker",
+  rootBlockerCodes: ["project_video_material_push_readback_unresolved"]
+});
+assert(pushReadbackGuidance?.command === "检查推送结果" && pushReadbackGuidance?.buttonLabel === "检查推送结果", "push_readback_ui_must_offer_exact_readonly_action");
 
 assert(PROGRESS_REFRESH_INTERVAL_MS === 1200, "progress_poll_interval_changed");
 assert(
@@ -261,12 +281,13 @@ assert(clientSource.includes("输入“重新只读准备”准备下一 Attempt
 assert(!clientSource.includes("输入“继续执行”重新准备下一 Attempt"), "corrective_gate_legacy_input_copy_still_primary");
 assert(clientSource.includes("readonlyRecoveryGuidance(gate)"), "target_shared_operational_guidance_not_rendered");
 assert(clientSource.includes("readonlyRecovery.placeholder"), "target_shared_input_guidance_not_rendered");
-assert(clientSource.includes('const recoveryButton = el("button", "conversation-preset", "重新只读准备")'), "readonly_recovery_button_missing");
+assert(clientSource.includes('const recoveryCommand = readonlyRecovery?.command'), "readonly_recovery_button_command_missing");
+assert(clientSource.includes('readonlyRecovery.buttonLabel || recoveryCommand'), "readonly_recovery_button_label_missing");
 assert(clientSource.includes('["本次核验", `${preview.appendSummary.requestedCount} 条`]'), "append_confirmation_requested_count_missing");
 assert(clientSource.includes('["项目已有", `${preview.appendSummary.alreadyInProjectCount} 条`]'), "append_confirmation_existing_count_missing");
 assert(clientSource.includes('["待追加", `${preview.appendSummary.pendingAppendCount} 条`]'), "append_confirmation_pending_count_missing");
 assert(clientSource.includes('["引导视频绑定", `${preview.appendSummary.guideVideoBoundCount} 条`]'), "append_confirmation_guide_binding_count_missing");
-assert(clientSource.includes('submitJobCommand("重新只读准备")'), "readonly_recovery_button_must_use_existing_text_command");
+assert(clientSource.includes('submitJobCommand(recoveryCommand)'), "readonly_recovery_button_must_use_server_selected_command");
 assert(clientSource.includes('const readinessButton = el("button", "conversation-preset", "开始只读核验")'), "fresh_readiness_button_missing");
 assert(clientSource.includes('submitJobCommand("继续执行")'), "fresh_readiness_button_must_use_continue_command");
 assert(clientSource.includes('点击“开始只读核验”，或输入“继续执行”...'), "fresh_readiness_input_copy_missing");

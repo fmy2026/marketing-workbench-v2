@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createOceanEngineReadonlyClient } from "./oceanengineReadonlyClient.mjs";
 import { createQiankunMonitorClient } from "./qiankunMonitorClient.mjs";
 import { credentialReady, getOceanEngineCredentialSummary, readOceanEngineEnv } from "./oceanengineCredentialStore.mjs";
@@ -727,6 +727,150 @@ function materialPushPayload({ materialAccountId, advertiserId, sourceVideoIds =
   });
 }
 
+function pushBatchVideoIds(batch = {}) {
+  return (batch.source_video_ids || batch.sourceVideoIds || []).map(requiredVideoId.bind(null, "source_video_id"));
+}
+
+function pushReadbackIds(bundle = {}) {
+  const batches = Array.isArray(bundle?.executionPlan?.metadata?.push_batches)
+    ? bundle.executionPlan.metadata.push_batches
+    : [];
+  return batches.flatMap((batch) => pushBatchVideoIds(batch));
+}
+
+function safePushReadbackEvidence({ bundle, idSuffix, status, blocker, requestedCount, verifiedCount, responseHashes = [], diagnostics = [] } = {}) {
+  const responseHash = responseHashes.length ? hash(canonical(responseHashes)) : "";
+  const sampledDiagnostics = diagnostics.map((item) => ({
+    batch_index: Number(item.batchIndex || 0),
+    client_status: clean(item.clientStatus),
+    http_status: Number.isInteger(item.httpStatus) ? item.httpStatus : null,
+    api_code: clean(item.apiCode),
+    response_hash: clean(item.responseHash)
+  }));
+  return {
+    artifactId: `EV-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH-READBACK-${idSuffix}`,
+    artifactType: "project_video_material_push_readback",
+    title: "project video material push readonly readback",
+    summary: [
+      `status=${status}`,
+      `requested_count=${requestedCount}`,
+      `verified_count=${verifiedCount}`,
+      `unresolved_count=${Math.max(0, requestedCount - verifiedCount)}`,
+      `blocker=${blocker || "none"}`,
+      `response_hash_present=${Boolean(responseHash)}`,
+      "response_body_stored=false"
+    ].join("; "),
+    contentHash: hash(canonical({
+      planId: clean(bundle.executionPlan?.plan_id),
+      planHash: clean(bundle.executionPlan?.plan_hash),
+      status,
+      blocker,
+      requestedCount,
+      verifiedCount,
+      responseHash,
+      diagnostics: sampledDiagnostics
+    })),
+    storageRef: "postgres:evidence_artifacts:redacted_summary_only",
+    sourceRef: "oceanengine:file/video/get",
+    sourceUsage: bundle.job.source_usage || "runtime_truth"
+  };
+}
+
+// This is intentionally a narrow, side-effect-free probe.  Material bind
+// preserves the frozen video ID, so checking those IDs is both cheaper and
+// safer than re-inferring identity from the whole target inventory.
+export async function observeProjectVideoMaterialPushReadback({ bundle, readonlyClient = createOceanEngineReadonlyClient() } = {}) {
+  const observedAt = new Date().toISOString();
+  const idSuffix = `${Date.now()}-${randomBytes(4).toString("hex").toUpperCase()}`;
+  const plan = bundle?.executionPlan || {};
+  const batches = Array.isArray(plan.metadata?.push_batches) ? plan.metadata.push_batches : [];
+  const advertiserId = longId("advertiser_id", bundle?.job?.advertiser_id);
+  const planKind = clean(plan.plan_kind || plan.metadata?.plan_kind);
+  if ((planKind && planKind !== "project_video_material_push") || !batches.length) {
+    throw new Error("project_video_material_push_readback_context_invalid");
+  }
+  const expectedIds = pushReadbackIds(bundle);
+  if (!expectedIds.length || new Set(expectedIds).size !== expectedIds.length) {
+    throw new Error("project_video_material_push_readback_ids_invalid");
+  }
+  const probes = await Promise.all(batches.map(async (batch, index) => {
+    const videoIds = pushBatchVideoIds(batch);
+    const result = await readonlyClient.get({
+      label: `project_video_material_push_readback_${index + 1}`,
+      endpoint: "file/video/get",
+      query: {
+        advertiser_id: advertiserId,
+        filtering: JSON.stringify({ video_ids: videoIds }),
+        page: "1",
+        page_size: "100"
+      },
+      requestFieldManifest: ["advertiser_id", "filtering", "page", "page_size"],
+      summarize: (payload) => ({
+        visibleVideoIds: videoItems(payload).map(videoId).filter(Boolean)
+      })
+    });
+    return { batchIndex: Number(batch.batch_index || batch.batchIndex || index + 1), expectedIds: videoIds, result };
+  }));
+  const failedProbes = probes.filter(({ result }) => result.status !== "passed");
+  const visibleIds = new Set(probes.flatMap(({ result }) => result.summary?.visibleVideoIds || (result.summary?.items || []).map(videoId)));
+  const unresolvedVideoIds = expectedIds.filter((id) => !visibleIds.has(id));
+  const queryFailed = failedProbes.length > 0;
+  const blocker = queryFailed
+    ? "project_video_material_push_readback_query_failed"
+    : unresolvedVideoIds.length
+      ? "project_video_material_push_readback_unresolved"
+      : "";
+  const status = blocker ? "blocked" : "passed";
+  // A failed query is unknown, never partial verification.
+  const verifiedCount = queryFailed ? 0 : expectedIds.length - unresolvedVideoIds.length;
+  const responseHashes = probes.map(({ result }) => clean(result.responseHash)).filter(Boolean);
+  const diagnostics = failedProbes.map(({ batchIndex, result }) => ({
+    batchIndex,
+    clientStatus: result.status,
+    httpStatus: result.httpStatus,
+    apiCode: result.apiCode,
+    responseHash: result.responseHash
+  }));
+  const evidence = safePushReadbackEvidence({
+    bundle,
+    idSuffix,
+    status,
+    blocker,
+    requestedCount: expectedIds.length,
+    verifiedCount,
+    responseHashes,
+    diagnostics
+  });
+  return {
+    status,
+    blocker,
+    requestedCount: expectedIds.length,
+    verifiedCount,
+    unresolvedCount: expectedIds.length - verifiedCount,
+    unresolvedVideoCount: queryFailed ? expectedIds.length : unresolvedVideoIds.length,
+    readback: {
+      readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH-${idSuffix}`,
+      objectId: advertiserId,
+      readbackStatus: status === "passed" ? "readback_verified" : queryFailed ? "readonly_failed" : "not_found_or_mismatch",
+      fieldDiffSummary: {
+        plan_id: clean(plan.plan_id),
+        plan_hash: clean(plan.plan_hash),
+        requested_count: expectedIds.length,
+        verified_count: verifiedCount,
+        unresolved_count: expectedIds.length - verifiedCount,
+        query_failed: queryFailed,
+        failed_batch_count: failedProbes.length,
+        blocker,
+        observed_at: observedAt,
+        response_persisted: false
+      },
+      evidenceRef: evidence.artifactId
+    },
+    evidence,
+    diagnostics
+  };
+}
+
 export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confirmationId, fetchImpl = globalThis.fetch, credentialSummary = getOceanEngineCredentialSummary(), credentialEnv = readOceanEngineEnv().env, readonlyClient = createOceanEngineReadonlyClient({ fetchImpl }), allowNetworkWrite = false } = {}) {
   const plan = bundle?.executionPlan || {};
   const metadata = plan.metadata || {};
@@ -760,32 +904,10 @@ export async function executeProjectVideoMaterialPushOnce({ repo, bundle, confir
     await repo.finishPlannedExecutionAction({ actionId, jobId: bundle.job.job_id, confirmationId, planId: plan.plan_id, actionType: PROJECT_VIDEO_MATERIAL_PUSH_ACTION, idempotencyKey: `append-push:${plan.plan_hash || ""}:${batch.batch_index || batch.batchIndex}`, actionStatus: passed ? "succeeded" : "failed_or_unconfirmed", metadata: { platform_write_called: true, platform_response_confirmed: passed, error_category: passed ? "" : errorCategory, batch_index: batch.batch_index || batch.batchIndex, payload_persisted: false, response_persisted: false }, responseHash, httpStatus, apiCode });
     if (!passed) return { status: "failed_or_unconfirmed", writeCalled: true, blockers: [errorCategory || "platform_rejected"], stoppedAfterBatch: batch.batch_index || batch.batchIndex };
   }
-  const wanted = batches.flatMap((batch) => batch.origin_resource_ids || batch.originResourceIds || []);
-  const target = await scanOceanEngineVideoInventory({ client: readonlyClient, advertiserId, originResourceIds: wanted });
-  const unresolved = (target.items || []).filter((item) => !item.videoId).map((item) => item.originResourceId);
-  const readbackVerified = !unresolved.length && target.status === "passed";
-  const blocker = readbackVerified ? "" : (target.blocker || "project_video_material_push_readback_unresolved");
-  if (typeof repo.upsertReadbackRecord === "function") {
-    await repo.upsertReadbackRecord({
-      readbackId: `READBACK-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH`,
-      jobId: bundle.job.job_id,
-      objectType: "oc_project_video_material_push",
-      objectId: advertiserId,
-      objectName: "project_video_material_push",
-      readbackStatus: readbackVerified ? "readback_verified" : "not_found_or_mismatch",
-      fieldDiffSummary: {
-        requested_count: wanted.length,
-        verified_count: wanted.length - unresolved.length,
-        unresolved_count: unresolved.length,
-        blocker,
-        response_persisted: false
-      },
-      evidenceRef: `EV-${bundle.job.job_id}-PROJECT-VIDEO-MATERIAL-PUSH-READBACK`
-    });
-  }
-  return readbackVerified
-    ? { status: "readback_verified", writeCalled: true, pushedCount: wanted.length, projectId }
-    : { status: "failed_or_unconfirmed", writeCalled: true, blockers: [blocker], unresolvedOriginResourceIds: unresolved };
+  const observation = await observeProjectVideoMaterialPushReadback({ bundle, readonlyClient });
+  return observation.status === "passed"
+    ? { status: "readback_verified", writeCalled: true, pushedCount: observation.requestedCount, projectId, readbackObservation: observation }
+    : { status: "failed_or_unconfirmed", writeCalled: true, blockers: [observation.blocker], readbackObservation: observation };
 }
 
 export function validateProjectVideoAppendReadback({ plannedOriginResourceIds = [], foundVideoIds = [], itemMap = [] } = {}) {

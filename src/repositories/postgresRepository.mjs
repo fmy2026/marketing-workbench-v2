@@ -4754,6 +4754,166 @@ export class PostgresRepository {
     return result || { consumed: false, jobUpdated: false, allSucceeded: false, readbackVerified: false };
   }
 
+  // A material-push confirmation is consumed after its single platform call,
+  // but its authoritative visibility can arrive later.  This method records
+  // each later readonly observation against that exact consumed Plan without
+  // reopening its confirmation or execution scope.
+  async reconcileConfirmedProjectVideoMaterialPushReadback({ jobId, planId, observation, evidence, nodeRuns = [] } = {}) {
+    assertId("job_id", jobId);
+    assertId("plan_id", planId);
+    if (!observation?.readbackId || !observation?.objectId || !observation?.readbackStatus || !observation?.evidenceRef) {
+      throw new Error("project_video_material_push_observation_invalid");
+    }
+    const observedAt = String(observation.fieldDiffSummary?.observed_at || "").trim();
+    if (!Number.isFinite(Date.parse(observedAt))) throw new Error("project_video_material_push_observation_time_invalid");
+    if (!evidence?.artifactId || !evidence?.contentHash || !evidence?.artifactType || !evidence?.title || !evidence?.summary || !evidence?.storageRef || !evidence?.sourceRef) {
+      throw new Error("project_video_material_push_evidence_invalid");
+    }
+    if (observation.evidenceRef !== evidence.artifactId) throw new Error("project_video_material_push_evidence_binding_invalid");
+    if (!Array.isArray(nodeRuns) || nodeRuns.some((node) => !node?.nodeKey || !node?.nodeName || !node?.phase || !node?.status)) {
+      throw new Error("project_video_material_push_nodes_invalid");
+    }
+    const verified = observation.readbackStatus === "readback_verified";
+    const blocker = String(observation.fieldDiffSummary?.blocker || "").trim();
+    const nodeStatement = nodeRuns.length
+      ? `, nodes AS (
+          INSERT INTO mwb.launch_node_runs (
+            node_run_id, job_id, node_key, node_name, phase, status, summary,
+            diagnostic_level, output_summary, evidence_refs, started_at, finished_at
+          )
+          SELECT values_row.node_run_id, target.job_id, values_row.node_key,
+            values_row.node_name, values_row.phase, values_row.status, values_row.summary,
+            values_row.diagnostic_level, values_row.output_summary, values_row.evidence_refs,
+            now(), CASE WHEN values_row.status IN ('passed', 'repairable', 'needs_confirmation', 'blocked', 'locked', 'failed') THEN now() ELSE NULL END
+          FROM target
+          CROSS JOIN (VALUES ${nodeRuns.map((node) => `(
+            ${sqlLiteral(`${jobId}-${node.order}`)}, ${sqlLiteral(node.nodeKey)}, ${sqlLiteral(node.nodeName)},
+            ${sqlLiteral(node.phase)}, ${sqlLiteral(node.status)}, ${sqlLiteral(node.summary)},
+            ${sqlLiteral(node.diagnosticLevel || "info")}, ${sqlJson(node.outputSummary || {})}, ${sqlJson(node.evidenceRefs || [])}
+          )`).join(",")}) AS values_row(node_run_id, node_key, node_name, phase, status, summary, diagnostic_level, output_summary, evidence_refs)
+          ON CONFLICT (job_id, node_key) DO UPDATE SET
+            node_name = EXCLUDED.node_name,
+            phase = EXCLUDED.phase,
+            status = EXCLUDED.status,
+            summary = EXCLUDED.summary,
+            diagnostic_level = EXCLUDED.diagnostic_level,
+            output_summary = EXCLUDED.output_summary,
+            evidence_refs = EXCLUDED.evidence_refs,
+            finished_at = EXCLUDED.finished_at
+          RETURNING node_key
+        )`
+      : `, nodes AS (SELECT node_key FROM mwb.launch_node_runs WHERE false)`;
+    const result = await queryJson(`
+      WITH target AS (
+        SELECT job.job_id, job.case_id, plan.plan_id
+        FROM mwb.launch_jobs job
+        JOIN mwb.launch_execution_plans plan ON plan.job_id = job.job_id
+        WHERE job.job_id = ${sqlLiteral(jobId)}
+          AND plan.plan_id = ${sqlLiteral(planId)}
+          AND plan.plan_status IN ('executing', 'consumed')
+          AND coalesce(plan.plan_kind, plan.metadata->>'plan_kind', '') = 'project_video_material_push'
+          AND EXISTS (
+            SELECT 1 FROM mwb.launch_confirmations confirmation
+            WHERE confirmation.job_id = plan.job_id
+              AND confirmation.plan_id = plan.plan_id
+              AND confirmation.confirmation_status = 'confirmed_for_execution_plan'
+          )
+        FOR UPDATE OF job, plan
+      ), terminal_actions AS (
+        SELECT count(*) AS total, count(*) FILTER (WHERE action_status = 'succeeded') AS succeeded
+        FROM mwb.platform_actions action
+        JOIN target ON target.job_id = action.job_id AND target.plan_id = action.plan_id
+        WHERE action.action_type = 'oc_project_video_material_push'
+          AND action.action_status IN ('succeeded', 'failed', 'failed_or_unconfirmed')
+      ), observation_row AS (
+        INSERT INTO mwb.readback_records (
+          readback_id, job_id, object_type, object_id, object_name,
+          readback_status, field_diff_summary, evidence_ref, created_at
+        )
+        SELECT ${sqlLiteral(observation.readbackId)}, target.job_id,
+          'oc_project_video_material_push', ${sqlLiteral(observation.objectId)},
+          'project_video_material_push', ${sqlLiteral(observation.readbackStatus)},
+          ${sqlJson({ ...(observation.fieldDiffSummary || {}), plan_id: planId })},
+          ${sqlLiteral(observation.evidenceRef)}, now()
+        FROM target
+        WHERE (SELECT total = succeeded AND total > 0 FROM terminal_actions)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM mwb.readback_records newer
+            WHERE newer.job_id = target.job_id
+              AND newer.object_type = 'oc_project_video_material_push'
+              AND coalesce(newer.field_diff_summary->>'plan_id', '') = ${sqlLiteral(planId)}
+              AND coalesce(newer.field_diff_summary->>'observed_at', '') > ${sqlLiteral(observedAt)}
+          )
+        ON CONFLICT (readback_id) DO UPDATE SET
+          readback_status = EXCLUDED.readback_status,
+          field_diff_summary = EXCLUDED.field_diff_summary,
+          evidence_ref = EXCLUDED.evidence_ref,
+          created_at = EXCLUDED.created_at
+        RETURNING readback_id
+      ), evidence_row AS (
+        INSERT INTO mwb.evidence_artifacts (
+          artifact_id, job_id, artifact_type, title, summary, content_hash,
+          storage_ref, source_ref, source_usage, created_at
+        )
+        SELECT ${sqlLiteral(evidence.artifactId)}, target.job_id,
+          ${sqlLiteral(evidence.artifactType)}, ${sqlLiteral(evidence.title)},
+          ${sqlLiteral(evidence.summary)}, ${sqlLiteral(evidence.contentHash)},
+          ${sqlLiteral(evidence.storageRef)}, ${sqlLiteral(evidence.sourceRef)},
+          ${sqlLiteral(evidence.sourceUsage || "runtime_truth")}, now()
+        FROM target
+        WHERE EXISTS (SELECT 1 FROM observation_row)
+        ON CONFLICT (artifact_id) DO UPDATE SET
+          job_id = EXCLUDED.job_id,
+          artifact_type = EXCLUDED.artifact_type,
+          title = EXCLUDED.title,
+          summary = EXCLUDED.summary,
+          content_hash = EXCLUDED.content_hash,
+          storage_ref = EXCLUDED.storage_ref,
+          source_ref = EXCLUDED.source_ref,
+          source_usage = EXCLUDED.source_usage,
+          created_at = EXCLUDED.created_at
+        RETURNING artifact_id
+      )
+      ${nodeStatement}, plan_finalized AS (
+        UPDATE mwb.launch_execution_plans plan
+        SET plan_status = 'consumed',
+            metadata = plan.metadata || jsonb_build_object(
+              'confirmed_execution_outcome', ${sqlLiteral(verified ? "readback_verified" : "failed_or_unconfirmed")},
+              'confirmed_execution_blocker', ${sqlLiteral(verified ? "" : blocker || "project_video_material_push_readback_unresolved")},
+              'root_blocker_codes', ${verified ? "'[]'::jsonb" : sqlJson([blocker || "project_video_material_push_readback_unresolved"])},
+              'retry_allowed', false,
+              'platform_action_count', (SELECT total FROM terminal_actions),
+              'latest_readback_id', ${sqlLiteral(observation.readbackId)}
+            ),
+            updated_at = now()
+        FROM target
+        WHERE plan.job_id = target.job_id AND plan.plan_id = target.plan_id
+          AND EXISTS (SELECT 1 FROM observation_row)
+          AND EXISTS (SELECT 1 FROM evidence_row)
+        RETURNING plan.plan_id
+      ), job_finalized AS (
+        UPDATE mwb.launch_jobs job
+        SET job_status = ${verified ? "'running'" : "'blocked'"},
+            current_node = '4',
+            updated_at = now()
+        FROM target
+        WHERE job.job_id = target.job_id
+          AND EXISTS (SELECT 1 FROM plan_finalized)
+        RETURNING job.job_id
+      )
+      SELECT jsonb_build_object(
+        'observationRecorded', EXISTS (SELECT 1 FROM observation_row),
+        'evidenceRecorded', EXISTS (SELECT 1 FROM evidence_row),
+        'nodesUpdated', (SELECT count(*) FROM nodes),
+        'jobUpdated', EXISTS (SELECT 1 FROM job_finalized),
+        'readbackVerified', ${verified ? "EXISTS (SELECT 1 FROM observation_row)" : "false"},
+        'blocker', ${sqlLiteral(verified ? "" : blocker || "project_video_material_push_readback_unresolved")}
+      )::text;
+    `, this.database);
+    return result || { observationRecorded: false, evidenceRecorded: false, nodesUpdated: 0, jobUpdated: false, readbackVerified: false, blocker };
+  }
+
   async getLaunchExecutionPlan(planId) {
     assertId("plan_id", planId);
     return queryJson(`

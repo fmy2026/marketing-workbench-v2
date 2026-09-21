@@ -26,7 +26,9 @@ export const LAUNCH_OPERATION_CONTRACTS = Object.freeze({
     nodeSubflows: Object.freeze({
       game_launch_pack: Object.freeze([]),
       account_resource_prepare: Object.freeze([]),
-      std_project_draft_builder: Object.freeze([])
+      std_project_draft_builder: Object.freeze([]),
+      std_project_create_executor: Object.freeze([]),
+      readback_closer: Object.freeze([])
     }),
     nodeChildren: Object.freeze({
       game_launch_pack: Object.freeze([]),

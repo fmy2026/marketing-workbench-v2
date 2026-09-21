@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { finalizeProjectVideoAppendReadbackObservation, getJobView, runJob } from "./launchWorkflow.mjs";
+import { finalizeProjectVideoAppendReadbackObservation, getJobView, projectVideoMaterialPushReadbackNodeRuns, runJob } from "./launchWorkflow.mjs";
 import { revokeWriteScope, validatePlanConfirmationScope, validateProjectVideoAppendPlanConfirmationScope, validateProjectVideoMaterialPushPlanConfirmationScope, validateWriteScope } from "./executionGrantScope.mjs";
 import { assertNoSensitiveLeak } from "./skills/oe3/00-contracts.mjs";
 import {
@@ -248,6 +248,21 @@ export async function executeConfirmedLaunch({
       const pushPrewriteBlocker = pushResult.status === "blocked_before_material_push" ? pushResult.blockers?.[0] || "project_video_material_push_preflight_failed" : "";
       if (pushPrewriteBlocker && typeof repo.finalizeConfirmedProjectVideoPlanBeforeAction === "function") {
         await repo.finalizeConfirmedProjectVideoPlanBeforeAction({ jobId, planId: currentPlanId, blockerCode: pushPrewriteBlocker, evidenceRefs: ["execution:preflight"] });
+      } else if (pushResult.readbackObservation && typeof repo.reconcileConfirmedProjectVideoMaterialPushReadback === "function") {
+        const reconciliation = await repo.reconcileConfirmedProjectVideoMaterialPushReadback({
+          jobId,
+          planId: currentPlanId,
+          observation: pushResult.readbackObservation.readback,
+          evidence: pushResult.readbackObservation.evidence,
+          nodeRuns: projectVideoMaterialPushReadbackNodeRuns({ observation: pushResult.readbackObservation })
+        });
+        if (reconciliation.observationRecorded !== true) {
+          pushResult = {
+            ...pushResult,
+            status: "failed_or_unconfirmed",
+            blockers: [reconciliation.blocker || "project_video_material_push_readback_not_recorded"]
+          };
+        }
       } else {
         await repo.finalizeConfirmedProjectVideoMaterialPushPlan({ jobId, planId: currentPlanId });
       }
