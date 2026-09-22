@@ -13,9 +13,9 @@ import {
   scheduledTokenRefreshScopeStatus,
   updateOceanEngineEnv
 } from "./oceanengineCredentialStore.mjs";
-import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS } from "./httpDeadline.mjs";
+import { fetchWithDeadline, PLATFORM_JSON_TIMEOUT_MS, readResponseTextWithDeadline } from "./httpDeadline.mjs";
 
-const REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refresh_token/";
+export const REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refresh_token/";
 const DEFAULT_LOCK_STALE_SECONDS = 15 * 60;
 
 function clean(value) {
@@ -35,7 +35,7 @@ function responseHash(text = "") {
   return createHash("sha256").update(String(text)).digest("hex");
 }
 
-function transportFailureClass(error) {
+export function transportFailureClass(error) {
   const values = [
     error?.code,
     error?.cause?.code,
@@ -62,7 +62,7 @@ async function postRefresh(url, body, fetchImpl) {
     },
     body: JSON.stringify(body)
   }, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
-  const text = await response.text();
+  const text = await readResponseTextWithDeadline(response, { timeoutMs: PLATFORM_JSON_TIMEOUT_MS });
   let payload = {};
   try {
     payload = JSON.parse(text);
@@ -88,7 +88,7 @@ function baseResult(values = {}) {
   };
 }
 
-function refreshPaths(envPath) {
+export function refreshPaths(envPath) {
   const resolvedEnvPath = resolveOceanEngineEnvPath(envPath);
   const dir = path.dirname(resolvedEnvPath);
   return {
@@ -98,7 +98,7 @@ function refreshPaths(envPath) {
   };
 }
 
-function acquireRefreshLock({ lockPath, nowMs = Date.now(), staleSeconds = DEFAULT_LOCK_STALE_SECONDS } = {}) {
+export function acquireRefreshLock({ lockPath, nowMs = Date.now(), staleSeconds = DEFAULT_LOCK_STALE_SECONDS } = {}) {
   mkdirSync(path.dirname(lockPath), { recursive: true });
   try {
     const current = statSync(lockPath);
@@ -123,7 +123,7 @@ function acquireRefreshLock({ lockPath, nowMs = Date.now(), staleSeconds = DEFAU
   }
 }
 
-function appendAuditEvent(auditPath, event = {}) {
+export function appendAuditEvent(auditPath, event = {}) {
   mkdirSync(path.dirname(auditPath), { recursive: true });
   const safeEvent = {
     recordedAt: event.recordedAt,
@@ -135,7 +135,13 @@ function appendAuditEvent(auditPath, event = {}) {
     apiCode: event.apiCode,
     requestIdPresent: Boolean(event.requestIdPresent),
     responseHash: event.responseHash,
-    transportFailureClass: event.transportFailureClass
+    transportFailureClass: event.transportFailureClass,
+    event: event.event,
+    maintenanceStatus: event.maintenanceStatus,
+    tokenExpiresAt: event.tokenExpiresAt,
+    tokenRefreshAfter: event.tokenRefreshAfter,
+    tokenRefreshAttempted: Boolean(event.tokenRefreshAttempted),
+    verificationAttempted: Boolean(event.verificationAttempted)
   };
   appendFileSync(auditPath, `${JSON.stringify(safeEvent)}\n`, { encoding: "utf8", mode: 0o600 });
   chmodSync(auditPath, 0o600);
@@ -200,7 +206,9 @@ export async function refreshOceanEngineToken({
   envPath = env.OCEANENGINE_ENV_PATH,
   projectStatePath,
   fetchImpl = globalThis.fetch,
-  now = () => new Date()
+  now = () => new Date(),
+  lockAlreadyHeld = false,
+  beforeNetworkAttempt = null
 } = {}) {
   const { resolvedEnvPath, lockPath, auditPath } = refreshPaths(envPath);
   const scope = scheduledTokenRefreshScopeStatus({ env, projectStatePath });
@@ -228,7 +236,7 @@ export async function refreshOceanEngineToken({
     };
   }
 
-  const lock = acquireRefreshLock({
+  const lock = lockAlreadyHeld ? { acquired: true, release: null } : acquireRefreshLock({
     lockPath,
     nowMs: now().getTime(),
     staleSeconds: Number(env.OCEANENGINE_TOKEN_REFRESH_LOCK_STALE_SECONDS || DEFAULT_LOCK_STALE_SECONDS)
@@ -303,6 +311,22 @@ export async function refreshOceanEngineToken({
 
     const requestBody = { app_id: appId, secret: appSecret, refresh_token: refreshTokenValue };
     const attempts = [];
+
+    if (typeof beforeNetworkAttempt === "function") {
+      try {
+        await beforeNetworkAttempt();
+      } catch {
+        return {
+          exitCode: 1,
+          result: baseResult({
+            tokenRefreshOk: false,
+            refreshAttempted: false,
+            status: "refresh_failed",
+            failureType: "refresh_attempt_record_failed"
+          })
+        };
+      }
+    }
 
     try {
       const response = await postRefresh(REFRESH_URL, requestBody, fetchImpl);
@@ -419,7 +443,7 @@ export async function refreshOceanEngineToken({
       })
     };
   } finally {
-    if (lock.acquired) {
+    if (lock.acquired && !lockAlreadyHeld) {
       try {
         lock.release();
       } catch {

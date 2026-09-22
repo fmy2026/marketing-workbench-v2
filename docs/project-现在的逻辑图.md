@@ -130,7 +130,7 @@ Node 04 固定核验八类资源：`avatar`、`dmp_audience_package`、`event_as
 - 已确认 Create Plan 在任何平台 action、delivery 与创建对象之前停止时，冻结 Plan 仍消费，executor 必须记录最具体的上游 blocker 及脱敏观察引用。确认领取后的本地异常也走同一收口，记录 `confirmed_create_execution_failed_before_action`；收口在同一事务锁住 Plan 与 confirmation，并且要求零 action、零 delivery、零对象及零运行中 cycle。平台 action 认领在同一把 Plan 锁下重新核验其仍为 `executing`，所以被消费的 Plan 不能产生迟到 action。 同一 Job 已确认 `std_project_create` 后，Node 01–05、普通 runner 和 Plan 发布事务均拒绝重跑或生成后续 Plan；只有原 Plan 的 Node 07 回查可继续。若 Case 最新、本人范围、无 action、delivery、对象且次数未耗尽，Gate 只允许既有 fresh readonly recovery；它按 Case 锁去重，产生新 Job、新 Plan/hash 和新确认。已有 action、delivery、对象、核验异常或结果不明一律只走 readonly readback 或人工核验，不能恢复性创建。
 - 每份确认 Plan 仅消费冻结动作一次；写入受理不等于 READY。事件资产创建收到资产 ID 后，只能在 `0 / 1 / 3 / 5` 秒窗口按该 ID、目标 App 与实例作只读回查；窗口耗尽、ID 缺失或不匹配均保持已消费且不得重发创建。资源 Plan 已调用平台但回查未确认时，工作台必须如实提示“已受理、未确认、不会重发”，不暴露对象 ID 或原始响应。标准项目的权威完成回查仅核验项目 ID 与 Draft 名称；素材、封面和引导视频合同在 Node 04、Node 05 与 preflight 完成。
 - 创建 Attempt 由 Case 的 `nextCreateAttemptNo` 推导；失败或修正使用新 Job/Plan/confirmation/Attempt。
-- 新冻结且携带完整 delivery 合同的 Create 或追加 action，只有在精确 `HTTP 200 + 40100` 且没有对象/受理结果时，才能在同一 confirmation 内最多三次错峰物理投递；请求 hash 不变，调用点为 `0 / 20–24 / 45–49` 秒。其余错误、超时或不明结果不自动重试。OAuth 与存储边界分别查[部署说明](../deploy/README.md#巨量-oauth-token-每日刷新)和数据契约。
+- 新冻结且携带完整 delivery 合同的 Create 或追加 action，只有在精确 `HTTP 200 + 40100` 且没有对象/受理结果时，才能在同一 confirmation 内最多三次错峰物理投递；请求 hash 不变，调用点为 `0 / 20–24 / 45–49` 秒。其余错误、超时或不明结果不自动重试。OAuth 与存储边界分别查[部署说明](../deploy/README.md#巨量-oauth-token-自动维护)和数据契约。
 - Node 05 查重唯一只读限流例外是首次 `GET std_project/list` 的 `HTTP 200 + api_code=40100`：完全相同参数在 Job 确定的 `20–24` 秒后最多重试一次；第二次 `40100` 以 `duplicate_readonly_rate_limited` 停止，其他错误零重试。该 GET 不产生 Plan、confirmation、action 或 Attempt；证据仅记录调用次数、最终业务码与是否恢复。
 
 ## 6. 投放执行 Agent：Case Gate 与工作台

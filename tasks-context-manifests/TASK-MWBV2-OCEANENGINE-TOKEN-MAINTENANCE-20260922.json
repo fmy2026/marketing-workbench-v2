@@ -1,0 +1,105 @@
+{
+  "schema_version": "2026-09-08.task-context-manifest-v2",
+  "task_id": "TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922",
+  "task_ref": "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.md",
+  "status": "completed",
+  "created_at": "2026-09-22T04:05:34Z",
+  "updated_at": "2026-09-22T04:13:14Z",
+  "base_revision": "ab3f796052f21d067cca72572432e07c9cec1942",
+  "baseline_dirty_files": {},
+  "domains": ["control", "workflow", "deploy", "security"],
+  "read_order": [
+    "AGENTS.md",
+    "project.state.json",
+    "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.md",
+    "tasks-context-manifests/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.json",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "deploy/README.md"
+  ],
+  "reference_only": [],
+  "allowed_writes": [
+    "project.state.json",
+    "package.json",
+    "src/platforms/oceanengineCredentialStore.mjs",
+    "src/platforms/httpDeadline.mjs",
+    "src/platforms/oceanengineReadonlyAdapter.mjs",
+    "src/platforms/oceanengineTokenRefresh.mjs",
+    "src/platforms/oceanengineTokenMaintenance.mjs",
+    "scripts/00-oceanengine-token-maintain.mjs",
+    "scripts/00-oceanengine-token-refresh.mjs",
+    "scripts/00-oceanengine-token-status.mjs",
+    "scripts/00-oceanengine-token-refresh-scope-smoke.mjs",
+    "scripts/00-oceanengine-token-maintenance-smoke.mjs",
+    "deploy/launchd/com.hys.marketing-workbench.oceanengine-token-maintenance.plist.example",
+    "deploy/README.md",
+    "docs/Solution Design.md",
+    "docs/project-现在的逻辑图.md",
+    "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.md",
+    "tasks-context-manifests/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.json",
+    "evidence/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922/**"
+  ],
+  "forbidden_actions": [
+    "任何投放业务 API 写入、创建、重试、预算或出价修改",
+    "保存或输出 token、secret、Cookie、auth_code、完整 URL、原始请求或响应",
+    "在结果不明时自动重发 OAuth 刷新"
+  ],
+  "stop_conditions": [
+    "外部 OAuth 结果不明、凭据失效或运行环境无法验证时停止自动刷新",
+    "需要超出专项 OAuth 范围的平台操作时停止"
+  ],
+  "open_gaps": [],
+  "validation_plan": [
+    {"acceptance_id": "AC-01", "command": "npm run test:token-maintenance"},
+    {"acceptance_id": "AC-02", "command": "npm run test:token-maintenance"},
+    {"acceptance_id": "AC-03", "command": "plutil -lint deploy/launchd/com.hys.marketing-workbench.oceanengine-token-maintenance.plist.example; launchctl print gui/$(id -u)/com.hys.marketing-workbench.oceanengine-token-maintenance"},
+    {"acceptance_id": "AC-04", "command": "npm run check:project -- --phase before-close; npm run test:token-refresh-scope; npm run test:token-maintenance"}
+  ],
+  "validation_results": [
+    {
+      "acceptance_id": "AC-01",
+      "status": "passed",
+      "command": "npm run test:token-maintenance",
+      "verified_at": "2026-09-22T04:13:14Z",
+      "summary": "阈值判断、单次刷新、OAuth 只读验证、重复跳过与只读状态入口均通过隔离测试；实际 LaunchAgent 首次刷新并验证、第二次跳过刷新。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-02",
+      "status": "passed",
+      "command": "npm run test:token-maintenance && npm run test:token-refresh-scope",
+      "verified_at": "2026-09-22T04:13:14Z",
+      "summary": "授权、共享锁、DNS、超时、持久化失败、refresh token 失效和验证失败的停止或恢复行为通过；审计测试确认不泄露敏感值。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-03",
+      "status": "passed",
+      "command": "plutil -lint deploy/launchd/com.hys.marketing-workbench.oceanengine-token-maintenance.plist.example; launchctl print gui/$(id -u)/com.hys.marketing-workbench.oceanengine-token-maintenance",
+      "verified_at": "2026-09-22T04:13:14Z",
+      "summary": "当前项目 LaunchAgent 已加载，登录补检和每小时第 1 分钟调度已验证；旧 Codex automation 已暂停，旧项目 LaunchAgent 已移除。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922/validation.md"]
+    },
+    {
+      "acceptance_id": "AC-04",
+      "status": "passed",
+      "command": "npm run check:project -- --phase start; npm run test:token-refresh-scope; npm run test:token-maintenance; npm run test:agent-readonly-modules",
+      "verified_at": "2026-09-22T04:13:14Z",
+      "summary": "项目合同、OAuth 维护测试和关联只读模块回归均通过；方案、流程与部署说明已同步。",
+      "evidence_refs": ["evidence/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922/validation.md"]
+    }
+  ],
+  "documentation_updates": [
+    {"ref": "docs/Solution Design.md", "status": "updated", "reason": "记录从 Codex cron 迁移到系统 token 自动维护的批准决策。"},
+    {"ref": "docs/project-现在的逻辑图.md", "status": "updated", "reason": "更新 OAuth 部署机制链接。"},
+    {"ref": "deploy/README.md", "status": "updated", "reason": "记录唯一 LaunchAgent、运行规则、异常边界和排查入口。"}
+  ],
+  "temporary_authorizations": [],
+  "result": {
+    "summary": "已交付当前项目专用的 macOS OAuth token 自动维护任务。它每小时检查、到期前两小时刷新、原子保存并通过 OAuth 只读接口验证；真实 LaunchAgent 已刷新当前凭据并通过二次零刷新检查。",
+    "side_effects": "暂停旧 Codex automation，移除已确认指向旧项目的旧 LaunchAgent，并加载当前项目 LaunchAgent；未执行任何投放业务写入。",
+    "remaining_risks": ["Mac 关机、退出登录、长时休眠、断网或平台撤销授权期间无法维护；恢复后会补检。", "refresh_uncertain 会停止自动重发并等待人工处理。"],
+    "business_evidence_refs": []
+  },
+  "closed_at": "2026-09-22T04:13:14Z"
+}

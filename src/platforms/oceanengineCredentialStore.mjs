@@ -8,11 +8,13 @@ const PROJECT_ROOT = path.resolve(MODULE_DIR, "../..");
 export const DEFAULT_OCEANENGINE_ENV_PATH = path.join(PROJECT_ROOT, ".local", "oceanengine.env");
 export const TOKEN_REFRESH_CONFIRM_ENV = "MWBV2_OE_TOKEN_REFRESH_CONFIRM";
 export const TOKEN_REFRESH_CONFIRM_VALUE = "REFRESH_ONE_OCEANENGINE_TOKEN";
-export const TOKEN_REFRESH_AUTOMATION_ENV = "MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID";
+export const TOKEN_MAINTENANCE_AUTOMATION_ENV = "MWBV2_OE_TOKEN_MAINTENANCE_ID";
 export const PROJECT_STATE_PATH_ENV = "MWBV2_PROJECT_STATE_PATH";
-export const SCHEDULED_TOKEN_REFRESH_SCOPE_MODE = "scheduled_daily_oauth_refresh_only";
+export const SYSTEM_TOKEN_MAINTENANCE_SCOPE_MODE = "system_hourly_oauth_maintenance_only";
 export const SCHEDULED_TOKEN_REFRESH_ACTION = "oceanengine_oauth_refresh_token";
-export const SCHEDULED_TOKEN_REFRESH_DAILY_AT = "12:01";
+export const SCHEDULED_TOKEN_READBACK_ACTION = "oceanengine_oauth_token_readback";
+export const TOKEN_MAINTENANCE_CHECK_INTERVAL_MINUTES = 60;
+export const TOKEN_MAINTENANCE_REFRESH_BEFORE_EXPIRY_MINUTES = 120;
 
 export const OCEANENGINE_TOKEN_STATUSES = new Set([
   "missing",
@@ -40,7 +42,14 @@ export const OCEANENGINE_ENV_KEYS = [
   "OCEANENGINE_TOKEN_REFRESH_AFTER",
   "OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT",
   "OCEANENGINE_REFRESH_FAILURE_TYPE",
-  "OCEANENGINE_TOKEN_STATUS"
+  "OCEANENGINE_TOKEN_STATUS",
+  "OCEANENGINE_TOKEN_MAINTENANCE_STATUS",
+  "OCEANENGINE_TOKEN_LAST_CHECK_AT",
+  "OCEANENGINE_TOKEN_LAST_REFRESH_ATTEMPT_AT",
+  "OCEANENGINE_TOKEN_LAST_REFRESH_AT",
+  "OCEANENGINE_TOKEN_LAST_VERIFY_AT",
+  "OCEANENGINE_TOKEN_LAST_FAILURE_TYPE",
+  "OCEANENGINE_TOKEN_LAST_NOTIFICATION_DATE"
 ];
 
 const DEFAULT_ENV_VALUES = {
@@ -60,7 +69,14 @@ const DEFAULT_ENV_VALUES = {
   OCEANENGINE_TOKEN_REFRESH_AFTER: "",
   OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT: "",
   OCEANENGINE_REFRESH_FAILURE_TYPE: "",
-  OCEANENGINE_TOKEN_STATUS: "missing"
+  OCEANENGINE_TOKEN_STATUS: "missing",
+  OCEANENGINE_TOKEN_MAINTENANCE_STATUS: "",
+  OCEANENGINE_TOKEN_LAST_CHECK_AT: "",
+  OCEANENGINE_TOKEN_LAST_REFRESH_ATTEMPT_AT: "",
+  OCEANENGINE_TOKEN_LAST_REFRESH_AT: "",
+  OCEANENGINE_TOKEN_LAST_VERIFY_AT: "",
+  OCEANENGINE_TOKEN_LAST_FAILURE_TYPE: "",
+  OCEANENGINE_TOKEN_LAST_NOTIFICATION_DATE: ""
 };
 
 function clean(value) {
@@ -164,6 +180,15 @@ function defaultEnvText() {
     "OCEANENGINE_REFRESH_TOKEN_EXPIRES_AT=",
     "OCEANENGINE_REFRESH_FAILURE_TYPE=",
     "OCEANENGINE_TOKEN_STATUS=missing",
+    "",
+    "# Token maintenance state (no credentials)",
+    "OCEANENGINE_TOKEN_MAINTENANCE_STATUS=",
+    "OCEANENGINE_TOKEN_LAST_CHECK_AT=",
+    "OCEANENGINE_TOKEN_LAST_REFRESH_ATTEMPT_AT=",
+    "OCEANENGINE_TOKEN_LAST_REFRESH_AT=",
+    "OCEANENGINE_TOKEN_LAST_VERIFY_AT=",
+    "OCEANENGINE_TOKEN_LAST_FAILURE_TYPE=",
+    "OCEANENGINE_TOKEN_LAST_NOTIFICATION_DATE=",
     ""
   ].join("\n");
 }
@@ -321,23 +346,31 @@ export function scheduledTokenRefreshScopeStatus({ env = process.env, projectSta
 
   const guardrails = projectState?.guardrails || {};
   const scope = guardrails.credential_refresh_scope || {};
-  const automationId = clean(env[TOKEN_REFRESH_AUTOMATION_ENV]);
+  const automationId = clean(env[TOKEN_MAINTENANCE_AUTOMATION_ENV]);
   const allowedActions = Array.isArray(scope.allowed_actions) ? scope.allowed_actions : [];
 
   if (guardrails.credential_refresh_allowed !== true) blockers.push("credential_refresh_not_allowed");
-  if (scope.mode !== SCHEDULED_TOKEN_REFRESH_SCOPE_MODE) blockers.push("credential_refresh_scope_mode_mismatch");
-  if (!automationId) blockers.push("credential_refresh_automation_id_missing");
+  if (scope.mode !== SYSTEM_TOKEN_MAINTENANCE_SCOPE_MODE) blockers.push("credential_refresh_scope_mode_mismatch");
+  if (!automationId) blockers.push("credential_maintenance_automation_id_missing");
   if (!clean(scope.authorized_automation_id) || automationId !== clean(scope.authorized_automation_id)) {
-    blockers.push("credential_refresh_automation_id_mismatch");
+    blockers.push("credential_maintenance_automation_id_mismatch");
   }
-  if (scope.timezone !== "Asia/Shanghai" || scope.daily_at !== SCHEDULED_TOKEN_REFRESH_DAILY_AT) {
-    blockers.push("credential_refresh_schedule_mismatch");
+  if (
+    scope.timezone !== "Asia/Shanghai" ||
+    scope.check_interval_minutes !== TOKEN_MAINTENANCE_CHECK_INTERVAL_MINUTES ||
+    scope.refresh_before_expiry_minutes !== TOKEN_MAINTENANCE_REFRESH_BEFORE_EXPIRY_MINUTES
+  ) {
+    blockers.push("credential_maintenance_schedule_mismatch");
   }
   if (scope.confirm_variable !== `${TOKEN_REFRESH_CONFIRM_ENV}=${TOKEN_REFRESH_CONFIRM_VALUE}`) {
     blockers.push("credential_refresh_confirmation_contract_mismatch");
   }
-  if (allowedActions.length !== 1 || allowedActions[0] !== SCHEDULED_TOKEN_REFRESH_ACTION) {
-    blockers.push("credential_refresh_action_scope_mismatch");
+  if (
+    allowedActions.length !== 2 ||
+    allowedActions[0] !== SCHEDULED_TOKEN_REFRESH_ACTION ||
+    allowedActions[1] !== SCHEDULED_TOKEN_READBACK_ACTION
+  ) {
+    blockers.push("credential_maintenance_action_scope_mismatch");
   }
 
   return { allowed: blockers.length === 0, blockers };

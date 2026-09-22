@@ -3,7 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node
 import os from "node:os";
 import path from "node:path";
 import { refreshOceanEngineToken } from "../src/platforms/oceanengineTokenRefresh.mjs";
-import { SCHEDULED_TOKEN_REFRESH_DAILY_AT } from "../src/platforms/oceanengineCredentialStore.mjs";
+import {
+  SYSTEM_TOKEN_MAINTENANCE_SCOPE_MODE,
+  TOKEN_MAINTENANCE_CHECK_INTERVAL_MINUTES,
+  TOKEN_MAINTENANCE_REFRESH_BEFORE_EXPIRY_MINUTES
+} from "../src/platforms/oceanengineCredentialStore.mjs";
 
 const TEMP_DIR = mkdtempSync(path.join(os.tmpdir(), "mwbv2-token-refresh-smoke-"));
 const ENV_PATH = path.join(TEMP_DIR, "oceanengine.env");
@@ -16,7 +20,7 @@ const OFFICIAL_REFRESH_URL = "https://api.oceanengine.com/open_api/oauth2/refres
 
 process.on("exit", () => rmSync(TEMP_DIR, { recursive: true, force: true }));
 
-function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "scheduled_daily_oauth_refresh_only", dailyAt = SCHEDULED_TOKEN_REFRESH_DAILY_AT } = {}) {
+function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = SYSTEM_TOKEN_MAINTENANCE_SCOPE_MODE, checkIntervalMinutes = TOKEN_MAINTENANCE_CHECK_INTERVAL_MINUTES } = {}) {
   writeFileSync(STATE_PATH, JSON.stringify({
     guardrails: {
       credential_refresh_allowed: enabled,
@@ -24,9 +28,10 @@ function writeState({ enabled = true, automationId = AUTOMATION_ID, mode = "sche
         mode,
         authorized_automation_id: automationId,
         timezone: "Asia/Shanghai",
-        daily_at: dailyAt,
+        check_interval_minutes: checkIntervalMinutes,
+        refresh_before_expiry_minutes: TOKEN_MAINTENANCE_REFRESH_BEFORE_EXPIRY_MINUTES,
         confirm_variable: "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
-        allowed_actions: ["oceanengine_oauth_refresh_token"]
+        allowed_actions: ["oceanengine_oauth_refresh_token", "oceanengine_oauth_token_readback"]
       }
     }
   }));
@@ -60,7 +65,7 @@ function testEnv(overrides = {}) {
   return {
     OCEANENGINE_ENV_PATH: ENV_PATH,
     MWBV2_PROJECT_STATE_PATH: STATE_PATH,
-    MWBV2_OE_TOKEN_REFRESH_AUTOMATION_ID: AUTOMATION_ID,
+    MWBV2_OE_TOKEN_MAINTENANCE_ID: AUTOMATION_ID,
     MWBV2_OE_TOKEN_REFRESH_CONFIRM: "REFRESH_ONE_OCEANENGINE_TOKEN",
     ...overrides
   };
@@ -95,7 +100,7 @@ assert.equal(outcome.exitCode, 2);
 assert.equal(fetchCalls, 0);
 assert.equal(readFileSync(ENV_PATH, "utf8"), before);
 
-writeState({ dailyAt: "12:00" });
+writeState({ checkIntervalMinutes: 30 });
 before = readFileSync(ENV_PATH, "utf8");
 outcome = await refreshOceanEngineToken({ env: testEnv(), fetchImpl: async () => { fetchCalls += 1; } });
 assert.equal(outcome.exitCode, 2);

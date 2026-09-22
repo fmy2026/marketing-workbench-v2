@@ -1,7 +1,7 @@
 {
   "schema_version": "2026-09-08.project-control-plane-v4",
   "methodology_version": "human-ai-project-v4",
-  "updated_at": "2026-09-21T07:29:00Z",
+  "updated_at": "2026-09-22T04:13:14Z",
   "project": {
     "name": "marketing-workbench-v2",
     "path": "/Users/hys/Projects/marketing-workbench-v2",
@@ -10,7 +10,7 @@
     "capabilities_version": "workflow-case-v1"
   },
   "active_task": null,
-  "last_closed_task_ref": "tasks/TASK-MWBV2-MI-TYPOGRAPHY-FINAL-ALIGNMENT-20260921.md",
+  "last_closed_task_ref": "tasks/TASK-MWBV2-OCEANENGINE-TOKEN-MAINTENANCE-20260922.md",
   "guardrails": {
     "platform_write_allowed": false,
     "workbench_runtime_write_policy": {
@@ -59,13 +59,15 @@
     },
     "credential_refresh_allowed": true,
     "credential_refresh_scope": {
-      "mode": "scheduled_daily_oauth_refresh_only",
-      "authorized_automation_id": "oceanengine-v2-token-refresh",
+      "mode": "system_hourly_oauth_maintenance_only",
+      "authorized_automation_id": "com.hys.marketing-workbench.oceanengine-token-maintenance",
       "timezone": "Asia/Shanghai",
-      "daily_at": "12:01",
+      "check_interval_minutes": 60,
+      "refresh_before_expiry_minutes": 120,
       "confirm_variable": "MWBV2_OE_TOKEN_REFRESH_CONFIRM=REFRESH_ONE_OCEANENGINE_TOKEN",
       "allowed_actions": [
-        "oceanengine_oauth_refresh_token"
+        "oceanengine_oauth_refresh_token",
+        "oceanengine_oauth_token_readback"
       ],
       "forbidden_actions": [
         "std_project/create",

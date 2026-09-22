@@ -97,11 +97,15 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hys.marketing-workbe
 
 若本机已有同名 LaunchAgent，使用 `launchctl bootout` 后再 `bootstrap`。配置变更后用 `launchctl kickstart -k gui/$(id -u)/com.hys.marketing-workbench` 重启。
 
-## 巨量 OAuth token 每日刷新
+## 巨量 OAuth token 自动维护
 
-唯一调度入口是 Codex cron `oceanengine-v2-token-refresh`，每天 `12:01`（Asia/Shanghai）执行。它仅以固定 automation ID 与确认变量运行一次 `npm run token:refresh`；刷新成功后才运行 `npm run token:status` 输出脱敏状态。该任务不得调用业务 API、创建投放对象或修改仓库文件。
+唯一调度入口是 macOS LaunchAgent `com.hys.marketing-workbench.oceanengine-token-maintenance`。它在登录时和每小时第 1 分钟运行 `npm run token:maintain`，由脚本按凭据实际到期时间决定动作：距离 access token 到期不足两小时才刷新；其他时间只写脱敏检查结果。它不依赖 Codex、模型、`active_task` 或精确触发分钟。
 
-刷新使用本机受控的 `.local/oceanengine.env`、文件锁和原子更新；成功与失败都会追加脱敏 audit。传输失败会归类为 DNS、代理/连接、TLS、超时或未知错误并以非零状态结束，以触发失败通知；不会自动重试、不会使用 curl 回退。日常排查只读取 `npm run token:status` 与 audit 的脱敏字段，禁止输出或复制 token、secret、auth code、Cookie、请求体或响应体。
+安装时先暂停 Codex 的旧 `oceanengine-v2-token-refresh` 任务，并删除任何指向旧项目的同用途 LaunchAgent；然后复制并加载 [专用 LaunchAgent 样例](launchd/com.hys.marketing-workbench.oceanengine-token-maintenance.plist.example)。环境变量、Node 路径、项目目录和 `.local/oceanengine.env` 路径必须保持样例中的当前项目绝对路径。`RunAtLoad` 只补检一次；任务不设置 `KeepAlive`。
+
+维护周期以 `.local/oceanengine.env` 的同一文件锁涵盖到期判断和刷新。刷新前会持久记录尝试状态，成功后原子写入新凭据，再调用 OAuth 已授权账户只读接口验证平台接受新 token；只在三步都成功时记录 `ready`。验证失败只在后续周期重做只读验证，不重复刷新。DNS 或连接建立失败下一周期可重试；超时、进程中断或其他结果不明会停在 `refresh_uncertain`，禁止自动重发并通知人工处理。
+
+所有状态、审计和通知均脱敏：不保存或输出 token、secret、auth code、Cookie、完整 URL、原始请求或响应。首次异常、状态恶化和恢复发送本机通知，同一未恢复问题每天最多一次。日常排查使用 `npm run token:status` 或 `npm run token:maintain` 的脱敏输出与 audit；Mac 关机、退出登录、长时休眠、断网或平台撤销授权期间无法保证持续有效，恢复后会补检。
 
 ## 数据库运维入口
 

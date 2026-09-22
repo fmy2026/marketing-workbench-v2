@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hys.marketing-workbench.oceanengine-token-maintenance</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/hys/Projects/marketing-workbench-v2/scripts/00-oceanengine-token-maintain.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/hys/Projects/marketing-workbench-v2</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>MWBV2_PROJECT_STATE_PATH</key>
+    <string>/Users/hys/Projects/marketing-workbench-v2/project.state.json</string>
+    <key>OCEANENGINE_ENV_PATH</key>
+    <string>/Users/hys/Projects/marketing-workbench-v2/.local/oceanengine.env</string>
+    <key>MWBV2_OE_TOKEN_MAINTENANCE_ID</key>
+    <string>com.hys.marketing-workbench.oceanengine-token-maintenance</string>
+    <key>MWBV2_OE_TOKEN_REFRESH_CONFIRM</key>
+    <string>REFRESH_ONE_OCEANENGINE_TOKEN</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Minute</key><integer>1</integer></dict>
+  </array>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/hys/Library/Logs/marketing-workbench/oceanengine-token-maintenance.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/hys/Library/Logs/marketing-workbench/oceanengine-token-maintenance.err.log</string>
+</dict>
+</plist>

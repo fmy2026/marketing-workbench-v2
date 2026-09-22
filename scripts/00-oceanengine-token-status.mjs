@@ -1,5 +1,3 @@
-import { ensureOceanEngineEnvScaffold, redactedCredentialStatus } from "../src/platforms/oceanengineCredentialStore.mjs";
-
-ensureOceanEngineEnvScaffold();
+import { redactedCredentialStatus } from "../src/platforms/oceanengineCredentialStore.mjs";
 
 console.log(JSON.stringify(redactedCredentialStatus(), null, 2));

@@ -58,3 +58,21 @@ export async function fetchWithDeadline(fetchImpl, input, options = {}, { timeou
     if (timer !== null) clearTimeout(timer);
   }
 }
+
+/**
+ * Bound response-body decoding separately from connection establishment. The
+ * platform may return headers and then stall while streaming a JSON body.
+ */
+export async function readResponseTextWithDeadline(response, { timeoutMs = PLATFORM_JSON_TIMEOUT_MS } = {}) {
+  if (!response || typeof response.text !== "function") throw new Error("response_text_required");
+  const boundedTimeoutMs = positiveTimeout(timeoutMs, PLATFORM_JSON_TIMEOUT_MS);
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(platformDeadlineError({ timeoutMs: boundedTimeoutMs })), boundedTimeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve(response.text()), timeout]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}

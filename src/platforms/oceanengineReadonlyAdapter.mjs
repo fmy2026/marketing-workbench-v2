@@ -425,7 +425,7 @@ export async function runOceanEngineReadonlyProbes({ bundle, draft, client } = {
       checks: [
         check("credential_required", "platform_readonly_credential", `真实平台只读凭据不可用或已过期：${credentialBlockers.join(",") || "unknown"}；只读校验不会自动刷新凭据。`, {
           gap: "credential_required",
-          nextAction: "运行 token:status；如已有有效 refresh token，再带确认变量运行 token:refresh",
+          nextAction: "运行 token:status；系统 token 维护任务会在到期窗口内自动刷新并只读验证",
           credentialBlockers
         })
       ],
